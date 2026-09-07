@@ -1,0 +1,25 @@
+{
+    "name": "EarthGame.Editor",
+    "rootNamespace": "EarthGame.Editor",
+    "references": [
+        "EarthGame.Engine",
+        "EarthGame.Shared",
+        "EarthGame.Client",
+        "EarthGame.Bootstrap",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.GPUDriven.Runtime",
+        "Unity.RenderPipelines.Universal.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

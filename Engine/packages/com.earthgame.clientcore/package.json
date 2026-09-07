@@ -1,0 +1,13 @@
+{
+  "name": "com.earthgame.clientcore",
+  "version": "0.1.0",
+  "displayName": "EarthGame Client Core",
+  "description": "The engine-free half of the EarthGame2 client: connection state machine, handshake, the read-only world mirror. The Unity client assembly wraps it; a headless two-client test drives it without Unity.",
+  "unity": "6000.3",
+  "author": { "name": "EarthGame2" },
+  "dependencies": {
+    "com.earthgame.engine": "0.1.0",
+    "com.earthgame.protocol": "0.1.0",
+    "com.earthgame.transport": "0.1.0"
+  }
+}

@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    ITransport and its implementations: the in-memory pair (single player) and LiteNetLib over UDP.
+    LiteNetLib 2.1.4 is vendored verbatim under Runtime/LiteNetLib (MIT; see THIRD_PARTY_NOTICES.md) and compiled
+    here and by Unity from the same files, so there is exactly one copy of it in the repository.
+
+    Two concessions the vendored code forces, both confined to this package: it uses `unsafe` blocks, and it
+    carries UnityEngine branches behind `#if UNITY_*` (a Debug.Log and a socket-focus fix), so the Unity asmdef
+    leaves engine references available. Our own transport files use neither; this dotnet compile, which has no
+    Unity at all, is the enforcement of that.
+
+    SIMULATE_NETWORK is defined in every configuration (and in the Unity project's scripting defines) so that
+    LiteNetLib's latency/loss simulator — the N1 harness — always exists and our wrapper needs no #if of its own.
+    The simulator is inert unless a test switches it on.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>EarthGame.Transport</RootNamespace>
+    <AssemblyName>EarthGame.Transport</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DefineConstants>$(DefineConstants);SIMULATE_NETWORK</DefineConstants>
+    <!-- The vendored code has warnings we do not own; ours stay errors via the shared props. -->
+    <NoWarn>$(NoWarn);CS0618;CS0649;CS0169;CS8632;CS1591;CS0162;CS0067;CS0414;CS0219;CS0168;CS0108;CS0109</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="packages/com.earthgame.transport/Runtime/**/*.cs" />
+  </ItemGroup>
+</Project>

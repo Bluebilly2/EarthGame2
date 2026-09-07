@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The engine-free simulation library. Compiles the same sources Unity compiles from the local package. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>EarthGame.Engine</RootNamespace>
+    <AssemblyName>EarthGame.Engine</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="packages/com.earthgame.engine/Runtime/**/*.cs" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,64 @@
+# ---- EarthGame2 ----
+# Layout: Engine/ (engine-free .NET packages + tests), Unity/ (the Unity project), Tools/ (Python),
+# Data/ (fetched datasets, not committed except fixtures), Saves/ (worlds), Docs/.
+
+# Unity project (under Unity/)
+Unity/[Ll]ibrary/
+Unity/[Tt]emp/
+Unity/[Oo]bj/
+Unity/[Bb]uild/
+Unity/[Bb]uilds/
+Unity/[Ll]ogs/
+Unity/[Uu]ser[Ss]ettings/
+Unity/[Mm]emory[Cc]aptures/
+Unity/[Rr]ecordings/
+Unity/.vs/
+Unity/.idea/
+Unity/*.csproj
+Unity/*.sln
+Unity/*.suo
+Unity/*.user
+Unity/*.userprefs
+Unity/*.pidb
+Unity/*.booproj
+Unity/*.svd
+Unity/*.pdb
+Unity/*.mdb
+Unity/*.opendb
+Unity/*.VC.db
+Unity/*.pidb.meta
+Unity/*.pdb.meta
+Unity/*.mdb.meta
+Unity/sysinfo.txt
+Unity/crashlytics-build.properties
+Unity/Assets/StreamingAssets/aa.meta
+Unity/Assets/StreamingAssets/aa/*
+
+# dotnet (engine-free packages and tests): all intermediate output is redirected to Engine/.build/
+Engine/.build/
+**/bin/
+**/obj/
+*.user
+.vs/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Datasets: fetched, never committed (see Docs/DATA_SOURCES.md). Small test fixtures are the exception.
+Data/*
+!Data/fixtures/
+!Data/README.md
+
+# Worlds, builds, run artefacts
+Saves/
+Build/
+Runs/
+*.log
+
+# Generated knowledge graphs and other build artefacts are maps, never canon (STANDARDS 17)
+graphify-out/
+Artefacts/

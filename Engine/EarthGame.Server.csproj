@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The authoritative world host. Engine-free; the only writer of the save. Never references the client. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>EarthGame.Server</RootNamespace>
+    <AssemblyName>EarthGame.Server</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="packages/com.earthgame.server/Runtime/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="EarthGame.Engine.csproj" />
+    <ProjectReference Include="EarthGame.Protocol.csproj" />
+    <ProjectReference Include="EarthGame.Transport.csproj" />
+  </ItemGroup>
+</Project>

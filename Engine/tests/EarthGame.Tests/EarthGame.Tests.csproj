@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The headless suite: NUnit on .NET 10, run with `dotnet test Engine/tests/EarthGame.Tests`.
+    Lives outside the Unity project on purpose — Unity never sees these files. Folders mirror the packages.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>EarthGame.Tests</RootNamespace>
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+    <NoWarn>$(NoWarn);NUnit2005;NUnit2007</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="NUnit" Version="4.3.2" />
+    <PackageReference Include="NUnit3TestAdapter" Version="5.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../EarthGame.Engine.csproj" />
+    <ProjectReference Include="../../EarthGame.Protocol.csproj" />
+    <ProjectReference Include="../../EarthGame.Transport.csproj" />
+    <ProjectReference Include="../../EarthGame.Server.csproj" />
+    <ProjectReference Include="../../EarthGame.ClientCore.csproj" />
+  </ItemGroup>
+</Project>

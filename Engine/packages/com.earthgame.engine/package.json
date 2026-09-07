@@ -1,0 +1,9 @@
+{
+  "name": "com.earthgame.engine",
+  "version": "0.1.0",
+  "displayName": "EarthGame Engine",
+  "description": "The engine-free simulation library of EarthGame2: world model and data layers, simulation step functions, entity store, definitions, the character mover. No UnityEngine. Compiled by Unity from this folder and by dotnet from Engine/EarthGame.Engine.csproj.",
+  "unity": "6000.3",
+  "author": { "name": "EarthGame2" },
+  "dependencies": {}
+}

@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/packages/">
+    <Project Path="EarthGame.Engine.csproj" />
+    <Project Path="EarthGame.Protocol.csproj" />
+    <Project Path="EarthGame.Transport.csproj" />
+    <Project Path="EarthGame.Server.csproj" />
+    <Project Path="EarthGame.ClientCore.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/EarthGame.Tests/EarthGame.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/EarthGame.ServerHost/EarthGame.ServerHost.csproj" />
+  </Folder>
+</Solution>

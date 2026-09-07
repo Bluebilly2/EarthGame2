@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Compiles the Unity-layer assemblies (Shared, Client, Bootstrap, Editor) from dotnet against the local editor's
+    managed DLLs and the project's package assemblies, with warnings as errors, without opening the editor and
+    without a licence. Compiling is not running: this catches a typo, a missing using, a changed signature — and
+    nothing about behaviour. It is the pre-push floor for the Unity layer (STANDARDS 6, 8).
+
+    The package assemblies (URP, Input System, ...) only exist after the editor has imported the project once, so
+    this project refuses to compile until Unity/Library/ScriptAssemblies exists rather than passing on an empty
+    reference list — a gate that cannot run fails loudly.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>EarthGame.Unity.Compile</AssemblyName>
+    <RootNamespace>EarthGame</RootNamespace>
+    <DefineConstants>$(DefineConstants);UNITY_EDITOR;UNITY_EDITOR_WIN;UNITY_STANDALONE;UNITY_STANDALONE_WIN;UNITY_6000_0_OR_NEWER;UNITY_6000_3_OR_NEWER;UNITY_2023_1_OR_NEWER;UNITY_INCLUDE_TESTS;SIMULATE_NETWORK</DefineConstants>
+    <!-- Warnings that come from REFERENCING Unity, never from our own code. -->
+    <NoWarn>$(NoWarn);CS0618;CS1701;CS1702;NU1701;CS8632</NoWarn>
+    <UnityManaged Condition="'$(UnityManaged)' == ''">C:\Program Files\Unity\Hub\Editor\6000.3.22f1\Editor\Data\Managed</UnityManaged>
+    <UnityScriptAssemblies>$(MSBuildThisFileDirectory)..\Unity\Library\ScriptAssemblies</UnityScriptAssemblies>
+    <UnityPackageCache>$(MSBuildThisFileDirectory)..\Unity\Library\PackageCache</UnityPackageCache>
+  </PropertyGroup>
+
+  <Target Name="RequireUnityImport" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(UnityManaged)\UnityEngine.dll')" Text="Unity's managed assemblies were not found at $(UnityManaged); pass -p:UnityManaged=... for another install." />
+    <Error Condition="!Exists('$(UnityScriptAssemblies)')" Text="$(UnityScriptAssemblies) does not exist: open or batch-import the Unity project once so the package assemblies exist, then run this check." />
+  </Target>
+
+  <ItemGroup>
+    <Compile Include="../Unity/Assets/EarthGame/**/*.cs" />
+    <ProjectReference Include="EarthGame.Engine.csproj" />
+    <ProjectReference Include="EarthGame.Protocol.csproj" />
+    <ProjectReference Include="EarthGame.Transport.csproj" />
+    <ProjectReference Include="EarthGame.Server.csproj" />
+    <ProjectReference Include="EarthGame.ClientCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="$(UnityManaged)\UnityEngine.dll" />
+    <Reference Include="$(UnityManaged)\UnityEditor.dll" />
+    <Reference Include="$(UnityManaged)\UnityEngine\*.dll" />
+    <Reference Include="$(UnityManaged)\UnityEditor\*.dll" />
+    <Reference Include="$(UnityScriptAssemblies)\*.dll" Exclude="$(UnityScriptAssemblies)\EarthGame.*.dll" />
+    <!-- NUnit is a precompiled DLL inside Unity's ext.nunit package, not a script assembly; the folder name
+         carries a content hash that changes with the package version, hence the wildcard. -->
+    <Reference Include="$(UnityPackageCache)\com.unity.ext.nunit@*\net40\unity-custom\nunit.framework.dll" />
+  </ItemGroup>
+</Project>

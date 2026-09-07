@@ -1,0 +1,16 @@
+{
+    "name": "EarthGame.Protocol",
+    "rootNamespace": "EarthGame.Protocol",
+    "references": [
+        "EarthGame.Engine"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

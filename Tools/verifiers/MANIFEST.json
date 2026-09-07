@@ -1,0 +1,54 @@
+{
+  "_note": "Verifiers are authored only by the owner (CANON.md ruling 16). The gate runner derives each status from the file on disk: missing (no file), stub (empty or carrying the '# STUB' marker), present. Claude never edits files under owner/.",
+  "verifiers": [
+    {
+      "name": "decode_check",
+      "path": "Tools/verifiers/owner/decode_check.py",
+      "owner": "William",
+      "gates": ["M1.1"],
+      "checks": "One Terrarium tile decodes to metres that match a known pixel (elevation_m = R*256 + G + B/256 - 32768)."
+    },
+    {
+      "name": "region_stats",
+      "path": "Tools/verifiers/owner/region_stats.py",
+      "owner": "William",
+      "gates": ["M1.1"],
+      "checks": "The baked heights raster's min, max and sea fraction are plausible; refuses zero rows."
+    },
+    {
+      "name": "summit_check",
+      "path": "Tools/verifiers/owner/summit_check.py",
+      "owner": "William",
+      "gates": ["M1.1", "M1.2"],
+      "checks": "A named summit and the sea are within tolerance in the baked raster; reddens if the bake is mirrored."
+    },
+    {
+      "name": "solar_check",
+      "path": "Tools/verifiers/owner/solar_check.py",
+      "owner": "William",
+      "gates": ["M1.2", "M1.A"],
+      "checks": "Sunrise at Bherwerre on 25 Aug 2026 from an independent formula matches the engine's SolarClock."
+    },
+    {
+      "name": "station_table",
+      "path": "Tools/verifiers/owner/station_table.py",
+      "owner": "William",
+      "gates": ["M2-climate"],
+      "checks": "Parses hand-downloaded BoM CSVs for stations 068034 and 068072 into the calibration table, checked by eye against the page."
+    },
+    {
+      "name": "corpus_check",
+      "path": "Tools/verifiers/owner/corpus_check.py",
+      "owner": "William",
+      "gates": ["M1.10"],
+      "checks": "Independently re-derives the corpus verdict from the raw result files and their mtimes, so the runner cannot grade itself."
+    },
+    {
+      "name": "join_check",
+      "path": "Tools/verifiers/owner/join_check.py",
+      "owner": "William",
+      "gates": ["M1.B"],
+      "checks": "Recomputes N1-N4 from the contracted run logs independently of the runner's own summary."
+    }
+  ]
+}

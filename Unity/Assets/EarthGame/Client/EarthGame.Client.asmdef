@@ -1,0 +1,21 @@
+{
+    "name": "EarthGame.Client",
+    "rootNamespace": "EarthGame.Client",
+    "references": [
+        "EarthGame.Engine",
+        "EarthGame.Protocol",
+        "EarthGame.Transport",
+        "EarthGame.ClientCore",
+        "EarthGame.Shared",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

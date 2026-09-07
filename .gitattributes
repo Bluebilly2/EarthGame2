@@ -1,0 +1,47 @@
+# Text files: normalised line endings in the repo, LF on checkout for cross-platform tooling.
+* text=auto eol=lf
+*.cs text diff=csharp
+*.py text
+*.md text
+*.json text
+*.yml text
+*.yaml text
+*.asmdef text
+*.shader text
+*.hlsl text
+*.cginc text
+*.uxml text
+*.uss text
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Unity YAML assets (force-text serialization is set in the project): diff as text, never merge with LFS.
+*.unity text merge=unityyamlmerge
+*.prefab text merge=unityyamlmerge
+*.asset text merge=unityyamlmerge
+*.mat text merge=unityyamlmerge
+*.meta text
+*.anim text
+*.controller text
+*.physicMaterial text
+*.physicsMaterial text
+*.renderTexture text
+*.inputactions text
+
+# Binary assets (Git LFS when it is installed; plain binary otherwise)
+*.png filter=lfs diff=lfs merge=lfs -text
+*.jpg filter=lfs diff=lfs merge=lfs -text
+*.tga filter=lfs diff=lfs merge=lfs -text
+*.psd filter=lfs diff=lfs merge=lfs -text
+*.exr filter=lfs diff=lfs merge=lfs -text
+*.fbx filter=lfs diff=lfs merge=lfs -text
+*.glb filter=lfs diff=lfs merge=lfs -text
+*.blend filter=lfs diff=lfs merge=lfs -text
+*.wav filter=lfs diff=lfs merge=lfs -text
+*.ogg filter=lfs diff=lfs merge=lfs -text
+*.mp3 filter=lfs diff=lfs merge=lfs -text
+*.ttf filter=lfs diff=lfs merge=lfs -text
+*.otf filter=lfs diff=lfs merge=lfs -text
+*.r16 filter=lfs diff=lfs merge=lfs -text
+*.r32 filter=lfs diff=lfs merge=lfs -text
+*.dll binary

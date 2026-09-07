@@ -1,0 +1,9 @@
+{
+  "name": "com.earthgame.transport",
+  "version": "0.1.0",
+  "displayName": "EarthGame Transport",
+  "description": "ITransport and its implementations: the in-memory pair that is single player, and LiteNetLib over UDP (vendored, MIT). Nothing else in the codebase knows which one is in use. No UnityEngine.",
+  "unity": "6000.3",
+  "author": { "name": "EarthGame2" },
+  "dependencies": {}
+}

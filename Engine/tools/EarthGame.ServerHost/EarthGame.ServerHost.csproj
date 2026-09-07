@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The dedicated server: a plain .NET console that hosts EarthGame.Server over UDP with no Unity anywhere.
+    Minecraft's server.jar shape — `dotnet EarthGame.ServerHost.dll +server.port 28015 +server.password x`,
+    `stop` on stdin. The same GameServer object runs inside the Unity client in SOLO and HOST.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>EarthGame.ServerHost</RootNamespace>
+    <AssemblyName>EarthGame.ServerHost</AssemblyName>
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../EarthGame.Engine.csproj" />
+    <ProjectReference Include="../../EarthGame.Protocol.csproj" />
+    <ProjectReference Include="../../EarthGame.Transport.csproj" />
+    <ProjectReference Include="../../EarthGame.Server.csproj" />
+  </ItemGroup>
+</Project>

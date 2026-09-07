@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The engine-free half of the client: connection state machine, handshake, the read-only world mirror.
+    The Unity client assembly wraps this; a headless two-client session test drives it without Unity.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>EarthGame.ClientCore</RootNamespace>
+    <AssemblyName>EarthGame.ClientCore</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="packages/com.earthgame.clientcore/Runtime/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="EarthGame.Engine.csproj" />
+    <ProjectReference Include="EarthGame.Protocol.csproj" />
+    <ProjectReference Include="EarthGame.Transport.csproj" />
+  </ItemGroup>
+</Project>

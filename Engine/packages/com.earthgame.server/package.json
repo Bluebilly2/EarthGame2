@@ -1,0 +1,13 @@
+{
+  "name": "com.earthgame.server",
+  "version": "0.1.0",
+  "displayName": "EarthGame Server",
+  "description": "The authoritative world host of EarthGame2: fixed-rate tick, sessions, interest management, snapshots, movement validation, save/load. The only writer of the save. Engine-free; never references the client.",
+  "unity": "6000.3",
+  "author": { "name": "EarthGame2" },
+  "dependencies": {
+    "com.earthgame.engine": "0.1.0",
+    "com.earthgame.protocol": "0.1.0",
+    "com.earthgame.transport": "0.1.0"
+  }
+}

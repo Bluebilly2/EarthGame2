@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Wire format only: messages, span-based serialisation, ids, protocol version. Engine-free. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>EarthGame.Protocol</RootNamespace>
+    <AssemblyName>EarthGame.Protocol</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="packages/com.earthgame.protocol/Runtime/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="EarthGame.Engine.csproj" />
+  </ItemGroup>
+</Project>

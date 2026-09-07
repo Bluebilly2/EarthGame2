@@ -1,0 +1,9 @@
+{
+  "name": "com.earthgame.protocol",
+  "version": "0.1.0",
+  "displayName": "EarthGame Protocol",
+  "description": "Wire format of EarthGame2: message structs, span-based serialisation, ids, protocol version, dirty masks and snapshot types. The only vocabulary client and server share. No UnityEngine.",
+  "unity": "6000.3",
+  "author": { "name": "EarthGame2" },
+  "dependencies": { "com.earthgame.engine": "0.1.0" }
+}

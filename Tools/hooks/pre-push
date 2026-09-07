@@ -1,0 +1,44 @@
+#!/bin/sh
+# EarthGame2 pre-push gate. Activate once per clone:  git config core.hooksPath Tools/hooks
+#
+# Three checks, each of which fails LOUDLY rather than quietly passing when it cannot run:
+#   1. the engine suite (dotnet build + dotnet test), exit codes unmasked;
+#   2. the Unity-layer compile check, when its project exists;
+#   3. the verifier-lane authorship rule: no commit being pushed may touch Tools/verifiers/owner/ while carrying
+#      Claude's co-author trailer (CANON.md ruling 16).
+set -u
+root="$(git rev-parse --show-toplevel)"
+cd "$root" || exit 1
+
+if ! command -v dotnet >/dev/null 2>&1; then
+  echo "pre-push: dotnet is not on PATH; the gate cannot run, so it fails. Install the .NET 10 SDK." >&2
+  exit 1
+fi
+
+echo "pre-push: dotnet build"
+dotnet build Engine/EarthGame.slnx -c Debug --nologo -v minimal || { echo "pre-push: build RED" >&2; exit 1; }
+echo "pre-push: dotnet test"
+dotnet test Engine/EarthGame.slnx -c Debug --nologo --no-build || { echo "pre-push: tests RED" >&2; exit 1; }
+
+if [ -f Engine/EarthGame.Unity.Compile.csproj ]; then
+  echo "pre-push: Unity-layer compile check"
+  dotnet build Engine/EarthGame.Unity.Compile.csproj -c Debug --nologo -v minimal || { echo "pre-push: Unity compile RED" >&2; exit 1; }
+fi
+
+# stdin: <local ref> <local sha> <remote ref> <remote sha> per ref being pushed
+zero=0000000000000000000000000000000000000000
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue
+  if [ "$remote_sha" = "$zero" ]; then range="$local_sha"; else range="$remote_sha..$local_sha"; fi
+  for sha in $(git rev-list "$range"); do
+    if git show -s --format=%B "$sha" | grep -q "Co-Authored-By: Claude"; then
+      if git diff-tree --no-commit-id --name-only -r "$sha" | grep -q "^Tools/verifiers/owner/"; then
+        echo "pre-push: commit $sha carries Claude's co-author trailer and touches Tools/verifiers/owner/, the owner's lane. Rejected (CANON.md ruling 16)." >&2
+        exit 1
+      fi
+    fi
+  done
+done
+
+echo "pre-push: green"
+exit 0

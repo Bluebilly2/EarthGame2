@@ -1,0 +1,27 @@
+<Project>
+  <!--
+    Shared build settings for every dotnet project under Engine/.
+
+    LangVersion 9 and .NET Standard 2.1 are Unity 6.3's ceiling (frozen through Unity 6.7; C# 14 / .NET 10
+    arrive with CoreCLR in Unity 7). The engine-free packages are compiled by BOTH Unity and dotnet from the
+    same Runtime/** sources, so dotnet must refuse exactly what Unity would refuse: a green dotnet build must
+    never mean less than a green Unity compile. The test projects share the language level for the same reason,
+    even though they only ever run under dotnet.
+
+    All intermediate and final output is redirected to Engine/.build/ so that no bin/ or obj/ folder ever
+    appears inside a package folder — Unity imports everything under a file: package, and an obj/ folder full
+    of generated .cs and .dll files would be imported as assets.
+  -->
+  <PropertyGroup>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <BaseOutputPath>$(MSBuildThisFileDirectory).build\bin\$(MSBuildProjectName)\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory).build\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(MSBuildThisFileDirectory).build\obj\$(MSBuildProjectName)\</MSBuildProjectExtensionsPath>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+</Project>

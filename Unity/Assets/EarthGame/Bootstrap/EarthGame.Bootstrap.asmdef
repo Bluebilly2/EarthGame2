@@ -1,0 +1,22 @@
+{
+    "name": "EarthGame.Bootstrap",
+    "rootNamespace": "EarthGame.Bootstrap",
+    "references": [
+        "EarthGame.Engine",
+        "EarthGame.Protocol",
+        "EarthGame.Transport",
+        "EarthGame.Server",
+        "EarthGame.ClientCore",
+        "EarthGame.Client",
+        "EarthGame.Shared"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
