@@ -29,6 +29,7 @@ namespace EarthGame.Server
         private readonly List<PlayerSession> _sessions = new List<PlayerSession>();
         private readonly HashSet<int> _refused = new HashSet<int>();
         private readonly PacketWriter _writer = new PacketWriter(512);
+        private readonly Dictionary<string, SavedPlayer> _savedPlayers = new Dictionary<string, SavedPlayer>(StringComparer.Ordinal);
         private uint _nextSessionId = 1;
 
         public GameServer(ServerConfig config, IServerTransport transport, WorldState world)
@@ -63,6 +64,20 @@ namespace EarthGame.Server
 
         /// <summary>Raised when a reported move is refused, with the reason; every one on a legal walk is a false positive (N2).</summary>
         public event Action<PlayerSession, string> MoveCorrected;
+
+        /// <summary>
+        /// Players a previous run left in this world, by name: one who joins with a saved name wakes where they
+        /// were, not at the region's wake point. Read by the host from the world folder before listening.
+        /// </summary>
+        public void RememberPlayers(IEnumerable<SavedPlayer> players)
+        {
+            if (players == null) return;
+            foreach (SavedPlayer p in players)
+                if (!string.IsNullOrEmpty(p.Name)) _savedPlayers[p.Name] = p;
+        }
+
+        /// <summary>Writes the world folder: the server is its only writer (ARCHITECTURE §6).</summary>
+        public void Save(string dir, string nowUtcText) => WorldSave.Write(dir, World, _sessions, nowUtcText);
 
         /// <summary>Starts listening. The world exists before the first player does.</summary>
         public void Listen(int port) => _transport.Listen(port);
@@ -200,6 +215,16 @@ namespace EarthGame.Server
             _sessions.Add(session);
 
             Double3 spawn = World.SpawnPoint();
+            SavedPlayer saved;
+            if (_savedPlayers.TryGetValue(name, out saved))
+            {
+                spawn = saved.Body.Feet;
+                session.Body = saved.Body;
+                session.YawDeg = saved.YawDeg;
+                session.PitchDeg = saved.PitchDeg;
+                session.LastMoveTick = World.Tick;
+                session.HasBody = true;
+            }
             WelcomeMessage welcome;
             welcome.SessionId = session.SessionId;
             welcome.Seed = World.Seed;
