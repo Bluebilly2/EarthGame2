@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Threading;
 using EarthGame.Engine;
 using EarthGame.Server;
@@ -13,7 +14,7 @@ namespace EarthGame.ServerHost
     /// DEDICATED: the server alone, over UDP, driven by a wall-clock loop and a stdin console.
     /// Arguments follow the +key value convention (Rust's, and close to Minecraft's server.properties):
     ///   +server.port 28015  +server.password secret  +server.maxplayers 8  +server.seed 1347
-    ///   +server.region bherwerre  +server.tickrate 20
+    ///   +server.region bherwerre  +server.tickrate 20  +server.data Data/regions/bherwerre
     /// Console commands: status, pause, resume, stop.
     /// </summary>
     public static class Program
@@ -37,12 +38,29 @@ namespace EarthGame.ServerHost
                 return 2;
             }
 
+            // The region's baked ground. Without it the server still runs, and says so: movement is then validated
+            // for speed and extent only, never against a ground it does not have.
+            string dataDir = Str(a, "server.data", DefaultDataDir(region));
+            Heightfield terrain = null;
+            string sidecar = Path.Combine(dataDir, "heights.json");
+            if (File.Exists(sidecar))
+            {
+                RegionRaster raster = RegionRaster.Load(sidecar);
+                terrain = new Heightfield(raster);
+                Log("terrain " + sidecar + ": " + raster.Width + "x" + raster.Height + " at " + raster.CellM.ToString("0.#", CultureInfo.InvariantCulture) + " m");
+            }
+            else
+            {
+                Log("no terrain: " + sidecar + " not found; movement is validated for speed and extent only");
+            }
+
             // The world starts at the region's canonical wake (Region owns the day, hour and longitude).
-            WorldState world = new WorldState(seed, region.Id, region.WakeClock());
+            WorldState world = new WorldState(seed, region, region.WakeClock(), terrain);
             UdpServerTransport transport = new UdpServerTransport(new UdpOptions());
             GameServer server = new GameServer(config, transport, world);
             server.SessionJoined += s => Log("join   " + s.Name + " (session " + s.SessionId + ") at tick " + s.JoinedTick);
             server.SessionLeft += (s, reason) => Log("leave  " + s.Name + " (session " + s.SessionId + "): " + reason);
+            server.MoveCorrected += (s, reason) => Log("correct " + s.Name + ": " + reason);
 
             try
             {
@@ -115,6 +133,15 @@ namespace EarthGame.ServerHost
             Log("stopping");
             transport.Dispose();
             return 0;
+        }
+
+        /// <summary>Data/regions/&lt;region&gt; under the repository root (found by global.json above the working directory), else under the working directory.</summary>
+        private static string DefaultDataDir(Region region)
+        {
+            string dir = Directory.GetCurrentDirectory();
+            while (dir != null && !File.Exists(Path.Combine(dir, "global.json")))
+                dir = Path.GetDirectoryName(dir);
+            return Path.Combine(dir ?? Directory.GetCurrentDirectory(), "Data", "regions", region.Id);
         }
 
         private static void Log(string line)

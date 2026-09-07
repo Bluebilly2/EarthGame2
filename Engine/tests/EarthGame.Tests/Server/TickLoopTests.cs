@@ -10,7 +10,7 @@ namespace EarthGame.Tests.Server
         private static GameServer NewServer(int tickRate = 20, int maxSteps = 5)
         {
             InMemoryTransport.CreatePair(out IServerTransport st, out IClientTransport _);
-            WorldState world = new WorldState(1, Region.Bherwerre.Id, Region.Bherwerre.WakeClock());
+            WorldState world = new WorldState(1, Region.Bherwerre, Region.Bherwerre.WakeClock());
             return new GameServer(new ServerConfig { TickRate = tickRate, MaxStepsPerUpdate = maxSteps }, st, world);
         }
 

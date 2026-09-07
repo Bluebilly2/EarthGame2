@@ -1,3 +1,4 @@
+using EarthGame.Engine;
 using EarthGame.Transport;
 
 namespace EarthGame.Server
@@ -18,5 +19,18 @@ namespace EarthGame.Server
         public string Name { get; }
         public IConnection Connection { get; }
         public long JoinedTick { get; }
+
+        /// <summary>The last body state the server accepted from this player; meaningful once <see cref="HasBody"/>.</summary>
+        public MoverState Body;
+        public float YawDeg;
+        public float PitchDeg;
+        public bool HasBody;
+        /// <summary>Sequence number of the last accepted move, so a Correction can name the move it answers.</summary>
+        public uint LastSequence;
+        /// <summary>World tick at which the last move was accepted; the interval the next report is measured over.</summary>
+        public long LastMoveTick;
+        /// <summary>Counts for the N2 budget: every correction on a legal walk is a false positive.</summary>
+        public int MovesAccepted;
+        public int Corrections;
     }
 }

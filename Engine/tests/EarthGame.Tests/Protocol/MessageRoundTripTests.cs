@@ -40,9 +40,15 @@ namespace EarthGame.Tests.Protocol
             m.TotalHours = 5663.9583333333;
             m.Tick = long.MaxValue;
             m.TickRate = 20;
+            m.SpawnEast = -2410.5;
+            m.SpawnUp = 3.25;
+            m.SpawnNorth = -2113.75;
             PacketWriter w = new PacketWriter();
             m.Write(w);
             WelcomeMessage back = WelcomeMessage.Read(ReaderOver(w));
+            Assert.That(back.SpawnEast, Is.EqualTo(-2410.5));
+            Assert.That(back.SpawnUp, Is.EqualTo(3.25));
+            Assert.That(back.SpawnNorth, Is.EqualTo(-2113.75));
             Assert.That(back.SessionId, Is.EqualTo(uint.MaxValue));
             Assert.That(back.Seed, Is.EqualTo(0xDEADBEEFCAFEF00DUL));
             Assert.That(back.RegionId, Is.EqualTo(m.RegionId));
@@ -88,6 +94,7 @@ namespace EarthGame.Tests.Protocol
         {
             WelcomeMessage m;
             m.SessionId = 1; m.Seed = 2; m.RegionId = "bherwerre"; m.TotalHours = 3; m.Tick = 4; m.TickRate = 20;
+            m.SpawnEast = 0; m.SpawnUp = 0; m.SpawnNorth = 0;
             PacketWriter w = new PacketWriter();
             m.Write(w);
             byte[] bytes = w.ToArray();

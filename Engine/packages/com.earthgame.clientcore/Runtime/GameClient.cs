@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using EarthGame.Engine;
 using EarthGame.Protocol;
 using EarthGame.Transport;
 
@@ -15,16 +17,18 @@ namespace EarthGame.ClientCore
     }
 
     /// <summary>
-    /// The engine-free client: it owns the connection, speaks the handshake and holds what the server has told
-    /// it. It never simulates the world as truth — later it holds a read-only mirror and a predicted local body.
-    /// The Unity client wraps this and draws what it holds.
+    /// The engine-free client: it owns the connection, speaks the handshake, reports its own body's movement and
+    /// holds what the server has told it (the other players' bodies, and any correction of its own). It never
+    /// simulates the world as truth. The Unity client wraps this and draws what it holds.
     /// </summary>
     public sealed class GameClient
     {
         private readonly IClientTransport _transport;
         private readonly PacketWriter _writer = new PacketWriter(256);
+        private readonly Dictionary<uint, PlayerStateMessage> _others = new Dictionary<uint, PlayerStateMessage>();
         private string _playerName;
         private string _password;
+        private uint _sequence;
 
         public GameClient(IClientTransport transport)
         {
@@ -45,8 +49,17 @@ namespace EarthGame.ClientCore
         /// <summary>The server's tick as of the most recent Pong.</summary>
         public long LastServerTick { get; private set; } = -1;
 
+        /// <summary>The most recent correction of this client's own body, and how many there have been.</summary>
+        public CorrectionMessage LastCorrection { get; private set; }
+        public int CorrectionCount { get; private set; }
+
+        /// <summary>The other players' bodies as the server last sent them, by session id.</summary>
+        public IReadOnlyDictionary<uint, PlayerStateMessage> Others => _others;
+
         public event Action<WelcomeMessage> Welcomed;
         public event Action<string> Dropped;
+        public event Action<CorrectionMessage> Corrected;
+        public event Action<PlayerStateMessage> PlayerStateReceived;
 
         /// <summary>Opens the connection; the Hello is sent when the transport reports Connected.</summary>
         public void Connect(string address, int port, string playerName, string password)
@@ -67,6 +80,25 @@ namespace EarthGame.ClientCore
             _writer.Reset();
             ping.Write(_writer);
             _transport.Connection.Send(_writer.Written, Delivery.Unreliable);
+        }
+
+        /// <summary>
+        /// Reports the input applied since the last report and the body it produced. Unreliable and unordered on
+        /// the wire; the sequence number returned is what a Correction will name.
+        /// </summary>
+        public uint SendMove(in MoverInput input, float yawDeg, float pitchDeg, in MoverState body)
+        {
+            if (State != ClientState.Connected) return 0;
+            PlayerMoveMessage move;
+            move.Sequence = ++_sequence;
+            move.Input = input;
+            move.YawDeg = yawDeg;
+            move.PitchDeg = pitchDeg;
+            move.Body = body;
+            _writer.Reset();
+            move.Write(_writer);
+            _transport.Connection.Send(_writer.Written, Delivery.Unreliable);
+            return move.Sequence;
         }
 
         /// <summary>Pumps the transport and handles everything it reports. Call once per frame.</summary>
@@ -149,6 +181,25 @@ namespace EarthGame.ClientCore
                         reader.ExpectEnd();
                         LastRttMs = clientTimeMs - pong.ClientTimeMs;
                         LastServerTick = pong.ServerTick;
+                        break;
+                    }
+                    case MessageKind.Correction:
+                    {
+                        CorrectionMessage correction = CorrectionMessage.Read(reader);
+                        reader.ExpectEnd();
+                        LastCorrection = correction;
+                        CorrectionCount++;
+                        Corrected?.Invoke(correction);
+                        break;
+                    }
+                    case MessageKind.PlayerState:
+                    {
+                        PlayerStateMessage state = PlayerStateMessage.Read(reader);
+                        reader.ExpectEnd();
+                        // Unreliable and unordered: an older report arriving late must not overwrite a newer one.
+                        if (_others.TryGetValue(state.SessionId, out PlayerStateMessage held) && held.ServerTick > state.ServerTick) break;
+                        _others[state.SessionId] = state;
+                        PlayerStateReceived?.Invoke(state);
                         break;
                     }
                     default:

@@ -1,3 +1,5 @@
+using EarthGame.Engine;
+
 namespace EarthGame.Server
 {
     /// <summary>What a server is started with. Read once at start; changing it later is a restart.</summary>
@@ -17,5 +19,11 @@ namespace EarthGame.Server
 
         /// <summary>Longest a player name may be; longer names are refused, never truncated silently.</summary>
         public int MaxPlayerNameLength = 32;
+
+        /// <summary>The mover's numbers, shared with every client so the validator's ceiling is the mover's own.</summary>
+        public MoverConfig Mover = MoverConfig.Default;
+
+        /// <summary>How far a client's reported movement may stray from what the mover allows before it is corrected.</summary>
+        public MovementRules Movement = new MovementRules();
     }
 }

@@ -14,6 +14,11 @@ namespace EarthGame.Server
     ///
     /// <para>Pause is a server concept: while <see cref="Paused"/>, the loop still pumps the transport (so a
     /// paused host still answers pings and refuses late joiners cleanly) but releases no world steps.</para>
+    ///
+    /// <para>Movement is client-authoritative and server-validated: a PlayerMove is checked by
+    /// <see cref="MovementValidator"/> against the last accepted body, the heightfield and the region's edge, and
+    /// a violation is answered with a Correction to where the server holds the player. Accepted bodies are sent
+    /// to every other session after each tick.</para>
     /// </summary>
     public sealed class GameServer
     {
@@ -37,6 +42,9 @@ namespace EarthGame.Server
         /// <summary>The world this server is authoritative for.</summary>
         public WorldState World { get; }
 
+        /// <summary>The configuration the server was started with; the mover numbers in it are what clients must use.</summary>
+        public ServerConfig Config => _config;
+
         /// <summary>Connected players, in join order.</summary>
         public IReadOnlyList<PlayerSession> Sessions => _sessions;
 
@@ -53,6 +61,9 @@ namespace EarthGame.Server
         public event Action<PlayerSession> SessionJoined;
         public event Action<PlayerSession, string> SessionLeft;
 
+        /// <summary>Raised when a reported move is refused, with the reason; every one on a legal walk is a false positive (N2).</summary>
+        public event Action<PlayerSession, string> MoveCorrected;
+
         /// <summary>Starts listening. The world exists before the first player does.</summary>
         public void Listen(int port) => _transport.Listen(port);
 
@@ -68,12 +79,15 @@ namespace EarthGame.Server
             while (_transport.Poll(out evt)) Handle(evt);
 
             _accumulator.Accumulate(realSecondsElapsed);
+            bool stepped = false;
             while (_accumulator.TryStep())
             {
                 if (Paused) continue;
                 World.Step(_accumulator.StepSeconds);
                 Stepped?.Invoke(World, _accumulator.StepSeconds);
+                stepped = true;
             }
+            if (stepped) BroadcastBodies();
         }
 
         private void Handle(TransportEvent evt)
@@ -138,6 +152,13 @@ namespace EarthGame.Server
                         connection.Send(_writer.Written, Delivery.Unreliable);
                         break;
                     }
+                    case MessageKind.PlayerMove:
+                    {
+                        PlayerMoveMessage move = PlayerMoveMessage.Read(reader);
+                        reader.ExpectEnd();
+                        HandlePlayerMove(session, move);
+                        break;
+                    }
                     default:
                         // Unknown or out-of-place kinds are ignored, not fatal: a newer client may speak more
                         // than this server understands, and the protocol version check already gates layout.
@@ -178,6 +199,7 @@ namespace EarthGame.Server
             _sessionsByConnection[connection.Id] = session;
             _sessions.Add(session);
 
+            Double3 spawn = World.SpawnPoint();
             WelcomeMessage welcome;
             welcome.SessionId = session.SessionId;
             welcome.Seed = World.Seed;
@@ -185,10 +207,74 @@ namespace EarthGame.Server
             welcome.TotalHours = World.Clock.TotalHours;
             welcome.Tick = World.Tick;
             welcome.TickRate = (byte)_config.TickRate;
+            welcome.SpawnEast = spawn.X;
+            welcome.SpawnUp = spawn.Y;
+            welcome.SpawnNorth = spawn.Z;
             _writer.Reset();
             welcome.Write(_writer);
             connection.Send(_writer.Written, Delivery.Reliable);
             SessionJoined?.Invoke(session);
+        }
+
+        private void HandlePlayerMove(PlayerSession session, PlayerMoveMessage move)
+        {
+            double interval = session.HasBody ? (World.Tick - session.LastMoveTick) * _accumulator.StepSeconds : 0.0;
+            string reason = MovementValidator.Check(session.Body, session.HasBody, move.Body, interval, World.Terrain,
+                                                    World.Region.HalfExtentM, _config.Mover, _config.Movement);
+            if (reason == null)
+            {
+                session.Body = move.Body;
+                session.YawDeg = move.YawDeg;
+                session.PitchDeg = move.PitchDeg;
+                session.LastSequence = move.Sequence;
+                session.LastMoveTick = World.Tick;
+                session.HasBody = true;
+                session.MovesAccepted++;
+                return;
+            }
+
+            session.Corrections++;
+            CorrectionMessage correction;
+            correction.Sequence = move.Sequence;
+            correction.ServerTick = World.Tick;
+            if (session.HasBody)
+            {
+                correction.Body = session.Body;
+            }
+            else
+            {
+                Double3 spawn = World.SpawnPoint();
+                correction.Body = MoverState.AtRest(spawn.X, spawn.Y, spawn.Z);
+            }
+            correction.Reason = reason;
+            _writer.Reset();
+            correction.Write(_writer);
+            session.Connection.Send(_writer.Written, Delivery.Reliable);
+            MoveCorrected?.Invoke(session, reason);
+        }
+
+        private void BroadcastBodies()
+        {
+            if (_sessions.Count < 2) return;
+            for (int i = 0; i < _sessions.Count; i++)
+            {
+                PlayerSession subject = _sessions[i];
+                if (!subject.HasBody) continue;
+                PlayerStateMessage state;
+                state.SessionId = subject.SessionId;
+                state.Sequence = subject.LastSequence;
+                state.ServerTick = World.Tick;
+                state.YawDeg = subject.YawDeg;
+                state.PitchDeg = subject.PitchDeg;
+                state.Body = subject.Body;
+                _writer.Reset();
+                state.Write(_writer);
+                for (int j = 0; j < _sessions.Count; j++)
+                {
+                    if (j == i) continue;
+                    _sessions[j].Connection.Send(_writer.Written, Delivery.Unreliable);
+                }
+            }
         }
 
         private void Refuse(IConnection connection, string reason)

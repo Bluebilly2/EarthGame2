@@ -17,7 +17,7 @@ namespace EarthGame.Tests.Transport
         private const int Port = 28915;
 
         private static WorldState NewWorld() =>
-            new WorldState(1347, Region.Bherwerre.Id, Region.Bherwerre.WakeClock());
+            new WorldState(1347, Region.Bherwerre, Region.Bherwerre.WakeClock());
 
         /// <summary>
         /// Pumps both ends against ONE clock. The client is handed that clock's milliseconds on every update and

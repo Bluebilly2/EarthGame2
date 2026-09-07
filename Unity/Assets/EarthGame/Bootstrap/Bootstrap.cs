@@ -52,7 +52,7 @@ namespace EarthGame.Bootstrap
             _mode = LaunchMode.Dedicated;
 #endif
             Region region = Region.Bherwerre;
-            WorldState world = new WorldState(_seed, region.Id, region.WakeClock());
+            WorldState world = new WorldState(_seed, region, region.WakeClock());
 
             switch (_mode)
             {

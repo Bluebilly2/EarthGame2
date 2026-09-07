@@ -8,8 +8,11 @@ namespace EarthGame.Protocol
     /// </summary>
     public static class ProtocolInfo
     {
-        /// <summary>Wire protocol version. History: 1 — M1.0 handshake (Hello, Welcome, Refused, Ping, Pong).</summary>
-        public const ushort Version = 1;
+        /// <summary>
+        /// Wire protocol version. History: 1 — M1.0 handshake (Hello, Welcome, Refused, Ping, Pong);
+        /// 2 — M1.A movement (Welcome carries the spawn point; PlayerMove, PlayerState, Correction).
+        /// </summary>
+        public const ushort Version = 2;
 
         /// <summary>
         /// Largest payload a single message may carry. Well under the ~64 KB reliable-fragmentation ceiling of

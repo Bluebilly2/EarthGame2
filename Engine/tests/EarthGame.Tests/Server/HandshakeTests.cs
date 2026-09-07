@@ -14,7 +14,7 @@ namespace EarthGame.Tests.Server
     public sealed class HandshakeTests
     {
         private static WorldState NewWorld() =>
-            new WorldState(1347, Region.Bherwerre.Id, Region.Bherwerre.WakeClock());
+            new WorldState(1347, Region.Bherwerre, Region.Bherwerre.WakeClock());
 
         private static void Pump(GameServer server, GameClient client, int rounds = 20, double dt = 0.05)
         {
