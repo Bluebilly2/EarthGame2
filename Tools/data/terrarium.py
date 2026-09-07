@@ -9,6 +9,12 @@ import math
 
 TILE_PX = 256
 EARTH_RADIUS_M = 6_371_000.0
+
+# The first region's numbers as the Python tools default to them. Engine's Region.Bherwerre is the owner of
+# these facts; the frame fixture (write_fixtures.py) carries them across and CoordinateTests refuses a drift.
+BHERWERRE_CENTRE_LAT = -35.140
+BHERWERRE_CENTRE_LON = 150.675
+BHERWERRE_EXTENT_M = 8000.0
 TILE_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
 ATTRIBUTION = ("Elevation data: AWS Terrain Tiles, derived from NASA SRTM, USGS GMTED2010/NED, NOAA ETOPO1, GEBCO, "
                "Natural Resources Canada, Geoscience Australia, LINZ and Kartverket.")

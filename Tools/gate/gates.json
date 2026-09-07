@@ -8,14 +8,32 @@
       ],
       "verifiers": []
     },
-    "M1.1": { "steps": [], "verifiers": ["decode_check", "region_stats", "summit_check"] },
+    "_verifier_steps": "An owner verifier is a step like any other once it exists: the runner blocks while it is missing or a stub, and runs it for its exit code after that (added 2026-09-08, when presence alone was found to pass a gate).",
+    "M1.1": {
+      "steps": [
+        { "name": "decode_check", "cmd": ["python", "Tools/verifiers/owner/decode_check.py"] },
+        { "name": "region_stats", "cmd": ["python", "Tools/verifiers/owner/region_stats.py"] },
+        { "name": "summit_check", "cmd": ["python", "Tools/verifiers/owner/summit_check.py"] }
+      ],
+      "verifiers": ["decode_check", "region_stats", "summit_check"]
+    },
     "M1.2": {
       "steps": [
-        { "name": "dotnet test", "cmd": ["dotnet", "test", "Engine/EarthGame.slnx", "-c", "Debug", "--nologo"] }
+        { "name": "dotnet test", "cmd": ["dotnet", "test", "Engine/EarthGame.slnx", "-c", "Debug", "--nologo"] },
+        { "name": "summit_check", "cmd": ["python", "Tools/verifiers/owner/summit_check.py"] },
+        { "name": "solar_check", "cmd": ["python", "Tools/verifiers/owner/solar_check.py"] }
       ],
       "verifiers": ["summit_check", "solar_check"]
     },
-    "M1.A": { "steps": [], "verifiers": ["solar_check"], "owner_decides": "mover feel, hands on the controls" },
+    "M1.A": {
+      "steps": [
+        { "name": "dotnet test", "cmd": ["dotnet", "test", "Engine/EarthGame.slnx", "-c", "Debug", "--nologo"] },
+        { "name": "Unity-layer compile", "cmd": ["dotnet", "build", "Engine/EarthGame.Unity.Compile.csproj", "-c", "Debug", "--nologo", "-v", "minimal"] },
+        { "name": "solar_check", "cmd": ["python", "Tools/verifiers/owner/solar_check.py"] }
+      ],
+      "verifiers": ["solar_check"],
+      "owner_decides": "mover feel, hands on the controls"
+    },
     "M1.B": { "steps": [], "verifiers": ["join_check"], "owner_decides": "N1-N4 as ratified 2026-09-07" },
     "M1.10": { "steps": [], "verifiers": ["corpus_check"] }
   }

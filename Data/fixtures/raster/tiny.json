@@ -1,0 +1,27 @@
+{
+  "format": "eg2.raster",
+  "version": 1,
+  "name": "tiny",
+  "region": "fixture",
+  "dtype": "f32",
+  "byte_order": "little",
+  "layout": "row-major; row 0 is the north edge, column 0 is the west edge; values are metres above sea level",
+  "width": 5,
+  "height": 5,
+  "cell_m": 10.0,
+  "extent_m": 40.0,
+  "centre_lat": -35.14,
+  "centre_lon": 150.675,
+  "frame": "tangent plane, +east +north metres from the centre; small-angle mapping as Engine LocalFrame",
+  "min_m": 100.0,
+  "max_m": 144.0,
+  "sea_fraction": 0.0,
+  "source": {
+    "dataset": "synthetic fixture",
+    "law": "100 + row + 10*col, +5 at the centre cell"
+  },
+  "sha256": "5df0c403d9f18bce1b82de4cbd3cd1a7db3111c035bd943cdbac36ce4f58157c",
+  "attribution": "none: synthetic",
+  "baked_by": "Tools/data/write_fixtures.py",
+  "baked_at_utc": "2026-09-07T22:34:48Z"
+}

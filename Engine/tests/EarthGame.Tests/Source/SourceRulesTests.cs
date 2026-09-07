@@ -12,16 +12,7 @@ namespace EarthGame.Tests.Source
     /// </summary>
     public sealed class SourceRulesTests
     {
-        private static readonly string Root = FindRoot();
-
-        private static string FindRoot()
-        {
-            string dir = AppContext.BaseDirectory;
-            while (dir != null && !File.Exists(Path.Combine(dir, "global.json")))
-                dir = Path.GetDirectoryName(dir);
-            if (dir == null) throw new InvalidOperationException("repository root (global.json) not found above " + AppContext.BaseDirectory);
-            return dir;
-        }
+        private static readonly string Root = TestPaths.Root;
 
         private static IEnumerable<string> EngineFreeSources()
         {

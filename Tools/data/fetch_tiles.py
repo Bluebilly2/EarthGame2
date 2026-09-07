@@ -63,9 +63,9 @@ def fetch_one(z, x, y, session, retries=3):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--zoom", type=int, required=True)
-    p.add_argument("--centre-lat", type=float, default=-35.140)
-    p.add_argument("--centre-lon", type=float, default=150.675)
-    p.add_argument("--extent-m", type=float, default=8000.0)
+    p.add_argument("--centre-lat", type=float, default=terrarium.BHERWERRE_CENTRE_LAT)
+    p.add_argument("--centre-lon", type=float, default=terrarium.BHERWERRE_CENTRE_LON)
+    p.add_argument("--extent-m", type=float, default=terrarium.BHERWERRE_EXTENT_M)
     p.add_argument("--margin-m", type=float, default=1000.0)
     a = p.parse_args()
 

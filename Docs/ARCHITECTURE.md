@@ -211,7 +211,9 @@ controls (ruling 12).
 | Format | Version | Owner of the writer | Readers | Defined |
 |---|---|---|---|---|
 | Wire protocol | 1 (Hello, Welcome, Refused, Ping, Pong) | `EarthGame.Protocol` | server, client | `Messages.cs`; `ProtocolInfo.Version` |
-| `world.json`, `RegionRaster` | — | server / `bake_region.py` | server, client loaders, owner verifiers | M1.1–M1.2 contracts (not yet) |
+| `RegionRaster` (`eg2.raster`: a `.r32` float32 grid + JSON sidecar) | 1 | `Tools/data/raster_io.py` (the bake and the fixture writer both call it) | `RegionRaster.cs` (server and client), owner verifiers | Sidecar keys: format, version, name, region, dtype f32, byte_order little, width, height, cell_m, extent_m, centre_lat, centre_lon, min_m, max_m, sea_fraction, source, sha256. Row 0 north, column 0 west, cell centres at east = col·cell − extent/2, north = extent/2 − row·cell; width = height = extent/cell + 1. The loader refuses any other version. |
+| `eg2.almanac` (one JSON line) | 1 | `Almanac.cs` via the almanac console tool | `solar_check.py` | Keys: format, version, time_basis, day_of_year, latitude_deg, longitude_deg, declination_deg, daylight_hours, sunrise_local_hour, sunset_local_hour, noon_elevation_deg, wake_local_hour, wake_elevation_deg, wake_azimuth_deg. Hours are local mean solar time: no zone, no equation of time. |
+| `world.json` | — | server | server, client | M1.A contract (not yet) |
 | `run.jsonl` (the recorder) | — | the recorder (Claude's tool) | `corpus_check.py`, `join_check.py` | M1.A contract (not yet): one JSON object per line; the first line is a header `{"format":"eg2.run","version":N,...}`; every record carries `t` (real seconds), `tick`, `kind` |
 | join log, soak log | — | the N1–N4 harness | `join_check.py` | M1.B contract (not yet) |
 
@@ -239,3 +241,6 @@ mandatory in every file from the first write.
 | 2026-09-07 | Bherwerre Peninsula as the first region | Research against the owner's criteria (permanent fresh water, confirmed knappable stone, rock shelters, two coasts, a 105-year station) |
 | 2026-09-08 | A peer-stated close during the handshake is a refusal (`TransportEvent.ReasonFromPeer`) | Over UDP the close overtakes the Refused message; the loopback test proved it |
 | 2026-09-08 | The fixed-step accumulator releases a step within 1 ns of a whole one | 0.15 − 0.05 − 0.05 is not 0.05 in binary; the third step of a 150 ms update never fired |
+| 2026-09-08 | `LocalFrame` maps local metres to latitude and longitude by the equirectangular small-angle rule about the region centre, the same rule the bake samples with; v1's spherical displacement is dropped | The two disagreed by ~1.5 m at the corners of the 8 km box; with one rule a raster cell's (row, column) is local (east, north) by definition, and a Python-written fixture pins the engine to it |
+| 2026-09-08 | The engine carries its own strict JSON reader/writer (`Json.cs`) | Neither System.Text.Json (not in .NET Standard 2.1) nor Newtonsoft (a Unity package) is available to files both Unity and dotnet compile; the sidecars, `world.json` and the run logs are small documents |
+| 2026-09-08 | An owner verifier, once present, is run as a gate step for its exit code | Presence alone was found to pass a gate on 2026-09-08; a verifier that is never run is a stub with extra steps |

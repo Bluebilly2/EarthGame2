@@ -17,8 +17,6 @@ region_stats.py) say whether a named summit and the sea are where they should be
 it can prove is nonsense.
 """
 import argparse
-import hashlib
-import json
 import math
 import os
 import sys
@@ -28,12 +26,11 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import raster_io  # noqa: E402
 import terrarium  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CACHE = os.path.join(ROOT, "Data", "cache", "terrarium")
-FORMAT = "eg2.raster"
-FORMAT_VERSION = 1
 
 
 def load_mosaic(zoom, x0, y0, x1, y1):
@@ -78,9 +75,9 @@ def main():
     p.add_argument("--cell-m", type=float, required=True)
     p.add_argument("--name", default="heights")
     p.add_argument("--region", default="bherwerre")
-    p.add_argument("--centre-lat", type=float, default=-35.140)
-    p.add_argument("--centre-lon", type=float, default=150.675)
-    p.add_argument("--extent-m", type=float, default=8000.0)
+    p.add_argument("--centre-lat", type=float, default=terrarium.BHERWERRE_CENTRE_LAT)
+    p.add_argument("--centre-lon", type=float, default=terrarium.BHERWERRE_CENTRE_LON)
+    p.add_argument("--extent-m", type=float, default=terrarium.BHERWERRE_EXTENT_M)
     p.add_argument("--coast", action="store_true", default=True, help="the region declares a coast (default)")
     a = p.parse_args()
 
@@ -94,7 +91,7 @@ def main():
         return 1
 
     # Cell centres on the tangent plane, row 0 at the north edge, column 0 at the west edge.
-    n = int(round(a.extent_m / a.cell_m)) + 1
+    n = raster_io.expected_side(a.extent_m, a.cell_m)
     half = a.extent_m / 2.0
     east_m = (np.arange(n, dtype=np.float64) * a.cell_m) - half
     north_m = half - (np.arange(n, dtype=np.float64) * a.cell_m)
@@ -130,50 +127,19 @@ def main():
         return 1
 
     out_dir = os.path.join(ROOT, "Data", "regions", a.region)
-    os.makedirs(out_dir, exist_ok=True)
-    raw_path = os.path.join(out_dir, a.name + ".r32")
-    data = heights.astype("<f4").tobytes()
-    tmp = raw_path + ".part"
-    with open(tmp, "wb") as f:
-        f.write(data)
-    os.replace(tmp, raw_path)
-    sidecar = {
-        "format": FORMAT,
-        "version": FORMAT_VERSION,
-        "name": a.name,
-        "region": a.region,
-        "dtype": "f32",
-        "byte_order": "little",
-        "layout": "row-major; row 0 is the north edge, column 0 is the west edge; values are metres above sea level",
-        "width": n,
-        "height": n,
-        "cell_m": a.cell_m,
-        "extent_m": a.extent_m,
-        "centre_lat": a.centre_lat,
-        "centre_lon": a.centre_lon,
-        "frame": "tangent plane, +east +north metres from the centre; small-angle mapping as Engine LocalFrame",
-        "min_m": hmin,
-        "max_m": hmax,
-        "sea_fraction": sea_fraction,
-        "source": {
-            "dataset": "AWS Terrain Tiles (Terrarium)",
-            "url": terrarium.TILE_URL,
-            "zoom": a.zoom,
-            "tiles": "x %d..%d, y %d..%d" % (x0, x1, y0, y1),
-            "pixel_m_at_centre": terrarium.metres_per_pixel(a.centre_lat, a.zoom),
-            "effective_resolution_note": "the tile pixel pitch; the underlying source is SRTM 30 m inland and Geoscience Australia 5 m where present, so detail below ~30 m is interpolation, not data",
-            "sampling": "bilinear at each cell centre",
-        },
-        "sha256": hashlib.sha256(data).hexdigest(),
-        "attribution": terrarium.ATTRIBUTION,
-        "baked_by": "Tools/data/bake_region.py",
-        "baked_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    source = {
+        "dataset": "AWS Terrain Tiles (Terrarium)",
+        "url": terrarium.TILE_URL,
+        "zoom": a.zoom,
+        "tiles": "x %d..%d, y %d..%d" % (x0, x1, y0, y1),
+        "pixel_m_at_centre": terrarium.metres_per_pixel(a.centre_lat, a.zoom),
+        "effective_resolution_note": "the tile pixel pitch; the underlying source is SRTM 30 m inland and Geoscience Australia 5 m where present, so detail below ~30 m is interpolation, not data",
+        "sampling": "bilinear at each cell centre",
     }
-    with open(os.path.join(out_dir, a.name + ".json"), "w", encoding="utf-8") as f:
-        json.dump(sidecar, f, indent=2)
-        f.write("\n")
+    raster_io.write_raster(out_dir, a.name, a.region, heights, a.cell_m, a.extent_m, a.centre_lat, a.centre_lon,
+                           source, "Tools/data/bake_region.py", terrarium.ATTRIBUTION)
     print("wrote %s: %dx%d at %.1f m, %.1f..%.1f m, sea %.1f%%, %.1f s"
-          % (raw_path, n, n, a.cell_m, hmin, hmax, sea_fraction * 100, time.time() - started))
+          % (os.path.join(out_dir, a.name + ".r32"), n, n, a.cell_m, hmin, hmax, sea_fraction * 100, time.time() - started))
     return 0
 
 
