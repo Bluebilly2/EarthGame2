@@ -69,6 +69,16 @@ def bilinear(mosaic, px, py):
     return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy
 
 
+def despike(heights, threshold_m):
+    """Cells more than threshold_m above the median of their 5x5 neighbourhood take that median. Returns (heights, count)."""
+    from numpy.lib.stride_tricks import sliding_window_view
+    padded = np.pad(heights, 2, mode="edge")
+    med = np.median(sliding_window_view(padded, (5, 5)), axis=(2, 3)).astype(np.float32)
+    spike = (heights - med) > threshold_m
+    out = np.where(spike, med, heights)
+    return out, int(spike.sum())
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--zoom", type=int, required=True)
@@ -79,6 +89,10 @@ def main():
     p.add_argument("--centre-lon", type=float, default=terrarium.BHERWERRE_CENTRE_LON)
     p.add_argument("--extent-m", type=float, default=terrarium.BHERWERRE_EXTENT_M)
     p.add_argument("--coast", action="store_true", default=True, help="the region declares a coast (default)")
+    p.add_argument("--despike-m", type=float, default=0.0,
+                   help="replace any cell more than this many metres above its 5x5 median with that median (0 = off). "
+                        "The zoom-11 surround carries isolated bad cells over the open sea, hundreds of metres high, "
+                        "which drew as spikes on the skyline (2026-09-08); the 4 m region raster has none.")
     a = p.parse_args()
 
     started = time.time()
@@ -111,6 +125,9 @@ def main():
     if np.isnan(heights).any():
         print("refused: the raster contains NaN (a hole in the mosaic)")
         return 1
+    despiked = 0
+    if a.despike_m > 0.0:
+        heights, despiked = despike(heights, a.despike_m)
     hmin, hmax = float(heights.min()), float(heights.max())
     if hmax - hmin < 1.0:
         print("refused: no elevation variation (min %.1f, max %.1f); the tiles are not terrain" % (hmin, hmax))
@@ -135,6 +152,8 @@ def main():
         "pixel_m_at_centre": terrarium.metres_per_pixel(a.centre_lat, a.zoom),
         "effective_resolution_note": "the tile pixel pitch; the underlying source is SRTM 30 m inland and Geoscience Australia 5 m where present, so detail below ~30 m is interpolation, not data",
         "sampling": "bilinear at each cell centre",
+        "despike_m": a.despike_m,
+        "despiked_cells": despiked,
     }
     raster_io.write_raster(out_dir, a.name, a.region, heights, a.cell_m, a.extent_m, a.centre_lat, a.centre_lon,
                            source, "Tools/data/bake_region.py", terrarium.ATTRIBUTION)

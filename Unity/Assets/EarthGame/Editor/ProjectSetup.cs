@@ -22,6 +22,7 @@ namespace EarthGame.Editor
         public const string GroundTexturePath = ResourcesFolder + "/GroundTex.asset";
         public const string GroundLayerPath = ResourcesFolder + "/GroundLayer.terrainlayer";
         public const string SkyMaterialPath = ResourcesFolder + "/Sky.mat";
+        public const string SeaMaterialPath = ResourcesFolder + "/Sea.mat";
         public const string HudPanelPath = ResourcesFolder + "/HudPanel.asset";
         public const string ThemePath = "Assets/UI Toolkit/UnityDefaultRuntimeTheme.tss";
 
@@ -85,7 +86,9 @@ namespace EarthGame.Editor
                         // A dry sclerophyll ground: sand and litter, mottled so the surface reads at every scale.
                         float n = Mathf.PerlinNoise(x * 0.23f + 3.1f, y * 0.23f + 7.7f) * 0.55f + Mathf.PerlinNoise(x * 0.07f, y * 0.07f) * 0.45f;
                         float speck = Mathf.PerlinNoise(x * 0.9f + 11f, y * 0.9f + 5f) > 0.68f ? 0.12f : 0f;
-                        pixels[y * 64 + x] = Color.Lerp(new Color(0.33f, 0.27f, 0.17f), new Color(0.66f, 0.58f, 0.40f), Mathf.Clamp01(n + speck));
+                        Color ground = Color.Lerp(new Color(0.40f, 0.33f, 0.21f), new Color(0.82f, 0.74f, 0.54f), Mathf.Clamp01(n + speck));
+                        ground.a = 0.12f; // alpha is smoothness to a terrain layer that reads it; dry either way
+                        pixels[y * 64 + x] = ground;
                     }
                 }
                 tex.SetPixels(pixels);
@@ -100,12 +103,46 @@ namespace EarthGame.Editor
                 TerrainLayer layer = new TerrainLayer();
                 layer.diffuseTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(GroundTexturePath);
                 layer.tileSize = new Vector2(3f, 3f);
+                layer.smoothness = 0.12f;
+                layer.metallic = 0f;
+                // A new layer reads its smoothness from the diffuse texture's alpha, and an opaque texture is
+                // fully glossy: the ground drew as a mirror with a sun streak (2026-09-08). The ground texture's
+                // alpha therefore carries the dry value too, whichever source the layer uses.
                 AssetDatabase.CreateAsset(layer, GroundLayerPath);
                 created.Add(GroundLayerPath);
             }
 
             EnsureMaterial(TerrainMaterialPath, "Universal Render Pipeline/Terrain/Lit", created);
+            {
+                // The terrain draws instanced, and a player build strips a shader's instancing variants unless a
+                // material in the project enables instancing. Without this the built player drew no terrain at
+                // all and nothing logged it; the brown "ground" in the first frames was the skybox's lower half
+                // (2026-09-08). Applied every run, because the flag is the difference between a world and a void.
+                Material terrainMaterial = AssetDatabase.LoadAssetAtPath<Material>(TerrainMaterialPath);
+                if (terrainMaterial != null && !terrainMaterial.enableInstancing)
+                {
+                    terrainMaterial.enableInstancing = true;
+                    EditorUtility.SetDirty(terrainMaterial);
+                    created.Add(TerrainMaterialPath + " (instancing on)");
+                }
+                // The URP terrain material defaults every layer to a smoothness of 0.5, which is wet rock; dry
+                // sand and litter facing away from the sun then mirrored the sky and read as water (2026-09-08).
+                if (terrainMaterial != null && terrainMaterial.GetFloat("_Smoothness0") > 0.2f)
+                {
+                    for (int i = 0; i < 4; i++) terrainMaterial.SetFloat("_Smoothness" + i, 0.12f);
+                    EditorUtility.SetDirty(terrainMaterial);
+                    created.Add(TerrainMaterialPath + " (dry)");
+                }
+            }
             EnsureMaterial(SkyMaterialPath, "Skybox/Procedural", created);
+            if (EnsureMaterial(SeaMaterialPath, "Universal Render Pipeline/Lit", created))
+            {
+                Material sea = AssetDatabase.LoadAssetAtPath<Material>(SeaMaterialPath);
+                sea.SetColor("_BaseColor", new Color(0.05f, 0.16f, 0.24f, 1f));
+                sea.SetFloat("_Smoothness", 0.92f);
+                sea.SetFloat("_Metallic", 0f);
+                EditorUtility.SetDirty(sea);
+            }
 
             if (AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(ThemePath) == null)
             {
@@ -131,18 +168,20 @@ namespace EarthGame.Editor
             if (created.Count > 0) Debug.Log("[setup] created runtime assets: " + string.Join(", ", created));
         }
 
-        private static void EnsureMaterial(string path, string shaderName, List<string> created)
+        /// <summary>Creates the material when missing; true when it was created this time.</summary>
+        private static bool EnsureMaterial(string path, string shaderName, List<string> created)
         {
-            if (AssetDatabase.LoadAssetAtPath<Material>(path) != null) return;
+            if (AssetDatabase.LoadAssetAtPath<Material>(path) != null) return false;
             Shader shader = Shader.Find(shaderName);
             if (shader == null)
             {
                 Debug.LogError("[setup] shader not found: " + shaderName + " (needed for " + path + ")");
                 if (Application.isBatchMode) EditorApplication.Exit(1);
-                return;
+                return false;
             }
             AssetDatabase.CreateAsset(new Material(shader), path);
             created.Add(path);
+            return true;
         }
 
         private static void EnsureFolder(string assetPath)

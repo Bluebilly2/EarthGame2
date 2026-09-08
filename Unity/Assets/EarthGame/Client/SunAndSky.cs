@@ -13,7 +13,7 @@ namespace EarthGame.Client
     /// </summary>
     public sealed class SunAndSky : MonoBehaviour
     {
-        private const float SunStrengthLinear = 1.6f;
+        private const float SunStrengthLinear = 2.2f;
 
         private Light _sun;
         private Material _sky;
@@ -42,7 +42,7 @@ namespace EarthGame.Client
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogDensity = 0.00025f;
+            RenderSettings.fogDensity = 0.00005f;
             Apply();
         }
 
@@ -65,9 +65,9 @@ namespace EarthGame.Client
                 _sun.color = Color.Lerp(new Color(1.0f, 0.62f, 0.38f), new Color(1.0f, 0.97f, 0.92f), warmth);
             }
             float skyLight = Mathf.Clamp01((float)((elevation + 8.0) / 20.0));
-            RenderSettings.ambientSkyColor = Color.Lerp(new Color(0.02f, 0.03f, 0.06f), new Color(0.55f, 0.68f, 0.9f), skyLight);
-            RenderSettings.ambientEquatorColor = Color.Lerp(new Color(0.02f, 0.02f, 0.03f), new Color(0.45f, 0.48f, 0.5f), skyLight);
-            RenderSettings.ambientGroundColor = Color.Lerp(new Color(0.01f, 0.01f, 0.01f), new Color(0.18f, 0.16f, 0.12f), skyLight);
+            RenderSettings.ambientSkyColor = Color.Lerp(new Color(0.02f, 0.03f, 0.06f), new Color(0.68f, 0.8f, 1.0f), skyLight);
+            RenderSettings.ambientEquatorColor = Color.Lerp(new Color(0.02f, 0.02f, 0.03f), new Color(0.6f, 0.63f, 0.66f), skyLight);
+            RenderSettings.ambientGroundColor = Color.Lerp(new Color(0.01f, 0.01f, 0.01f), new Color(0.3f, 0.26f, 0.2f), skyLight);
             RenderSettings.fogColor = Color.Lerp(new Color(0.03f, 0.04f, 0.07f), new Color(0.72f, 0.8f, 0.9f), skyLight);
             if (_sky != null) _sky.SetFloat("_Exposure", Mathf.Lerp(0.15f, 1.2f, skyLight));
         }

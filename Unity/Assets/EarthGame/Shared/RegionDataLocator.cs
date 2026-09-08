@@ -10,7 +10,7 @@ namespace EarthGame.Shared
     /// repository root is found by walking up from the Unity data folder to <c>global.json</c> (the editor's
     /// <c>Unity/Assets</c> and a player under <c>Build/Player/</c> both sit inside it); otherwise the persistent
     /// data path serves. <c>-eg-data</c> and <c>-eg-saves</c> override either. In M1.A both the server and the
-    /// client read the raster from disk; a joining client without the data is M1.B's baseline streaming.
+    /// client read the rasters from disk; a joining client without the data is M1.B's baseline streaming.
     /// </summary>
     public static class RegionDataLocator
     {
@@ -48,14 +48,19 @@ namespace EarthGame.Shared
             return Path.Combine(root, "Saves");
         }
 
-        /// <summary>
-        /// The region's heights as a heightfield, or null with the reason in <paramref name="message"/>. Never
-        /// throws for a missing file: a server without its data runs and says so; a raster that is present but
-        /// wrong (version, checksum) is an error the caller sees in the message too.
-        /// </summary>
+        /// <summary>The region's heights as a heightfield, or null with the reason in <paramref name="message"/>.</summary>
         public static Heightfield TryLoadHeightfield(Region region, out string message)
+            => TryLoadRaster(region, "heights", out message);
+
+        /// <summary>
+        /// A named raster of the region (<c>heights</c>, <c>surround</c>, later every layer) as a heightfield, or null
+        /// with the reason in <paramref name="message"/>. Never throws for a missing file: a server without its data
+        /// runs and says so; a raster that is present but wrong (version, checksum) is an error the caller sees in
+        /// the message too.
+        /// </summary>
+        public static Heightfield TryLoadRaster(Region region, string name, out string message)
         {
-            string sidecar = Path.Combine(DataDir(region), "heights.json");
+            string sidecar = Path.Combine(DataDir(region), name + ".json");
             if (!File.Exists(sidecar))
             {
                 message = "no region data: " + sidecar + " not found (bake it with Tools/data/bake_region.py, or pass -eg-data)";

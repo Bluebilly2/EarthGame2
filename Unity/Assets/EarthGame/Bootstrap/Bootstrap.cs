@@ -69,8 +69,16 @@ namespace EarthGame.Bootstrap
             _mode = LaunchMode.Dedicated;
             fromCommandLine = true;
 #endif
-            if (fromCommandLine) Launch();
+            if (fromCommandLine && !LaunchArgs.Has("shell")) Launch();
             else ShowShell();
+            // -eg-shell with -eg-record: the scenario walks the owner's own path through the shell, clicking New
+            // world for him after a moment, so what that path draws can be recorded without a window.
+            if (LaunchArgs.Has("shell") && LaunchArgs.Has("record")) Invoke(nameof(ScriptedNewWorld), 1.5f);
+        }
+
+        private void ScriptedNewWorld()
+        {
+            if (_shell != null) _shell.ClickNewWorld();
         }
 
         private void ShowShell()

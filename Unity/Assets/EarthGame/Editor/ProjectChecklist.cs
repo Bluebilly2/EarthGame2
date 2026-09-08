@@ -87,7 +87,9 @@ namespace EarthGame.Editor
                     changed.Add("GPU occlusion on");
                 }
             }
-            // 6. Depth priming, Unity's own mitigation for the drawer's GPU cost on a GPU-bound card.
+            // 6. Depth priming, Unity's own mitigation for the drawer's GPU cost on a GPU-bound card. (Suspected
+            //    and cleared on 2026-09-08 when the terrain drew nothing: the cause was stripped instancing
+            //    variants, see the terrain material below.)
             if (renderer.depthPrimingMode != DepthPrimingMode.Forced) { renderer.depthPrimingMode = DepthPrimingMode.Forced; changed.Add("depth priming → Forced"); }
             // 7. STP at render scale 0.7: the one-slider escape hatch, wired before it is needed.
             if (asset.upscalingFilter != UpscalingFilterSelection.STP) { asset.upscalingFilter = UpscalingFilterSelection.STP; changed.Add("upscaling → STP"); }

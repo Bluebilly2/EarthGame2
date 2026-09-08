@@ -73,6 +73,9 @@ namespace EarthGame.Client
             if (_status != null) _status.text = text;
         }
 
+        /// <summary>What a scenario does instead of a mouse: the New world button's own action.</summary>
+        public void ClickNewWorld() => NewWorld?.Invoke();
+
         public void Close()
         {
             if (_document != null) Destroy(_document);
