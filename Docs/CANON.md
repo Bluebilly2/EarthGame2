@@ -115,3 +115,9 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     from, print both numbers, and run as a gate step, so the owner reads a comparison rather than a verdict.
     The v1 failure this lane guarded against (one party authoring both the tool and its check) is now guarded
     only by that rule and by the owner reading the numbers; that is stated here, not hidden.
+
+18. **The mover feels good** (ruling 12's decision, made on 2026-09-08 by the owner playing the fixed build at
+    Cave Beach): "it feels good, continue." The mover's numbers as ported stand: Tobler's walking speed with the
+    1.3 travel-pace factor, gait multipliers 1.0 / 1.7 / 2.6, a 0.5 m jump, a 0.4 m step, 45° walkable, and the
+    camera smoothed vertically only. They change only by a later dated ruling from the owner's hands, never from
+    frames or from a contract's number.
