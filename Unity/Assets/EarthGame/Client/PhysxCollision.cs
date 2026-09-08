@@ -7,16 +7,17 @@ namespace EarthGame.Client
     /// <summary>
     /// The client's <see cref="IWorldCollision"/>: PhysX casts against the Terrain and prop colliders
     /// (ARCHITECTURE §9). Ground is a ray straight down through the feet; the sweep is a capsule cast. Water is
-    /// still the sea plane read off the client's copy of the heightfield until the water layer exists. Local
-    /// metres and Unity metres coincide: +X east, +Y up, +Z north from the region centre.
+    /// still the sea plane, read off the streamed tiles the client holds, until the water layer exists; where
+    /// no tile is held there is no water. Local metres and Unity metres coincide: +X east, +Y up, +Z north from
+    /// the region centre.
     /// </summary>
     public sealed class PhysxCollision : IWorldCollision
     {
         private const float Skin = 0.02f;
-        private readonly Heightfield _seaReference;
+        private readonly IHeightSource _seaReference;
         private readonly int _mask;
 
-        public PhysxCollision(Heightfield seaReference)
+        public PhysxCollision(IHeightSource seaReference)
         {
             _seaReference = seaReference;
             _mask = Layers.Walkable;
@@ -61,7 +62,8 @@ namespace EarthGame.Client
         public double WaterSurfaceAt(double east, double north)
         {
             if (_seaReference == null) return double.NaN;
-            return _seaReference.HeightAt(east, north) < 0.0 ? 0.0 : double.NaN;
+            double ground = _seaReference.HeightAt(east, north);
+            return ground < 0.0 ? 0.0 : double.NaN;
         }
     }
 }

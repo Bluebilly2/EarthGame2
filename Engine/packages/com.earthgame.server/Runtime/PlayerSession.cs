@@ -27,8 +27,10 @@ namespace EarthGame.Server
         public bool HasBody;
         /// <summary>Sequence number of the last accepted move, so a Correction can name the move it answers.</summary>
         public uint LastSequence;
-        /// <summary>World tick at which the last move was accepted; the interval the next report is measured over.</summary>
+        /// <summary>World tick at which the last move was accepted.</summary>
         public long LastMoveTick;
+        /// <summary>Real seconds this session may still claim for movement (MovementRules.MoveCreditCapSeconds); accrued by the host's elapsed time, spent by accepted reports.</summary>
+        public double MoveCredit;
         /// <summary>Counts for the N2 budget: every correction on a legal walk is a false positive.</summary>
         public int MovesAccepted;
         public int Corrections;

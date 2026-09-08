@@ -62,11 +62,14 @@ namespace EarthGame.Transport
         public int Id { get; }
         public bool IsOpen => _link.Open;
         internal InMemoryLink Link => _link;
+        public long BytesSent { get; private set; }
+        public long BytesReceived { get; internal set; }
 
         public void Send(ReadOnlySpan<byte> payload, Delivery delivery)
         {
             if (!_link.Open) return;
             byte[] copy = payload.ToArray();
+            BytesSent += copy.Length;
             if (_isServerSide) _link.ToClient.Enqueue(copy);
             else _link.ToServer.Enqueue(copy);
         }
@@ -108,7 +111,8 @@ namespace EarthGame.Transport
             return c;
         }
 
-        public void Update()
+        /// <summary>The elapsed time is unused here: memory has no bandwidth to meter.</summary>
+        public void Update(double elapsedSeconds)
         {
             for (int i = 0; i < _live.Count; i++)
             {
@@ -117,6 +121,7 @@ namespace EarthGame.Transport
                 while (link.ToServer.Count > 0)
                 {
                     byte[] data = link.ToServer.Dequeue();
+                    c.BytesReceived += data.Length;
                     _events.Enqueue(new TransportEvent { Kind = TransportEventKind.Data, Connection = c, Data = data, Offset = 0, Count = data.Length });
                 }
                 if (!link.Open && !link.ServerNotifiedClosed)
@@ -179,7 +184,7 @@ namespace EarthGame.Transport
             _pendingConnect = true;
         }
 
-        public void Update()
+        public void Update(double elapsedSeconds)
         {
             if (_connection == null) return;
             InMemoryLink link = _connection.Link;
@@ -191,6 +196,7 @@ namespace EarthGame.Transport
             while (link.ToClient.Count > 0)
             {
                 byte[] data = link.ToClient.Dequeue();
+                _connection.BytesReceived += data.Length;
                 _events.Enqueue(new TransportEvent { Kind = TransportEventKind.Data, Connection = _connection, Data = data, Offset = 0, Count = data.Length });
             }
             if (!link.Open && !link.ClientNotifiedClosed)

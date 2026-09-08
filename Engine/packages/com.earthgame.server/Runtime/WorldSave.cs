@@ -45,7 +45,7 @@ namespace EarthGame.Server
         public const string WorldFile = "world.json";
         public const string PlayersFolder = "players";
 
-        public static void Write(string dir, WorldState world, IReadOnlyList<PlayerSession> sessions, string nowUtcText)
+        public static void Write(string dir, WorldState world, IReadOnlyList<SavedPlayer> players, string nowUtcText)
         {
             if (world == null) throw new ArgumentNullException(nameof(world));
             Directory.CreateDirectory(dir);
@@ -77,12 +77,12 @@ namespace EarthGame.Server
                 .With("clock", new JsonObject().With("total_hours", world.Clock.TotalHours).With("started_at_hours", world.Clock.StartedAtHours));
             WriteAtomic(worldPath, Json.Write(doc, indent: true));
 
-            if (sessions == null) return;
+            if (players == null) return;
             string playersDir = Path.Combine(dir, PlayersFolder);
             Directory.CreateDirectory(playersDir);
-            foreach (PlayerSession s in sessions)
+            foreach (SavedPlayer s in players)
             {
-                if (!s.HasBody) continue;
+                if (string.IsNullOrEmpty(s.Name)) continue;
                 JsonObject p = new JsonObject()
                     .With("format", "eg2.player")
                     .With("version", Version)
@@ -90,7 +90,7 @@ namespace EarthGame.Server
                     .With("east", s.Body.East).With("up", s.Body.Up).With("north", s.Body.North)
                     .With("yaw_deg", (double)s.YawDeg).With("pitch_deg", (double)s.PitchDeg)
                     .With("grounded", s.Body.Grounded)
-                    .With("saved_tick", world.Tick);
+                    .With("saved_tick", s.SavedTick);
                 WriteAtomic(Path.Combine(playersDir, FileNameFor(s.Name) + ".json"), Json.Write(p, indent: true));
             }
         }

@@ -1,0 +1,287 @@
+using System;
+using System.IO;
+using EarthGame.ClientCore;
+using EarthGame.Engine;
+using EarthGame.Server;
+using EarthGame.Transport;
+using NUnit.Framework;
+
+namespace EarthGame.Tests.Server
+{
+    /// <summary>
+    /// M1.B over the in-memory transport: tiles stream on join, a rejoin is answered from the cache, a dropped
+    /// session keeps its body, the interest radius filters, PlayerLeft drops the mirror, and the digests the
+    /// two ends compute agree. The ground is the tiny fixture (one 40 m tile of five posts).
+    /// </summary>
+    public sealed class StreamingTests
+    {
+        private static readonly Region FixtureRegion = new Region("fixture", "Fixture", Region.Bherwerre.CentreLatitudeDeg,
+            Region.Bherwerre.CentreLongitudeDeg, 40.0, 237, 8.0, Region.Bherwerre.CentreLatitudeDeg, Region.Bherwerre.CentreLongitudeDeg);
+
+        private static Heightfield Ground() => new Heightfield(RegionRaster.Load(TestPaths.Fixture("raster", "tiny.json")));
+
+        private static WorldState World() => new WorldState(1, FixtureRegion, FixtureRegion.WakeClock(), Ground());
+
+        private string _cacheDir;
+
+        [SetUp]
+        public void SetUp()
+        {
+            _cacheDir = Path.Combine(Path.GetTempPath(), "EarthGame2.Tests", "tiles", Guid.NewGuid().ToString("N"));
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            if (Directory.Exists(_cacheDir)) Directory.Delete(_cacheDir, true);
+        }
+
+        private sealed class Rig
+        {
+            public GameServer Server;
+            public IServerTransport ServerTransport;
+            public GameClient A;
+            public GameClient B;
+            public long Ms;
+
+            public void Pump(int rounds = 3, double dt = 0.05)
+            {
+                for (int i = 0; i < rounds; i++)
+                {
+                    A?.Update(Ms);
+                    B?.Update(Ms);
+                    Server.Update(dt);
+                    A?.Update(Ms);
+                    B?.Update(Ms);
+                    Ms += (long)(dt * 1000);
+                }
+            }
+
+            public GameClient Join(string name, ITileCache cache = null)
+            {
+                IClientTransport ct = InMemoryTransport.CreateClient(ServerTransport);
+                GameClient c = new GameClient(ct, cache);
+                c.Connect("memory", 1, name, "");
+                return c;
+            }
+        }
+
+        private static Rig Start(WorldState world, ServerConfig config = null)
+        {
+            InMemoryTransport.CreatePair(out IServerTransport st, out IClientTransport ct);
+            Rig rig = new Rig { ServerTransport = st };
+            rig.Server = new GameServer(config ?? new ServerConfig(), st, world);
+            rig.Server.Listen(1);
+            return rig;
+        }
+
+        private static MoverState GroundedAt(Heightfield ground, double east, double north)
+        {
+            MoverState s = MoverState.AtRest(east, ground.HeightAt(east, north), north);
+            s.Grounded = true;
+            return s;
+        }
+
+        [Test]
+        public void TilesStreamOnJoinAndTheClientBecomesInteractive()
+        {
+            Rig rig = Start(World());
+            rig.A = rig.Join("William");
+            rig.Pump(5);
+            Assert.That(rig.A.State, Is.EqualTo(ClientState.Connected));
+            Assert.That(rig.A.SnapshotApplied, Is.True, "the empty snapshot still ends");
+            Assert.That(rig.A.TilesRequested, Is.True);
+            Assert.That(rig.A.TilesOutstanding, Is.EqualTo(0));
+            Assert.That(rig.A.IsInteractive, Is.True);
+            Assert.That(rig.A.Tiles.Held.Count, Is.EqualTo(1), "a 40 m region is one tile");
+            ReceivedTile tile = rig.A.Tiles.Held[new TileId(0, 0)];
+            Assert.That(tile.Posts, Is.EqualTo(5));
+            Assert.That(tile.CellM, Is.EqualTo(10.0).Within(1e-6));
+            Assert.That(tile.OriginEast, Is.EqualTo(-20.0));
+            Assert.That(tile.Heights[2, 2], Is.EqualTo(127f).Within(0.005f), "the bump at the centre, to the centimetre");
+            Assert.That(tile.FromCache, Is.False);
+            Assert.That(rig.Server.Tiles.BytesServed, Is.GreaterThan(0));
+            Assert.That(rig.A.BytesReceived, Is.EqualTo(rig.Server.Sessions[0].Connection.BytesSent), "both ends count the same payload bytes");
+        }
+
+        [Test]
+        public void ARejoinWithCachedTilesIsAnsweredByHeadersAlone()
+        {
+            Rig rig = Start(World());
+            DiskTileCache cache = new DiskTileCache(_cacheDir);
+            rig.A = rig.Join("William", cache);
+            rig.Pump(5);
+            Assert.That(rig.A.IsInteractive, Is.True);
+            long servedFirst = rig.Server.Tiles.BytesServed;
+            Assert.That(cache.KnownCrc("fixture", new TileId(0, 0)), Is.Not.EqualTo(0u), "the tile is on disk");
+
+            rig.A.Disconnect("cable");
+            rig.Pump(3);
+            rig.A = rig.Join("William", cache);
+            rig.Pump(5);
+            Assert.That(rig.A.IsInteractive, Is.True);
+            Assert.That(rig.A.Tiles.Held[new TileId(0, 0)].FromCache, Is.True);
+            Assert.That(rig.A.Tiles.BytesReceived, Is.EqualTo(0), "no chunk crossed the wire");
+            Assert.That(rig.Server.Tiles.BytesServed - servedFirst, Is.LessThan(64), "a header, nothing more");
+        }
+
+        [Test]
+        public void EveryTileCanBeEncodedAheadOfTheFirstJoin()
+        {
+            Rig rig = Start(World());
+            Assert.That(rig.Server.Tiles.EncodeAll(), Is.EqualTo(1), "a 40 m region is one tile");
+            Assert.That(new GameServer(new ServerConfig(), rig.ServerTransport, new WorldState(7, Region.Bherwerre, Region.Bherwerre.WakeClock())).Tiles.EncodeAll(), Is.EqualTo(0), "no terrain, nothing to encode");
+            rig.A = rig.Join("William");
+            rig.Pump(5);
+            Assert.That(rig.A.IsInteractive, Is.True);
+        }
+
+        [Test]
+        public void AWorldWithoutGroundRefusesTilesAndStillBecomesInteractive()
+        {
+            Rig rig = Start(new WorldState(7, Region.Bherwerre, Region.Bherwerre.WakeClock()));
+            rig.A = rig.Join("William");
+            rig.Pump(5);
+            Assert.That(rig.A.Tiles.RefusedCount, Is.EqualTo(9), "the nine tiles around the wake, each refused");
+            Assert.That(rig.A.Tiles.Held.Count, Is.EqualTo(0));
+            Assert.That(rig.A.IsInteractive, Is.True, "refused is answered; the client does not wait");
+        }
+
+        [Test]
+        public void ADroppedSessionKeepsItsBodyAndTheSameNameWakesThere()
+        {
+            Rig rig = Start(World());
+            Heightfield ground = Ground();
+            rig.A = rig.Join("William");
+            rig.Pump(5);
+            rig.A.SendMove(MoverInput.None, 45f, 0f, GroundedAt(ground, 2.0, 3.0));
+            rig.Pump(3);
+            Assert.That(rig.Server.Sessions[0].Corrections, Is.EqualTo(0));
+            string digestBefore = rig.Server.Digest();
+
+            rig.A.Disconnect("cable");
+            rig.Pump(3);
+            Assert.That(rig.Server.Sessions.Count, Is.EqualTo(0));
+            Assert.That(rig.Server.PlayersToSave().Count, Is.EqualTo(1), "the body is remembered by name");
+            Assert.That(rig.Server.PlayersToSave()[0].Body.East, Is.EqualTo(2.0));
+
+            rig.A = rig.Join("William");
+            rig.Pump(5);
+            Assert.That(rig.A.Welcome.SpawnEast, Is.EqualTo(2.0));
+            Assert.That(rig.A.Welcome.SpawnNorth, Is.EqualTo(3.0));
+            Assert.That(rig.Server.Sessions[0].HasBody, Is.True);
+            Assert.That(rig.Server.Sessions[0].YawDeg, Is.EqualTo(45f));
+            Assert.That(rig.Server.Sessions[0].SessionId, Is.EqualTo(2u), "a new session, never the old id");
+            Assert.That(digestBefore, Is.Not.EqualTo(rig.Server.Digest()), "the clock and the tick moved on");
+        }
+
+        [Test]
+        public void ASecondHelloWithTheSameNameSupersedesTheFirst()
+        {
+            Rig rig = Start(World());
+            rig.A = rig.Join("William");
+            rig.Pump(5);
+            Assert.That(rig.A.State, Is.EqualTo(ClientState.Connected));
+            rig.B = rig.Join("William");
+            rig.Pump(5);
+            Assert.That(rig.Server.Sessions.Count, Is.EqualTo(1));
+            Assert.That(rig.Server.Sessions[0].SessionId, Is.EqualTo(2u));
+            Assert.That(rig.B.State, Is.EqualTo(ClientState.Connected));
+            Assert.That(rig.A.State, Is.EqualTo(ClientState.Disconnected));
+            Assert.That(rig.A.LastReason, Does.Contain("superseded"));
+        }
+
+        [Test]
+        public void PlayerLeftDropsTheMirror()
+        {
+            Rig rig = Start(World());
+            Heightfield ground = Ground();
+            rig.A = rig.Join("William");
+            rig.B = rig.Join("Guest");
+            rig.Pump(5);
+            rig.A.SendMove(MoverInput.None, 0f, 0f, GroundedAt(ground, 2.0, 3.0));
+            rig.B.SendMove(MoverInput.None, 0f, 0f, GroundedAt(ground, -4.0, 1.0));
+            rig.Pump(3);
+            uint guest = rig.B.Welcome.SessionId;
+            Assert.That(rig.A.Mirrors.ContainsKey(guest), Is.True);
+            uint leftId = 0;
+            rig.A.PlayerLeft += id => leftId = id;
+            rig.B.Disconnect("bye");
+            rig.Pump(3);
+            Assert.That(leftId, Is.EqualTo(guest));
+            Assert.That(rig.A.Mirrors.ContainsKey(guest), Is.False);
+            Assert.That(rig.A.Others.ContainsKey(guest), Is.False);
+        }
+
+        [Test]
+        public void BodiesBeyondTheInterestRadiusAreNotSent()
+        {
+            Rig rig = Start(World(), new ServerConfig { InterestRadiusM = 5.0 });
+            Heightfield ground = Ground();
+            rig.A = rig.Join("William");
+            rig.B = rig.Join("Guest");
+            rig.Pump(5);
+            rig.A.SendMove(MoverInput.None, 0f, 0f, GroundedAt(ground, 2.0, 3.0));
+            rig.B.SendMove(MoverInput.None, 0f, 0f, GroundedAt(ground, -4.0, 1.0));
+            rig.Pump(4);
+            Assert.That(rig.A.Others.ContainsKey(rig.B.Welcome.SessionId), Is.False, "6.3 m apart with a 5 m radius");
+            Assert.That(rig.B.Others.ContainsKey(rig.A.Welcome.SessionId), Is.False);
+            // Four metres east over forty reports, one per tick as the client sends them: a 2 m/s walk.
+            for (int i = 1; i <= 40; i++)
+            {
+                rig.B.SendMove(MoverInput.Walk(1.0, 0.0), 90f, 0f, GroundedAt(ground, -4.0 + 0.1 * i, 1.0));
+                rig.Pump(1);
+            }
+            rig.Pump(3);
+            Assert.That(rig.Server.Sessions[1].Corrections, Is.EqualTo(0), "a 2 m/s walk is legal");
+            Assert.That(rig.A.Others.ContainsKey(rig.B.Welcome.SessionId), Is.True, "2.8 m apart: seen");
+            Assert.That(rig.B.Others.ContainsKey(rig.A.Welcome.SessionId), Is.True);
+        }
+
+        [Test]
+        public void TheSnapshotCarriesTheBodiesThatExistedAtTheWelcome()
+        {
+            Rig rig = Start(World());
+            Heightfield ground = Ground();
+            rig.A = rig.Join("William");
+            rig.Pump(5);
+            rig.A.SendMove(MoverInput.None, 30f, 0f, GroundedAt(ground, 2.0, 3.0));
+            rig.Pump(3);
+            rig.B = rig.Join("Guest");
+            // Pump the client without letting the server step, so the only source of A's body is the snapshot.
+            rig.B.Update(rig.Ms);
+            rig.Server.Update(0.0);
+            rig.B.Update(rig.Ms);
+            rig.Server.Update(0.0);
+            rig.B.Update(rig.Ms);
+            Assert.That(rig.B.State, Is.EqualTo(ClientState.Connected));
+            Assert.That(rig.B.SnapshotApplied, Is.True);
+            Assert.That(rig.B.Others.ContainsKey(rig.A.Welcome.SessionId), Is.True, "A's body came in the snapshot");
+            Assert.That(rig.B.Others[rig.A.Welcome.SessionId].YawDeg, Is.EqualTo(30f));
+        }
+
+        [Test]
+        public void TheMirrorDigestMatchesTheServersRecordAndTheTickEstimateRuns()
+        {
+            Rig rig = Start(World());
+            Heightfield ground = Ground();
+            rig.A = rig.Join("William");
+            rig.B = rig.Join("Guest");
+            rig.Pump(5);
+            rig.A.SendMove(MoverInput.None, 0f, 0f, GroundedAt(ground, 2.0, 3.0));
+            rig.B.SendMove(MoverInput.None, 0f, 0f, GroundedAt(ground, -4.0, 1.0));
+            rig.Pump(3);
+            PlayerSession guest = rig.Server.Sessions[1];
+            Assert.That(rig.A.MirrorDigest(guest.SessionId), Is.EqualTo(rig.Server.BodyDigest(guest)));
+            Assert.That(rig.A.MirrorDigest(guest.SessionId), Is.Not.EqualTo(rig.Server.BodyDigest(rig.Server.Sessions[0])));
+            Assert.That(rig.Server.Digest(), Is.EqualTo(rig.Server.Digest()), "stable between steps");
+
+            long tick = rig.A.LastServerTick;
+            Assert.That(tick, Is.GreaterThan(0));
+            Assert.That(rig.A.EstimatedServerTick(rig.Ms + 1000), Is.EqualTo(tick + 20.0).Within(1.0), "a second on is twenty ticks on at 20 Hz");
+            MirrorSample sample;
+            Assert.That(rig.A.TrySampleMirror(guest.SessionId, rig.Ms, out sample), Is.True);
+            Assert.That(sample.East, Is.EqualTo(-4.0).Within(1e-9));
+        }
+    }
+}

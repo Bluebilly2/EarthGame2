@@ -25,6 +25,152 @@ namespace EarthGame.Protocol
         PlayerState = 7,
         /// <summary>Server → client: your reported move was impossible; here is where you are.</summary>
         Correction = 8,
+        /// <summary>Client → server: send me these layer tiles, unless their checksum is the one I hold.</summary>
+        TileRequest = 9,
+        /// <summary>Server → client: a tile is coming in this many chunks, or it is the one you hold.</summary>
+        TileHeader = 10,
+        /// <summary>Server → client: one chunk of a tile's bytes.</summary>
+        TileChunk = 11,
+        /// <summary>Server → client: every player state that existed at your Welcome has been sent.</summary>
+        SnapshotEnd = 12,
+        /// <summary>Server → client: a session is gone; drop its mirror.</summary>
+        PlayerLeft = 13,
+    }
+
+    /// <summary>One tile the client wants, with the checksum of the copy it already holds (zero for none).</summary>
+    public struct TileWant
+    {
+        public int Ix;
+        public int Iz;
+        public uint KnownCrc32;
+    }
+
+    /// <summary>Client → server, reliable: the tiles around the player, sent once the Welcome says where that is.</summary>
+    public struct TileRequestMessage
+    {
+        public TileWant[] Wants;
+
+        public void Write(PacketWriter w)
+        {
+            w.WriteByte((byte)MessageKind.TileRequest);
+            int count = Wants == null ? 0 : Wants.Length;
+            if (count > 64) throw new ProtocolException("a tile request names at most 64 tiles, not " + count);
+            w.WriteByte((byte)count);
+            for (int i = 0; i < count; i++)
+            {
+                w.WriteInt32(Wants[i].Ix);
+                w.WriteInt32(Wants[i].Iz);
+                w.WriteUInt32(Wants[i].KnownCrc32);
+            }
+        }
+
+        public static TileRequestMessage Read(PacketReader r)
+        {
+            TileRequestMessage m;
+            int count = r.ReadByte();
+            m.Wants = new TileWant[count];
+            for (int i = 0; i < count; i++)
+            {
+                m.Wants[i].Ix = r.ReadInt32();
+                m.Wants[i].Iz = r.ReadInt32();
+                m.Wants[i].KnownCrc32 = r.ReadUInt32();
+            }
+            return m;
+        }
+    }
+
+    /// <summary>
+    /// Server → client, reliable, before a tile's chunks. <see cref="ByteLength"/> zero with a checksum means the
+    /// client's copy is current and no chunks follow; <see cref="Posts"/> zero means the server has no ground to
+    /// send (a world without region data), which the client logs and does not wait for.
+    /// </summary>
+    public struct TileHeaderMessage
+    {
+        public int Ix;
+        public int Iz;
+        public ushort Posts;
+        public float CellM;
+        public double OriginEast;
+        public double OriginNorth;
+        public int ByteLength;
+        public uint Crc32;
+        public ushort ChunkCount;
+
+        public void Write(PacketWriter w)
+        {
+            w.WriteByte((byte)MessageKind.TileHeader);
+            w.WriteInt32(Ix);
+            w.WriteInt32(Iz);
+            w.WriteUInt16(Posts);
+            w.WriteSingle(CellM);
+            w.WriteDouble(OriginEast);
+            w.WriteDouble(OriginNorth);
+            w.WriteInt32(ByteLength);
+            w.WriteUInt32(Crc32);
+            w.WriteUInt16(ChunkCount);
+        }
+
+        public static TileHeaderMessage Read(PacketReader r)
+        {
+            TileHeaderMessage m;
+            m.Ix = r.ReadInt32();
+            m.Iz = r.ReadInt32();
+            m.Posts = r.ReadUInt16();
+            m.CellM = r.ReadSingle();
+            m.OriginEast = r.ReadDouble();
+            m.OriginNorth = r.ReadDouble();
+            m.ByteLength = r.ReadInt32();
+            m.Crc32 = r.ReadUInt32();
+            m.ChunkCount = r.ReadUInt16();
+            return m;
+        }
+    }
+
+    /// <summary>Server → client, reliable and ordered: one chunk of a tile, in order after its header.</summary>
+    public struct TileChunkMessage
+    {
+        public int Ix;
+        public int Iz;
+        public ushort Index;
+        public byte[] Bytes;
+
+        public void Write(PacketWriter w)
+        {
+            w.WriteByte((byte)MessageKind.TileChunk);
+            w.WriteInt32(Ix);
+            w.WriteInt32(Iz);
+            w.WriteUInt16(Index);
+            w.WriteBytes(Bytes ?? System.Array.Empty<byte>());
+        }
+
+        public static TileChunkMessage Read(PacketReader r)
+        {
+            TileChunkMessage m;
+            m.Ix = r.ReadInt32();
+            m.Iz = r.ReadInt32();
+            m.Index = r.ReadUInt16();
+            m.Bytes = r.ReadBytes();
+            return m;
+        }
+    }
+
+    /// <summary>Server → client, reliable: the snapshot that followed the Welcome is complete (it may have been empty).</summary>
+    public struct SnapshotEndMessage
+    {
+        public long ServerTick;
+
+        public void Write(PacketWriter w)
+        {
+            w.WriteByte((byte)MessageKind.SnapshotEnd);
+            w.WriteInt64(ServerTick);
+        }
+
+        public static SnapshotEndMessage Read(PacketReader r)
+        {
+            SnapshotEndMessage m;
+            m.ServerTick = r.ReadInt64();
+            return m;
+        }
     }
 
     /// <summary>Client → server. The first message on a connection; anything else first is a refusal.</summary>
@@ -58,6 +204,8 @@ namespace EarthGame.Protocol
         public uint SessionId;
         public ulong Seed;
         public string RegionId;
+        /// <summary>The region's side in metres, so the client lays out the tile grid without knowing the region.</summary>
+        public double ExtentM;
         public double TotalHours;
         public long Tick;
         public byte TickRate;
@@ -71,6 +219,7 @@ namespace EarthGame.Protocol
             w.WriteUInt32(SessionId);
             w.WriteUInt64(Seed);
             w.WriteString(RegionId);
+            w.WriteDouble(ExtentM);
             w.WriteDouble(TotalHours);
             w.WriteInt64(Tick);
             w.WriteByte(TickRate);
@@ -85,6 +234,7 @@ namespace EarthGame.Protocol
             m.SessionId = r.ReadUInt32();
             m.Seed = r.ReadUInt64();
             m.RegionId = r.ReadString();
+            m.ExtentM = r.ReadDouble();
             m.TotalHours = r.ReadDouble();
             m.Tick = r.ReadInt64();
             m.TickRate = r.ReadByte();
@@ -322,6 +472,25 @@ namespace EarthGame.Protocol
         {
             if (payload == null || count < 1 || offset < 0 || offset >= payload.Length) return MessageKind.None;
             return (MessageKind)payload[offset];
+        }
+    }
+
+    /// <summary>Server → client, reliable: a session ended (a leave, a drop, or a rejoin that superseded it).</summary>
+    public struct PlayerLeftMessage
+    {
+        public uint SessionId;
+
+        public void Write(PacketWriter w)
+        {
+            w.WriteByte((byte)MessageKind.PlayerLeft);
+            w.WriteUInt32(SessionId);
+        }
+
+        public static PlayerLeftMessage Read(PacketReader r)
+        {
+            PlayerLeftMessage m;
+            m.SessionId = r.ReadUInt32();
+            return m;
         }
     }
 }

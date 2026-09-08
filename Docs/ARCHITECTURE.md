@@ -122,9 +122,13 @@ player file moves to `.egp` then, as a versioned change of format, not a quiet r
 - **Rule 3 — split by assembly, not `#if`.** **Rule 4 — engine-free core, exploited** (the server is tested by
   dotnet). **Rule 5 — dirty masks and interest management from day one** (a radius filter for ≤ 8 players; a
   grid later; a per-connection bandwidth budget; baseline streaming on join by proximity).
-- **Transport:** `ITransport` (Update/Poll; reliable and unreliable delivery; a peer-stated close reason is
-  flagged `ReasonFromPeer`) with `InMemoryTransport` and LiteNetLib over UDP (vendored, MIT; its loss/latency
-  simulator is the N1–N4 harness, always compiled with `SIMULATE_NETWORK`).
+- **Transport:** `ITransport` (`Update(elapsedSeconds)`/Poll; reliable and unreliable delivery; a peer-stated
+  close reason is flagged `ReasonFromPeer`; every connection counts its payload bytes both ways) with
+  `InMemoryTransport` and LiteNetLib over UDP (vendored, MIT; its loss/latency simulator is the N1–N4 harness,
+  always compiled with `SIMULATE_NETWORK`). `UdpOptions.SendCapBytesPerSecond` is a token bucket per connection
+  with a quarter-second burst (never smaller than one 64 KB message), refilled by the caller's elapsed time: the
+  harness's stand-in for a real uplink (CANON ruling 11). `UdpTransportBase.Sever()` drops the socket without a
+  word, the N3 cut.
 - **Handshake (protocol v1):** the first message must be `Hello` (protocol version, player name, password); the
   server answers `Welcome` (session id, seed, region, time, tick, tick rate) or `Refused` (reason) and closes with
   the same reason. A malformed packet is a refusal, never a crash. Over UDP a close can overtake the `Refused`
@@ -132,11 +136,47 @@ player file moves to `.egp` then, as a versioned change of format, not a quiet r
 - **Movement:** the client runs the engine's `Step()` locally and sends `{tick, input, resulting state}`; the
   server validates (max speed × dt × tolerance; heightfield ground clamp; penetration probe), logs violations and
   corrects with a sequence number. Inputs are on the wire from day one so server-side simulation with client
-  prediction is a later switch.
+  prediction is a later switch. A move reported while the server is paused is neither accepted nor corrected,
+  so a held tick holds the bodies. The interval a report is judged over is its sequence spacing (the client
+  sends one report per tick interval of its own simulated time), bounded by the real time the session has banked
+  since the reports it accepted (`MovementRules.MoveCreditCapSeconds`, five seconds): jitter that bunches two
+  reports into one server tick does not double their speed, and a report that claims time the client did not
+  have is judged over what really passed. A report older than the newest accepted is stale and ignored.
+- **Streaming on join (protocol v3, M1.B):** the Welcome carries the region's extent; the client lays out the
+  fixed tile grid from it (`TileGrid`: kilometre tiles when the extent divides into kilometres, else the whole
+  region as one tile; tile (0, 0) at the south-west corner) and asks for the nine tiles around its spawn with a
+  `TileRequest` that names the checksum of any copy it holds. The server answers each with a `TileHeader` (posts,
+  cell, origin, byte length, CRC-32, chunk count; zero posts means no ground to serve; zero length with a
+  checksum means the copy is current) and reliable, ordered `TileChunk`s of 16 KB. A tile is int16 centimetres,
+  row-delta, deflate (`TileCodec`; heights beyond ±327 m refused); the client checks the CRC, unpacks, stores
+  the bytes on disk by checksum (`DiskTileCache` under `Saves/tiles/<region>/`), and raises the tile. The coarse
+  region and the 64 km skirt stay the bake on disk, stated as such. The client's ground (`TileHeightfield`) reads
+  the tiles bilinearly exactly as the server reads the raster, and is NaN where no tile is held.
+- **Snapshot and interest:** the Welcome is followed by a `PlayerState` for every body the joiner can see and a
+  `SnapshotEnd`; after each tick the server sends a body only to sessions within `ServerConfig.InterestRadiusM`
+  (1500 m; a session without a body yet sees everything); a session's end is a `PlayerLeft`. The client keeps a
+  `RemoteMirror` per remote player (states by server tick) and draws it a stated delay (three ticks) behind the
+  estimated server tick, interpolating between the two states around it and holding at the newest beyond them.
+  *Interactive* (N1) is: the nine tiles answered, the snapshot applied, and the tile under the founder built.
+- **Rejoin:** a session that ends keeps its body by player name for the life of the server (and in the world
+  folder on save); the same name wakes there, and a Hello for a name still connected supersedes the old session
+  (the transport had not yet noticed the cut). **Digests** (`WorldDigest`, ARCHITECTURE §6): FNV-1a 64 over
+  lines of twelve-significant-figure numbers, sorted by key; the world digest names the clock, the tick and every
+  body by name; the bodies digest names one body by session id, computed the same way by the server's record
+  and the client's mirror, so N3 and N4 compare strings.
+- **Measurement in the server:** `GameServer.Ticks` (a `TickStats` window: count, overruns, mean, max, p95 of
+  each host update that released a step, timed by the clock the host passes in; the server reads none),
+  `TileService.BytesServed`, and each connection's byte counters. The host writes them to its run log (§10).
 - **Hosting:** "Host game" listens on a port; join by IP:port with an optional shared password in `Hello`
   (LiteNetLib has no encryption — friends only); Tailscale for CGNAT; `EarthGame.ServerHost` is the dedicated
-  console (`+server.port`, `+server.password`, `+server.maxplayers`, `+server.seed`, `+server.region`; `status`,
-  `pause`, `resume`, `stop` on stdin).
+  console (`+server.port`, `+server.password`, `+server.maxplayers`, `+server.seed`, `+server.region`,
+  `+server.simulate.latency/jitter/loss`, `+server.sendcap`, `+server.log`, `+server.seconds`; `status`, `pause`,
+  `resume`, `digest`, `stop` on stdin). The Unity client takes the same shaping for its own socket
+  (`-eg-latency`, `-eg-jitter`, `-eg-loss`, `-eg-sendcap`) and runs a scenario with `-eg-scenario` and
+  `-eg-record` (`ScenarioRunner`: the founder driven along `Routes.WakeLoop` by a `RouteFollower`; `join`, `walk`,
+  `soak`, `rejoin`; the first-frame recorder stays). `Tools/corpus/run.py` is the harness (§7.1's conditions,
+  the held-tick pause driven from the player's own log) and `Tools/verifiers/checks/join_check.py` recomputes
+  N1–N4 from the logs.
 - **Plan B (true cost):** FishNet 4.7 requires the server to be a Unity process; adopting it replaces
   `EarthGame.Server`'s replication and its dotnet tests and forfeits the pure-.NET dedicated server. Decided at
   the week-3 checkpoint against N1–N4 only.
@@ -216,12 +256,13 @@ controls (ruling 12).
 
 | Format | Version | Owner of the writer | Readers | Defined |
 |---|---|---|---|---|
-| Wire protocol | 1 (Hello, Welcome, Refused, Ping, Pong) | `EarthGame.Protocol` | server, client | `Messages.cs`; `ProtocolInfo.Version` |
+| Wire protocol | 3 (v1 Hello, Welcome, Refused, Ping, Pong; v2 PlayerMove, PlayerState, Correction, the spawn in Welcome; v3 the extent in Welcome, TileRequest, TileHeader, TileChunk, SnapshotEnd, PlayerLeft) | `EarthGame.Protocol` | server, client | `Messages.cs`; `ProtocolInfo.Version`; a Hello of another version is refused with both numbers |
+| Layer tile (`TileCodec`) | 1 | `TileCodec.cs` (Engine) | `TileService` (server), `TileReceiver` and `DiskTileCache` (client) | posts² int16 centimetres, each row the running delta from its first post, deflate; CRC-32 (IEEE) of the deflated bytes in the header and in front of the cached file; a value beyond ±327 m or a NaN is refused at encode |
 | `RegionRaster` (`eg2.raster`: a `.r32` float32 grid + JSON sidecar) | 1 | `Tools/data/raster_io.py` (the bake and the fixture writer both call it) | `RegionRaster.cs` (server and client), owner verifiers | Sidecar keys: format, version, name, region, dtype f32, byte_order little, width, height, cell_m, extent_m, centre_lat, centre_lon, min_m, max_m, sea_fraction, source, sha256. Row 0 north, column 0 west, cell centres at east = col·cell − extent/2, north = extent/2 − row·cell; width = height = extent/cell + 1. The loader refuses any other version. |
 | `eg2.almanac` (one JSON line) | 1 | `Almanac.cs` via the almanac console tool | `solar_check.py` | Keys: format, version, time_basis, day_of_year, latitude_deg, longitude_deg, declination_deg, daylight_hours, sunrise_local_hour, sunset_local_hour, noon_elevation_deg, wake_local_hour, wake_elevation_deg, wake_azimuth_deg. Hours are local mean solar time: no zone, no equation of time. |
 | `world.json` (`eg2.world`) and `players/<name>.json` (`eg2.player`) | 1 | `WorldSave.cs` (the server) | server (continue), the shell (which world is newest) | Keys of world.json: format, version, region, seed, extent_m, created_utc, saved_utc, protocol_version, tick, clock {total_hours, started_at_hours}. Player: format, version, name, east, up, north, yaw_deg, pitch_deg, grounded, saved_tick. |
-| `run.jsonl` (the recorder, `eg2.run`) | 1 | `RunLog.cs` (ClientCore), written by the recorder | `corpus_check.py`, `join_check.py` | One JSON object per line. Line 1 is the header: `format`, `version`, then what the run says about itself (scenario, region, seed, session, spawn, started_utc, unity, terrain). Every later line starts `t` (real seconds since the run began), `tick` (the server tick last known to the client, −1 before any), `kind`, then the record's fields. Kinds in M1.A: `frame` (file, width, height, east, up, north, yaw_deg, pitch_deg, grounded, corrections), `error`, `exception` (message, stack), `end` (frames, errors, corrections, moves_sent, east, up, north). |
-| join log, soak log | — | the N1–N4 harness | `join_check.py` | M1.B contract (not yet) |
+| `run.jsonl` (`eg2.run`) | 1 | `RunLog.cs` (Engine), written by the recorder, the scenario runner and the server host | `corpus_check.py`, `join_check.py` | One JSON object per line. Line 1 is the header: `format`, `version`, then what the run says about itself (`role` client or server; scenario, region, seed, name, mode, address, port, the shaping `latency_ms`/`jitter_ms`/`loss_percent`/`send_cap_bytes_per_second`, started_utc, unity, terrain, duration_s, cycles). Every later line starts `t` (real seconds since the run began), `tick` (the server tick last known to the writer, −1 before any), `kind`, then the record's fields. **Client kinds** — M1.A: `frame` (file, width, height, east, up, north, yaw_deg, pitch_deg, grounded, corrections), `error`, `exception` (message, stack), `end`. M1.B: `welcome` (rejoin, session, seed, region, tick_rate, spawn_east/up/north, world_total_hours), `interactive` (rejoin, since_connect_s, tiles_held, tiles_from_cache, tiles_refused, tiles_built, bytes_received, bytes_sent, rtt_ms, east, up, north), `segment` (name, index, lap, east, north), `correction` (sequence, reason, displacement_m, segment, east, up, north), `sample` once a second (east, up, north, grounded, wading, speed, segment, remotes, rtt_ms, bytes_sent, bytes_received, corrections, interactive, connection, fps), `mirror` once a second per remote (session, latest_tick, digest, latest_east/up/north, east, up, north, at_tick, interpolated, estimated_tick, states_held), `cut` (cycle, east, up, north, mirrors), `rejoin` (cycle), `dropped` (reason, severed), `end` (exit, samples, errors, corrections, interactive_s, rejoin_interactive_s, cuts, rejoins_interactive, laps, skipped_waypoints, moves_sent, east, up, north). **Server kinds** (M1.B): `join` (session, name, remembered, east, up, north), `leave` (session, name, reason), `correction` (session, name, reason, east, up, north), `bodies` once a second per session (session, from, digests[] one per tick from `from`, positions[] east, up, north per tick), `bandwidth` once a second per session (session, name, sent, received, sent_total, received_total, moves_accepted, corrections), `memory` once a second (heap_bytes, working_set_bytes, players, tiles_served_bytes, dropped_seconds, digest), `ticks` once a minute (count, over_interval, max_ms, mean_ms, p95_ms, heap_collected_bytes, working_set_bytes), `pause`/`resume`/`digest` on a console command (digest, paused), `end` (seconds, players, digest, dropped_seconds). |
+| The corpus folder | 1 | `Tools/corpus/run.py` | `join_check.py` | `Artefacts/corpus/<stamp>/<scenario>/{server,A,B}/run.jsonl` with `player.log` and `console.log` beside them; scenarios `join-a`, `join-b`, `walk`, `walk-solo`, `rejoin-held`, `rejoin-live`, `soak`; `latest` points at the newest; `summary.json` is the harness's own and no verifier reads it |
 
 A row moves from "not yet" to a version number in the commit that first writes the format; the version field is
 mandatory in every file from the first write.
@@ -254,3 +295,12 @@ mandatory in every file from the first write.
 | 2026-09-08 | Unity Terrain draws non-instanced until profiled (M1.4); the terrain material keeps its instancing variants regardless | The owner's first play showed "a void". The built player's instanced terrain drew nothing (instancing variants stripped from the build), and with the variants kept it drew without the sun (a probe sphere beside it was lit, the ground stayed sky-blue); the non-instanced path draws lit. Found by bisection with `-eg-hide` and `-eg-probe`, never by a test, an edit-mode test cannot see a build |
 | 2026-09-08 | The client draws the whole region at coarse posts under the near tile, the 64 km surround as the far skirt, and a sea plane a few kilometres wide around the founder, ahead of M1.4's streaming | One kilometre of bare coastal plain was a void to the owner's eyes; the coast, the hills and the bay are what make the place a place. The far skirt and the sea were already in §3 and §8 |
 | 2026-09-08 | `-eg-plain`, `-eg-hide`, `-eg-probe`, `-eg-shell` and F12 screenshots are diagnostics that stay in the client | Every one of them found something a test could not; a frame the owner can send is the only way his eyes reach Claude's |
+| 2026-09-08 | The tile grid is laid out from the region's extent, which the Welcome carries, not from the region id | A client that does not know a region (the fixture regions of the tests; a region baked after the client shipped) must still stream it; the grid is arithmetic on the extent and the two ends compute it separately |
+| 2026-09-08 | Tiles travel as int16 centimetres with row deltas and deflate, chunked at 16 KB over the reliable channel, and are cached on disk by checksum | A kilometre of 4 m posts deflates to a few tens of kilobytes; centimetres are what the wire can promise and the digest compares; a rejoin with a warm cache costs a header per tile |
+| 2026-09-08 | The mirror is sampled three ticks behind the estimated server tick and holds still past its newest state | Extrapolation invents motion the server never saw; the delay keeps a state either side of the sample under the harness's loss, and N4 measures the residue against the server's log |
+| 2026-09-08 | A paused server accepts no moves; the same name superseding a live session is the rejoin path | The held-tick digest row is only meaningful if the bodies hold with the clock; a cut cable leaves the old session alive until the transport's timeout, longer than N3's three seconds |
+| 2026-09-08 | The server's instruments live in the host, which passes its clock in | The engine-free server reads no clock and no process; the host is the place that has both, and the tick window, heap and working set are written from there |
+| 2026-09-08 | The harness times the held-tick pause from the player's own log rather than from a schedule | The player's clock starts after the process does; a pause sent by the wall clock would land seconds off the cut, and the row it serves compares what the server wrote at the pause and the resume |
+| 2026-09-08 | A movement report is judged over its sequence spacing, bounded by the real time the session has banked (a five-second cap) | The first corpus run at 100 ms ± 20 ms corrected a legal sprint thirty-one times in forty-five seconds: jitter delivered two reports in one server tick and the old rule read their spacing as one tick. The cap keeps a client from claiming time it never had; the burst it permits is five seconds of running at the honest average |
+| 2026-09-08 | The founder's body is frozen until the tile under it is built, and a corrected body the server holds below the client's ground is lifted onto it | In the second before the tiles arrived the body fell onto the sunk coarse terrain and was under the tile when it arrived; the server's metre of ground tolerance then held it there and corrected every report |
+| 2026-09-08 | Streamed tiles are built one Terrain per frame, the one under the founder first | Nine in one frame stalled the client for most of a second: the first mirror sample found one state and an estimate fourteen ticks past it |

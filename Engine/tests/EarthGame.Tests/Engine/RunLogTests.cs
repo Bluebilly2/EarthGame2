@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using System.IO;
-using EarthGame.ClientCore;
+
 using EarthGame.Engine;
 using NUnit.Framework;
 
-namespace EarthGame.Tests.ClientCore
+namespace EarthGame.Tests.Engine
 {
     /// <summary>The run log's shape is a contract the owner's checkers read; this pins it (ARCHITECTURE §10).</summary>
     public sealed class RunLogTests

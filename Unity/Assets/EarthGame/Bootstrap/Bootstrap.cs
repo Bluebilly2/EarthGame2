@@ -26,12 +26,13 @@ namespace EarthGame.Bootstrap
     /// <summary>
     /// The only component that knows both the server and the client exist. With a launch mode on the command line
     /// (<c>-eg-mode solo|host|join|dedicated</c>, <c>-eg-address</c>, <c>-eg-port</c>, <c>-eg-name</c>,
-    /// <c>-eg-password</c>, <c>-eg-seed</c>, <c>-eg-world</c>, <c>-eg-data</c>, <c>-eg-saves</c>,
-    /// <c>-eg-record dir</c>, <c>-eg-seconds N</c>) it starts at once; without one it shows the shell (new world,
-    /// continue, quit). It builds the transports and objects for the mode, pumps the server every frame with real
-    /// elapsed time (the server's own accumulator turns that into fixed ticks), autosaves the world folder every
-    /// half minute and at quit, and is the only caller of the server's Save. The world exists before the first
-    /// player does.
+    /// <c>-eg-password</c>, <c>-eg-seed</c>, <c>-eg-world</c>, <c>-eg-data</c>, <c>-eg-saves</c>, <c>-eg-tiles</c>,
+    /// <c>-eg-record dir</c>, <c>-eg-scenario first-frame|walk|soak|rejoin|join</c>, <c>-eg-seconds N</c>,
+    /// <c>-eg-cycles N</c>, and for the client's own socket <c>-eg-latency</c>, <c>-eg-jitter</c>, <c>-eg-loss</c>,
+    /// <c>-eg-sendcap</c>) it starts at once; without one it shows the shell (new world, continue, quit). It
+    /// builds the transports and objects for the mode, pumps the server every frame with real elapsed time (the
+    /// server's own accumulator turns that into fixed ticks), autosaves the world folder every half minute and at
+    /// quit, and is the only caller of the server's Save. The world exists before the first player does.
     /// </summary>
     public sealed class Bootstrap : MonoBehaviour
     {
@@ -50,6 +51,7 @@ namespace EarthGame.Bootstrap
         private ShellController _shell;
         private string _worldDir;
         private string _recordDir;
+        private string _scenario;
         private double _lastRealtime;
         private float _nextAutosaveAt;
         private float _quitAt = -1f;
@@ -139,23 +141,32 @@ namespace EarthGame.Bootstrap
                 }
             }
 
+            UdpOptions clientOptions = ClientUdpOptions();
             switch (_mode)
             {
                 case LaunchMode.Solo:
                 {
                     InMemoryTransport.CreatePair(out IServerTransport st, out IClientTransport ct);
                     StartServer(st, world, saved, _port);
-                    StartClient(ct, "memory", _port, region);
+                    // The pair's client first; a rejoin (a scenario's cut) gets a further client of the same server.
+                    IClientTransport first = ct;
+                    StartClient(() =>
+                    {
+                        if (first == null) return InMemoryTransport.CreateClient(st);
+                        IClientTransport c = first;
+                        first = null;
+                        return c;
+                    }, "memory", _port, region);
                     break;
                 }
                 case LaunchMode.Host:
                 {
                     StartServer(new UdpServerTransport(new UdpOptions()), world, saved, _port);
-                    StartClient(new UdpClientTransport(new UdpOptions()), "127.0.0.1", _port, region);
+                    StartClient(() => new UdpClientTransport(clientOptions), "127.0.0.1", _port, region);
                     break;
                 }
                 case LaunchMode.Join:
-                    StartClient(new UdpClientTransport(new UdpOptions()), _address, _port, region);
+                    StartClient(() => new UdpClientTransport(clientOptions), _address, _port, region);
                     break;
                 case LaunchMode.Dedicated:
                     StartServer(new UdpServerTransport(new UdpOptions()), world, saved, _port);
@@ -163,11 +174,29 @@ namespace EarthGame.Bootstrap
             }
             _lastRealtime = Time.realtimeSinceStartupAsDouble;
             _nextAutosaveAt = Time.realtimeSinceStartup + AutosaveIntervalSeconds;
+            // A scenario ends itself; without one, -eg-seconds is how long the process runs.
             int seconds = LaunchArgs.GetInt("seconds", 0);
-            if (seconds > 0) _quitAt = Time.realtimeSinceStartup + seconds;
+            if (seconds > 0 && _scenario == null) _quitAt = Time.realtimeSinceStartup + seconds;
             Debug.Log("[bootstrap] " + _mode + " in region " + region.DisplayName + ", seed " + _seed
                       + (world != null ? ", world clock " + world.Clock.UtcText : "") + ", world folder " + _worldDir
-                      + (_recordDir != null ? ", recording to " + _recordDir : ""));
+                      + (_recordDir != null ? ", recording " + (_scenario ?? Recorder.Scenario) + " to " + _recordDir : "")
+                      + (clientOptions.SimulatedMaxLatencyMs > 0 || clientOptions.SimulatedPacketLossPercent > 0
+                          ? ", client socket simulating " + clientOptions.SimulatedMinLatencyMs + "-" + clientOptions.SimulatedMaxLatencyMs + " ms one way, " + clientOptions.SimulatedPacketLossPercent + "% loss" : "")
+                      + (clientOptions.SendCapBytesPerSecond > 0 ? ", client send cap " + clientOptions.SendCapBytesPerSecond + " B/s" : ""));
+        }
+
+        /// <summary>The client socket's shaping and cap, the harness's conditions for the client's own uplink.</summary>
+        private static UdpOptions ClientUdpOptions()
+        {
+            int latency = LaunchArgs.GetInt("latency", 0);
+            int jitter = LaunchArgs.GetInt("jitter", 0);
+            return new UdpOptions
+            {
+                SimulatedMinLatencyMs = Math.Max(0, latency - jitter),
+                SimulatedMaxLatencyMs = latency + jitter,
+                SimulatedPacketLossPercent = LaunchArgs.GetInt("loss", 0),
+                SendCapBytesPerSecond = (long)LaunchArgs.GetDouble("sendcap", 0.0),
+            };
         }
 
         private void StartServer(IServerTransport transport, WorldState world, WorldSaveInfo saved, int port)
@@ -175,16 +204,27 @@ namespace EarthGame.Bootstrap
             _serverTransport = transport;
             _server = new GameServer(new ServerConfig { Password = _password }, transport, world);
             if (saved != null) _server.RememberPlayers(saved.Players.Values);
-            _server.SessionJoined += s => Debug.Log("[server] join  " + s.Name + " (session " + s.SessionId + ") at tick " + s.JoinedTick);
+            _server.SessionJoined += s => Debug.Log("[server] join  " + s.Name + " (session " + s.SessionId + ") at tick " + s.JoinedTick + (s.HasBody ? ", remembered" : ""));
             _server.SessionLeft += (s, reason) => Debug.Log("[server] leave " + s.Name + ": " + reason);
             _server.MoveCorrected += (s, reason) => Debug.Log("[server] correct " + s.Name + ": " + reason);
             _server.Listen(port);
         }
 
-        private void StartClient(IClientTransport transport, string address, int port, Region region)
+        private void StartClient(Func<IClientTransport> transportFactory, string address, int port, Region region)
         {
             _clientRuntime = gameObject.AddComponent<ClientRuntime>();
-            _clientRuntime.Attach(transport, address, port, _playerName, _password, region, _recordDir);
+            if (_recordDir != null && _scenario != null && _scenario != Recorder.Scenario)
+            {
+                // The runner's clock must start before the connection does: its first record is N1's number.
+                JsonObject header = new JsonObject()
+                    .With("role", "client").With("mode", _mode.ToString().ToLowerInvariant()).With("name", _playerName).With("address", address).With("port", port)
+                    .With("region", region.Id).With("unity", Application.unityVersion).With("product_version", Application.version)
+                    .With("latency_ms", LaunchArgs.GetInt("latency", 0)).With("jitter_ms", LaunchArgs.GetInt("jitter", 0)).With("loss_percent", LaunchArgs.GetInt("loss", 0))
+                    .With("started_utc", DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture));
+                ScenarioRunner runner = gameObject.AddComponent<ScenarioRunner>();
+                runner.Begin(_scenario, _recordDir, _clientRuntime, header);
+            }
+            _clientRuntime.Attach(transportFactory, address, port, _playerName, _password, region, _recordDir, _scenario);
         }
 
         private void Update()
@@ -267,6 +307,13 @@ namespace EarthGame.Bootstrap
             _seed = LaunchArgs.GetULong("seed", _seed);
             string record = LaunchArgs.Get("record", null);
             _recordDir = string.IsNullOrEmpty(record) || record == "true" ? null : Path.GetFullPath(record);
+            string scenario = LaunchArgs.Get("scenario", null);
+            if (!string.IsNullOrEmpty(scenario) && scenario != "true")
+            {
+                if (scenario != Recorder.Scenario && !ScenarioRunner.IsKnown(scenario))
+                    Debug.LogError("[bootstrap] unknown scenario '" + scenario + "' (first-frame, walk, soak, rejoin, join)");
+                _scenario = scenario;
+            }
         }
     }
 }

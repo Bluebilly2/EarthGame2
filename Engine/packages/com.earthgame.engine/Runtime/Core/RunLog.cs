@@ -3,7 +3,7 @@ using System.IO;
 using System.Text;
 using EarthGame.Engine;
 
-namespace EarthGame.ClientCore
+namespace EarthGame.Engine
 {
     /// <summary>
     /// The recorder's log, <c>run.jsonl</c> (format <c>eg2.run</c>, version 1; a contracted format under

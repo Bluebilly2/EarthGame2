@@ -6,9 +6,10 @@ using LiteNetLib;
 namespace EarthGame.Transport
 {
     /// <summary>
-    /// Knobs for the UDP transport, including the loss/latency simulator that the N1–N4 harness drives.
-    /// The simulator settings are applied at Listen/Connect and take effect on that side's manager only, so a
-    /// test can shape the client's uplink and the server's downlink independently.
+    /// Knobs for the UDP transport, including the loss/latency simulator that the N1–N4 harness drives and the
+    /// send cap that stands in for a real uplink. The simulator settings are applied at Listen/Connect and take
+    /// effect on that side's manager only, so a test can shape the client's uplink and the server's downlink
+    /// independently.
     /// </summary>
     public sealed class UdpOptions
     {
@@ -24,28 +25,82 @@ namespace EarthGame.Transport
 
         /// <summary>Simulated packet loss in whole percent; zero means off.</summary>
         public int SimulatedPacketLossPercent = 0;
+
+        /// <summary>
+        /// Outgoing payload bytes per second per connection, a token bucket with a quarter-second burst; zero
+        /// means uncapped. The N1 rows are stated at 10 and 5 Mbit/s (1,250,000 and 625,000 here) as harness
+        /// conditions regardless of the owner's link (CANON ruling 11).
+        /// </summary>
+        public long SendCapBytesPerSecond = 0;
     }
 
     public sealed class UdpConnection : IConnection
     {
-        private readonly NetPeer _peer;
+        /// <summary>The largest single payload the bucket must be able to hold, so a big reliable message is never stuck.</summary>
+        private const long MinimumBurstBytes = 65536;
 
-        public UdpConnection(int id, NetPeer peer)
+        private readonly NetPeer _peer;
+        private readonly long _capBytesPerSecond;
+        private readonly double _burstBytes;
+        private readonly Queue<KeyValuePair<byte[], Delivery>> _pending = new Queue<KeyValuePair<byte[], Delivery>>();
+        private double _tokens;
+
+        public UdpConnection(int id, NetPeer peer, long capBytesPerSecond)
         {
             Id = id;
             _peer = peer;
+            _capBytesPerSecond = capBytesPerSecond;
+            _burstBytes = Math.Max(MinimumBurstBytes, capBytesPerSecond * 0.25);
+            _tokens = _burstBytes;
         }
 
         public int Id { get; }
         public bool IsOpen => _peer.ConnectionState == ConnectionState.Connected;
         internal NetPeer Peer => _peer;
+        public long BytesSent { get; private set; }
+        public long BytesReceived { get; internal set; }
 
         /// <summary>Round trip as LiteNetLib measures it, in milliseconds.</summary>
         public int RoundTripMs => _peer.RoundTripTime;
 
+        /// <summary>Payloads held back by the cap and not yet on the wire.</summary>
+        public int PendingCount => _pending.Count;
+
         public void Send(ReadOnlySpan<byte> payload, Delivery delivery)
         {
             if (!IsOpen) return;
+            if (_capBytesPerSecond <= 0)
+            {
+                Transmit(payload, delivery);
+                return;
+            }
+            if (_pending.Count == 0 && _tokens >= payload.Length)
+            {
+                _tokens -= payload.Length;
+                Transmit(payload, delivery);
+                return;
+            }
+            _pending.Enqueue(new KeyValuePair<byte[], Delivery>(payload.ToArray(), delivery));
+        }
+
+        /// <summary>Refills the bucket for the elapsed time and sends what it now allows, in order.</summary>
+        internal void Refill(double elapsedSeconds)
+        {
+            if (_capBytesPerSecond <= 0) return;
+            if (elapsedSeconds > 0.0) _tokens = Math.Min(_burstBytes, _tokens + _capBytesPerSecond * elapsedSeconds);
+            while (_pending.Count > 0 && IsOpen)
+            {
+                KeyValuePair<byte[], Delivery> next = _pending.Peek();
+                if (_tokens < next.Key.Length) break;
+                _pending.Dequeue();
+                _tokens -= next.Key.Length;
+                Transmit(next.Key, next.Value);
+            }
+        }
+
+        private void Transmit(ReadOnlySpan<byte> payload, Delivery delivery)
+        {
+            BytesSent += payload.Length;
             _peer.Send(payload, 0, delivery == Delivery.Reliable ? DeliveryMethod.ReliableOrdered : DeliveryMethod.Unreliable);
         }
 
@@ -102,7 +157,7 @@ namespace EarthGame.Transport
             UdpConnection c;
             if (!ByPeer.TryGetValue(peer, out c))
             {
-                c = new UdpConnection(_nextId++, peer);
+                c = new UdpConnection(_nextId++, peer, Options.SendCapBytesPerSecond);
                 ByPeer[peer] = c;
             }
             return c;
@@ -135,14 +190,16 @@ namespace EarthGame.Transport
         {
             UdpConnection c = Track(peer);
             byte[] data = reader.GetRemainingBytes();
+            c.BytesReceived += data.Length;
             Events.Enqueue(new TransportEvent { Kind = TransportEventKind.Data, Connection = c, Data = data, Offset = 0, Count = data.Length });
         }
 
         protected virtual void PeerOpened(UdpConnection c) { }
         protected virtual void PeerClosed(UdpConnection c) { }
 
-        public void Update()
+        public void Update(double elapsedSeconds)
         {
+            foreach (UdpConnection c in ByPeer.Values) c.Refill(elapsedSeconds);
             Manager.PollEvents();
         }
 
@@ -160,6 +217,15 @@ namespace EarthGame.Transport
         public virtual void Dispose()
         {
             Manager.Stop(true);
+        }
+
+        /// <summary>
+        /// Drops the socket without a word to the peer, the way a cable does: no Disconnect packet, no reason.
+        /// The peer learns of it by its own timeout. The N3 scenario's cut.
+        /// </summary>
+        public void Sever()
+        {
+            Manager.Stop(false);
         }
     }
 

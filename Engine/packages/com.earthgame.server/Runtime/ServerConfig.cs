@@ -25,5 +25,11 @@ namespace EarthGame.Server
 
         /// <summary>How far a client's reported movement may stray from what the mover allows before it is corrected.</summary>
         public MovementRules Movement = new MovementRules();
+
+        /// <summary>
+        /// A player's state is sent only to sessions within this distance of them (horizontal metres). A session
+        /// without an accepted body yet is sent everything, since it has no position to measure from.
+        /// </summary>
+        public double InterestRadiusM = 1500.0;
     }
 }

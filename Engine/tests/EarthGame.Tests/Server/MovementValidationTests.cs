@@ -93,6 +93,69 @@ namespace EarthGame.Tests.Server
         }
 
         [Test]
+        public void ReportsBunchedByJitterAreJudgedByTheirOwnSpacing()
+        {
+            // Three reports of a 4 m/s walk arrive in one server update, as 100 ms of jitter delivers them; measured
+            // over one tick each they were 8 and 12 m/s against a 7 m/s ceiling (the first corpus run, 2026-09-08).
+            Rig rig = Connect();
+            Heightfield ground = Ground();
+            rig.Client.SendMove(MoverInput.None, 0f, 0f, GroundedAt(ground, 0.0, 0.0));
+            rig.Pump(2);
+            for (int i = 1; i <= 3; i++)
+                rig.Client.SendMove(MoverInput.Walk(1.0, 0.0), 90f, 0f, GroundedAt(ground, i * 0.2, 0.0));
+            rig.Pump(2);
+            Assert.That(rig.Session.Corrections, Is.EqualTo(0));
+            Assert.That(rig.Session.MovesAccepted, Is.EqualTo(4));
+            Assert.That(rig.Session.Body.East, Is.EqualTo(0.6).Within(1e-9));
+        }
+
+        [Test]
+        public void AClaimedGapBuysNoMoreTimeThanReallyPassed()
+        {
+            // A client that skips forty sequence numbers per report claims two seconds of walking each time (ten
+            // metres, back and forth inside the 40 m fixture); the credit it banked covers the first two claims,
+            // and the third is judged over the second and a bit that really passed.
+            InMemoryTransport.CreatePair(out IServerTransport st, out IClientTransport ct);
+            GameServer server = new GameServer(new ServerConfig(), st, World());
+            server.Listen(1);
+            GameClient client = new GameClient(ct);
+            client.Connect("memory", 1, "William", "");
+            long ms = 0;
+            for (int i = 0; i < 5; i++)
+            {
+                client.Update(ms);
+                server.Update(0.05);
+                client.Update(ms);
+                ms += 50;
+            }
+            Assert.That(client.State, Is.EqualTo(ClientState.Connected));
+            Heightfield ground = Ground();
+            PacketWriter w = new PacketWriter();
+            uint sequence = 0;
+            for (int i = 0; i <= 3; i++)
+            {
+                PlayerMoveMessage move;
+                move.Sequence = sequence += 40;
+                move.Input = MoverInput.Walk(1.0, 0.0);
+                move.YawDeg = 90f;
+                move.PitchDeg = 0f;
+                move.Body = GroundedAt(ground, i % 2 == 0 ? 0.0 : 10.0, 0.0);
+                w.Reset();
+                move.Write(w);
+                ct.Connection.Send(w.Written, Delivery.Unreliable);
+                client.Update(ms);
+                server.Update(0.05);
+                client.Update(ms);
+                ms += 50;
+            }
+            PlayerSession session = server.Sessions[0];
+            Assert.That(session.MovesAccepted, Is.EqualTo(3), "the first report and two seconds' worth twice");
+            Assert.That(session.Corrections, Is.EqualTo(1));
+            Assert.That(client.LastCorrection.Reason, Does.StartWith("speed"));
+            Assert.That(session.Body.East, Is.EqualTo(0.0).Within(1e-9), "held where the last honest report left it");
+        }
+
+        [Test]
         public void ATeleportIsCorrectedToTheLastAcceptedPlace()
         {
             Rig rig = Connect();

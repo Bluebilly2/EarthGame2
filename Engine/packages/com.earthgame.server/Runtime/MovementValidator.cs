@@ -19,6 +19,16 @@ namespace EarthGame.Server
         public double MaxVerticalSpeed = 60.0;
         /// <summary>Shortest interval two reports are measured over: a server tick, so two reports in one tick are not infinite speed.</summary>
         public double MinIntervalSeconds = 0.05;
+        /// <summary>
+        /// The most time a client may bank between reports. A report is measured over its sequence spacing (the
+        /// client sends one report per tick interval, so the gap in sequence numbers is the time it moved for),
+        /// bounded by the real time the server has seen pass since the reports it accepted: jitter that bunches
+        /// two reports into one server tick does not double their speed, and a client that claims time it did
+        /// not have runs out of credit. Five seconds covers a held tick of that length; the burst it permits is
+        /// five seconds of running, the same average speed as honest play. The first corpus run (2026-09-08)
+        /// corrected a legal sprint thirty-one times in forty-five seconds at 100 ms ± 20 ms before this rule.
+        /// </summary>
+        public double MoveCreditCapSeconds = 5.0;
     }
 
     /// <summary>

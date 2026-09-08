@@ -43,6 +43,9 @@ namespace EarthGame.Transport
     {
         int Id { get; }
         bool IsOpen { get; }
+        /// <summary>Payload bytes handed to the wire and taken from it, for the bandwidth rows of N4.</summary>
+        long BytesSent { get; }
+        long BytesReceived { get; }
         /// <summary>Queues a payload. The bytes are copied; the caller may reuse its buffer immediately.</summary>
         void Send(ReadOnlySpan<byte> payload, Delivery delivery);
         /// <summary>Closes with a reason the peer will see as its Disconnected event.</summary>
@@ -51,12 +54,13 @@ namespace EarthGame.Transport
 
     /// <summary>
     /// The seam between the game and the wire. Both ends pump it from their own loop: <see cref="Update"/>
-    /// moves bytes, <see cref="Poll"/> hands events over one at a time. Single-threaded by contract.
+    /// moves bytes, <see cref="Poll"/> hands events over one at a time. Single-threaded by contract. The elapsed
+    /// time is the caller's, so the transport reads no clock of its own; the send cap refills by it.
     /// </summary>
     public interface ITransport : IDisposable
     {
         /// <summary>Pumps the underlying socket or queue. Call once per frame or tick before polling.</summary>
-        void Update();
+        void Update(double elapsedSeconds);
         /// <summary>Takes the next pending event; false when there is none.</summary>
         bool Poll(out TransportEvent evt);
     }

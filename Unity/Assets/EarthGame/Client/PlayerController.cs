@@ -41,9 +41,31 @@ namespace EarthGame.Client
         public MoverState State;
         public float YawDeg;
         public float PitchDeg;
+
+        /// <summary>
+        /// While true the body neither steps nor reports: set until the ground under it exists (the streamed tile
+        /// is built), so the founder does not fall through the coarse region while the kilometre is on its way.
+        /// The first run of the join scenario (2026-09-08) fell 1.5 m onto the sunk coarse terrain in the second
+        /// before the tiles arrived and was corrected every tick thereafter.
+        /// </summary>
+        public bool Frozen;
+
+        /// <summary>
+        /// The ground as the client holds it, for the one rule the mover does not have: a corrected body that the
+        /// server holds below this ground (its tolerance allows a metre) is lifted onto it, or PhysX keeps it
+        /// under the terrain forever.
+        /// </summary>
+        public IHeightSource Ground;
+
         public int Corrections { get; private set; }
         public string LastCorrectionReason { get; private set; } = string.Empty;
         public uint MovesSent { get; private set; }
+
+        /// <summary>A correction as applied: how far it moved the body, the move it answered, and why.</summary>
+        public event Action<double, uint, string> CorrectionApplied;
+
+        /// <summary>The scenario's hands when a scenario is driving, else null.</summary>
+        public ScriptedInputSource Script => _input as ScriptedInputSource;
 
         public IPlayerInputSource Input
         {
@@ -81,11 +103,34 @@ namespace EarthGame.Client
 
         private void OnCorrected(CorrectionMessage correction)
         {
+            double dx = correction.Body.East - State.East, dy = correction.Body.Up - State.Up, dz = correction.Body.North - State.North;
+            double displacement = Math.Sqrt(dx * dx + dy * dy + dz * dz);
             State = correction.Body;
+            if (Ground != null)
+            {
+                double ground = Ground.HeightAt(State.East, State.North);
+                if (!double.IsNaN(ground) && State.Up < ground - 0.02)
+                {
+                    State.Up = ground + 0.01;
+                    State.Grounded = false;
+                }
+            }
             Corrections++;
             LastCorrectionReason = correction.Reason ?? string.Empty;
             transform.position = ToUnity(State.Feet);
-            Debug.Log("[player] corrected (move " + correction.Sequence + "): " + LastCorrectionReason);
+            Debug.Log("[player] corrected (move " + correction.Sequence + ", " + displacement.ToString("0.00") + " m): " + LastCorrectionReason);
+            CorrectionApplied?.Invoke(displacement, correction.Sequence, LastCorrectionReason);
+        }
+
+        /// <summary>A rejoin: the body reports to a new client from where the server remembered it.</summary>
+        public void Rebind(GameClient client, Double3 spawn)
+        {
+            if (_client != null) _client.Corrected -= OnCorrected;
+            _client = client;
+            if (_client != null) _client.Corrected += OnCorrected;
+            State = MoverState.AtRest(spawn.X, spawn.Y, spawn.Z);
+            transform.position = ToUnity(State.Feet);
+            _sinceSend = 0f;
         }
 
         private void Update()
@@ -102,7 +147,7 @@ namespace EarthGame.Client
 
         private void FixedUpdate()
         {
-            if (_collision == null) return;
+            if (_collision == null || Frozen) return;
             double dt = Time.fixedDeltaTime;
             // The wish is the stick turned into the world: yaw 0 faces north (+Z), 90 faces east (+X).
             double yaw = YawDeg * GeoMath.DegToRad;

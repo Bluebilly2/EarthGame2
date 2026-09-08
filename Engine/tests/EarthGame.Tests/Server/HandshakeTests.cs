@@ -52,7 +52,7 @@ namespace EarthGame.Tests.Server
             GameServer server = new GameServer(new ServerConfig(), st, NewWorld());
             server.Listen(1);
             ct.Connect("memory", 1);
-            ct.Update();
+            ct.Update(0.05);
             TransportEvent evt;
             Assert.That(ct.Poll(out evt) && evt.Kind == TransportEventKind.Connected, Is.True);
 
@@ -65,7 +65,7 @@ namespace EarthGame.Tests.Server
             ct.Connection.Send(w.Written, Delivery.Reliable);
 
             server.Update(0.05);
-            ct.Update();
+            ct.Update(0.05);
             string reason = null;
             while (ct.Poll(out evt))
             {
@@ -181,13 +181,13 @@ namespace EarthGame.Tests.Server
             GameServer server = new GameServer(new ServerConfig(), st, NewWorld());
             server.Listen(1);
             ct.Connect("memory", 1);
-            ct.Update();
+            ct.Update(0.05);
             TransportEvent evt;
             ct.Poll(out evt);
             byte[] garbage = { (byte)MessageKind.Hello, 0x01 }; // Hello kind, then a truncated body
             ct.Connection.Send(garbage, Delivery.Reliable);
             server.Update(0.05);
-            ct.Update();
+            ct.Update(0.05);
             bool refused = false;
             while (ct.Poll(out evt))
                 if (evt.Kind == TransportEventKind.Data && MessageHeader.PeekKind(evt.Data, evt.Offset, evt.Count) == MessageKind.Refused) refused = true;

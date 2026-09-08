@@ -5,13 +5,13 @@ using UnityEngine;
 namespace EarthGame.Client
 {
     /// <summary>
-    /// Unity Terrain from the region's heightfields. The near tile is a kilometre square at 1025 posts, so a post
-    /// every 0.977 m, sampled bilinearly from the 4 m raster (procedural detail below the raster's resolution comes
-    /// later, ARCHITECTURE §3); the same builder makes the coarse layers under and beyond it, the whole region at
+    /// Unity Terrain from a height source: the streamed tiles (a kilometre square at 513 posts, so a post every
+    /// 1.95 m, sampled bilinearly from the tile's 4 m posts; procedural detail below that comes later,
+    /// ARCHITECTURE §3), and the bake on disk for the coarse layers under and beyond them, the whole region at
     /// 7.8 m posts and the 64 km surround at 62.5 m, with a hole cut where a finer layer sits on top. A tile's
     /// origin is its south-west corner in local metres; Unity's +X is east and +Z is north, and the heightmap
-    /// array is indexed [north, east]. The near tile's collider is the client's ground (PhysX interpolates between
-    /// these posts; the server samples the raster: the named defect class); the coarse layers do not collide.
+    /// array is indexed [north, east]. The tiles' colliders are the client's ground (PhysX interpolates between
+    /// these posts; the server samples the raster: the named defect class); the skirt does not collide.
     /// </summary>
     public static class TerrainTileBuilder
     {
@@ -20,7 +20,7 @@ namespace EarthGame.Client
         public static float PostSpacingM => TileSizeM / (Posts - 1);
 
         /// <summary>The posts of a tile whose south-west corner is at (originEast, originNorth), as [north, east].</summary>
-        public static float[,] SamplePosts(Heightfield heightfield, double originEast, double originNorth, int posts, double spacing, out float minM, out float maxM)
+        public static float[,] SamplePosts(IHeightSource heightfield, double originEast, double originNorth, int posts, double spacing, out float minM, out float maxM)
         {
             float[,] heights = new float[posts, posts];
             minM = float.MaxValue;
@@ -40,7 +40,7 @@ namespace EarthGame.Client
         }
 
         /// <summary>Builds a tile's TerrainData: heights normalised over the tile's own range, so a flat tile is not a division by zero.</summary>
-        public static TerrainData BuildData(Heightfield heightfield, double originEast, double originNorth, float sizeM, int posts, TerrainLayer layer, out float baseM)
+        public static TerrainData BuildData(IHeightSource heightfield, double originEast, double originNorth, float sizeM, int posts, TerrainLayer layer, out float baseM)
         {
             float spacing = sizeM / (posts - 1);
             float[,] sampled = SamplePosts(heightfield, originEast, originNorth, posts, spacing, out float minM, out float maxM);
@@ -70,11 +70,11 @@ namespace EarthGame.Client
         }
 
         /// <summary>The kilometre tile at full detail, as before.</summary>
-        public static TerrainData BuildData(Heightfield heightfield, double originEast, double originNorth, TerrainLayer layer, out float baseM)
+        public static TerrainData BuildData(IHeightSource heightfield, double originEast, double originNorth, TerrainLayer layer, out float baseM)
             => BuildData(heightfield, originEast, originNorth, TileSizeM, Posts, layer, out baseM);
 
         /// <summary>Builds and places the near tile in the scene: collidable, full detail.</summary>
-        public static Terrain Build(Heightfield heightfield, double originEast, double originNorth, Material material, TerrainLayer layer, string name)
+        public static Terrain Build(IHeightSource heightfield, double originEast, double originNorth, Material material, TerrainLayer layer, string name)
             => Build(heightfield, originEast, originNorth, TileSizeM, Posts, material, layer, name, true, 0f);
 
         /// <summary>
@@ -82,7 +82,7 @@ namespace EarthGame.Client
         /// layer above them never fights their surface, and have their collider removed: the founder walks on the
         /// near tile only. The returned Terrain owns its data; destroy the GameObject to free both.
         /// </summary>
-        public static Terrain Build(Heightfield heightfield, double originEast, double originNorth, float sizeM, int posts,
+        public static Terrain Build(IHeightSource heightfield, double originEast, double originNorth, float sizeM, int posts,
                                     Material material, TerrainLayer layer, string name, bool collidable, float sinkM)
         {
             TerrainData data = BuildData(heightfield, originEast, originNorth, sizeM, posts, layer, out float baseM);

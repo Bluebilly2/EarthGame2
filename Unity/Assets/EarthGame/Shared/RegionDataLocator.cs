@@ -9,8 +9,9 @@ namespace EarthGame.Shared
     /// Where this process finds the region's baked data and where it keeps its worlds. In a checkout the
     /// repository root is found by walking up from the Unity data folder to <c>global.json</c> (the editor's
     /// <c>Unity/Assets</c> and a player under <c>Build/Player/</c> both sit inside it); otherwise the persistent
-    /// data path serves. <c>-eg-data</c> and <c>-eg-saves</c> override either. In M1.A both the server and the
-    /// client read the rasters from disk; a joining client without the data is M1.B's baseline streaming.
+    /// data path serves. <c>-eg-data</c> and <c>-eg-saves</c> override either. The client reads the bake from disk
+    /// for the coarse region and the far skirt only; the ground it stands on is streamed by the server and cached
+    /// under the saves folder (M1.B).
     /// </summary>
     public static class RegionDataLocator
     {
@@ -46,6 +47,14 @@ namespace EarthGame.Shared
             if (!string.IsNullOrEmpty(over)) return Path.GetFullPath(over);
             string root = RepoRoot ?? Application.persistentDataPath;
             return Path.Combine(root, "Saves");
+        }
+
+        /// <summary>Where the tiles a server streamed are kept by checksum, so a rejoin asks only for what changed (M1.B); <c>-eg-tiles</c> overrides.</summary>
+        public static string TileCacheDir()
+        {
+            string over = LaunchArgs.Get("tiles", null);
+            if (!string.IsNullOrEmpty(over)) return Path.GetFullPath(over);
+            return Path.Combine(SavesDir(), "tiles");
         }
 
         /// <summary>The region's heights as a heightfield, or null with the reason in <paramref name="message"/>.</summary>

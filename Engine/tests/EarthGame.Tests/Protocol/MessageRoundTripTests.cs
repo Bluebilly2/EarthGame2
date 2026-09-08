@@ -37,6 +37,7 @@ namespace EarthGame.Tests.Protocol
             m.SessionId = uint.MaxValue;
             m.Seed = 0xDEADBEEFCAFEF00DUL;
             m.RegionId = "Bherwerre — 35.14°S 150.675°E";
+            m.ExtentM = 8000.0;
             m.TotalHours = 5663.9583333333;
             m.Tick = long.MaxValue;
             m.TickRate = 20;
@@ -46,6 +47,7 @@ namespace EarthGame.Tests.Protocol
             PacketWriter w = new PacketWriter();
             m.Write(w);
             WelcomeMessage back = WelcomeMessage.Read(ReaderOver(w));
+            Assert.That(back.ExtentM, Is.EqualTo(8000.0));
             Assert.That(back.SpawnEast, Is.EqualTo(-2410.5));
             Assert.That(back.SpawnUp, Is.EqualTo(3.25));
             Assert.That(back.SpawnNorth, Is.EqualTo(-2113.75));
@@ -93,7 +95,7 @@ namespace EarthGame.Tests.Protocol
         public void TruncatedMessageIsAProtocolExceptionNotACrash()
         {
             WelcomeMessage m;
-            m.SessionId = 1; m.Seed = 2; m.RegionId = "bherwerre"; m.TotalHours = 3; m.Tick = 4; m.TickRate = 20;
+            m.SessionId = 1; m.Seed = 2; m.RegionId = "bherwerre"; m.ExtentM = 8000; m.TotalHours = 3; m.Tick = 4; m.TickRate = 20;
             m.SpawnEast = 0; m.SpawnUp = 0; m.SpawnNorth = 0;
             PacketWriter w = new PacketWriter();
             m.Write(w);

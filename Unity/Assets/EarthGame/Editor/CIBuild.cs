@@ -10,7 +10,8 @@ namespace EarthGame.Editor
     /// <c>Unity.exe -batchmode -quit -projectPath Unity -executeMethod EarthGame.Editor.CIBuild.BuildWindows -logFile build.log</c>.
     /// The exit code is the verdict (STANDARDS 8): a failed build exits 1, and the tools that call this read the
     /// exit code, never the log for a success sentence. Output goes beside the repository's other build products
-    /// in <c>Build/Player/</c> (gitignored).
+    /// in <c>Build/Player/</c> (gitignored), or where <c>-buildOut &lt;folder&gt;</c> says when a player from the
+    /// previous build is still running there.
     /// </summary>
     public static class CIBuild
     {
@@ -18,6 +19,9 @@ namespace EarthGame.Editor
         {
             string repoRoot = Path.GetFullPath(Path.Combine(Application.dataPath, "..", ".."));
             string outDir = Path.Combine(repoRoot, "Build", "Player");
+            string[] args = System.Environment.GetCommandLineArgs();
+            for (int i = 0; i + 1 < args.Length; i++)
+                if (args[i] == "-buildOut") outDir = Path.GetFullPath(args[i + 1]);
             Directory.CreateDirectory(outDir);
             BuildPlayerOptions options = new BuildPlayerOptions
             {
