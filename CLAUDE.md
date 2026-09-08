@@ -20,12 +20,13 @@
 - There is no single player: SOLO is the server and the client in one process over the in-memory transport, every
   message serialised. No fast path.
 
-## The verifier lane (owner ruling 2026-09-07)
-- Claude writes the tools; the owner verifies them. Files under `Tools/verifiers/owner/` are authored only by the
-  owner; the pre-push hook rejects a commit that touches that path and carries Claude's co-author trailer.
-- A gate that needs an owner verifier fails loudly (`owner verifier <name> missing; gate blocked`) when the
-  verifier is absent or a stub. Claude never writes one to unblock a gate. If the lane stalls, surface it and wait,
-  or renegotiate the contract in writing.
+## The verifiers (owner ruling 2026-09-07, amended by ruling 17 of 2026-09-08)
+- Claude writes the tools and, since ruling 17, the checks too, under `Tools/verifiers/checks/`. Because the
+  same party now writes both, every verifier must use an algorithm or data source independent of the tool it
+  checks, name its reference and its source, and print both numbers beside the verdict (ARCHITECTURE decision
+  log, 2026-09-08). A verifier that reuses the tool's own code is a stub with extra steps.
+- A gate that needs a verifier fails loudly (`verifier <name> missing; gate blocked`) when the file is absent or
+  a stub, and runs it as a step for its exit code when present.
 - Run-log formats the verifiers read (`run.jsonl`, join and soak logs) are contracted and versioned in
   `ARCHITECTURE.md`; a schema change is a renegotiation in writing, not a refactor.
 

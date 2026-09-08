@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The gate runner (Claude's tool). Usage: python Tools/gate/run_gate.py <gate-name>
 
-A gate passes only when (1) every owner verifier it names exists and is not a stub, and (2) every step exits 0.
+A gate passes only when (1) every verifier it names exists and is not a stub, and (2) every step exits 0.
 Nothing here parses a log for a success sentence, pipes a suite into tail, or skips a missing verifier: a verifier
 that is not there is a red with the message the owner asked for, and the exit code is the verdict.
 """
@@ -44,12 +44,12 @@ def main(argv):
     for name in gate.get("verifiers", []):
         entry = by_name.get(name)
         if entry is None:
-            print("owner verifier %s is not in MANIFEST.json; gate blocked" % name)
+            print("verifier %s is not in MANIFEST.json; gate blocked" % name)
             blocked = True
             continue
         status = verifier_status(entry["path"])
         if status != "present":
-            print("owner verifier %s missing; gate blocked (%s: %s)" % (name, status, entry["path"]))
+            print("verifier %s missing; gate blocked (%s: %s)" % (name, status, entry["path"]))
             blocked = True
     if blocked:
         return 1

@@ -1,54 +1,61 @@
 {
-  "_note": "Verifiers are authored only by the owner (CANON.md ruling 16). The gate runner derives each status from the file on disk: missing (no file), stub (empty or carrying the '# STUB' marker), present. Claude never edits files under owner/.",
+  "_note": "Verifiers are the checks the gates run (CANON.md ruling 16 as amended by ruling 17 of 2026-09-08: Claude writes them). Because the same party writes the tool and its check, each entry states the independent method or data the check rests on; a check that reuses the tool's own code is a stub with extra steps. The gate runner derives each status from the file on disk: missing (no file), stub (empty or carrying the '# STUB' marker), present; a present verifier is run as a gate step for its exit code.",
   "verifiers": [
     {
       "name": "decode_check",
-      "path": "Tools/verifiers/owner/decode_check.py",
-      "owner": "William",
+      "path": "Tools/verifiers/checks/decode_check.py",
+      "author": "Claude",
       "gates": ["M1.1"],
-      "checks": "One Terrarium tile decodes to metres that match a known pixel (elevation_m = R*256 + G + B/256 - 32768)."
+      "checks": "One Terrarium tile decodes to metres that match a known pixel (elevation_m = R*256 + G + B/256 - 32768).",
+      "independent_of_the_tool_by": "the published Terrarium encoding applied by hand to a cached tile's pixels, and a pixel over open sea that must decode to about zero; never imports Tools/data/terrarium.py"
     },
     {
       "name": "region_stats",
-      "path": "Tools/verifiers/owner/region_stats.py",
-      "owner": "William",
+      "path": "Tools/verifiers/checks/region_stats.py",
+      "author": "Claude",
       "gates": ["M1.1"],
-      "checks": "The baked heights raster's min, max and sea fraction are plausible; refuses zero rows."
+      "checks": "The baked heights raster's min, max and sea fraction are plausible; refuses zero rows.",
+      "independent_of_the_tool_by": "reading the raw .r32 with numpy from the sidecar's stated shape alone, and plausibility bounds for this coast taken from published relief, not from the bake's own sidecar statistics"
     },
     {
       "name": "summit_check",
-      "path": "Tools/verifiers/owner/summit_check.py",
-      "owner": "William",
+      "path": "Tools/verifiers/checks/summit_check.py",
+      "author": "Claude",
       "gates": ["M1.1", "M1.2"],
-      "checks": "A named summit and the sea are within tolerance in the baked raster; reddens if the bake is mirrored."
+      "checks": "A named summit and the sea are within tolerance in the baked raster; reddens if the bake is mirrored.",
+      "independent_of_the_tool_by": "named places with coordinates and heights from published map sources cited in the file, converted to raster cells by the frame rule restated in ARCHITECTURE.md rather than by the engine's code"
     },
     {
       "name": "solar_check",
-      "path": "Tools/verifiers/owner/solar_check.py",
-      "owner": "William",
+      "path": "Tools/verifiers/checks/solar_check.py",
+      "author": "Claude",
       "gates": ["M1.2", "M1.A"],
-      "checks": "Sunrise at Bherwerre on 25 Aug 2026 from an independent formula matches the engine's SolarClock."
+      "checks": "Sunrise, sunset, declination and the sun's place at the wake hour on day 237 at Bherwerre match an independent solar algorithm.",
+      "independent_of_the_tool_by": "the NOAA solar-position equations on the real date (Julian century, apparent ecliptic longitude, obliquity) against the engine's Spencer-series declination; the engine's line is read as text from the almanac tool, the engine is never imported"
     },
     {
       "name": "station_table",
-      "path": "Tools/verifiers/owner/station_table.py",
-      "owner": "William",
+      "path": "Tools/verifiers/checks/station_table.py",
+      "author": "Claude",
       "gates": ["M2-climate"],
-      "checks": "Parses hand-downloaded BoM CSVs for stations 068034 and 068072 into the calibration table, checked by eye against the page."
+      "checks": "Parses hand-downloaded BoM CSVs for stations 068034 and 068072 into the calibration table.",
+      "independent_of_the_tool_by": "the Bureau's own CSVs, downloaded by the owner by hand because the Bureau blocks scripts (DEBTS.md); the table is checked against the station page by eye"
     },
     {
       "name": "corpus_check",
-      "path": "Tools/verifiers/owner/corpus_check.py",
-      "owner": "William",
+      "path": "Tools/verifiers/checks/corpus_check.py",
+      "author": "Claude",
       "gates": ["M1.10"],
-      "checks": "Independently re-derives the corpus verdict from the raw result files and their mtimes, so the runner cannot grade itself."
+      "checks": "Independently re-derives the corpus verdict from the raw result files and their mtimes, so the runner cannot grade itself.",
+      "independent_of_the_tool_by": "reading only the raw per-scenario result files and their modification times, never the runner's summary"
     },
     {
       "name": "join_check",
-      "path": "Tools/verifiers/owner/join_check.py",
-      "owner": "William",
+      "path": "Tools/verifiers/checks/join_check.py",
+      "author": "Claude",
       "gates": ["M1.B"],
-      "checks": "Recomputes N1-N4 from the contracted run logs independently of the runner's own summary."
+      "checks": "Recomputes N1-N4 from the contracted run logs independently of the runner's own summary.",
+      "independent_of_the_tool_by": "recomputing every criterion from run.jsonl records alone, with the thresholds restated from CANON ruling 11 rather than imported from the harness"
     }
   ]
 }

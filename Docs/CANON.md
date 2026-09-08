@@ -100,3 +100,18 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     contract. "That separation is the fix for the fabricated verdict, and it dies the moment you author both
     sides." Every run-log format the owner's checkers read (`run.jsonl`, the join and soak logs) is a contracted,
     versioned format recorded in `ARCHITECTURE.md`; a schema change is a renegotiation in writing, not a refactor.
+
+### Rulings of 2026-09-08
+
+17. **The verifier lane's authorship rule is overturned.** The owner, on being handed the skeleton of
+    `solar_check.py` to complete: "ive changed my mind, do it for me. overturn the ruling about me doing things to
+    learn." Ruling 16's clause that the owner writes the checks, and the plan's §9 lanes in which the owner writes
+    the second instance of each shape to learn, are withdrawn. The agent writes the verifiers too, under
+    `Tools/verifiers/checks/`; the pre-push authorship check is removed; a gate still blocks loudly on a missing
+    or stub verifier. What stands: ruling 12 (the mover-feel decision is made by the owner playing), the numeric
+    M1.B criteria, contracted run-log formats, and the owner's eyes on frames. What replaces the lost
+    separation is the agent's own rule, recorded in `ARCHITECTURE.md`'s decision log the same day: a verifier
+    must use an algorithm or data source independent of the tool it checks, name its reference and where it came
+    from, print both numbers, and run as a gate step, so the owner reads a comparison rather than a verdict.
+    The v1 failure this lane guarded against (one party authoring both the tool and its check) is now guarded
+    only by that rule and by the owner reading the numbers; that is stated here, not hidden.
