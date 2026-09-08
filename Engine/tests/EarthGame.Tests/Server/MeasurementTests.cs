@@ -60,7 +60,7 @@ namespace EarthGame.Tests.Server
         }
 
         [Test]
-        public void TheDigestIsOrderFreeAndSeesACentimetre()
+        public void TheDigestIsOrderFreeAndSeesAMicrometre()
         {
             MoverState a = MoverState.AtRest(1.0 / 3.0, 2.0, 3.0);
             MoverState b = MoverState.AtRest(-4.0, 0.5, 1.0);
@@ -69,10 +69,13 @@ namespace EarthGame.Tests.Server
             Assert.That(one, Is.EqualTo(two));
             Assert.That(one.Length, Is.EqualTo(16));
             MoverState moved = a;
-            moved.East += 0.01;
+            moved.East += 2e-6;
             string three = WorldDigest.Bodies(new[] { new KeyValuePair<uint, MoverState>(1, moved), new KeyValuePair<uint, MoverState>(2, b) });
             Assert.That(three, Is.Not.EqualTo(one));
-            Assert.That(WorldDigest.G12(1.0 / 3.0), Is.EqualTo("0.333333333333"));
+            Assert.That(WorldDigest.Fixed(1.0 / 3.0, WorldDigest.MetreResolution), Is.EqualTo("333333"), "a third of a metre in micrometres");
+            Assert.That(WorldDigest.Fixed(-2047.829287483074, WorldDigest.MetreResolution), Is.EqualTo("-2047829287"));
+            Assert.That(WorldDigest.Fixed(5661.9623333333348, WorldDigest.HourResolution), Is.EqualTo("5661962333333"));
+            Assert.That(WorldDigest.Fixed(double.NaN, 1.0), Is.EqualTo("nan"));
             Assert.That(WorldDigest.Hex(WorldDigest.Fnv1a64("")), Is.EqualTo("cbf29ce484222325"), "the FNV-1a offset basis for the empty string");
         }
 

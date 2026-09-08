@@ -104,7 +104,7 @@ once at world creation and saved as layers. Nothing in the landscape is placed.
 
 `Saves/<world>/world.json` (seed, region, extent, wake point, created, protocol version), the baked layer rasters,
 `regions/r.X.Y.egr` (one file per 512 m cell: entities and mutable layer diffs; atomic write), `players/<id>.egp`
-(server-side), `digest.txt` (a twelve-significant-figure digest the tests diff). The server is the only writer.
+(server-side), `digest.txt` (the world digest the tests diff: `WorldDigest`, every number a whole count of micrometres or nanohours, rounded to even, the lines sorted and hashed with FNV-1a 64; integers rather than a printed double because the player's Mono and the server's .NET print the twelfth significant figure of some doubles differently, as the first full corpus found on 2026-09-08). The server is the only writer.
 Additive fields with initialisers; every persisted field enters the digest in the same commit. Solo worlds are
 byte-identical to server worlds.
 
@@ -161,7 +161,7 @@ player file moves to `.egp` then, as a versioned change of format, not a quiet r
 - **Rejoin:** a session that ends keeps its body by player name for the life of the server (and in the world
   folder on save); the same name wakes there, and a Hello for a name still connected supersedes the old session
   (the transport had not yet noticed the cut). **Digests** (`WorldDigest`, ARCHITECTURE §6): FNV-1a 64 over
-  lines of twelve-significant-figure numbers, sorted by key; the world digest names the clock, the tick and every
+  lines of fixed-resolution integers (micrometres, nanohours), sorted by key; the world digest names the clock, the tick and every
   body by name; the bodies digest names one body by session id, computed the same way by the server's record
   and the client's mirror, so N3 and N4 compare strings.
 - **Measurement in the server:** `GameServer.Ticks` (a `TickStats` window: count, overruns, mean, max, p95 of
@@ -304,3 +304,5 @@ mandatory in every file from the first write.
 | 2026-09-08 | A movement report is judged over its sequence spacing, bounded by the real time the session has banked (a five-second cap) | The first corpus run at 100 ms ± 20 ms corrected a legal sprint thirty-one times in forty-five seconds: jitter delivered two reports in one server tick and the old rule read their spacing as one tick. The cap keeps a client from claiming time it never had; the burst it permits is five seconds of running at the honest average |
 | 2026-09-08 | The founder's body is frozen until the tile under it is built, and a corrected body the server holds below the client's ground is lifted onto it | In the second before the tiles arrived the body fell onto the sunk coarse terrain and was under the tile when it arrived; the server's metre of ground tolerance then held it there and corrected every report |
 | 2026-09-08 | Streamed tiles are built one Terrain per frame, the one under the founder first | Nine in one frame stalled the client for most of a second: the first mirror sample found one state and an estimate fourteen ticks past it |
+| 2026-09-08 | The digest names numbers as whole micrometres and nanohours, never as a printed double | The first full corpus had one mirror digest in 310 disagree with the server's for a body whose bits were identical on both ends: Unity's Mono printed −2639.4949265549981 with G12 as …656 where .NET printed …655. An editor probe reproduced the client's digest exactly |
+| 2026-09-08 | The snapshot that follows a Welcome goes out after the next step (at once while paused) | A snapshot sent at the Hello carried a body a move had just changed, stamped with the tick before it; sent after the step it carries exactly what that tick's digest names, and a paused server, which accepts no moves, can send it without waiting |

@@ -248,16 +248,44 @@ namespace EarthGame.Tests.Server
             rig.A.SendMove(MoverInput.None, 30f, 0f, GroundedAt(ground, 2.0, 3.0));
             rig.Pump(3);
             rig.B = rig.Join("Guest");
-            // Pump the client without letting the server step, so the only source of A's body is the snapshot.
+            // A paused server releases no step and broadcasts nothing, but still answers a Welcome with its
+            // snapshot at once, so the only source of A's body here is the snapshot.
+            rig.Server.Paused = true;
             rig.B.Update(rig.Ms);
-            rig.Server.Update(0.0);
+            rig.Server.Update(0.05);
             rig.B.Update(rig.Ms);
-            rig.Server.Update(0.0);
+            rig.Server.Update(0.05);
             rig.B.Update(rig.Ms);
             Assert.That(rig.B.State, Is.EqualTo(ClientState.Connected));
             Assert.That(rig.B.SnapshotApplied, Is.True);
             Assert.That(rig.B.Others.ContainsKey(rig.A.Welcome.SessionId), Is.True, "A's body came in the snapshot");
             Assert.That(rig.B.Others[rig.A.Welcome.SessionId].YawDeg, Is.EqualTo(30f));
+        }
+
+        [Test]
+        public void TheSnapshotWaitsForTheStepWhoseDigestNamesIt()
+        {
+            // A's move arrives in the same update as B's Hello, before the step: the snapshot B receives must carry
+            // the body as of the step that follows, stamped with that tick, or the digests of the two ends disagree.
+            Rig rig = Start(World());
+            Heightfield ground = Ground();
+            rig.A = rig.Join("William");
+            rig.Pump(5);
+            rig.A.SendMove(MoverInput.None, 0f, 0f, GroundedAt(ground, 2.0, 3.0));
+            rig.Pump(3);
+            rig.B = rig.Join("Guest");
+            rig.B.Update(rig.Ms);
+            rig.A.SendMove(MoverInput.Walk(1.0, 0.0), 90f, 0f, GroundedAt(ground, 2.2, 3.0));
+            rig.Server.Update(0.0); // the Hello and the move handled; no step yet
+            rig.B.Update(rig.Ms);
+            Assert.That(rig.B.State, Is.EqualTo(ClientState.Connected));
+            Assert.That(rig.B.SnapshotApplied, Is.False, "no step has named the bodies yet");
+            rig.Server.Update(0.05);
+            rig.B.Update(rig.Ms);
+            Assert.That(rig.B.SnapshotApplied, Is.True);
+            PlayerSession william = rig.Server.Sessions[0];
+            Assert.That(rig.B.Others[william.SessionId].ServerTick, Is.EqualTo(rig.Server.World.Tick));
+            Assert.That(rig.B.MirrorDigest(william.SessionId), Is.EqualTo(rig.Server.BodyDigest(william)));
         }
 
         [Test]

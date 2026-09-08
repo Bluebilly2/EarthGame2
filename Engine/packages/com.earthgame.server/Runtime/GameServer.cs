@@ -23,7 +23,10 @@ namespace EarthGame.Server
     ///
     /// <para>A session that ends keeps its body here by player name, so the same name wakes where it was
     /// (M1.B rejoin). The Welcome is followed by a snapshot of every body the joiner can see and a SnapshotEnd,
-    /// and the tiles the joiner asks for are served by the <see cref="TileService"/>.</para>
+    /// sent after the next step so that the states it carries are the ones that tick's digest names (a snapshot
+    /// sent at the Hello carried a body a move had just changed, stamped with the tick before it: one mirror
+    /// digest in 310 disagreed with the server's in the first full corpus, 2026-09-08); while paused it goes at
+    /// once, since no body changes then. The tiles the joiner asks for are served by the <see cref="TileService"/>.</para>
     /// </summary>
     public sealed class GameServer
     {
@@ -157,6 +160,7 @@ namespace EarthGame.Server
                 Stepped?.Invoke(World, _accumulator.StepSeconds);
                 stepped = true;
             }
+            if (stepped || Paused) FlushSnapshots();
             if (stepped)
             {
                 BroadcastBodies();
@@ -340,7 +344,9 @@ namespace EarthGame.Server
             _writer.Reset();
             welcome.Write(_writer);
             connection.Send(_writer.Written, Delivery.Reliable);
-            SendSnapshot(session, spawn);
+            session.SnapshotPending = true;
+            session.SnapshotEast = spawn.X;
+            session.SnapshotNorth = spawn.Z;
             SessionJoined?.Invoke(session);
         }
 
@@ -351,22 +357,28 @@ namespace EarthGame.Server
             return null;
         }
 
-        /// <summary>Every other body the joiner can see from its spawn, reliably, then the end marker.</summary>
-        private void SendSnapshot(PlayerSession joiner, Double3 spawn)
+        /// <summary>The snapshots owed to sessions welcomed since the last step: every other body each can see, reliably, then the end marker.</summary>
+        private void FlushSnapshots()
         {
-            for (int i = 0; i < _sessions.Count; i++)
+            for (int j = 0; j < _sessions.Count; j++)
             {
-                PlayerSession subject = _sessions[i];
-                if (subject == joiner || !subject.HasBody) continue;
-                if (!WithinInterest(subject.Body, spawn.X, spawn.Z)) continue;
-                WriteState(subject);
+                PlayerSession joiner = _sessions[j];
+                if (!joiner.SnapshotPending) continue;
+                joiner.SnapshotPending = false;
+                for (int i = 0; i < _sessions.Count; i++)
+                {
+                    PlayerSession subject = _sessions[i];
+                    if (subject == joiner || !subject.HasBody) continue;
+                    if (!WithinInterest(subject.Body, joiner.SnapshotEast, joiner.SnapshotNorth)) continue;
+                    WriteState(subject);
+                    joiner.Connection.Send(_writer.Written, Delivery.Reliable);
+                }
+                SnapshotEndMessage end;
+                end.ServerTick = World.Tick;
+                _writer.Reset();
+                end.Write(_writer);
                 joiner.Connection.Send(_writer.Written, Delivery.Reliable);
             }
-            SnapshotEndMessage end;
-            end.ServerTick = World.Tick;
-            _writer.Reset();
-            end.Write(_writer);
-            joiner.Connection.Send(_writer.Written, Delivery.Reliable);
         }
 
         private void HandlePlayerMove(PlayerSession session, PlayerMoveMessage move)

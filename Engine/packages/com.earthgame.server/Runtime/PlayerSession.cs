@@ -31,6 +31,11 @@ namespace EarthGame.Server
         public long LastMoveTick;
         /// <summary>Real seconds this session may still claim for movement (MovementRules.MoveCreditCapSeconds); accrued by the host's elapsed time, spent by accepted reports.</summary>
         public double MoveCredit;
+        /// <summary>True from the Welcome until the snapshot has gone out, which happens after the next step (or at once while paused).</summary>
+        public bool SnapshotPending;
+        /// <summary>Where the joiner was told it stands, for the interest radius of its snapshot.</summary>
+        public double SnapshotEast;
+        public double SnapshotNorth;
         /// <summary>Counts for the N2 budget: every correction on a legal walk is a false positive.</summary>
         public int MovesAccepted;
         public int Corrections;
