@@ -27,6 +27,16 @@ def verifier_status(path):
     return "present"
 
 
+def with_tools_python(cmd):
+    """A step that starts with 'python' runs on the tools' own interpreter (Tools/.venv, numpy and Pillow
+    installed from Tools/requirements.txt) when it exists, so a verifier finds the libraries the bake uses.
+    Without the venv the system python is used and a missing library is a red, not a skip."""
+    venv = os.path.join(ROOT, "Tools", ".venv", "Scripts", "python.exe")
+    if cmd and cmd[0] == "python" and os.path.isfile(venv):
+        return [venv] + list(cmd[1:])
+    return cmd
+
+
 def main(argv):
     if len(argv) != 2:
         print("usage: run_gate.py <gate-name>", file=sys.stderr)
@@ -57,7 +67,7 @@ def main(argv):
     for step in gate.get("steps", []):
         print("== %s: %s" % (step["name"], " ".join(step["cmd"])))
         sys.stdout.flush()
-        result = subprocess.run(step["cmd"], cwd=ROOT)
+        result = subprocess.run(with_tools_python(step["cmd"]), cwd=ROOT)
         if result.returncode != 0:
             print("step '%s' exited %d; gate %s RED" % (step["name"], result.returncode, gate_name))
             return 1

@@ -22,8 +22,8 @@
       "path": "Tools/verifiers/checks/summit_check.py",
       "author": "Claude",
       "gates": ["M1.1", "M1.2"],
-      "checks": "A named summit and the sea are within tolerance in the baked raster; reddens if the bake is mirrored.",
-      "independent_of_the_tool_by": "named places with coordinates and heights from published map sources cited in the file, converted to raster cells by the frame rule restated in ARCHITECTURE.md rather than by the engine's code"
+      "checks": "Bherwerre Trig Point (170 m, a kilometre east of the box) reads as a summit in the surround and as the hill's flank in the region raster; the region's high ground is that hill and nowhere else; the east-west and north-south mirror images find only low ground; Jervis Bay and the ocean off Cave Beach are water; the ground north of the wake is land.",
+      "independent_of_the_tool_by": "coordinates and heights from Wikidata Q15107571, peakbagger.com, Parks Australia (booderee.gov.au) and beachesontheair.com, cited in the file, converted to raster cells by the frame rule the sidecar states rather than by the engine's code"
     },
     {
       "name": "solar_check",

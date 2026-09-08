@@ -70,13 +70,21 @@ def bilinear(mosaic, px, py):
 
 
 def despike(heights, threshold_m):
-    """Cells more than threshold_m above the median of their 5x5 neighbourhood take that median. Returns (heights, count)."""
+    """Cells more than threshold_m away from the median of their neighbourhood, in either direction, take that
+    median. Returns (heights, count of replacements over both passes). Pits count as well as spikes: the 4 m region raster held a 1,097 m pit
+    three cells wide on lowland near the bay shore (2026-09-08), a single bad tile pixel spread by resampling."""
     from numpy.lib.stride_tricks import sliding_window_view
-    padded = np.pad(heights, 2, mode="edge")
-    med = np.median(sliding_window_view(padded, (5, 5)), axis=(2, 3)).astype(np.float32)
-    spike = (heights - med) > threshold_m
-    out = np.where(spike, med, heights)
-    return out, int(spike.sum())
+    total = 0
+    out = heights
+    # Two passes over a 7x7 window: a bad pixel resampled onto 4 m cells is a pit up to five cells wide, and a
+    # single 5x5 pass left its floor in place (min -94 m after the first pass on 2026-09-08).
+    for _ in range(2):
+        padded = np.pad(out, 3, mode="edge")
+        med = np.median(sliding_window_view(padded, (7, 7)), axis=(2, 3)).astype(np.float32)
+        spike = np.abs(out - med) > threshold_m
+        out = np.where(spike, med, out)
+        total += int(spike.sum())
+    return out, total
 
 
 def main():
@@ -90,7 +98,7 @@ def main():
     p.add_argument("--extent-m", type=float, default=terrarium.BHERWERRE_EXTENT_M)
     p.add_argument("--coast", action="store_true", default=True, help="the region declares a coast (default)")
     p.add_argument("--despike-m", type=float, default=0.0,
-                   help="replace any cell more than this many metres above its 5x5 median with that median (0 = off). "
+                   help="replace any cell more than this many metres from its 5x5 median, up or down, with that median (0 = off). "
                         "The zoom-11 surround carries isolated bad cells over the open sea, hundreds of metres high, "
                         "which drew as spikes on the skyline (2026-09-08); the 4 m region raster has none.")
     a = p.parse_args()
