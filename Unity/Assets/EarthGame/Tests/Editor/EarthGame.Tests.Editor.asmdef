@@ -5,7 +5,9 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "EarthGame.Editor",
-        "EarthGame.Shared"
+        "EarthGame.Shared",
+        "EarthGame.Engine",
+        "EarthGame.Client"
     ],
     "includePlatforms": [
         "Editor"

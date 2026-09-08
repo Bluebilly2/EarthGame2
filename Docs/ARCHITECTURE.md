@@ -108,6 +108,12 @@ once at world creation and saved as layers. Nothing in the landscape is placed.
 Additive fields with initialisers; every persisted field enters the digest in the same commit. Solo worlds are
 byte-identical to server worlds.
 
+Landed 2026-09-08 (M1.A): `world.json` as format `eg2.world` version 1 (region, seed, extent, created and saved
+dates, protocol version, tick, the clock's two numbers) and a player's resting place as `players/<name>.json`
+(position, yaw, pitch, grounded, tick). The binary `.egp`/`.egr` files arrive with the entity store (M1.3); the
+player file moves to `.egp` then, as a versioned change of format, not a quiet rename. `WorldSave` in
+`EarthGame.Server` is the writer; every file is written to a `.part` and moved into place.
+
 ## 7. Networking
 
 - **Rule 1 — there is no single player.** SOLO = server + client in one process over `InMemoryTransport`; every
@@ -213,8 +219,8 @@ controls (ruling 12).
 | Wire protocol | 1 (Hello, Welcome, Refused, Ping, Pong) | `EarthGame.Protocol` | server, client | `Messages.cs`; `ProtocolInfo.Version` |
 | `RegionRaster` (`eg2.raster`: a `.r32` float32 grid + JSON sidecar) | 1 | `Tools/data/raster_io.py` (the bake and the fixture writer both call it) | `RegionRaster.cs` (server and client), owner verifiers | Sidecar keys: format, version, name, region, dtype f32, byte_order little, width, height, cell_m, extent_m, centre_lat, centre_lon, min_m, max_m, sea_fraction, source, sha256. Row 0 north, column 0 west, cell centres at east = col·cell − extent/2, north = extent/2 − row·cell; width = height = extent/cell + 1. The loader refuses any other version. |
 | `eg2.almanac` (one JSON line) | 1 | `Almanac.cs` via the almanac console tool | `solar_check.py` | Keys: format, version, time_basis, day_of_year, latitude_deg, longitude_deg, declination_deg, daylight_hours, sunrise_local_hour, sunset_local_hour, noon_elevation_deg, wake_local_hour, wake_elevation_deg, wake_azimuth_deg. Hours are local mean solar time: no zone, no equation of time. |
-| `world.json` | — | server | server, client | M1.A contract (not yet) |
-| `run.jsonl` (the recorder) | — | the recorder (Claude's tool) | `corpus_check.py`, `join_check.py` | M1.A contract (not yet): one JSON object per line; the first line is a header `{"format":"eg2.run","version":N,...}`; every record carries `t` (real seconds), `tick`, `kind` |
+| `world.json` (`eg2.world`) and `players/<name>.json` (`eg2.player`) | 1 | `WorldSave.cs` (the server) | server (continue), the shell (which world is newest) | Keys of world.json: format, version, region, seed, extent_m, created_utc, saved_utc, protocol_version, tick, clock {total_hours, started_at_hours}. Player: format, version, name, east, up, north, yaw_deg, pitch_deg, grounded, saved_tick. |
+| `run.jsonl` (the recorder, `eg2.run`) | 1 | `RunLog.cs` (ClientCore), written by the recorder | `corpus_check.py`, `join_check.py` | One JSON object per line. Line 1 is the header: `format`, `version`, then what the run says about itself (scenario, region, seed, session, spawn, started_utc, unity, terrain). Every later line starts `t` (real seconds since the run began), `tick` (the server tick last known to the client, −1 before any), `kind`, then the record's fields. Kinds in M1.A: `frame` (file, width, height, east, up, north, yaw_deg, pitch_deg, grounded, corrections), `error`, `exception` (message, stack), `end` (frames, errors, corrections, moves_sent, east, up, north). |
 | join log, soak log | — | the N1–N4 harness | `join_check.py` | M1.B contract (not yet) |
 
 A row moves from "not yet" to a version number in the commit that first writes the format; the version field is
