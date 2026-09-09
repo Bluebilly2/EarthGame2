@@ -33,9 +33,15 @@ namespace EarthGame.Tests.Engine
             Assert.That(r.CellM, Is.EqualTo(10.0));
             Assert.That(r.ExtentM, Is.EqualTo(40.0));
             Assert.That(r.CentreLatDeg, Is.EqualTo(Region.Bherwerre.CentreLatitudeDeg).Within(1e-12));
-            Assert.That(r.MinM, Is.EqualTo(100.0f));
-            Assert.That(r.MaxM, Is.EqualTo(144.0f), "row 4, column 4: 100 + 4 + 40");
+            Assert.That(r.Min, Is.EqualTo(100.0f));
+            Assert.That(r.Max, Is.EqualTo(144.0f), "row 4, column 4: 100 + 4 + 40");
             Assert.That(r.Sha256.Length, Is.EqualTo(64));
+            Assert.That(r.Layer, Is.EqualTo("heights"));
+            Assert.That(r.Dtype, Is.EqualTo("f32"));
+            Assert.That(r.Unit, Is.EqualTo("m"));
+            Assert.That(r.Scale, Is.EqualTo(1.0));
+            Assert.That(r.IsIntegral, Is.False);
+            Assert.That(r.RawName, Is.EqualTo("tiny.r32"));
         }
 
         [Test]
@@ -114,7 +120,7 @@ namespace EarthGame.Tests.Engine
         {
             byte[] raw = File.ReadAllBytes(RegionRaster.RawPathFor(SidecarPath));
             string sidecar = File.ReadAllText(SidecarPath);
-            Assert.That(() => RegionRaster.FromParts(sidecar.Replace("\"version\": 1", "\"version\": 2"), raw, "v2"),
+            Assert.That(() => RegionRaster.FromParts(sidecar.Replace("\"version\": 2", "\"version\": 3"), raw, "v3"),
                 Throws.TypeOf<InvalidDataException>().With.Message.Contains("version"));
             Assert.That(() => RegionRaster.FromParts(sidecar.Replace("eg2.raster", "eg3.raster"), raw, "other"),
                 Throws.TypeOf<InvalidDataException>().With.Message.Contains("format"));
@@ -122,6 +128,93 @@ namespace EarthGame.Tests.Engine
                 Throws.TypeOf<InvalidDataException>().With.Message.Contains("cell-centre"));
             Assert.That(() => RegionRaster.FromParts("not json", raw, "junk"),
                 Throws.TypeOf<InvalidDataException>().With.Message.Contains("JSON"));
+        }
+
+        [Test]
+        public void AVersionOneSidecarReadsAsAHeightsLayerInMetres()
+        {
+            byte[] raw = File.ReadAllBytes(RegionRaster.RawPathFor(SidecarPath));
+            JsonObject v2 = Json.ParseObject(File.ReadAllText(SidecarPath));
+            string v1 = "{\"format\":\"eg2.raster\",\"version\":1,\"name\":\"tiny\",\"region\":\"fixture\",\"dtype\":\"f32\",\"byte_order\":\"little\","
+                        + "\"width\":5,\"height\":5,\"cell_m\":10.0,\"extent_m\":40.0,\"centre_lat\":-35.14,\"centre_lon\":150.675,"
+                        + "\"min_m\":100.0,\"max_m\":144.0,\"sha256\":\"" + v2.String("sha256") + "\"}";
+            RegionRaster r = RegionRaster.FromParts(v1, raw, "v1");
+            Assert.That(r.Layer, Is.EqualTo("heights"));
+            Assert.That(r.Unit, Is.EqualTo("m"));
+            Assert.That(r.Scale, Is.EqualTo(1.0));
+            Assert.That(r.RawName, Is.EqualTo("tiny.r32"));
+            Assert.That(r[2, 2], Is.EqualTo(127f));
+            Assert.That(r.Min, Is.EqualTo(100f));
+            Assert.That(() => RegionRaster.FromParts(v1.Replace("\"dtype\":\"f32\"", "\"dtype\":\"u16\""), raw, "v1 u16"),
+                Throws.TypeOf<InvalidDataException>().With.Message.Contains("version-1"));
+        }
+
+        [Test]
+        public void AnIntegerLayerReadsInItsUnitAndKeepsItsCodes()
+        {
+            RegionRaster soil = RegionRaster.Load(TestPaths.Fixture("raster", "tiny_soil.json"));
+            Assert.That(soil.Layer, Is.EqualTo("soil_depth"));
+            Assert.That(soil.Dtype, Is.EqualTo("u16"));
+            Assert.That(soil.Scale, Is.EqualTo(0.01));
+            Assert.That(soil.Unit, Is.EqualTo("m"));
+            Assert.That(soil.IsIntegral, Is.True);
+            Assert.That(soil.RawName, Is.EqualTo("tiny_soil.u16"));
+            for (int row = 0; row < 5; row++)
+                for (int col = 0; col < 5; col++)
+                {
+                    Assert.That(soil[row, col], Is.EqualTo((3 * row + 7 * col) / 100.0).Within(1e-6), "metres at " + row + "," + col);
+                    Assert.That(soil.Code(row, col), Is.EqualTo((uint)(3 * row + 7 * col)), "centimetres at " + row + "," + col);
+                }
+            Assert.That(soil.Min, Is.EqualTo(0f));
+            Assert.That(soil.Max, Is.EqualTo(0.40f).Within(1e-6));
+
+            RegionRaster flags = RegionRaster.Load(TestPaths.Fixture("raster", "tiny_flags.json"));
+            Assert.That(flags.Dtype, Is.EqualTo("u32"));
+            Assert.That(flags.Unit, Is.EqualTo("flags"));
+            for (int row = 0; row < 5; row++)
+                for (int col = 0; col < 5; col++)
+                    Assert.That(flags.Code(row, col), Is.EqualTo((1u << row) | (1u << (8 + col))));
+            Assert.That(() => LoadTiny().Code(0, 0), Throws.InvalidOperationException, "an f32 layer has no codes");
+        }
+
+        [Test]
+        public void TheEngineWritesWhatThePythonWriterWritesAndReadsItBack()
+        {
+            string dir = Path.Combine(Path.GetTempPath(), "EarthGame2.Tests", "raster", Guid.NewGuid().ToString("N"));
+            try
+            {
+                RegionRaster like = LoadTiny();
+                float[] depth = new float[25];
+                uint[] codes = new uint[25];
+                for (int i = 0; i < 25; i++)
+                {
+                    int row = i / 5, col = i % 5;
+                    depth[i] = (3 * row + 7 * col) / 100f;
+                    codes[i] = (1u << row) | (1u << (8 + col));
+                }
+                string soilSidecar = RegionRaster.Write(dir, "soil", like, "soil_depth", "u16", 0.01, "m", depth, "the fixture law", "RegionRasterTests", "2026-09-09T00:00:00Z");
+                RegionRaster soil = RegionRaster.Load(soilSidecar);
+                Assert.That(soil.RawName, Is.EqualTo("soil.u16"));
+                Assert.That(soil[4, 4], Is.EqualTo(0.40f).Within(1e-6));
+                Assert.That(soil.Code(4, 4), Is.EqualTo(40u));
+                Assert.That(soil.Sha256, Is.EqualTo(RegionRaster.Load(TestPaths.Fixture("raster", "tiny_soil.json")).Sha256),
+                    "the same law, quantised by the same rule, is the same bytes as the Python writer's");
+
+                string flagSidecar = RegionRaster.WriteCodes(dir, "flags", like, "topology", "u32", "flags", codes, "the fixture law", "RegionRasterTests", "2026-09-09T00:00:00Z");
+                RegionRaster flags = RegionRaster.Load(flagSidecar);
+                Assert.That(flags.Code(3, 1), Is.EqualTo((1u << 3) | (1u << 9)));
+                Assert.That(flags.Sha256, Is.EqualTo(RegionRaster.Load(TestPaths.Fixture("raster", "tiny_flags.json")).Sha256));
+
+                string heightsSidecar = RegionRaster.Write(dir, "heights", like, "heights", "f32", 1.0, "m", like.Values.ToArray(), "copied", "RegionRasterTests", "2026-09-09T00:00:00Z");
+                Assert.That(RegionRaster.Load(heightsSidecar).Sha256, Is.EqualTo(like.Sha256), "an f32 copy is byte-identical too");
+
+                Assert.That(() => RegionRaster.Write(dir, "bad", like, "soil_depth", "u8", 0.001, "m", depth, "", "", ""),
+                    Throws.ArgumentException, "0.40 m in millimetres does not fit a byte, and is refused rather than wrapped");
+            }
+            finally
+            {
+                if (Directory.Exists(dir)) Directory.Delete(dir, true);
+            }
         }
 
         [Test]

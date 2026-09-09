@@ -70,9 +70,31 @@ def write_tiny_raster():
     return os.path.join(out_dir, "tiny.r32")
 
 
+def write_tiny_layers():
+    """Two version-2 layers over the same 5 x 5 grid: soil depth as u16 centimetres (law: 3 cm per row plus 7 per column,
+    so the north-west corner is bare and the south-east corner is 40 cm) and a u32 flag mask (law: bit row set, bit
+    (8 + col) set), so the loader's integer path and its scale are pinned to numbers the tests can name."""
+    side = raster_io.expected_side(40.0, 10.0)
+    depth_m = np.zeros((side, side), dtype=np.float64)
+    flags = np.zeros((side, side), dtype=np.uint32)
+    for row in range(side):
+        for col in range(side):
+            depth_m[row, col] = (3 * row + 7 * col) / 100.0
+            flags[row, col] = (1 << row) | (1 << (8 + col))
+    out_dir = os.path.join(FIXTURES, "raster")
+    raster_io.write_raster(out_dir, "tiny_soil", "fixture", depth_m, 10.0, 40.0, terrarium.BHERWERRE_CENTRE_LAT, terrarium.BHERWERRE_CENTRE_LON,
+                           {"dataset": "synthetic fixture", "law": "(3*row + 7*col) cm"}, "Tools/data/write_fixtures.py", "none: synthetic",
+                           layer="soil_depth", dtype="u16", scale=0.01, unit="m")
+    raster_io.write_raster(out_dir, "tiny_flags", "fixture", flags, 10.0, 40.0, terrarium.BHERWERRE_CENTRE_LAT, terrarium.BHERWERRE_CENTRE_LON,
+                           {"dataset": "synthetic fixture", "law": "bit row | bit (8 + col)"}, "Tools/data/write_fixtures.py", "none: synthetic",
+                           layer="topology", dtype="u32", scale=1.0, unit="flags")
+    return os.path.join(out_dir, "tiny_soil.u16") + " and tiny_flags.u32"
+
+
 def main():
     print("wrote " + write_frame_fixture())
     print("wrote " + write_tiny_raster())
+    print("wrote " + write_tiny_layers())
     return 0
 
 

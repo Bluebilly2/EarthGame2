@@ -1,13 +1,13 @@
 {
   "format": "eg2.raster",
   "version": 2,
-  "name": "tiny",
+  "name": "tiny_soil",
   "region": "fixture",
-  "layer": "heights",
-  "dtype": "f32",
+  "layer": "soil_depth",
+  "dtype": "u16",
   "byte_order": "little",
-  "raw": "tiny.r32",
-  "scale": 1.0,
+  "raw": "tiny_soil.u16",
+  "scale": 0.01,
   "unit": "m",
   "layout": "row-major; row 0 is the north edge, column 0 is the west edge; a value is raw * scale in the unit",
   "width": 5,
@@ -17,15 +17,14 @@
   "centre_lat": -35.14,
   "centre_lon": 150.675,
   "frame": "tangent plane, +east +north metres from the centre; small-angle mapping as Engine LocalFrame",
-  "min": 100.0,
-  "max": 144.0,
+  "min": 0.0,
+  "max": 0.4,
   "source": {
     "dataset": "synthetic fixture",
-    "law": "100 + row + 10*col, +5 at the centre cell"
+    "law": "(3*row + 7*col) cm"
   },
-  "sha256": "5df0c403d9f18bce1b82de4cbd3cd1a7db3111c035bd943cdbac36ce4f58157c",
+  "sha256": "c5bec57dfb887f8540f059ed72484f18404a961d8dac4b4e672c3bd2dcac7f06",
   "attribution": "none: synthetic",
   "baked_by": "Tools/data/write_fixtures.py",
-  "baked_at_utc": "2026-09-09T07:00:18Z",
-  "sea_fraction": 0.0
+  "baked_at_utc": "2026-09-09T07:00:18Z"
 }

@@ -1,14 +1,14 @@
 {
   "format": "eg2.raster",
   "version": 2,
-  "name": "tiny",
+  "name": "tiny_flags",
   "region": "fixture",
-  "layer": "heights",
-  "dtype": "f32",
+  "layer": "topology",
+  "dtype": "u32",
   "byte_order": "little",
-  "raw": "tiny.r32",
+  "raw": "tiny_flags.u32",
   "scale": 1.0,
-  "unit": "m",
+  "unit": "flags",
   "layout": "row-major; row 0 is the north edge, column 0 is the west edge; a value is raw * scale in the unit",
   "width": 5,
   "height": 5,
@@ -17,15 +17,14 @@
   "centre_lat": -35.14,
   "centre_lon": 150.675,
   "frame": "tangent plane, +east +north metres from the centre; small-angle mapping as Engine LocalFrame",
-  "min": 100.0,
-  "max": 144.0,
+  "min": 257.0,
+  "max": 4112.0,
   "source": {
     "dataset": "synthetic fixture",
-    "law": "100 + row + 10*col, +5 at the centre cell"
+    "law": "bit row | bit (8 + col)"
   },
-  "sha256": "5df0c403d9f18bce1b82de4cbd3cd1a7db3111c035bd943cdbac36ce4f58157c",
+  "sha256": "e4ee7fe72fddcf69def07a2594c6fd9dc70e9b795b4784ed786af0c5878ccfc5",
   "attribution": "none: synthetic",
   "baked_by": "Tools/data/write_fixtures.py",
-  "baked_at_utc": "2026-09-09T07:00:18Z",
-  "sea_fraction": 0.0
+  "baked_at_utc": "2026-09-09T07:00:18Z"
 }

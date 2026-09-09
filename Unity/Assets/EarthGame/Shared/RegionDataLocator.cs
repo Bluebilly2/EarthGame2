@@ -78,7 +78,7 @@ namespace EarthGame.Shared
             try
             {
                 RegionRaster raster = RegionRaster.Load(sidecar);
-                message = "region data " + sidecar + ": " + raster.Width + "x" + raster.Height + " at " + raster.CellM.ToString("0.#") + " m, " + raster.MinM.ToString("0") + ".." + raster.MaxM.ToString("0") + " m";
+                message = "region data " + sidecar + ": " + raster.Width + "x" + raster.Height + " at " + raster.CellM.ToString("0.#") + " m, " + raster.Min.ToString("0") + ".." + raster.Max.ToString("0") + " m";
                 return new Heightfield(raster);
             }
             catch (Exception ex)
