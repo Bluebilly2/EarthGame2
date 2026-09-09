@@ -85,3 +85,45 @@ E1–E4 are done. E5 was reached 2026-09-01 and its contract exists.
 Not a screenshot. Someone who can read country should be able to stand anywhere in this world, say
 where the water is, where the deep soil is, and which slope is the dry one — and be right, without
 ever having been told, because all three are consequences of the same history.
+
+
+## The plants and stones of Bherwerre (M1.2, opened 2026-09-09)
+
+The chain above was built in v1 on a Southern Highlands species list. v2's region is Bherwerre Peninsula, the
+southern shore of Jervis Bay (ARCHITECTURE §3), and the species are its own. Each row names where the plant
+stands on the peninsula and what its tolerances in `PlantSpecies.cs` are set from. The tolerances are not
+measurements: they are Claude's reading of the habitat each source describes, stated as numbers so that a
+person who knows the country can dispute them line by line (the owner's lane in the M1.2 contract).
+
+Sources: the Booderee National Park management plan's vegetation communities (Director of National Parks;
+the park is the Commonwealth half of the peninsula); PlantNET, the NSW flora online (Royal Botanic Gardens
+Sydney) for each species' habitat; the site research of 2026-09-07 recorded in the plan (§4.2) and CANON.md.
+
+| Plant | Form | Where it stands on the peninsula | The tolerances follow from |
+|---|---|---|---|
+| Blackbutt, *Eucalyptus pilularis* | tree, 20–40 m | the tall forest on the deeper, moist sands behind the dunes and on the sandstone slopes | needs half a metre of sand and shelter from the salt wind; the timber and the rough lower bark |
+| Bangalay, *E. botryoides* | tree, 12–25 m | the eucalypt nearest the sea and around the swamps; sand, salt wind, wet feet | salt-hardy (exposure 0.75), wide moisture, fibrous bark to the branches |
+| Old-man banksia, *Banksia serrata* | small tree | heathy woodland on dry sand behind the foredune, out of the worst wind | dry optimum, thin sand, moderate exposure |
+| Coast banksia, *B. integrifolia* | small tree | the seaward face of the dune, where nothing else woody stands the salt | roots in 120 mm of sand; exposure tolerance near one |
+| Swamp paperbark, *Melaleuca ericifolia* | small tree | the rim of Ryans Swamp and the lakes, feet in the water | wet optimum with a narrow breadth; bark in sheets |
+| Grass tree, *Xanthorrhoea resinosa* | shrub | the heath on poor sand in full sun | needs almost no soil, no shade; the fire drill's spindle |
+| Heath banksia, *B. ericifolia* | shrub | the heath itself, head high and dense, on the poorer and damper sands | wide moisture, thin sand, open ground |
+| Bracken, *Pteridium esculentum* | herb | under the forest | shade tolerance near one, needs shelter |
+| Lomandra, *Lomandra longifolia* | herb | the dune toe, the forest floor, the creek edges | the widest moisture range here; the fibre of the first cordage |
+| Saw-sedge, *Gahnia sieberiana* (with the *Baumea* sedgeland) | herb | the swamp and the lake shore, where the ground is water half the year | wet optimum, narrow; shade-tolerant enough for the paperbark's rim |
+| Kangaroo grass, *Themeda triandra* | grass | everywhere the trees and the heath are not | wide moisture, open ground; the first bedding |
+| Spinifex, *Spinifex sericeus* | grass | the foredune, binding the sand | the one pioneer: a ceiling of 200 mm of soil takes it out wherever real soil has formed |
+
+What the list leaves out, and why: the rock platforms and the beach carry nothing (20 mm of sand is under
+even spinifex's floor); the *Casuarina* and *Allocasuarina* of the sandstone country wait on the stone layer
+that says where the sandstone crops out; the rainforest gullies of the escarpment are beyond the box.
+
+### The stones (v1's open item E0)
+
+v1's `SurfaceGeology` drew flint on coastal plains, and the Sydney Basin has none. What the peninsula offers a
+knapper is what its archaeological record is made of: silcrete (the commonest flaked stone of the New South
+Wales coast; Webb and Domanski, *Archaeometry* 50, 2008, for its flaking properties), quartz from veins and as
+beach pebbles, rhyolite beach pebbles rolled from the volcanics to the north, and quartzite; the sandstone of
+the cliffs abrades and does not flake. Their mineralogy is in `StoneType.cs`; the layer that says where each
+lies waits on the topology mask (M1.2 promise 7) and reads beach pebbles onto the platforms and beaches, silcrete
+onto the old land surfaces, and quartz where the sandstone's veins crop out.
