@@ -35,6 +35,12 @@ namespace EarthGame.Protocol
         SnapshotEnd = 12,
         /// <summary>Server → client: a session is gone; drop its mirror.</summary>
         PlayerLeft = 13,
+        /// <summary>Server → client: an entity has entered your interest (or existed at your Welcome), in full.</summary>
+        EntitySpawn = 14,
+        /// <summary>Server → client: the fields of an entity in your interest that changed.</summary>
+        EntityState = 15,
+        /// <summary>Server → client: an entity you were shown died or left your interest.</summary>
+        EntityGone = 16,
     }
 
     /// <summary>One tile the client wants, with the checksum of the copy it already holds (zero for none).</summary>
@@ -490,6 +496,146 @@ namespace EarthGame.Protocol
         {
             PlayerLeftMessage m;
             m.SessionId = r.ReadUInt32();
+            return m;
+        }
+    }
+
+    /// <summary>An item's component on the wire: whether it rests, and its fall speed while it does not.</summary>
+    public static class EntityWire
+    {
+        /// <summary>The component mask's one bit so far; the mask is a byte so seven more can follow without a version.</summary>
+        public const byte ComponentItem = 1;
+
+        public static void WriteItem(PacketWriter w, in ItemComponent item)
+        {
+            w.WriteBool(item.Resting);
+            w.WriteSingle(item.FallSpeed);
+        }
+
+        public static ItemComponent ReadItem(PacketReader r)
+        {
+            ItemComponent item;
+            item.Resting = r.ReadBool();
+            item.FallSpeed = r.ReadSingle();
+            return item;
+        }
+    }
+
+    /// <summary>Server → client, reliable (protocol v4): an entity has entered your interest, or existed at your Welcome, in full.</summary>
+    public struct EntitySpawnMessage
+    {
+        public ulong Id;
+        public uint DefinitionId;
+        public long ServerTick;
+        public double East;
+        public double Up;
+        public double North;
+        public float YawDeg;
+        public bool HasItem;
+        public ItemComponent Item;
+
+        public void Write(PacketWriter w)
+        {
+            w.WriteByte((byte)MessageKind.EntitySpawn);
+            w.WriteUInt64(Id);
+            w.WriteUInt32(DefinitionId);
+            w.WriteInt64(ServerTick);
+            w.WriteDouble(East);
+            w.WriteDouble(Up);
+            w.WriteDouble(North);
+            w.WriteSingle(YawDeg);
+            w.WriteByte(HasItem ? EntityWire.ComponentItem : (byte)0);
+            if (HasItem) EntityWire.WriteItem(w, Item);
+        }
+
+        public static EntitySpawnMessage Read(PacketReader r)
+        {
+            EntitySpawnMessage m;
+            m.Id = r.ReadUInt64();
+            m.DefinitionId = r.ReadUInt32();
+            m.ServerTick = r.ReadInt64();
+            m.East = r.ReadDouble();
+            m.Up = r.ReadDouble();
+            m.North = r.ReadDouble();
+            m.YawDeg = r.ReadSingle();
+            byte components = r.ReadByte();
+            m.HasItem = (components & EntityWire.ComponentItem) != 0;
+            m.Item = m.HasItem ? EntityWire.ReadItem(r) : default;
+            return m;
+        }
+    }
+
+    /// <summary>
+    /// Server → client, unreliable, reliable when it carries the item's rest (protocol v4): the fields of an entity
+    /// in your interest that changed since you were last sent it, named by the mask.
+    /// </summary>
+    public struct EntityStateMessage
+    {
+        public ulong Id;
+        public long ServerTick;
+        public EntityFields Fields;
+        public double East;
+        public double Up;
+        public double North;
+        public float YawDeg;
+        public ItemComponent Item;
+
+        public void Write(PacketWriter w)
+        {
+            w.WriteByte((byte)MessageKind.EntityState);
+            w.WriteUInt64(Id);
+            w.WriteInt64(ServerTick);
+            w.WriteByte((byte)Fields);
+            if ((Fields & EntityFields.Position) != 0)
+            {
+                w.WriteDouble(East);
+                w.WriteDouble(Up);
+                w.WriteDouble(North);
+            }
+            if ((Fields & EntityFields.Yaw) != 0) w.WriteSingle(YawDeg);
+            if ((Fields & EntityFields.Item) != 0) EntityWire.WriteItem(w, Item);
+        }
+
+        public static EntityStateMessage Read(PacketReader r)
+        {
+            EntityStateMessage m = default;
+            m.Id = r.ReadUInt64();
+            m.ServerTick = r.ReadInt64();
+            m.Fields = (EntityFields)r.ReadByte();
+            if ((m.Fields & ~EntityFields.All) != 0) throw new ProtocolException("entity state names fields this build does not know: " + (byte)m.Fields);
+            if ((m.Fields & EntityFields.Position) != 0)
+            {
+                m.East = r.ReadDouble();
+                m.Up = r.ReadDouble();
+                m.North = r.ReadDouble();
+            }
+            if ((m.Fields & EntityFields.Yaw) != 0) m.YawDeg = r.ReadSingle();
+            if ((m.Fields & EntityFields.Item) != 0) m.Item = EntityWire.ReadItem(r);
+            return m;
+        }
+    }
+
+    /// <summary>Server → client, reliable (protocol v4): an entity you were shown is gone, because it died or left your interest.</summary>
+    public struct EntityGoneMessage
+    {
+        public const byte Died = 1;
+        public const byte Left = 2;
+
+        public ulong Id;
+        public byte Reason;
+
+        public void Write(PacketWriter w)
+        {
+            w.WriteByte((byte)MessageKind.EntityGone);
+            w.WriteUInt64(Id);
+            w.WriteByte(Reason);
+        }
+
+        public static EntityGoneMessage Read(PacketReader r)
+        {
+            EntityGoneMessage m;
+            m.Id = r.ReadUInt64();
+            m.Reason = r.ReadByte();
             return m;
         }
     }

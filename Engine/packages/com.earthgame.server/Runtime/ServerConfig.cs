@@ -31,5 +31,11 @@ namespace EarthGame.Server
         /// without an accepted body yet is sent everything, since it has no position to measure from.
         /// </summary>
         public double InterestRadiusM = 1500.0;
+
+        /// <summary>An entity that entered a session's interest leaves it only this far beyond the radius, so one on the edge does not flap.</summary>
+        public double InterestMarginM = 50.0;
+
+        /// <summary>Bytes of entity spawns and states one session is sent per tick; what does not fit waits, the stamps holding it. A gone never waits.</summary>
+        public int EntityBytesPerTick = 4096;
     }
 }

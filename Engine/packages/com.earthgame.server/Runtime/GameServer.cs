@@ -41,6 +41,11 @@ namespace EarthGame.Server
         private readonly TileService _tiles;
         private readonly TickStats _ticks;
         private uint _nextSessionId = 1;
+        private readonly List<Entity> _near = new List<Entity>();
+        private readonly List<Entity> _retired = new List<Entity>();
+        private readonly HashSet<ulong> _nearIds = new HashSet<ulong>();
+        private readonly List<ulong> _leaving = new List<ulong>();
+        private readonly List<EntityRecord> _records = new List<EntityRecord>();
 
         public GameServer(ServerConfig config, IServerTransport transport, WorldState world)
         {
@@ -152,6 +157,9 @@ namespace EarthGame.Server
             TransportEvent evt;
             while (_transport.Poll(out evt)) Handle(evt);
 
+            World.InterestPoints.Clear();
+            for (int i = 0; i < _sessions.Count; i++)
+                if (_sessions[i].HasBody) World.InterestPoints.Add(_sessions[i].Body.Feet);
             _accumulator.Accumulate(realSecondsElapsed);
             bool stepped = false;
             while (_accumulator.TryStep())
@@ -165,6 +173,7 @@ namespace EarthGame.Server
             if (stepped)
             {
                 BroadcastBodies();
+                ReplicateEntities();
                 if (hostClockSeconds != null) _ticks.Record(hostClockSeconds() - started);
             }
         }
@@ -374,6 +383,16 @@ namespace EarthGame.Server
                     WriteState(subject);
                     joiner.Connection.Send(_writer.Written, Delivery.Reliable);
                 }
+                // Every entity within the radius of the spawn, in full and unbudgeted: the join is once.
+                _near.Clear();
+                World.Entities.Within(joiner.SnapshotEast, joiner.SnapshotNorth, _config.InterestRadiusM, _near);
+                for (int i = 0; i < _near.Count; i++)
+                {
+                    if (_near[i].Killed) continue;
+                    WriteSpawn(_near[i]);
+                    joiner.Connection.Send(_writer.Written, Delivery.Reliable);
+                    joiner.Interest[_near[i].Id.Value] = World.Tick;
+                }
                 SnapshotEndMessage end;
                 end.ServerTick = World.Tick;
                 _writer.Reset();
@@ -477,6 +496,152 @@ namespace EarthGame.Server
                         written = true;
                     }
                     viewer.Connection.Send(_writer.Written, Delivery.Unreliable);
+                }
+            }
+        }
+
+        /// <summary>Drops an item into the world by its key; the host's console and M1.5's verbs come here.</summary>
+        public Entity SpawnItem(string key, double east, double north, double? up = null)
+        {
+            Definition definition = DefinitionCatalogue.ByKey(key);
+            if (Math.Abs(east) > World.Region.HalfExtentM || Math.Abs(north) > World.Region.HalfExtentM)
+                throw new ArgumentOutOfRangeException(nameof(east), "(" + east + ", " + north + ") is outside the region");
+            return World.SpawnItem(definition, east, north, up);
+        }
+
+        /// <summary>Kills an entity by id; false when there is none. It leaves at the end of the next step, and its viewers are told then.</summary>
+        public bool KillEntity(ulong id)
+        {
+            if (!World.Entities.TryGet(id, out Entity e) || e.Killed) return false;
+            World.Entities.Kill(e);
+            return true;
+        }
+
+        /// <summary>The name of the entities a session has been shown, as its mirror computes it (ARCHITECTURE §7).</summary>
+        public string EntityDigest(PlayerSession session)
+        {
+            _records.Clear();
+            foreach (KeyValuePair<ulong, long> pair in session.Interest)
+                if (World.Entities.TryGet(pair.Key, out Entity e)) _records.Add(e.Record());
+            return WorldDigest.Entities(_records);
+        }
+
+        private void Viewpoint(PlayerSession s, out double east, out double north)
+        {
+            if (s.HasBody)
+            {
+                east = s.Body.East;
+                north = s.Body.North;
+            }
+            else
+            {
+                east = s.SnapshotEast;
+                north = s.SnapshotNorth;
+            }
+        }
+
+        private void WriteSpawn(Entity e)
+        {
+            EntitySpawnMessage m;
+            m.Id = e.Id.Value;
+            m.DefinitionId = e.Definition.Id.Value;
+            m.ServerTick = World.Tick;
+            m.East = e.Position.X;
+            m.Up = e.Position.Y;
+            m.North = e.Position.Z;
+            m.YawDeg = e.YawDeg;
+            m.HasItem = e.HasItem;
+            m.Item = e.Item;
+            _writer.Reset();
+            m.Write(_writer);
+        }
+
+        private void WriteEntityState(Entity e, EntityFields fields)
+        {
+            EntityStateMessage m;
+            m.Id = e.Id.Value;
+            m.ServerTick = World.Tick;
+            m.Fields = fields;
+            m.East = e.Position.X;
+            m.Up = e.Position.Y;
+            m.North = e.Position.Z;
+            m.YawDeg = e.YawDeg;
+            m.Item = e.Item;
+            _writer.Reset();
+            m.Write(_writer);
+        }
+
+        private void WriteGone(ulong id, byte reason)
+        {
+            EntityGoneMessage m;
+            m.Id = id;
+            m.Reason = reason;
+            _writer.Reset();
+            m.Write(_writer);
+        }
+
+        /// <summary>
+        /// After every step: each session is told which of its entities died or left its interest (leaving takes
+        /// InterestMarginM more than entering), then shown the ones that entered and the changes to those it holds,
+        /// within its byte budget (ARCHITECTURE §7 rule 5); the stamps on the entity say what it has not seen, so
+        /// what the budget defers is sent later, not lost. A state that carries the item's rest goes reliably, since
+        /// nothing follows it.
+        /// </summary>
+        private void ReplicateEntities()
+        {
+            _retired.Clear();
+            World.Entities.DrainRetired(_retired);
+            double radius = _config.InterestRadiusM, outer = radius + _config.InterestMarginM;
+            double r2 = radius * radius;
+            for (int s = 0; s < _sessions.Count; s++)
+            {
+                PlayerSession session = _sessions[s];
+                if (session.SnapshotPending) continue;
+                for (int i = 0; i < _retired.Count; i++)
+                    if (session.Interest.Remove(_retired[i].Id.Value))
+                    {
+                        WriteGone(_retired[i].Id.Value, EntityGoneMessage.Died);
+                        session.Connection.Send(_writer.Written, Delivery.Reliable);
+                    }
+                Viewpoint(session, out double east, out double north);
+                _near.Clear();
+                _nearIds.Clear();
+                World.Entities.Within(east, north, outer, _near);
+                for (int i = 0; i < _near.Count; i++) _nearIds.Add(_near[i].Id.Value);
+                _leaving.Clear();
+                foreach (KeyValuePair<ulong, long> pair in session.Interest)
+                    if (!_nearIds.Contains(pair.Key)) _leaving.Add(pair.Key);
+                for (int i = 0; i < _leaving.Count; i++)
+                {
+                    session.Interest.Remove(_leaving[i]);
+                    WriteGone(_leaving[i], EntityGoneMessage.Left);
+                    session.Connection.Send(_writer.Written, Delivery.Reliable);
+                }
+                int budget = _config.EntityBytesPerTick;
+                for (int i = 0; i < _near.Count && budget > 0; i++)
+                {
+                    Entity e = _near[i];
+                    if (e.Killed) continue;
+                    if (session.Interest.TryGetValue(e.Id.Value, out long sent))
+                    {
+                        EntityFields fields = e.ChangedSince(sent);
+                        if (fields == EntityFields.None) continue;
+                        WriteEntityState(e, fields);
+                        if (_writer.Written.Length > budget) break;
+                        budget -= _writer.Written.Length;
+                        session.Connection.Send(_writer.Written, (fields & EntityFields.Item) != 0 ? Delivery.Reliable : Delivery.Unreliable);
+                        session.Interest[e.Id.Value] = World.Tick;
+                    }
+                    else
+                    {
+                        double dx = e.Position.X - east, dz = e.Position.Z - north;
+                        if (dx * dx + dz * dz > r2) continue;
+                        WriteSpawn(e);
+                        if (_writer.Written.Length > budget) break;
+                        budget -= _writer.Written.Length;
+                        session.Connection.Send(_writer.Written, Delivery.Reliable);
+                        session.Interest[e.Id.Value] = World.Tick;
+                    }
                 }
             }
         }

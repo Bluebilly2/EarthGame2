@@ -1,11 +1,12 @@
 using System;
+using System.Collections.Generic;
 
 namespace EarthGame.Engine
 {
     /// <summary>
-    /// Everything the server is authoritative for, in one object: identity, time, the region and its ground. The
-    /// entity store and the other layers arrive in M1.2 and M1.3. There is exactly one instance per running world
-    /// and it is owned by the server; a client holds a read-only mirror, never a WorldState.
+    /// Everything the server is authoritative for, in one object: identity, time, the region and its ground, the
+    /// entities and the systems that move them. There is exactly one instance per running world and it is owned
+    /// by the server; a client holds a read-only mirror, never a WorldState.
     /// </summary>
     public sealed class WorldState
     {
@@ -36,6 +37,18 @@ namespace EarthGame.Engine
         /// (M1.2); null for a world without layers, which wakes at the region's stated point.
         /// </summary>
         public Double3? Wake { get; }
+
+        /// <summary>The entities (M1.3, ARCHITECTURE §5).</summary>
+        public EntityStore Entities { get; } = new EntityStore();
+
+        /// <summary>The fast tick's systems, run in this order every step: the order is the specification.</summary>
+        public List<IFastSystem> Systems { get; } = new List<IFastSystem> { new ItemFall() };
+
+        /// <summary>The slow layers and the scheduler that advances them by cell and distance.</summary>
+        public SlowScheduler Scheduler { get; } = new SlowScheduler();
+
+        /// <summary>Where the players are, for the scheduler's distances; the server fills it before each update.</summary>
+        public List<Double3> InterestPoints { get; } = new List<Double3>();
 
         public WorldState(ulong seed, Region region, WorldClock clock, Heightfield terrain = null, long tick = 0, Double3? wake = null)
         {
@@ -71,14 +84,40 @@ namespace EarthGame.Engine
             return new Double3(east, up, north);
         }
 
+        /// <summary>The ground under a point as the server holds it: the terrain's height, or the datum without terrain or beyond it.</summary>
+        public double GroundAt(double east, double north)
+        {
+            if (Terrain == null || !Terrain.Contains(east, north)) return Heightfield.SeaLevelM;
+            return Terrain.HeightAt(east, north);
+        }
+
+        /// <summary>
+        /// Drops an item at a point: on the ground when no height is given or the height is below it, else in the
+        /// air from that height, falling from the next step. The server's console, and M1.5's verbs, come here.
+        /// </summary>
+        public Entity SpawnItem(Definition definition, double east, double north, double? up = null, float yawDeg = 0f)
+        {
+            double ground = GroundAt(east, north);
+            double at = up.HasValue ? Math.Max(up.Value, ground) : ground;
+            Entity e = Entities.Spawn(definition, new Double3(east, at, north), yawDeg, Tick);
+            ItemComponent item;
+            item.Resting = at <= ground + 1e-9;
+            item.FallSpeed = 0f;
+            e.SetItem(item, Tick);
+            return e;
+        }
+
         /// <summary>
         /// One fast tick of the world. Called only by the server's fixed-step loop; the argument is the step length
-        /// in real seconds at the current time scale. Order of operations is the specification and grows here as
-        /// systems arrive.
+        /// in real seconds at the current time scale. Order of operations is the specification: the clock, the
+        /// fast systems in order, the slow layers due this tick, the kills, then the tick count.
         /// </summary>
         public void Step(double realSeconds)
         {
             Clock.Advance(realSeconds);
+            for (int i = 0; i < Systems.Count; i++) Systems[i].Step(this, realSeconds);
+            Scheduler.Tick(this, Tick);
+            Entities.EndTick();
             Tick++;
         }
     }

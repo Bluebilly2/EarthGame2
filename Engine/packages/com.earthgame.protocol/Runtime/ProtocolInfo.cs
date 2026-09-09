@@ -11,9 +11,10 @@ namespace EarthGame.Protocol
         /// <summary>
         /// Wire protocol version. History: 1 — M1.0 handshake (Hello, Welcome, Refused, Ping, Pong);
         /// 2 — M1.A movement (Welcome carries the spawn point; PlayerMove, PlayerState, Correction);
-        /// 3 — M1.B streaming, the snapshot and leaving (TileRequest, TileHeader, TileChunk, SnapshotEnd, PlayerLeft).
+        /// 3 — M1.B streaming, the snapshot and leaving (TileRequest, TileHeader, TileChunk, SnapshotEnd, PlayerLeft);
+        /// 4 — M1.3 entities inside the interest radius (EntitySpawn, EntityState, EntityGone).
         /// </summary>
-        public const ushort Version = 3;
+        public const ushort Version = 4;
 
         /// <summary>Bytes of tile data per TileChunk; well under <see cref="MaxMessageBytes"/> with the header.</summary>
         public const int TileChunkBytes = 16 * 1024;

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using EarthGame.Engine;
 using EarthGame.Transport;
 
@@ -39,5 +40,7 @@ namespace EarthGame.Server
         /// <summary>Counts for the N2 budget: every correction on a legal walk is a false positive.</summary>
         public int MovesAccepted;
         public int Corrections;
+        /// <summary>The entities this session has been shown and not told are gone, each with the tick of the newest state sent for it.</summary>
+        public readonly Dictionary<ulong, long> Interest = new Dictionary<ulong, long>();
     }
 }

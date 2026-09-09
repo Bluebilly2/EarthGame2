@@ -91,6 +91,9 @@ namespace EarthGame.ClientCore
         /// <summary>The other players as mirrors, by session id.</summary>
         public IReadOnlyDictionary<uint, RemoteMirror> Mirrors => _mirrors;
 
+        /// <summary>The entities the server has shown this client (M1.3).</summary>
+        public EntityMirror Entities { get; } = new EntityMirror();
+
         /// <summary>Payload bytes this connection has sent and received, or zero before it exists.</summary>
         public long BytesSent => _transport.Connection != null ? _transport.Connection.BytesSent : 0;
         public long BytesReceived => _transport.Connection != null ? _transport.Connection.BytesReceived : 0;
@@ -322,6 +325,29 @@ namespace EarthGame.ClientCore
                         _others.Remove(left.SessionId);
                         _mirrors.Remove(left.SessionId);
                         PlayerLeft?.Invoke(left.SessionId);
+                        break;
+                    }
+                    case MessageKind.EntitySpawn:
+                    {
+                        EntitySpawnMessage spawn = EntitySpawnMessage.Read(reader);
+                        reader.ExpectEnd();
+                        ObserveTick(spawn.ServerTick, clientTimeMs);
+                        Entities.Apply(spawn);
+                        break;
+                    }
+                    case MessageKind.EntityState:
+                    {
+                        EntityStateMessage state = EntityStateMessage.Read(reader);
+                        reader.ExpectEnd();
+                        ObserveTick(state.ServerTick, clientTimeMs);
+                        Entities.Apply(state);
+                        break;
+                    }
+                    case MessageKind.EntityGone:
+                    {
+                        EntityGoneMessage gone = EntityGoneMessage.Read(reader);
+                        reader.ExpectEnd();
+                        Entities.Apply(gone);
                         break;
                     }
                     case MessageKind.SnapshotEnd:

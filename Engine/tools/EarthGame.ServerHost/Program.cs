@@ -236,10 +236,19 @@ namespace EarthGame.ServerHost
                                     + (server.Paused ? ", paused" : "") + ", dropped " + server.DroppedSeconds.ToString("0.00", CultureInfo.InvariantCulture) + " s"
                                     + ", digest " + server.Digest());
                                 break;
+                            case "save":
+                                if (string.IsNullOrEmpty(worldDir)) Log("no world folder to save to (+server.world)");
+                                else
+                                {
+                                    server.Save(worldDir, DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture), layerChecksums);
+                                    Log("saved " + worldDir + " at tick " + world.Tick + " digest " + server.Digest());
+                                }
+                                break;
                             case "":
                                 break;
                             default:
-                                Log("unknown command '" + cmd + "' (status, pause, resume, digest, stop)");
+                                if (cmd.StartsWith("spawn ", StringComparison.Ordinal)) Spawn(server, cmd);
+                                else Log("unknown command '" + cmd + "' (status, pause, resume, digest, spawn <key> <east> <north> [<up>], save, stop)");
                                 break;
                         }
                     }
@@ -450,6 +459,31 @@ namespace EarthGame.ServerHost
             }
             return map;
         }
+        /// <summary>spawn &lt;key&gt; &lt;east&gt; &lt;north&gt; [&lt;up&gt;]: an item dropped there, falling when above the ground (M1.3).</summary>
+        private static void Spawn(GameServer server, string cmd)
+        {
+            string[] parts = cmd.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 4 || parts.Length > 5)
+            {
+                Log("spawn takes a key, east and north, and an optional height");
+                return;
+            }
+            try
+            {
+                double east = double.Parse(parts[2], CultureInfo.InvariantCulture);
+                double north = double.Parse(parts[3], CultureInfo.InvariantCulture);
+                double? up = parts.Length == 5 ? double.Parse(parts[4], CultureInfo.InvariantCulture) : (double?)null;
+                Entity e = server.SpawnItem(parts[1], east, north, up);
+                Log("spawned " + parts[1] + " " + e.Id + " at east " + e.Position.X.ToString("0.00", CultureInfo.InvariantCulture)
+                    + " up " + e.Position.Y.ToString("0.00", CultureInfo.InvariantCulture) + " north " + e.Position.Z.ToString("0.00", CultureInfo.InvariantCulture)
+                    + (e.Item.Resting ? ", resting" : ", falling"));
+            }
+            catch (Exception ex) when (ex is FormatException || ex is KeyNotFoundException || ex is ArgumentException)
+            {
+                Log("spawn refused: " + ex.Message);
+            }
+        }
+
 
         private static int Int(Dictionary<string, string> a, string key, int fallback)
         {

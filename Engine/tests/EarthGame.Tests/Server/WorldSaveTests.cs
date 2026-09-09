@@ -89,7 +89,7 @@ namespace EarthGame.Tests.Server
             Pump(server, client, 3);
             Assert.That(server.Sessions[0].HasBody, Is.True);
             server.Save(_dir, "2026-09-08T12:00:00Z");
-            Assert.That(File.Exists(Path.Combine(_dir, WorldSave.PlayersFolder, "William.json")), Is.True);
+            Assert.That(File.Exists(Path.Combine(_dir, WorldSave.PlayersFolder, "William.egp")), Is.True, "the player file's second version (M1.3)");
 
             WorldSaveInfo info = WorldSave.Read(_dir);
             Assert.That(info.Players.ContainsKey("William"), Is.True);

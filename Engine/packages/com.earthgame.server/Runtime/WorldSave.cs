@@ -32,15 +32,22 @@ namespace EarthGame.Server
         public Double3? Wake;
         /// <summary>Layer name → the raw file's sha256, as written at creation and carried forward by every save.</summary>
         public readonly Dictionary<string, string> Layers = new Dictionary<string, string>(StringComparer.Ordinal);
+        /// <summary>The entities of every region file, in id order (M1.3).</summary>
+        public readonly List<SavedEntity> Entities = new List<SavedEntity>();
+        /// <summary>The id the next spawn takes; 1 for a world saved before it had entities.</summary>
+        public ulong NextEntityId = 1;
+        /// <summary>The digest the server wrote beside the world, or null for a world saved before it wrote one.</summary>
+        public string Digest;
     }
 
     /// <summary>
-    /// The world folder's <c>world.json</c> (format <c>eg2.world</c>, version 1) and <c>players/&lt;name&gt;.json</c>
-    /// (ARCHITECTURE §6): identity, the clock's two numbers, the tick, and each player's resting place. The server
-    /// is the only writer; every file is written to a <c>.part</c> and moved into place so a crash mid-write
-    /// leaves the previous save intact. Entities and layer diffs arrive with the entity store (M1.3) as the
-    /// binary region files; this is the part a shell needs to offer "continue". Dates are the host's: the
-    /// server reads no clock.
+    /// The world folder (ARCHITECTURE §6): <c>world.json</c> (format <c>eg2.world</c>, version 1: identity, the
+    /// clock's two numbers, the tick, the wake, the layers' checksums and, since M1.3, <c>next_entity_id</c>),
+    /// <c>players/&lt;name&gt;.egp</c> (each player's resting place; version 1's JSON is still read and replaced),
+    /// <c>regions/r.X.Y.egr</c> (the entities by 512 m cell) and <c>digest.txt</c> (the world's name, for a test or
+    /// a verifier to compare). The server is the only writer; every file is written to a <c>.part</c> and moved
+    /// into place so a crash mid-write leaves the previous save intact. Dates are the host's: the server reads no
+    /// clock.
     /// </summary>
     public static class WorldSave
     {
@@ -48,6 +55,7 @@ namespace EarthGame.Server
         public const int Version = 1;
         public const string WorldFile = "world.json";
         public const string PlayersFolder = "players";
+        public const string DigestFile = "digest.txt";
 
         public static void Write(string dir, WorldState world, IReadOnlyList<SavedPlayer> players, string nowUtcText,
                                  IReadOnlyDictionary<string, string> layerChecksums = null)
@@ -81,7 +89,8 @@ namespace EarthGame.Server
                 .With("saved_utc", nowUtcText ?? string.Empty)
                 .With("protocol_version", (int)ProtocolInfo.Version)
                 .With("tick", world.Tick)
-                .With("clock", new JsonObject().With("total_hours", world.Clock.TotalHours).With("started_at_hours", world.Clock.StartedAtHours));
+                .With("clock", new JsonObject().With("total_hours", world.Clock.TotalHours).With("started_at_hours", world.Clock.StartedAtHours))
+                .With("next_entity_id", world.Entities.NextId);
             if (world.Wake.HasValue) doc.With("wake_east", world.Wake.Value.X).With("wake_up", world.Wake.Value.Y).With("wake_north", world.Wake.Value.Z);
             if (layerChecksums != null)
             {
@@ -89,24 +98,60 @@ namespace EarthGame.Server
                 foreach (var pair in layerChecksums) layers.With(pair.Key, pair.Value);
             }
             if (layers != null) doc.With("layers", layers);
-            WriteAtomic(worldPath, Json.Write(doc, indent: true));
+            WriteAtomic(worldPath, Encoding.UTF8.GetBytes(Json.Write(doc, indent: true)));
 
+            WritePlayers(dir, players);
+            WriteRegions(dir, world);
+
+            List<KeyValuePair<string, MoverState>> bodies = new List<KeyValuePair<string, MoverState>>();
+            if (players != null)
+                foreach (SavedPlayer p in players)
+                    if (!string.IsNullOrEmpty(p.Name)) bodies.Add(new KeyValuePair<string, MoverState>(p.Name, p.Body));
+            WriteAtomic(Path.Combine(dir, DigestFile), Encoding.UTF8.GetBytes(WorldDigest.World(world, bodies) + "\n"));
+        }
+
+        private static void WritePlayers(string dir, IReadOnlyList<SavedPlayer> players)
+        {
             if (players == null) return;
             string playersDir = Path.Combine(dir, PlayersFolder);
             Directory.CreateDirectory(playersDir);
             foreach (SavedPlayer s in players)
             {
                 if (string.IsNullOrEmpty(s.Name)) continue;
-                JsonObject p = new JsonObject()
-                    .With("format", "eg2.player")
-                    .With("version", Version)
-                    .With("name", s.Name)
-                    .With("east", s.Body.East).With("up", s.Body.Up).With("north", s.Body.North)
-                    .With("yaw_deg", (double)s.YawDeg).With("pitch_deg", (double)s.PitchDeg)
-                    .With("grounded", s.Body.Grounded)
-                    .With("saved_tick", s.SavedTick);
-                WriteAtomic(Path.Combine(playersDir, FileNameFor(s.Name) + ".json"), Json.Write(p, indent: true));
+                string stem = Path.Combine(playersDir, FileNameFor(s.Name));
+                WriteAtomic(stem + PlayerFile.Extension, PlayerFile.Encode(s));
+                // A version-1 JSON file for the same name is superseded by the version-2 file, never left to disagree with it.
+                if (File.Exists(stem + ".json")) File.Delete(stem + ".json");
             }
+        }
+
+        /// <summary>The entities by cell; a cell's file is removed when it holds nothing, so the folder says exactly what exists.</summary>
+        private static void WriteRegions(string dir, WorldState world)
+        {
+            string regionsDir = Path.Combine(dir, RegionFile.Folder);
+            Directory.CreateDirectory(regionsDir);
+            double extent = world.Region.ExtentM;
+            Dictionary<long, List<SavedEntity>> byCell = new Dictionary<long, List<SavedEntity>>();
+            IReadOnlyList<Entity> all = world.Entities.All;
+            for (int i = 0; i < all.Count; i++)
+            {
+                Entity e = all[i];
+                if (e.Killed) continue;
+                int cx = RegionCells.IndexOf(e.Position.X, extent), cz = RegionCells.IndexOf(e.Position.Z, extent);
+                long key = ((long)cx << 32) | (uint)cz;
+                if (!byCell.TryGetValue(key, out List<SavedEntity> list)) byCell[key] = list = new List<SavedEntity>();
+                list.Add(SavedEntity.Of(e));
+            }
+            HashSet<string> written = new HashSet<string>(StringComparer.Ordinal);
+            foreach (KeyValuePair<long, List<SavedEntity>> pair in byCell)
+            {
+                int cx = (int)(pair.Key >> 32), cz = (int)(pair.Key & 0xFFFFFFFF);
+                string name = RegionFile.NameFor(cx, cz);
+                WriteAtomic(Path.Combine(regionsDir, name), RegionFile.Encode(cx, cz, pair.Value));
+                written.Add(name);
+            }
+            foreach (string file in Directory.GetFiles(regionsDir, "r.*.egr"))
+                if (!written.Contains(Path.GetFileName(file))) File.Delete(file);
         }
 
         /// <summary>True when the folder holds a readable world.json.</summary>
@@ -127,6 +172,7 @@ namespace EarthGame.Server
             info.Tick = (long)doc.Number("tick");
             info.CreatedUtc = doc.StringOr("created_utc", string.Empty);
             info.ProtocolVersion = (ushort)doc.Int("protocol_version");
+            info.NextEntityId = (ulong)doc.NumberOr("next_entity_id", 1.0);
             if (doc.Contains("wake_east") && doc.Contains("wake_north"))
                 info.Wake = new Double3(doc.Number("wake_east"), doc.NumberOr("wake_up", 0.0), doc.Number("wake_north"));
             if (doc.Contains("layers"))
@@ -136,32 +182,76 @@ namespace EarthGame.Server
             info.TotalHours = clock.Number("total_hours");
             info.StartedAtHours = clock.Number("started_at_hours");
 
-            string playersDir = Path.Combine(dir, PlayersFolder);
-            if (Directory.Exists(playersDir))
-            {
-                foreach (string file in Directory.GetFiles(playersDir, "*.json"))
-                {
-                    JsonObject p = Json.ParseObject(File.ReadAllText(file, Encoding.UTF8));
-                    SavedPlayer sp;
-                    sp.Name = p.String("name");
-                    sp.Body = MoverState.AtRest(p.Number("east"), p.Number("up"), p.Number("north"));
-                    sp.Body.Grounded = p.Contains("grounded") && p.Bool("grounded");
-                    sp.YawDeg = (float)p.NumberOr("yaw_deg", 0.0);
-                    sp.PitchDeg = (float)p.NumberOr("pitch_deg", 0.0);
-                    sp.SavedTick = (long)p.NumberOr("saved_tick", 0.0);
-                    info.Players[sp.Name] = sp;
-                }
-            }
+            ReadPlayers(dir, info);
+            ReadRegions(dir, info, doc.NumberOr("extent_m", 0.0));
+            string digestPath = Path.Combine(dir, DigestFile);
+            if (File.Exists(digestPath)) info.Digest = File.ReadAllText(digestPath, Encoding.UTF8).Trim();
             return info;
         }
 
-        /// <summary>The world as it was, with the terrain the host loaded for it. The region must still be known to this build.</summary>
+        private static void ReadPlayers(string dir, WorldSaveInfo info)
+        {
+            string playersDir = Path.Combine(dir, PlayersFolder);
+            if (!Directory.Exists(playersDir)) return;
+            // Version 1: JSON, without wading and stance (they come back standing and dry).
+            foreach (string file in Directory.GetFiles(playersDir, "*.json"))
+            {
+                JsonObject p = Json.ParseObject(File.ReadAllText(file, Encoding.UTF8));
+                SavedPlayer sp;
+                sp.Name = p.String("name");
+                sp.Body = MoverState.AtRest(p.Number("east"), p.Number("up"), p.Number("north"));
+                sp.Body.Grounded = p.Contains("grounded") && p.Bool("grounded");
+                sp.YawDeg = (float)p.NumberOr("yaw_deg", 0.0);
+                sp.PitchDeg = (float)p.NumberOr("pitch_deg", 0.0);
+                sp.SavedTick = (long)p.NumberOr("saved_tick", 0.0);
+                info.Players[sp.Name] = sp;
+            }
+            // Version 2 wins over a version-1 file of the same name that a crash left behind.
+            foreach (string file in Directory.GetFiles(playersDir, "*" + PlayerFile.Extension))
+            {
+                SavedPlayer sp = PlayerFile.Decode(File.ReadAllBytes(file));
+                info.Players[sp.Name] = sp;
+            }
+        }
+
+        /// <summary>Every region file, its cell checked against its name and every entity's position against the cell.</summary>
+        private static void ReadRegions(string dir, WorldSaveInfo info, double extentM)
+        {
+            string regionsDir = Path.Combine(dir, RegionFile.Folder);
+            if (!Directory.Exists(regionsDir)) return;
+            string[] files = Directory.GetFiles(regionsDir, "r.*.egr");
+            Array.Sort(files, StringComparer.Ordinal);
+            foreach (string file in files)
+            {
+                string name = Path.GetFileName(file);
+                if (!RegionFile.TryParseName(name, out int namedX, out int namedZ)) continue;
+                List<SavedEntity> entities = RegionFile.Decode(File.ReadAllBytes(file), out int cx, out int cz);
+                if (cx != namedX || cz != namedZ) throw new InvalidDataException(name + " says it is cell (" + cx + ", " + cz + ")");
+                if (extentM > 0.0)
+                    foreach (SavedEntity e in entities)
+                        if (RegionCells.IndexOf(e.Position.X, extentM) != cx || RegionCells.IndexOf(e.Position.Z, extentM) != cz)
+                            throw new InvalidDataException(name + " holds entity " + e.Id + " at (" + e.Position.X + ", " + e.Position.Z + "), which lies in another cell");
+                info.Entities.AddRange(entities);
+            }
+            info.Entities.Sort((a, b) => a.Id.CompareTo(b.Id));
+        }
+
+        /// <summary>The world as it was, with the terrain the host loaded for it and every entity restored. The region must still be known to this build.</summary>
         /// <param name="region">The region the host runs, when it is not one <see cref="Region.ById"/> knows (a test's fixture); else looked up by the save's id.</param>
         public static WorldState Restore(WorldSaveInfo info, Heightfield terrain, Region region = null)
         {
             if (region == null) region = Region.ById(info.RegionId);
             if (region == null) throw new InvalidDataException("the save is set in region '" + info.RegionId + "', which this build does not know");
-            return new WorldState(info.Seed, region, WorldClock.Restore(info.TotalHours, info.StartedAtHours), terrain, info.Tick, info.Wake);
+            WorldState world = new WorldState(info.Seed, region, WorldClock.Restore(info.TotalHours, info.StartedAtHours), terrain, info.Tick, info.Wake);
+            foreach (SavedEntity s in info.Entities)
+            {
+                if (!DefinitionCatalogue.TryByKey(s.Key, out Definition definition))
+                    throw new InvalidDataException("entity " + s.Id + " is a '" + s.Key + "', which this build does not know");
+                Entity e = world.Entities.Restore(s.Id, definition, s.Position, s.YawDeg, s.SpawnTick);
+                if (s.HasItem) e.SetItem(s.Item, s.SpawnTick);
+            }
+            world.Entities.SetNextId(Math.Max(info.NextEntityId, world.Entities.NextId));
+            return world;
         }
 
         /// <summary>A player's name as a file name: letters, digits and a few marks; everything else becomes an underscore.</summary>
@@ -173,10 +263,10 @@ namespace EarthGame.Server
             return sb.Length == 0 ? "_" : sb.ToString();
         }
 
-        private static void WriteAtomic(string path, string text)
+        private static void WriteAtomic(string path, byte[] bytes)
         {
             string part = path + ".part";
-            File.WriteAllText(part, text, new UTF8Encoding(false));
+            File.WriteAllBytes(part, bytes);
             if (File.Exists(path)) File.Delete(path);
             File.Move(part, path);
         }

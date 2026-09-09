@@ -21,7 +21,14 @@ namespace EarthGame.Engine
         public const double MetreResolution = 1e-6;
         public const double HourResolution = 1e-9;
 
-        /// <summary>The world: its clock, its tick, and every remembered body by player name.</summary>
+        /// <summary>Yaw is named to the microdegree; a fall speed to the micrometre per second.</summary>
+        public const double DegreeResolution = 1e-6;
+
+        /// <summary>
+        /// The world: its clock, its tick, every remembered body by player name, every entity in id order, and the
+        /// id the next spawn takes (M1.3). The lines, in this order, are what save_check.py rebuilds from the
+        /// world folder by hand.
+        /// </summary>
         public static string World(WorldState world, IEnumerable<KeyValuePair<string, MoverState>> bodiesByName)
         {
             StringBuilder sb = new StringBuilder();
@@ -31,7 +38,30 @@ namespace EarthGame.Engine
             sorted.Sort((a, b) => string.CompareOrdinal(a.Key, b.Key));
             foreach (KeyValuePair<string, MoverState> pair in sorted)
                 AppendBody(sb, pair.Key, pair.Value);
+            IReadOnlyList<Entity> entities = world.Entities.All;
+            for (int i = 0; i < entities.Count; i++) AppendEntity(sb, entities[i].Record());
+            sb.Append("next_entity ").Append(world.Entities.NextId.ToString(CultureInfo.InvariantCulture)).Append('\n');
             return Hex(Fnv1a64(sb.ToString()));
+        }
+
+        /// <summary>A set of entities as a session's interest set and a client's mirror both hold them: by id, with the fields that travel.</summary>
+        public static string Entities(IEnumerable<EntityRecord> records)
+        {
+            List<EntityRecord> sorted = new List<EntityRecord>(records);
+            sorted.Sort((a, b) => a.Id.CompareTo(b.Id));
+            StringBuilder sb = new StringBuilder();
+            foreach (EntityRecord r in sorted) AppendEntity(sb, r);
+            return Hex(Fnv1a64(sb.ToString()));
+        }
+
+        /// <summary>The entity's id, key, position, yaw and, for an item, whether it rests and its fall speed.</summary>
+        private static void AppendEntity(StringBuilder sb, in EntityRecord r)
+        {
+            sb.Append("entity ").Append(r.Id.Value.ToString(CultureInfo.InvariantCulture)).Append(' ').Append(r.Key).Append(' ')
+              .Append(Fixed(r.Position.X, MetreResolution)).Append(' ').Append(Fixed(r.Position.Y, MetreResolution)).Append(' ').Append(Fixed(r.Position.Z, MetreResolution))
+              .Append(' ').Append(Fixed(r.YawDeg, DegreeResolution));
+            if (r.HasItem) sb.Append(" item ").Append(r.Item.Resting ? 'r' : 'f').Append(' ').Append(Fixed(r.Item.FallSpeed, MetreResolution));
+            sb.Append('\n');
         }
 
         /// <summary>A set of bodies by session id, as a client's mirror and the server's record both hold them.</summary>
