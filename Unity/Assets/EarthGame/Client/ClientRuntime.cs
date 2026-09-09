@@ -53,6 +53,7 @@ namespace EarthGame.Client
         private Material _terrainMaterial;
         private TerrainLayer _groundLayer;
         private Material _mirrorMaterial;
+        private EntityViews _entityViews;
         private WorldClock _clock;
         private SolarClock _solar;
         private PlayerController _player;
@@ -341,6 +342,13 @@ namespace EarthGame.Client
             _mirrorMaterial.SetColor("_BaseColor", new Color(0.75f, 0.55f, 0.4f));
             _mirrorMaterial.SetFloat("_Smoothness", 0.3f);
 
+            // The entities the server shows this client, as the registry's prefabs (M1.3); rebuilt with every
+            // connection, since each connection has its own mirror.
+            _entityViews?.Dispose();
+            PrefabRegistry registry = Resources.Load<PrefabRegistry>(PrefabRegistry.ResourcePath);
+            if (registry == null) Debug.LogError("[client] no prefab registry under Resources/" + PrefabRegistry.ResourcePath + "; entities will be cubes");
+            _entityViews = new EntityViews(_client.Entities, registry);
+
             if (_bakedRegion != null)
             {
                 // The whole region at coarse posts (collidable, so a walk past the streamed tiles does not fall
@@ -477,6 +485,7 @@ namespace EarthGame.Client
                                + (s.Grounded ? "  ground" : "  air") + (s.Wading ? "  wading" : "")
                                + "   rtt " + _client.LastRttMs + " ms   corrections " + _player.Corrections
                                + "   tiles " + _tileTerrains.Count + (Interactive ? "" : " (loading)") + "   others " + _client.Mirrors.Count
+                               + "   things " + (_entityViews != null ? _entityViews.Count : 0)
                                + "   " + _fpsSmoothed.ToString("0") + " fps");
         }
 
@@ -504,6 +513,7 @@ namespace EarthGame.Client
 
         private void OnDestroy()
         {
+            _entityViews?.Dispose();
             _client?.Disconnect("client destroyed");
             _transport?.Dispose();
         }

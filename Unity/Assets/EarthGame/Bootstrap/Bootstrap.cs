@@ -226,6 +226,21 @@ namespace EarthGame.Bootstrap
             _server.SessionLeft += (s, reason) => Debug.Log("[server] leave " + s.Name + ": " + reason);
             _server.MoveCorrected += (s, reason) => Debug.Log("[server] correct " + s.Name + ": " + reason);
             _server.Listen(port);
+
+            // -eg-items N: N things dropped on a ring three metres from the wake, cobbles and sticks in turn, every
+            // third one from a metre and a half up so it falls (M1.3 promise 7: the frames of things at rest).
+            int items = LaunchArgs.GetInt("items", 0);
+            if (items > 0)
+            {
+                Double3 spawn = world.SpawnPoint();
+                for (int i = 0; i < items; i++)
+                {
+                    double angle = i * 2.0 * Math.PI / items;
+                    string key = i % 2 == 0 ? "item/cobble" : "item/stick";
+                    Entity e = _server.SpawnItem(key, spawn.X + 3.0 * Math.Cos(angle), spawn.Z + 3.0 * Math.Sin(angle), i % 3 == 0 ? spawn.Y + 1.5 : (double?)null);
+                    Debug.Log("[server] -eg-items: " + key + " " + e.Id + " at " + e.Position.X.ToString("0.0", CultureInfo.InvariantCulture) + ", " + e.Position.Z.ToString("0.0", CultureInfo.InvariantCulture) + (e.Item.Resting ? " resting" : " falling"));
+                }
+            }
         }
 
         private void StartClient(Func<IClientTransport> transportFactory, string address, int port, Region region)

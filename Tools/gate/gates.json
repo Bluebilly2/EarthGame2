@@ -230,6 +230,54 @@
       "verifiers": [
         "corpus_check"
       ]
+    },
+    "M1.3": {
+      "steps": [
+        {
+          "name": "dotnet test",
+          "cmd": [
+            "dotnet",
+            "test",
+            "Engine/EarthGame.slnx",
+            "-c",
+            "Debug",
+            "--nologo"
+          ]
+        },
+        {
+          "name": "Unity-layer compile",
+          "cmd": [
+            "dotnet",
+            "build",
+            "Engine/EarthGame.Unity.Compile.csproj",
+            "-c",
+            "Debug",
+            "--nologo",
+            "-v",
+            "minimal"
+          ]
+        },
+        {
+          "name": "populate the gate world",
+          "cmd": [
+            "python",
+            "Tools/world/populate.py",
+            "Artefacts/worlds/gate"
+          ]
+        },
+        {
+          "name": "save_check on the gate world",
+          "cmd": [
+            "python",
+            "Tools/verifiers/checks/save_check.py",
+            "Artefacts/worlds/gate"
+          ]
+        }
+      ],
+      "verifiers": [
+        "save_check"
+      ],
+      "owner_decides": "the frames of the cobble and the stick at rest (M1.3 contract, promise 7): whether things land where his eyes expect"
     }
   }
 }

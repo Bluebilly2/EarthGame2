@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7d1e9a4c3b2f4e5d8a6c1b0f9e8d7c6a, type: 3}
+  m_Name: PrefabRegistry
+  m_EditorClassIdentifier:
+  Bindings:
+  - Key: item/cobble
+    Prefab: {fileID: 1000000000000000001, guid: 9e2c4a6b8d0f1e3a5c7b9d2f4a6c8e0b, type: 3}
+  - Key: item/stick
+    Prefab: {fileID: 1000000000000000001, guid: 4b6d8f0a2c4e6a8c0e2a4c6e8a0c2e4d, type: 3}
