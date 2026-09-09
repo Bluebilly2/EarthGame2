@@ -17,6 +17,13 @@ namespace EarthGame.Engine
     /// </summary>
     public sealed class Heightfield : IHeightSource
     {
+        /// <summary>
+        /// The datum the bake's heights are stated against, metres: Terrarium's zero is mean sea level, and
+        /// every sea cell in the bake is at it (the sea has no floor yet, DEBTS.md). The one place the number
+        /// lives: the drainage's sink, the spawn's floor and the client's water surface all read it here.
+        /// </summary>
+        public const double SeaLevelM = 0.0;
+
         private readonly RegionRaster _raster;
 
         public Heightfield(RegionRaster raster)

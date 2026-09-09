@@ -51,7 +51,7 @@ namespace EarthGame.Engine
         {
             LocalFrame frame = LocalFrame.ForRegion(Region);
             frame.FromLatLon(Region.WakeLatitudeDeg, Region.WakeLongitudeDeg, out double east, out double north);
-            double up = Terrain != null ? Math.Max(0.0, Terrain.HeightAt(east, north)) : 0.0;
+            double up = Terrain != null ? Math.Max(Heightfield.SeaLevelM, Terrain.HeightAt(east, north)) : Heightfield.SeaLevelM;
             return new Double3(east, up, north);
         }
 

@@ -63,7 +63,7 @@ namespace EarthGame.Client
         {
             if (_seaReference == null) return double.NaN;
             double ground = _seaReference.HeightAt(east, north);
-            return ground < 0.0 ? 0.0 : double.NaN;
+            return ground < Heightfield.SeaLevelM ? Heightfield.SeaLevelM : double.NaN;
         }
     }
 }
