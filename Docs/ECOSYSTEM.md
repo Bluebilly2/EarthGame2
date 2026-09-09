@@ -127,3 +127,19 @@ beach pebbles, rhyolite beach pebbles rolled from the volcanics to the north, an
 the cliffs abrades and does not flake. Their mineralogy is in `StoneType.cs`; the layer that says where each
 lies waits on the topology mask (M1.2 promise 7) and reads beach pebbles onto the platforms and beaches, silcrete
 onto the old land surfaces, and quartz where the sandstone's veins crop out.
+
+### The animals of Bherwerre (M1.2, promise 5)
+
+Three, for now: the two kinds M1.7 materialises and the bird the dawn chorus needs. Each is described in
+`AnimalSpecies.cs` by what it eats and what it can stand, never by where it lives, and the density figure is a
+ceiling that `AnimalCapacity` scales down by forage, water and slope. The sources are in the doc comments.
+
+| Animal | Living | Hours | Group | Ceiling | The figure follows from |
+|---|---|---|---|---|---|
+| Eastern grey kangaroo, *Macropus giganteus* | grazer of the flats and the open woodland | dawn and dusk | mobs of eight | 30 / km² | the band 10–30 / km² for good south-eastern woodland, between the published flanks of 3.18 / km² on the inland plains and 20–490 / km² at Coffs Harbour |
+| Pied oystercatcher, *Haematopus longirostris* | the tideline: shellfish off the platforms, worms out of the wet sand | by day | pairs | 10 / km² of shore strip | about one pair per kilometre of ocean beach (the NSW threatened-species profile and recovery plan) on the two-hundred-metre strip a pair works |
+| Superb fairy-wren, *Malurus cyaneus* | insects off the heath and the forest edge | by day; sings before first light | family parties of four | 250 / km² | territories of one to two hectares holding two to five birds (colour-banded studies); the top of that band |
+
+What the list leaves out, and why: the swamp wallaby, the echidna, the bandicoot and the possums of the
+peninsula's record wait on M1.7's second contract; the megafauna are absent because the peninsula has no
+fossil record of them and CANON.md asks every species to be justified from the regional record.
