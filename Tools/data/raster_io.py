@@ -46,11 +46,12 @@ def raw_name(name, dtype):
 
 
 def write_raster(out_dir, name, region, values, cell_m, extent_m, centre_lat, centre_lon, source, baked_by,
-                 attribution, layer="heights", dtype="f32", scale=1.0, unit="m"):
+                 attribution, layer="heights", dtype="f32", scale=1.0, unit="m", extra=None):
     """Writes <name>.<raw ext> and <name>.json into out_dir atomically; returns the sidecar dict.
 
     `values` are in the layer's unit (metres for heights); integer dtypes store round(value / scale) and refuse a
-    value outside the dtype's range rather than wrapping it."""
+    value outside the dtype's range rather than wrapping it. `extra` adds keys to the sidecar (a legend for an id
+    layer, say); it may not shadow a contracted key."""
     if dtype not in DTYPES:
         raise ValueError("unknown dtype %r; one of %s" % (dtype, ", ".join(DTYPES)))
     np_dtype, ext = DTYPES[dtype]
@@ -110,6 +111,10 @@ def write_raster(out_dir, name, region, values, cell_m, extent_m, centre_lat, ce
     }
     if layer == "heights" and unit == "m":
         sidecar["sea_fraction"] = float((in_unit <= 0.0).mean())
+    for key, value in (extra or {}).items():
+        if key in sidecar:
+            raise ValueError("extra key %r would shadow the sidecar's own" % key)
+        sidecar[key] = value
     json_path = os.path.join(out_dir, name + ".json")
     tmp = json_path + ".part"
     with open(tmp, "w", encoding="utf-8") as f:

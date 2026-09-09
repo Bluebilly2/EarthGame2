@@ -31,7 +31,13 @@ namespace EarthGame.Engine
         /// <summary>Fast ticks completed since the world was created. Monotonic; never reset by a load.</summary>
         public long Tick { get; private set; }
 
-        public WorldState(ulong seed, Region region, WorldClock clock, Heightfield terrain = null, long tick = 0)
+        /// <summary>
+        /// Where the world's founder wakes, in local metres east and north, as the world-creation pipeline scored it
+        /// (M1.2); null for a world without layers, which wakes at the region's stated point.
+        /// </summary>
+        public Double3? Wake { get; }
+
+        public WorldState(ulong seed, Region region, WorldClock clock, Heightfield terrain = null, long tick = 0, Double3? wake = null)
         {
             Seed = seed;
             Region = region ?? throw new ArgumentNullException(nameof(region));
@@ -41,6 +47,7 @@ namespace EarthGame.Engine
                                             + " m; one of them is not this world's", nameof(terrain));
             Terrain = terrain;
             Tick = tick;
+            Wake = wake;
         }
 
         /// <summary>
@@ -49,8 +56,17 @@ namespace EarthGame.Engine
         /// </summary>
         public Double3 SpawnPoint()
         {
-            LocalFrame frame = LocalFrame.ForRegion(Region);
-            frame.FromLatLon(Region.WakeLatitudeDeg, Region.WakeLongitudeDeg, out double east, out double north);
+            double east, north;
+            if (Wake.HasValue)
+            {
+                east = Wake.Value.X;
+                north = Wake.Value.Z;
+            }
+            else
+            {
+                LocalFrame frame = LocalFrame.ForRegion(Region);
+                frame.FromLatLon(Region.WakeLatitudeDeg, Region.WakeLongitudeDeg, out east, out north);
+            }
             double up = Terrain != null ? Math.Max(Heightfield.SeaLevelM, Terrain.HeightAt(east, north)) : Heightfield.SeaLevelM;
             return new Double3(east, up, north);
         }

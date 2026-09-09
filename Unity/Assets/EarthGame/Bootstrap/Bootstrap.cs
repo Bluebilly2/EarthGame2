@@ -50,6 +50,7 @@ namespace EarthGame.Bootstrap
         private ClientRuntime _clientRuntime;
         private ShellController _shell;
         private string _worldDir;
+        private System.Collections.Generic.IReadOnlyDictionary<string, string> _layerChecksums;
         private string _recordDir;
         private string _scenario;
         private double _lastRealtime;
@@ -131,9 +132,26 @@ namespace EarthGame.Bootstrap
                 if (WorldSave.Exists(_worldDir))
                 {
                     saved = WorldSave.Read(_worldDir);
-                    world = WorldSave.Restore(saved, terrain);
+                    Heightfield worldTerrain = WorldCreation.TryLoadTerrain(_worldDir, out string terrainMessage);
+                    Debug.Log("[bootstrap] " + terrainMessage);
+                    world = WorldSave.Restore(saved, worldTerrain ?? terrain);
                     _seed = world.Seed;
                     Debug.Log("[bootstrap] continuing " + _worldDir + " at tick " + world.Tick + ", day " + (world.Clock.DaysElapsed + 1) + ", " + saved.Players.Count + " player(s) remembered");
+                }
+                else if (terrain != null)
+                {
+                    // A new world runs the chain once and keeps its layers (M1.2); a minute in the editor's Mono.
+                    double started = Time.realtimeSinceStartupAsDouble;
+                    string now = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
+                    RegionRaster waterBodies = null;
+                    string waterSidecar = Path.Combine(RegionDataLocator.DataDir(region), "water_bodies.json");
+                    if (File.Exists(waterSidecar)) waterBodies = RegionRaster.Load(waterSidecar);
+                    Debug.Log("[bootstrap] water bodies: " + (waterBodies == null ? "none at " + waterSidecar + "; lakes read off the ground alone" : waterSidecar));
+                    WorldCreation.Result created = WorldCreation.Create(_worldDir, region, _seed, terrain.Raster, now, waterBodies);
+                    Heightfield worldTerrain = new Heightfield(RegionRaster.Load(created.Layers["heights"]));
+                    world = new WorldState(_seed, region, region.WakeClock(), worldTerrain, 0, new Double3(created.Wake.East, 0.0, created.Wake.North));
+                    _layerChecksums = created.Checksums;
+                    Debug.Log("[bootstrap] created " + _worldDir + " in " + (Time.realtimeSinceStartupAsDouble - started).ToString("0.0") + " s: " + created.Layers.Count + " layers\n" + created.Census);
                 }
                 else
                 {
@@ -253,7 +271,7 @@ namespace EarthGame.Bootstrap
             if (_server == null || _worldDir == null) return;
             try
             {
-                _server.Save(_worldDir, DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture));
+                _server.Save(_worldDir, DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture), _layerChecksums);
             }
             catch (Exception ex)
             {

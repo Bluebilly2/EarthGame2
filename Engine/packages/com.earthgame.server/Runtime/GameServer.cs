@@ -100,7 +100,8 @@ namespace EarthGame.Server
         }
 
         /// <summary>Writes the world folder: the server is its only writer (ARCHITECTURE §6).</summary>
-        public void Save(string dir, string nowUtcText) => WorldSave.Write(dir, World, PlayersToSave(), nowUtcText);
+        public void Save(string dir, string nowUtcText, IReadOnlyDictionary<string, string> layerChecksums = null)
+            => WorldSave.Write(dir, World, PlayersToSave(), nowUtcText, layerChecksums);
 
         /// <summary>Every body the server knows by name: the remembered ones, overlaid by the live sessions'.</summary>
         public IReadOnlyList<SavedPlayer> PlayersToSave()

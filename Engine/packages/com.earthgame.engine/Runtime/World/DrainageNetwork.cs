@@ -95,6 +95,7 @@ namespace EarthGame.Engine
         private readonly bool[] _sea;
         private readonly sbyte[] _flow;
         private readonly double[] _catchment;
+        private readonly bool[] _sink;
 
         public int Width { get; }
         public int Height { get; }
@@ -114,7 +115,15 @@ namespace EarthGame.Engine
         internal float[] GroundArray => _ground;
         internal bool[] SeaArray => _sea;
 
-        public DrainageNetwork(float[] heights, int width, int height, double cellSizeM, double seaLevelM = double.NegativeInfinity)
+        /// <summary>
+        /// Sinks are where water stops: the sea always, and any cell the caller names (the lakes the bake shows
+        /// as flats; <c>WorldLayers.Lakes</c>). The fill is seeded from every sink at its own height, so a basin
+        /// that holds a lake drains to the lake and is not flooded to its lowest lip: Windermere and McKenzie are
+        /// perched dune lakes with no outlet, and a fill that had to spill read Windermere's basin as a pond thirty
+        /// metres deep (the third probe world of 2026-09-09). A sink flows nowhere; a lake sink gathers its inflow
+        /// (its catchment reads the lake's), the sea gathers nothing.
+        /// </summary>
+        public DrainageNetwork(float[] heights, int width, int height, double cellSizeM, double seaLevelM = double.NegativeInfinity, bool[] sinks = null)
         {
             if (heights == null) throw new ArgumentNullException(nameof(heights));
             if (width < 2 || height < 2) throw new ArgumentException("grid too small");
@@ -143,6 +152,8 @@ namespace EarthGame.Engine
                 }
             }
             SeaCells = seaCells;
+            _sink = new bool[width * height];
+            for (int i = 0; i < width * height; i++) _sink[i] = _sea[i] || (sinks != null && sinks[i]);
 
             FillDepressions();
             ComputeFlowDirections();
@@ -151,11 +162,14 @@ namespace EarthGame.Engine
         }
 
         /// <summary>The network of a raster, the sea at the bake's datum.</summary>
-        public static DrainageNetwork Of(RegionRaster raster)
+        public static DrainageNetwork Of(RegionRaster raster, bool[] sinks = null)
         {
             if (raster == null) throw new ArgumentNullException(nameof(raster));
-            return new DrainageNetwork(raster.Values.ToArray(), raster.Width, raster.Height, raster.CellM, Heightfield.SeaLevelM);
+            return new DrainageNetwork(raster.Values.ToArray(), raster.Width, raster.Height, raster.CellM, Heightfield.SeaLevelM, sinks);
         }
+
+        /// <summary>Whether water stops here: the sea, or a lake the caller named.</summary>
+        public bool IsSink(int x, int z) => _sink[Index(x, z)];
 
         /// <summary>
         /// The hydrologically corrected surface: the terrain with its pits filled. This is the
@@ -311,7 +325,7 @@ namespace EarthGame.Engine
 
             for (int i = 0; i < count; i++)
             {
-                if (!_sea[i]) continue;
+                if (!_sink[i]) continue;
                 closed[i] = true;
                 queue.Push(i, _height[i]);
             }
@@ -425,7 +439,7 @@ namespace EarthGame.Engine
                 for (int x = 0; x < Width; x++)
                 {
                     int i = z * Width + x;
-                    if (_sea[i])
+                    if (_sink[i])
                     {
                         _flow[i] = -1;
                         continue;

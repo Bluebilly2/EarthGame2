@@ -34,6 +34,7 @@ namespace EarthGame.Engine
         {
             Name = sidecar.String("name");
             RegionId = sidecar.String("region");
+            Sidecar = sidecar;
             Layer = sidecar.StringOr("layer", "heights");
             Dtype = sidecar.StringOr("dtype", "f32");
             Scale = sidecar.Contains("scale") ? sidecar.Number("scale") : 1.0;
@@ -53,6 +54,8 @@ namespace EarthGame.Engine
         }
 
         public string Name { get; }
+        /// <summary>The sidecar as read, for the keys a layer adds beyond the contracted ones (a legend, say).</summary>
+        public JsonObject Sidecar { get; }
         public string RegionId { get; }
         /// <summary>What the grid is: heights, soil_depth, wetness, overstory, understory, suitability, water, topology.</summary>
         public string Layer { get; }

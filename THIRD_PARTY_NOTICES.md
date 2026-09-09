@@ -51,3 +51,12 @@ their respective package licences (`Unity/Library/PackageCache/*/LICENSE.md`); n
 ## Meshes, textures and audio
 
 None yet. Each sourced asset gets an entry here (name, author, licence, URL) in the commit that adds it.
+
+## OpenStreetMap data — ODbL 1.0
+
+The outlines of the region's water bodies (lakes, waterholes, swamps) are fetched from OpenStreetMap through the
+Overpass API by `Tools/data/bake_water.py` and rasterised to `Data/regions/<region>/water_bodies.u8` (a dataset
+under `Data/`, fetched and never committed; the Overpass response is cached under `Data/cache/osm/`). The
+sidecar names every way used. Data (c) OpenStreetMap contributors, made available under the Open Database
+Licence 1.0: https://www.openstreetmap.org/copyright and https://opendatacommons.org/licenses/odbl/1-0/. Any
+world folder that carries layers derived from it carries this attribution in the layer's sidecar.

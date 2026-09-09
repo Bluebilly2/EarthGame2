@@ -28,6 +28,10 @@ namespace EarthGame.Server
         public string CreatedUtc;
         public ushort ProtocolVersion;
         public readonly Dictionary<string, SavedPlayer> Players = new Dictionary<string, SavedPlayer>(StringComparer.Ordinal);
+        /// <summary>The wake the pipeline chose, or null for a world saved before it had layers.</summary>
+        public Double3? Wake;
+        /// <summary>Layer name → the raw file's sha256, as written at creation and carried forward by every save.</summary>
+        public readonly Dictionary<string, string> Layers = new Dictionary<string, string>(StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -45,19 +49,22 @@ namespace EarthGame.Server
         public const string WorldFile = "world.json";
         public const string PlayersFolder = "players";
 
-        public static void Write(string dir, WorldState world, IReadOnlyList<SavedPlayer> players, string nowUtcText)
+        public static void Write(string dir, WorldState world, IReadOnlyList<SavedPlayer> players, string nowUtcText,
+                                 IReadOnlyDictionary<string, string> layerChecksums = null)
         {
             if (world == null) throw new ArgumentNullException(nameof(world));
             Directory.CreateDirectory(dir);
             string worldPath = Path.Combine(dir, WorldFile);
             string created = nowUtcText ?? string.Empty;
+            JsonObject layers = null;
             if (File.Exists(worldPath))
             {
-                // The creation date is written once; every later save carries it forward.
+                // The creation date and the layers' checksums are written once; every later save carries them forward.
                 try
                 {
                     JsonObject existing = Json.ParseObject(File.ReadAllText(worldPath, Encoding.UTF8));
                     created = existing.StringOr("created_utc", created);
+                    if (existing.Contains("layers")) layers = existing.Object("layers");
                 }
                 catch (JsonException)
                 {
@@ -75,6 +82,13 @@ namespace EarthGame.Server
                 .With("protocol_version", (int)ProtocolInfo.Version)
                 .With("tick", world.Tick)
                 .With("clock", new JsonObject().With("total_hours", world.Clock.TotalHours).With("started_at_hours", world.Clock.StartedAtHours));
+            if (world.Wake.HasValue) doc.With("wake_east", world.Wake.Value.X).With("wake_up", world.Wake.Value.Y).With("wake_north", world.Wake.Value.Z);
+            if (layerChecksums != null)
+            {
+                layers = new JsonObject();
+                foreach (var pair in layerChecksums) layers.With(pair.Key, pair.Value);
+            }
+            if (layers != null) doc.With("layers", layers);
             WriteAtomic(worldPath, Json.Write(doc, indent: true));
 
             if (players == null) return;
@@ -113,6 +127,11 @@ namespace EarthGame.Server
             info.Tick = (long)doc.Number("tick");
             info.CreatedUtc = doc.StringOr("created_utc", string.Empty);
             info.ProtocolVersion = (ushort)doc.Int("protocol_version");
+            if (doc.Contains("wake_east") && doc.Contains("wake_north"))
+                info.Wake = new Double3(doc.Number("wake_east"), doc.NumberOr("wake_up", 0.0), doc.Number("wake_north"));
+            if (doc.Contains("layers"))
+                foreach (var pair in doc.Object("layers"))
+                    info.Layers[pair.Key] = pair.Value as string ?? string.Empty;
             JsonObject clock = doc.Object("clock");
             info.TotalHours = clock.Number("total_hours");
             info.StartedAtHours = clock.Number("started_at_hours");
@@ -137,11 +156,12 @@ namespace EarthGame.Server
         }
 
         /// <summary>The world as it was, with the terrain the host loaded for it. The region must still be known to this build.</summary>
-        public static WorldState Restore(WorldSaveInfo info, Heightfield terrain)
+        /// <param name="region">The region the host runs, when it is not one <see cref="Region.ById"/> knows (a test's fixture); else looked up by the save's id.</param>
+        public static WorldState Restore(WorldSaveInfo info, Heightfield terrain, Region region = null)
         {
-            Region region = Region.ById(info.RegionId);
+            if (region == null) region = Region.ById(info.RegionId);
             if (region == null) throw new InvalidDataException("the save is set in region '" + info.RegionId + "', which this build does not know");
-            return new WorldState(info.Seed, region, WorldClock.Restore(info.TotalHours, info.StartedAtHours), terrain, info.Tick);
+            return new WorldState(info.Seed, region, WorldClock.Restore(info.TotalHours, info.StartedAtHours), terrain, info.Tick, info.Wake);
         }
 
         /// <summary>A player's name as a file name: letters, digits and a few marks; everything else becomes an underscore.</summary>

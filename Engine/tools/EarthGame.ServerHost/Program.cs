@@ -20,6 +20,8 @@ namespace EarthGame.ServerHost
     ///   +server.sendcap 1250000  (bytes per second per connection; 0 uncapped)
     ///   +server.log Artefacts/corpus/x/server/run.jsonl  (the server's run log, eg2.run v1; see ARCHITECTURE §10)
     ///   +server.seconds 1800  (stop by itself after this long)
+    ///   +server.world Saves/world-1347  (the world folder: created with its layers, wake and census when absent, continued
+    ///   when present, saved at stop)
     /// Console commands: status, pause, resume, digest, stop.
     ///
     /// <para>The host is the server's clock and its instruments: it times each update for the tick statistics,
@@ -51,12 +53,21 @@ namespace EarthGame.ServerHost
             // for speed and extent only, never against a ground it does not have, and no tile is served.
             string dataDir = Str(a, "server.data", DefaultDataDir(region));
             Heightfield terrain = null;
+            RegionRaster bake = null;
+            RegionRaster waterBodies = null;
             string sidecar = Path.Combine(dataDir, "heights.json");
             if (File.Exists(sidecar))
             {
-                RegionRaster raster = RegionRaster.Load(sidecar);
-                terrain = new Heightfield(raster);
-                Log("terrain " + sidecar + ": " + raster.Width + "x" + raster.Height + " at " + raster.CellM.ToString("0.#", CultureInfo.InvariantCulture) + " m");
+                bake = RegionRaster.Load(sidecar);
+                terrain = new Heightfield(bake);
+                Log("terrain " + sidecar + ": " + bake.Width + "x" + bake.Height + " at " + bake.CellM.ToString("0.#", CultureInfo.InvariantCulture) + " m");
+                string waterSidecar = Path.Combine(dataDir, "water_bodies.json");
+                if (File.Exists(waterSidecar))
+                {
+                    waterBodies = RegionRaster.Load(waterSidecar);
+                    Log("water bodies " + waterSidecar + ": " + (waterBodies.Sidecar.Contains("bodies") ? waterBodies.Sidecar.Array("bodies").Count : 0) + " outlines");
+                }
+                else Log("no water bodies: " + waterSidecar + " not found; lakes will be read off the ground alone");
             }
             else
             {
@@ -76,14 +87,51 @@ namespace EarthGame.ServerHost
             };
             int stopAfter = Int(a, "server.seconds", 0);
 
-            // The world starts at the region's canonical wake (Region owns the day, hour and longitude).
-            WorldState world = new WorldState(seed, region, region.WakeClock(), terrain);
+            // The world: a folder created with its layers (M1.2), continued when it exists, or nothing but the
+            // region's canonical wake when no folder is named (Region owns the day, hour and longitude).
+            string worldDir = Str(a, "server.world", null);
+            WorldState world;
+            WorldSaveInfo saved = null;
+            IReadOnlyDictionary<string, string> layerChecksums = null;
+            Stopwatch clock = Stopwatch.StartNew();
+            if (!string.IsNullOrEmpty(worldDir) && WorldSave.Exists(worldDir))
+            {
+                saved = WorldSave.Read(worldDir);
+                Heightfield worldTerrain = WorldCreation.TryLoadTerrain(worldDir, out string terrainMessage);
+                Log(terrainMessage);
+                world = WorldSave.Restore(saved, worldTerrain ?? terrain);
+                seed = world.Seed;
+                Log("continuing " + worldDir + " at tick " + world.Tick + ", " + saved.Players.Count + " player(s) remembered"
+                    + (world.Wake.HasValue ? ", wake at east " + world.Wake.Value.X.ToString("0", CultureInfo.InvariantCulture) + " north " + world.Wake.Value.Z.ToString("0", CultureInfo.InvariantCulture) : ""));
+            }
+            else if (!string.IsNullOrEmpty(worldDir))
+            {
+                if (bake == null)
+                {
+                    Log("cannot create " + worldDir + ": the region's bake is needed and " + sidecar + " is missing");
+                    return 2;
+                }
+                double started = clock.Elapsed.TotalSeconds;
+                string now = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
+                WorldCreation.Result created = WorldCreation.Create(worldDir, region, seed, bake, now, waterBodies);
+                Heightfield worldTerrain = new Heightfield(RegionRaster.Load(created.Layers["heights"]));
+                world = new WorldState(seed, region, region.WakeClock(), worldTerrain, 0, new Double3(created.Wake.East, 0.0, created.Wake.North));
+                layerChecksums = created.Checksums;
+                WorldSave.Write(worldDir, world, null, now, layerChecksums);
+                Log("created " + worldDir + " in " + (clock.Elapsed.TotalSeconds - started).ToString("0.0", CultureInfo.InvariantCulture) + " s: " + created.Layers.Count + " layers");
+                foreach (string line in created.Census.Split('\n'))
+                    if (line.Length > 0) Log("census  " + line);
+            }
+            else
+            {
+                world = new WorldState(seed, region, region.WakeClock(), terrain);
+            }
             UdpServerTransport transport = new UdpServerTransport(options);
             GameServer server = new GameServer(config, transport, world);
+            if (saved != null) server.RememberPlayers(saved.Players.Values);
 
             RunLog log = null;
             string logPath = Str(a, "server.log", null);
-            Stopwatch clock = Stopwatch.StartNew();
             if (!string.IsNullOrEmpty(logPath))
             {
                 JsonObject header = new JsonObject()
@@ -202,6 +250,11 @@ namespace EarthGame.ServerHost
 
             Log("stopping");
             instruments.End(seconds());
+            if (!string.IsNullOrEmpty(worldDir))
+            {
+                server.Save(worldDir, DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture), layerChecksums);
+                Log("saved " + worldDir);
+            }
             transport.Dispose();
             log?.Dispose();
             return 0;
