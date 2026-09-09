@@ -76,6 +76,19 @@
           ]
         },
         {
+          "name": "Unity-layer compile",
+          "cmd": [
+            "dotnet",
+            "build",
+            "Engine/EarthGame.Unity.Compile.csproj",
+            "-c",
+            "Debug",
+            "--nologo",
+            "-v",
+            "minimal"
+          ]
+        },
+        {
           "name": "summit_check",
           "cmd": [
             "python",
@@ -88,12 +101,49 @@
             "python",
             "Tools/verifiers/checks/solar_check.py"
           ]
+        },
+        {
+          "name": "create the gate world",
+          "cmd": [
+            "python",
+            "Tools/world/create.py",
+            "Artefacts/worlds/gate"
+          ]
+        },
+        {
+          "name": "drainage_check on the gate world",
+          "cmd": [
+            "python",
+            "Tools/verifiers/checks/drainage_check.py",
+            "Artefacts/worlds/gate"
+          ]
+        },
+        {
+          "name": "census_check on the gate world",
+          "cmd": [
+            "python",
+            "Tools/verifiers/checks/census_check.py",
+            "Artefacts/worlds/gate"
+          ]
+        },
+        {
+          "name": "region_stats on the gate world's sea floor",
+          "cmd": [
+            "python",
+            "Tools/verifiers/checks/region_stats.py",
+            "--world",
+            "Artefacts/worlds/gate"
+          ]
         }
       ],
       "verifiers": [
         "summit_check",
-        "solar_check"
-      ]
+        "solar_check",
+        "drainage_check",
+        "census_check",
+        "region_stats"
+      ],
+      "owner_decides": "the census, read as a document about the country: where it reads wrong is a debt or a fix (M1.2 contract, exit)"
     },
     "M1.A": {
       "steps": [

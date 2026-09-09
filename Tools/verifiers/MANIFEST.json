@@ -5,7 +5,9 @@
       "name": "decode_check",
       "path": "Tools/verifiers/checks/decode_check.py",
       "author": "Claude",
-      "gates": ["M1.1"],
+      "gates": [
+        "M1.1"
+      ],
       "checks": "One Terrarium tile decodes to metres that match a known pixel (elevation_m = R*256 + G + B/256 - 32768).",
       "independent_of_the_tool_by": "the published Terrarium encoding applied by hand to a cached tile's pixels, and a pixel over open sea that must decode to about zero; never imports Tools/data/terrarium.py"
     },
@@ -13,15 +15,21 @@
       "name": "region_stats",
       "path": "Tools/verifiers/checks/region_stats.py",
       "author": "Claude",
-      "gates": ["M1.1"],
-      "checks": "The baked heights raster's min, max and sea fraction are plausible; refuses zero rows.",
-      "independent_of_the_tool_by": "reading the raw .r32 with numpy from the sidecar's stated shape alone, and plausibility bounds for this coast taken from published relief, not from the bake's own sidecar statistics"
+      "gates": [
+        "M1.1",
+        "M1.2"
+      ],
+      "checks": "The baked heights raster's min, max and sea fraction are plausible; refuses zero rows. With --world, the world's heights layer gives the sea a floor between the datum and 30 m down that deepens with distance from the shore.",
+      "independent_of_the_tool_by": "reading the raw .r32 with numpy from the sidecar's stated shape alone, plausibility bounds for this coast taken from published relief rather than from the bake's own sidecar statistics, and for the world's sea floor its own Euclidean distance to the nearest land cell at sampled sea cells against the stated one-in-twenty rule"
     },
     {
       "name": "summit_check",
       "path": "Tools/verifiers/checks/summit_check.py",
       "author": "Claude",
-      "gates": ["M1.1", "M1.2"],
+      "gates": [
+        "M1.1",
+        "M1.2"
+      ],
       "checks": "Bherwerre Trig Point (170 m, a kilometre east of the box) reads as a summit in the surround and as the hill's flank in the region raster; the region's high ground is that hill and nowhere else; the east-west and north-south mirror images find only low ground; Jervis Bay and the ocean off Cave Beach are water; the ground north of the wake is land.",
       "independent_of_the_tool_by": "coordinates and heights from Wikidata Q15107571, peakbagger.com, Parks Australia (booderee.gov.au) and beachesontheair.com, cited in the file, converted to raster cells by the frame rule the sidecar states rather than by the engine's code"
     },
@@ -29,7 +37,10 @@
       "name": "solar_check",
       "path": "Tools/verifiers/checks/solar_check.py",
       "author": "Claude",
-      "gates": ["M1.2", "M1.A"],
+      "gates": [
+        "M1.2",
+        "M1.A"
+      ],
       "checks": "Sunrise, sunset, declination and the sun's place at the wake hour on day 237 at Bherwerre match an independent solar algorithm.",
       "independent_of_the_tool_by": "the NOAA solar-position equations on the real date (Julian century, apparent ecliptic longitude, obliquity) against the engine's Spencer-series declination; the engine's line is read as text from the almanac tool, the engine is never imported"
     },
@@ -37,7 +48,9 @@
       "name": "station_table",
       "path": "Tools/verifiers/checks/station_table.py",
       "author": "Claude",
-      "gates": ["M2-climate"],
+      "gates": [
+        "M2-climate"
+      ],
       "checks": "Parses hand-downloaded BoM CSVs for stations 068034 and 068072 into the calibration table.",
       "independent_of_the_tool_by": "the Bureau's own CSVs, downloaded by the owner by hand because the Bureau blocks scripts (DEBTS.md); the table is checked against the station page by eye"
     },
@@ -45,7 +58,9 @@
       "name": "corpus_check",
       "path": "Tools/verifiers/checks/corpus_check.py",
       "author": "Claude",
-      "gates": ["M1.10"],
+      "gates": [
+        "M1.10"
+      ],
       "checks": "Independently re-derives the corpus verdict from the raw result files and their mtimes, so the runner cannot grade itself.",
       "independent_of_the_tool_by": "reading only the raw per-scenario result files and their modification times, never the runner's summary"
     },
@@ -53,9 +68,31 @@
       "name": "join_check",
       "path": "Tools/verifiers/checks/join_check.py",
       "author": "Claude",
-      "gates": ["M1.B"],
+      "gates": [
+        "M1.B"
+      ],
       "checks": "Recomputes N1-N4 from the contracted run logs independently of the runner's own summary.",
       "independent_of_the_tool_by": "recomputing every criterion from run.jsonl records alone, with the thresholds restated from CANON ruling 11 rather than imported from the harness"
+    },
+    {
+      "name": "drainage_check",
+      "path": "Tools/verifiers/checks/drainage_check.py",
+      "author": "Claude",
+      "gates": [
+        "M1.2"
+      ],
+      "checks": "The engine's catchment layer agrees with an independent D8 at the two largest creeks and at the water gathered into Lake Windermere and Lake McKenzie, within 10 %.",
+      "independent_of_the_tool_by": "its own priority-flood fill (heapq), steepest-descent routing and height-ordered accumulation in numpy over the raw bake raster, seeded from the sea and the world's lake cells; never imports the engine or Tools/data; the lake points are Wikidata's (Q21908519, Q23759865)"
+    },
+    {
+      "name": "census_check",
+      "path": "Tools/verifiers/checks/census_check.py",
+      "author": "Claude",
+      "gates": [
+        "M1.2"
+      ],
+      "checks": "The world's water and topology layers put Lake Windermere, Lake McKenzie, Blacks Waterhole and Ryans Swamp where the published sources do at the published sizes, the bay salt, Cave Beach a beach with dune behind it, the south-east shore hard, and say how far the region's stated wake and the chosen wake lie from Cave Beach.",
+      "independent_of_the_tool_by": "numpy over the layers' raw files with the frame rule the sidecars state; areas from Wikipedia (Jervis Bay Territory), positions and McKenzie's elevation from Wikidata, Cave Beach from Destination NSW (visitnsw.com), Steamers Head from Wikidata, the bay point from beachesontheair.com; the bake's outlines are OpenStreetMap's and only Blacks Waterhole's position falls back to them, which the row says"
     }
   ]
 }

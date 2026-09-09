@@ -128,6 +128,34 @@ the cliffs abrades and does not flake. Their mineralogy is in `StoneType.cs`; th
 lies waits on the topology mask (M1.2 promise 7) and reads beach pebbles onto the platforms and beaches, silcrete
 onto the old land surfaces, and quartz where the sandstone's veins crop out.
 
+### The water and the wake (M1.2, landed 2026-09-09)
+
+Every rule below carries its number so that a person who knows the country can call it wrong by name; the
+census a world creation prints (`census.txt`) is these rules read out over the real ground.
+
+- **The sea** is the bake's ground at or below the datum. Its floor falls at one in twenty from the water's edge
+  to 30 m (`WorldLayers.SeaFloor`), a rule in place of the bathymetry (DEBTS.md).
+- **A lake read off the ground** is a flat (relief under 0.6 m across a 5 × 5 window) grown from its lowest cell
+  through the cells within 0.5 m of that level, at least a hectare, with a rim: of the ground around it that lies
+  outside the band, 85 % stands above it. A strip of a slope has a lower side and fails.
+- **A mapped lake** (`water_bodies`, OpenStreetMap through `Tools/data/bake_water.py`) stands at the median of the
+  bake's ground inside its outline; the outline's cells at or below that level are its water, the rest margin.
+  A mapped wetland is swamp throughout. The sea and the lakes are the drainage's sinks: Windermere and McKenzie
+  are perched dune lakes with no outlet, and a fill that had to spill flooded their basins to the lip.
+- **Swamp** elsewhere is ground whose wetness is at or above 0.9 with a slope under 5 %; creek and stream are the
+  drainage's channels (120,000 m² and 600,000 m² of catchment); trickle and damp the smaller ones. Fresh water
+  for drinking is a creek, a stream or a lake; the sea is salt.
+- **The surface** layer is the water's surface where water stands (the sea at the datum, a lake at its level) and
+  the ground's elsewhere, so wading in a lake is the surface less the ground.
+- **The wake** is the standable cell whose product of five graded factors is greatest: fresh water within 500 m,
+  knappable stone (knappability at or above 0.25) within 1 km, fibre (lomandra, saw-sedge, spinifex) and
+  firewood (any canopy) within 500 m, shelter rock (a cliff or a shore platform) within 2 km, each factor full at
+  the thing itself, two thirds at the stated distance and nothing at three times it. No place to wake: the sea,
+  within 500 m of the region's edge, under 2 m, steeper than ten degrees, a lake, a swamp, a creek or a stream
+  underfoot, ground as wet as a swamp's, the cliff or the platform itself. Ties go to the least wind exposure
+  (the site's, the coast's salt wind included), then the first cell in row order. The census prints the winner's
+  reading, the region's stated wake's reading in the same terms, and the water by name.
+
 ### The animals of Bherwerre (M1.2, promise 5)
 
 Three, for now: the two kinds M1.7 materialises and the bird the dawn chorus needs. Each is described in
