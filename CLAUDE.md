@@ -1,5 +1,8 @@
 # CLAUDE.md — EarthGame2
 
+These are the house rules for whichever agent is at the keyboard. `AGENTS.md`, which Codex and others read,
+points here rather than repeating them: one file, one set of rules, no drift between them.
+
 ## Read first
 - `Docs/GAME_DESIGN.md` — the constitution (owner-authored; § numbering is the shared vocabulary).
 - `Docs/CANON.md` — the owner's dated rulings and the constitutional amendments. Owner rulings are amended only by
@@ -21,7 +24,7 @@
   message serialised. No fast path.
 
 ## The verifiers (owner ruling 2026-09-07, amended by ruling 17 of 2026-09-08)
-- Claude writes the tools and, since ruling 17, the checks too, under `Tools/verifiers/checks/`. Because the
+- The agent writes the tools and, since ruling 17, the checks too, under `Tools/verifiers/checks/`. Because the
   same party now writes both, every verifier must use an algorithm or data source independent of the tool it
   checks, name its reference and its source, and print both numbers beside the verdict (ARCHITECTURE decision
   log, 2026-09-08). A verifier that reuses the tool's own code is a stub with extra steps.

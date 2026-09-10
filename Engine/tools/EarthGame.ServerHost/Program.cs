@@ -54,20 +54,12 @@ namespace EarthGame.ServerHost
             string dataDir = Str(a, "server.data", DefaultDataDir(region));
             Heightfield terrain = null;
             RegionRaster bake = null;
-            RegionRaster waterBodies = null;
             string sidecar = Path.Combine(dataDir, "heights.json");
             if (File.Exists(sidecar))
             {
                 bake = RegionRaster.Load(sidecar);
                 terrain = new Heightfield(bake);
                 Log("terrain " + sidecar + ": " + bake.Width + "x" + bake.Height + " at " + bake.CellM.ToString("0.#", CultureInfo.InvariantCulture) + " m");
-                string waterSidecar = Path.Combine(dataDir, "water_bodies.json");
-                if (File.Exists(waterSidecar))
-                {
-                    waterBodies = RegionRaster.Load(waterSidecar);
-                    Log("water bodies " + waterSidecar + ": " + (waterBodies.Sidecar.Contains("bodies") ? waterBodies.Sidecar.Array("bodies").Count : 0) + " outlines");
-                }
-                else Log("no water bodies: " + waterSidecar + " not found; lakes will be read off the ground alone");
             }
             else
             {
@@ -89,38 +81,45 @@ namespace EarthGame.ServerHost
 
             // The world: a folder created with its layers (M1.2), continued when it exists, or nothing but the
             // region's canonical wake when no folder is named (Region owns the day, hour and longitude).
+            //
+            // One function prepares a world, here and in the game (WorldPreparation, M1.4 loading 2026-09-10):
+            // a saved world's own terrain must load and match its manifest, and the region's bake is never put
+            // quietly in its place. This host did that until 2026-09-10, so a world whose heights layer had gone
+            // came back standing on different ground without a word, and its digest with it.
             string worldDir = Str(a, "server.world", null);
             WorldState world;
             WorldSaveInfo saved = null;
             IReadOnlyDictionary<string, string> layerChecksums = null;
             Stopwatch clock = Stopwatch.StartNew();
-            if (!string.IsNullOrEmpty(worldDir) && WorldSave.Exists(worldDir))
+            if (!string.IsNullOrEmpty(worldDir))
             {
-                saved = WorldSave.Read(worldDir);
-                Heightfield worldTerrain = WorldCreation.TryLoadTerrain(worldDir, out string terrainMessage);
-                Log(terrainMessage);
-                world = WorldSave.Restore(saved, worldTerrain ?? terrain);
-                seed = world.Seed;
-                Log("continuing " + worldDir + " at tick " + world.Tick + ", " + saved.Players.Count + " player(s) remembered"
-                    + (world.Wake.HasValue ? ", wake at east " + world.Wake.Value.X.ToString("0", CultureInfo.InvariantCulture) + " north " + world.Wake.Value.Z.ToString("0", CultureInfo.InvariantCulture) : ""));
-            }
-            else if (!string.IsNullOrEmpty(worldDir))
-            {
-                if (bake == null)
-                {
-                    Log("cannot create " + worldDir + ": the region's bake is needed and " + sidecar + " is missing");
-                    return 2;
-                }
+                bool continuing = WorldSave.Exists(worldDir);
                 double started = clock.Elapsed.TotalSeconds;
                 string now = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
-                WorldCreation.Result created = WorldCreation.Create(worldDir, region, seed, bake, now, waterBodies);
-                Heightfield worldTerrain = new Heightfield(RegionRaster.Load(created.Layers["heights"]));
-                world = new WorldState(seed, region, region.WakeClock(), worldTerrain, 0, new Double3(created.Wake.East, 0.0, created.Wake.North));
-                layerChecksums = created.Checksums;
-                WorldSave.Write(worldDir, world, null, now, layerChecksums);
-                Log("created " + worldDir + " in " + (clock.Elapsed.TotalSeconds - started).ToString("0.0", CultureInfo.InvariantCulture) + " s: " + created.Layers.Count + " layers");
-                foreach (string line in created.Census.Split('\n'))
-                    if (line.Length > 0) Log("census  " + line);
+                WorldPreparation.Result prepared;
+                try
+                {
+                    // The console has no loading screen; the stages the screen shows go to the log instead.
+                    prepared = WorldPreparation.Load(worldDir, dataDir, region, seed, now, stage => Log("  " + stage), CancellationToken.None);
+                }
+                catch (Exception ex) when (ex is IOException || ex is InvalidDataException || ex is JsonException || ex is KeyNotFoundException)
+                {
+                    Log("cannot " + (continuing ? "continue " : "create ") + worldDir + ": " + ex.Message);
+                    return 2;
+                }
+                world = prepared.World;
+                saved = prepared.Saved;
+                layerChecksums = prepared.Checksums;
+                seed = world.Seed;
+                if (continuing)
+                    Log("continuing " + worldDir + " at tick " + world.Tick + ", " + saved.Players.Count + " player(s) remembered"
+                        + (world.Wake.HasValue ? ", wake at east " + world.Wake.Value.X.ToString("0", CultureInfo.InvariantCulture) + " north " + world.Wake.Value.Z.ToString("0", CultureInfo.InvariantCulture) : ""));
+                else
+                {
+                    Log("created " + worldDir + " in " + (clock.Elapsed.TotalSeconds - started).ToString("0.0", CultureInfo.InvariantCulture) + " s: " + layerChecksums.Count + " layers");
+                    foreach (string line in prepared.Census.Split('\n'))
+                        if (line.Length > 0) Log("census  " + line);
+                }
             }
             else
             {
@@ -137,7 +136,7 @@ namespace EarthGame.ServerHost
                 JsonObject header = new JsonObject()
                     .With("role", "server").With("region", region.Id).With("seed", seed).With("tick_rate", config.TickRate).With("port", port)
                     .With("latency_ms", latency).With("jitter_ms", jitter).With("loss_percent", loss).With("send_cap_bytes_per_second", sendCap)
-                    .With("interest_radius_m", config.InterestRadiusM).With("terrain", terrain != null)
+                    .With("interest_radius_m", config.InterestRadiusM).With("terrain", world.Terrain != null)
                     .With("started_utc", DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture));
                 log = RunLog.Open(logPath, header);
                 Log("logging to " + logPath);

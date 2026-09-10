@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -119,13 +120,27 @@ namespace EarthGame.Engine
             return Path.ChangeExtension(sidecarPath, ".r32");
         }
 
-        /// <summary>Loads a sidecar and the raw file beside it.</summary>
+        /// <summary>
+        /// Loads a sidecar and the raw file beside it. Every refusal names the file: since a world's own terrain
+        /// is refused rather than replaced by the region's bake (M1.4 loading, 2026-09-10), these messages are
+        /// what a player reads on the failure screen and what an operator reads in the host's log, and "missing
+        /// key 'width'" does not say which of a world's twenty-one layers to look at. A key the format requires
+        /// but the sidecar lacks arrives here as a KeyNotFoundException from the JSON reader, which carries the
+        /// key but not the file.
+        /// </summary>
         public static RegionRaster Load(string sidecarPath)
         {
-            if (!File.Exists(sidecarPath)) throw new FileNotFoundException("raster sidecar not found", sidecarPath);
+            if (!File.Exists(sidecarPath)) throw new FileNotFoundException("raster sidecar not found: " + sidecarPath, sidecarPath);
             string rawPath = RawPathFor(sidecarPath);
-            if (!File.Exists(rawPath)) throw new FileNotFoundException("raster data not found beside its sidecar", rawPath);
-            return FromParts(File.ReadAllText(sidecarPath, Encoding.UTF8), File.ReadAllBytes(rawPath), sidecarPath);
+            if (!File.Exists(rawPath)) throw new FileNotFoundException("raster data not found beside its sidecar: " + rawPath, rawPath);
+            try
+            {
+                return FromParts(File.ReadAllText(sidecarPath, Encoding.UTF8), File.ReadAllBytes(rawPath), sidecarPath);
+            }
+            catch (Exception ex) when (ex is KeyNotFoundException || ex is JsonException || ex is FormatException || ex is InvalidCastException)
+            {
+                throw new InvalidDataException(sidecarPath + ": " + ex.Message);
+            }
         }
 
         /// <summary>Bytes per cell for a dtype the format names, or zero for one it does not.</summary>

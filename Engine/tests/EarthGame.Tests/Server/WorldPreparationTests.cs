@@ -80,6 +80,25 @@ namespace EarthGame.Tests.Server
                 "an intact bake must not hide a corrupt world terrain");
         }
 
+        /// <summary>
+        /// A world owns the region it is set in (2026-09-10). The caller passes the region it was launched with,
+        /// so without this a world of one region opened as another of the same extent would come back on another
+        /// coast at the same local metres, and only its census would show it.
+        /// </summary>
+        [Test]
+        public void AWorldOfAnotherRegionIsRefusedNotReinterpreted()
+        {
+            Bake();
+            WorldPreparation.Load(_world, _data, Region, 1347, Now, null, CancellationToken.None);
+            Region elsewhere = new Region("elsewhere", "Elsewhere", -35.14, 150.675,
+                TestRasters.MadeExtentM, 237, 8, -35.14, 150.675);
+            InvalidDataException refused = Assert.Throws<InvalidDataException>(
+                () => WorldPreparation.Load(_world, _data, elsewhere, 1347, Now, null, CancellationToken.None));
+            Assert.That(refused.Message, Does.Contain("fixture").And.Contain("elsewhere"), "the refusal names both");
+            Assert.That(WorldPreparation.Load(_world, _data, Region, 1347, Now, null, CancellationToken.None).Saved, Is.Not.Null,
+                "and its own region still opens it");
+        }
+
         [TestCase("Tracing drainage")]
         [TestCase("Saved heights")]
         public void CancellationAtAStageLeavesNoLoadablePartialWorld(string stopAt)

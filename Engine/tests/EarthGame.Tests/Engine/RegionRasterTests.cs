@@ -220,7 +220,40 @@ namespace EarthGame.Tests.Engine
         [Test]
         public void AMissingFileIsAFileError()
         {
-            Assert.That(() => RegionRaster.Load(TestPaths.Fixture("raster", "absent.json")), Throws.TypeOf<FileNotFoundException>());
+            Assert.That(() => RegionRaster.Load(TestPaths.Fixture("raster", "absent.json")), Throws.TypeOf<FileNotFoundException>()
+                .With.Message.Contains("absent.json"), "the refusal names the file: it is read on a failure screen and in a server log");
+        }
+
+        /// <summary>
+        /// Every refusal from a file names that file (M1.4 loading, 2026-09-10). A sidecar missing a key the
+        /// format requires used to arrive as "missing key 'width'" from the JSON reader, which says nothing about
+        /// which of a world's twenty-one layers is at fault; the world's terrain is now refused rather than
+        /// replaced, so this message is the whole of what the player and the operator are told.
+        /// </summary>
+        [Test]
+        public void ARefusalFromAFileNamesTheFile()
+        {
+            string dir = Path.Combine(Path.GetTempPath(), "EarthGame2.Tests", "raster", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                string sidecar = Path.Combine(dir, "wetness.json");
+                // Under both names the raw file can take: the one the sidecar states, and the .r32 beside it that
+                // RawPathFor falls back to when the sidecar cannot be parsed at all.
+                byte[] raw = File.ReadAllBytes(RegionRaster.RawPathFor(SidecarPath));
+                File.WriteAllBytes(Path.Combine(dir, Path.GetFileName(RegionRaster.RawPathFor(SidecarPath))), raw);
+                File.WriteAllBytes(Path.Combine(dir, "wetness.r32"), raw);
+                File.WriteAllText(sidecar, File.ReadAllText(SidecarPath).Replace("\"width\"", "\"widht\""));
+                Assert.That(() => RegionRaster.Load(sidecar), Throws.TypeOf<InvalidDataException>().With.Message.Contains("wetness.json"));
+                Assert.That(() => RegionRaster.Load(sidecar), Throws.TypeOf<InvalidDataException>().With.Message.Contains("width"), "and the key it wanted");
+
+                File.WriteAllText(sidecar, "{\"format\":\"eg2.raster\",\"version\":2");
+                Assert.That(() => RegionRaster.Load(sidecar), Throws.TypeOf<InvalidDataException>().With.Message.Contains("wetness.json"));
+            }
+            finally
+            {
+                if (Directory.Exists(dir)) Directory.Delete(dir, true);
+            }
         }
     }
 }

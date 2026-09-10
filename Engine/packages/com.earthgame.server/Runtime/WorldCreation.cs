@@ -155,26 +155,9 @@ namespace EarthGame.Server
             return sb.ToString();
         }
 
-        /// <summary>The world's own heights, with the sea floor, when the folder has them; else null.</summary>
-        public static Heightfield TryLoadTerrain(string worldDir, out string message)
-        {
-            string sidecar = Path.Combine(worldDir ?? string.Empty, LayersFolder, "heights.json");
-            if (!File.Exists(sidecar))
-            {
-                message = "no world layers at " + sidecar;
-                return null;
-            }
-            try
-            {
-                RegionRaster raster = RegionRaster.Load(sidecar);
-                message = "world terrain " + sidecar + ": " + raster.Width + "x" + raster.Height + " at " + raster.CellM + " m, " + raster.Min + ".." + raster.Max + " m";
-                return new Heightfield(raster);
-            }
-            catch (Exception ex) when (ex is IOException || ex is InvalidDataException)
-            {
-                message = "world layers refused: " + ex.Message;
-                return null;
-            }
-        }
+        // A world's terrain is opened by WorldPreparation.Load and nowhere else (M1.4 loading, 2026-09-10).
+        // The lenient reader that used to live here returned null for a folder whose heights were missing OR
+        // unreadable, and both of its callers then reached for the region's bake: a corrupt layer was answered
+        // by silently standing the world on other ground. SourceRulesTests keeps that path from growing back.
     }
 }

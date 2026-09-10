@@ -68,11 +68,10 @@ namespace EarthGame.Tests.Server
             Assert.That(surface[54, 120], Is.EqualTo(r.Computed.Bodies[0].LevelM).Within(1e-3));
             Assert.That(surface[155, 80], Is.EqualTo(0f));
 
-            Heightfield terrain = WorldCreation.TryLoadTerrain(Path.Combine(_dir, "a"), out string message);
-            Assert.That(terrain, Is.Not.Null, message);
+            // What the folder's heights layer carries; that a missing or corrupt one is refused rather than
+            // replaced by the bake is WorldPreparationTests'.
+            Heightfield terrain = new Heightfield(RegionRaster.Load(r.Layers["heights"]));
             Assert.That(terrain.HeightAt(0.0, 0.0), Is.EqualTo(r.Computed.HeightsWithFloor[80 * TestRasters.MadeSide + 80]).Within(1e-6));
-            Assert.That(WorldCreation.TryLoadTerrain(Path.Combine(_dir, "nowhere"), out string none), Is.Null);
-            Assert.That(none, Does.Contain("no world layers"));
         }
 
         [Test]
@@ -107,7 +106,8 @@ namespace EarthGame.Tests.Server
             Assert.That(info.Layers.Count, Is.EqualTo(r.Checksums.Count));
             Assert.That(info.Layers["topology"], Is.EqualTo(r.Checksums["topology"]));
 
-            WorldState back = WorldSave.Restore(info, WorldCreation.TryLoadTerrain(dir, out _), FixtureRegion);
+            Heightfield saved = new Heightfield(RegionRaster.Load(Path.Combine(dir, WorldCreation.LayersFolder, "heights.json")));
+            WorldState back = WorldSave.Restore(info, saved, FixtureRegion);
             Assert.That(back.Wake.HasValue, Is.True);
             Double3 spawn = back.SpawnPoint();
             Assert.That(spawn.X, Is.EqualTo(r.Wake.East));

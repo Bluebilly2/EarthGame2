@@ -37,12 +37,16 @@ once at world creation and saved as layers. Nothing in the landscape is placed.
 - Tests: `Engine/tests/EarthGame.Tests` (NUnit on net10.0, outside the Unity project); Unity edit-mode tests only
   for settings, prefab and registry invariants.
 
-Startup (M1.4 loading, 2026-09-10): Bootstrap presents a separate loading panel, then
-runs engine-free `WorldPreparation.Load` on a worker with resolved paths, seed and
-cancellation token. Progress enters a concurrent queue drained by the main thread;
+Startup (M1.4 loading, 2026-09-10): `WorldPreparation.Load` is the one function that opens a
+world, for the game and for the dedicated host, and `SourceRulesTests` holds it to that.
+Bootstrap presents a separate loading panel, then runs it on a worker with resolved paths,
+seed and cancellation token; the host calls the same function on its own thread and logs
+the stages the panel would have shown. Progress enters a concurrent queue drained by the main thread;
 only that thread creates Unity objects or starts transports. Creation writes the same
 layers and an initial save; continuation reads its saved terrain and verifies the
-manifest checksum. Only legacy saves without heights layers use the bake. A failed
+manifest checksum. Only legacy saves without heights layers use the bake. Every refusal names
+the file it could not read, since that message is the whole of what a player is told on the
+failure screen and an operator in the host's log. A failed
 read stays on an error screen with return to menu. Cancellation is checked between
 stages, without joining the worker on exit. The overlay closes on the client's
 existing collidable-terrain-and-snapshot readiness event. Client view construction
@@ -371,4 +375,5 @@ mandatory in every file from the first write.
 | 2026-09-09 | Leaving a session's interest takes 50 m more than entering it, gones never wait on the budget, and a state that carries an item's rest goes reliably | An entity on the radius would flap in and out every tick; a viewer told nothing of a death draws a ghost; the rest is the last state an item ever sends, and an unreliable last state can leave a cobble hanging in the air for good |
 | 2026-09-09 | The player file moves from JSON (version 1) to binary (version 2) with wading and stance | Version 1 dropped both, so a body saved wading came back dry and the round trip's digest differed; a format that cannot round-trip its own digest is changed by version, not patched in place |
 | 2026-09-09 | Definition keys are the tables' names as slugs (`animal/eastern-grey-kangaroo`), hashed FNV-1a 32, the catalogue refusing a collision at load | A key read by a person and a hash carried by the wire, with the collision found on the first run rather than as a founder holding the wrong thing |
+| 2026-09-10 | One function opens a world for the game and the host, refusing terrain it cannot read rather than reaching for the region's bake | The host and the game each had their own reader, and both answered a missing or corrupt heights layer by quietly standing the world on the bake: its ground changed under its players, and its digest with it. The lenient `TryLoadTerrain` is gone and a source rule keeps the second path from growing back |
 | 2026-09-10 | World preparation runs off the Unity main thread and reports stage boundaries | The layer chain froze New world before a frame could be shown; a loading panel needs both worker progress and a live main thread. Saved terrain corruption now fails explicitly instead of silently substituting a bake. |

@@ -35,6 +35,11 @@ namespace EarthGame.Server
             if (WorldSave.Exists(worldDir))
             {
                 WorldSaveInfo saved = WorldSave.Read(worldDir);
+                // The world owns which piece of the Earth it is, not the launcher. Callers pass the region they
+                // were started with (the host's +server.region, the game's own), and two regions of one extent
+                // would otherwise swap under a save without a word: the same local metres, another coast.
+                if (!string.Equals(saved.RegionId, region.Id, StringComparison.Ordinal))
+                    throw new InvalidDataException("This world is set in '" + saved.RegionId + "', and this one was opened as '" + region.Id + "'.");
                 Report("Reading saved terrain");
                 string path = Path.Combine(worldDir, WorldCreation.LayersFolder, "heights.json");
                 Heightfield terrain;

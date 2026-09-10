@@ -97,6 +97,40 @@ namespace EarthGame.Tests.Source
             Assert.That(offences, Is.Empty, string.Join("\n", offences));
         }
 
+        /// <summary>
+        /// One path opens a saved world (M1.4 loading, 2026-09-10). `WorldPreparation.Load` reads the terrain a
+        /// world owns and refuses a missing or mismatched one; the dedicated host and the game both call it. Until
+        /// that date each had its own reader that fell back to the region's bake, so a world whose heights layer
+        /// had gone came back standing on different ground without a word. Production code that restores a save
+        /// without going through the preparation is that path growing back.
+        /// </summary>
+        [Test]
+        public void OnlyWorldPreparationOpensASavedWorld()
+        {
+            string[] roots = { Path.Combine(Root, "Engine", "packages"), Path.Combine(Root, "Engine", "tools"), Path.Combine(Root, "Unity", "Assets", "EarthGame") };
+            int scanned = 0;
+            List<string> offences = new List<string>();
+            foreach (string root in roots)
+            {
+                Assert.That(Directory.Exists(root), Is.True, root);
+                foreach (string file in Directory.GetFiles(root, "*.cs", SearchOption.AllDirectories))
+                {
+                    string norm = file.Replace('\\', '/');
+                    if (norm.Contains("/Runtime/LiteNetLib/")) continue;
+                    if (norm.EndsWith("/WorldPreparation.cs", StringComparison.Ordinal)) continue;   // the one owner
+                    scanned++;
+                    string[] lines = File.ReadAllLines(file);
+                    for (int i = 0; i < lines.Length; i++)
+                    {
+                        string code = StripComment(lines[i]);
+                        if (code.Contains("WorldSave.Restore(")) offences.Add(Rel(file) + ":" + (i + 1) + " " + lines[i].Trim());
+                    }
+                }
+            }
+            Assert.That(scanned, Is.GreaterThan(20), "the scan found almost nothing; are the source roots where this test thinks they are?");
+            Assert.That(offences, Is.Empty, "a saved world is opened by WorldPreparation.Load alone:\n" + string.Join("\n", offences));
+        }
+
         private static string StripComment(string line)
         {
             int idx = line.IndexOf("//", StringComparison.Ordinal);
