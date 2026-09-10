@@ -113,6 +113,16 @@
       ],
       "checks": "The built player keeps advancing during preparation, reaches play on new/continue, and reports missing data with a working return to menu.",
       "independent_of_the_tool_by": "Python and Pillow read raw eg2.loading observations, existing run.jsonl, child exit codes and PNG pixel arrays; thresholds come from the written loading contract and ARCHITECTURE section 10, never from the launcher or recorder implementation. Visual layout is also inspected directly."
+    },
+    {
+      "name": "tile_check",
+      "path": "Tools/verifiers/checks/tile_check.py",
+      "author": "Claude",
+      "gates": [
+        "M1.4-streaming"
+      ],
+      "checks": "Every tile in a client's disk cache agrees with the world folder's own layer: the ground to half a centimetre, the surface put back from ground plus depth to two, the water's class post for post, and the cache inside the residency bound.",
+      "independent_of_the_tool_by": "inflating the cached bytes with zlib and reading them by the layouts ARCHITECTURE sections 7 and 10 state, including the tile grid's geometry and the cell a post sits on, restated in Python; never imports TileCodec, TileGrid or any game code, so a writer that drifts from its stated format is caught by a reader that did not"
     }
   ]
 }

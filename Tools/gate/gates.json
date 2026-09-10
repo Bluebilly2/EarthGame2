@@ -321,6 +321,64 @@
         "loading_check"
       ],
       "owner_decides": "appearance and feel; this gate closes only the loading part of M1.4"
+    },
+    "M1.4-streaming": {
+      "steps": [
+        {
+          "name": "dotnet test",
+          "cmd": [
+            "dotnet",
+            "test",
+            "Engine/EarthGame.slnx",
+            "-c",
+            "Debug",
+            "--nologo"
+          ]
+        },
+        {
+          "name": "Unity-layer compile",
+          "cmd": [
+            "dotnet",
+            "build",
+            "Engine/EarthGame.Unity.Compile.csproj",
+            "-c",
+            "Debug",
+            "--nologo",
+            "-v",
+            "minimal"
+          ]
+        },
+        {
+          "name": "create the gate world",
+          "cmd": [
+            "python",
+            "Tools/world/create.py",
+            "Artefacts/worlds/gate"
+          ]
+        },
+        {
+          "name": "one shaped join, built player against the host",
+          "cmd": [
+            "python",
+            "Tools/world/stream.py",
+            "--build",
+            "--world",
+            "Artefacts/worlds/gate"
+          ]
+        },
+        {
+          "name": "tile_check on what that client cached",
+          "cmd": [
+            "python",
+            "Tools/verifiers/checks/tile_check.py",
+            "Artefacts/worlds/gate"
+          ]
+        }
+      ],
+      "verifiers": [
+        "tile_check"
+      ],
+      "owner_decides": "nothing in this slice; the water is data here and is drawn in the next one"
     }
   }
 }
