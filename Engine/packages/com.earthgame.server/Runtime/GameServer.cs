@@ -500,6 +500,25 @@ namespace EarthGame.Server
             }
         }
 
+        /// <summary>
+        /// Puts a remembered body somewhere, so the next join by that name wakes there (M1.4c). A diagnostic, for
+        /// looking at a place a founder would otherwise have to walk half an hour to reach; it does not move a
+        /// player already connected, and the body is placed on the ground the server holds.
+        /// </summary>
+        public SavedPlayer StandPlayer(string name, double east, double north)
+        {
+            if (string.IsNullOrEmpty(name)) throw new ArgumentException("a player has a name", nameof(name));
+            if (Math.Abs(east) > World.Region.HalfExtentM || Math.Abs(north) > World.Region.HalfExtentM)
+                throw new ArgumentOutOfRangeException(nameof(east), "(" + east + ", " + north + ") is outside the region");
+            SavedPlayer p = new SavedPlayer();
+            p.Name = name;
+            p.Body = MoverState.AtRest(east, World.GroundAt(east, north), north);
+            p.Body.Grounded = true;
+            p.SavedTick = World.Tick;
+            _savedPlayers[name] = p;
+            return p;
+        }
+
         /// <summary>Drops an item into the world by its key; the host's console and M1.5's verbs come here.</summary>
         public Entity SpawnItem(string key, double east, double north, double? up = null)
         {

@@ -45,6 +45,8 @@ namespace EarthGame.Client
         private TileHeightfield _ground;
         private readonly Dictionary<TileId, Terrain> _tileTerrains = new Dictionary<TileId, Terrain>();
         private readonly Dictionary<TileId, uint> _tileCrcs = new Dictionary<TileId, uint>();
+        private readonly Dictionary<TileId, GameObject> _waterTiles = new Dictionary<TileId, GameObject>();
+        private readonly Dictionary<TileId, long> _waterFrom = new Dictionary<TileId, long>();
         private readonly Queue<ReceivedTile> _tilesToBuild = new Queue<ReceivedTile>();
         private readonly Dictionary<uint, Transform> _mirrorBodies = new Dictionary<uint, Transform>();
         private readonly List<uint> _goneMirrors = new List<uint>();
@@ -53,6 +55,7 @@ namespace EarthGame.Client
         private Material _terrainMaterial;
         private TerrainLayer _groundLayer;
         private Material _mirrorMaterial;
+        private Material _seaMaterial;
         private EntityViews _entityViews;
         private WorldClock _clock;
         private SolarClock _solar;
@@ -227,9 +230,40 @@ namespace EarthGame.Client
         }
 
         /// <summary>A tile arrived (from the wire or the cache): the ground knows it now; its Terrain is built on a later frame.</summary>
-        /// <summary>A tile the client let go of: its ground leaves the collider and its Terrain leaves the scene.</summary>
+        /// <summary>
+        /// The standing water of a tile, drawn from the depth the server streamed over that tile's own ground
+        /// (M1.4c). The sea keeps the plane it has had since 2026-09-08, so only water above the datum is drawn
+        /// here and the two never contend for one surface.
+        /// </summary>
+        private void BuildWater(TileId id)
+        {
+            if (_client?.Tiles == null) return;
+            ReceivedTile ground = _client.Tiles.Holding(TileLayer.Ground, id);
+            ReceivedTile depth = _client.Tiles.Holding(TileLayer.WaterDepth, id);
+            if (ground == null || depth == null) return;
+            // Either layer arriving asks for the pair, so the same mesh would be built twice on a join; the two
+            // checksums together name what it was built from.
+            long from = ((long)ground.Crc32 << 32) | depth.Crc32;
+            if (_waterFrom.TryGetValue(id, out long built) && built == from && _waterTiles.ContainsKey(id)) return;
+            if (_waterTiles.TryGetValue(id, out GameObject previous) && previous != null) Destroy(previous);
+            _waterTiles.Remove(id);
+            _waterFrom[id] = from;
+            System.Collections.Generic.List<WaterQuad> quads = WaterSurface.Build(ground, depth, Heightfield.SeaLevelM);
+            GameObject water = WaterTileBuilder.Build(quads, _seaMaterial, "Water tile " + id);
+            if (water == null) return;
+            _waterTiles[id] = water;
+            Debug.Log("[client] water on tile " + id + ": " + quads.Count + " rectangle(s) above the datum");
+        }
+
+        /// <summary>A tile the client let go of: its ground leaves the collider, its Terrain and its water the scene.</summary>
         private void OnTileDropped(TileLayer layer, TileId id)
         {
+            if (_waterTiles.TryGetValue(id, out GameObject drawn))
+            {
+                if (drawn != null) Destroy(drawn);
+                _waterTiles.Remove(id);
+                _waterFrom.Remove(id);
+            }
             if (layer != TileLayer.Ground) return;
             _ground?.Remove(id);
             if (_tileTerrains.TryGetValue(id, out Terrain terrain) && terrain != null) Destroy(terrain.gameObject);
@@ -239,9 +273,13 @@ namespace EarthGame.Client
 
         private void OnTileReady(ReceivedTile tile)
         {
-            // The water layers arrive beside the ground from M1.4b; drawing them is the slice after it, and the
-            // ground is what a Terrain is built from.
-            if (tile.Layer != TileLayer.Ground) return;
+            // The water a tile carries is drawn as its own mesh (M1.4c); the ground is what a Terrain is built
+            // from. Either can arrive first, so both paths ask for the pair.
+            if (tile.Layer != TileLayer.Ground)
+            {
+                if (tile.Layer == TileLayer.WaterDepth) BuildWater(tile.Id);
+                return;
+            }
             if (_ground == null) _ground = new TileHeightfield(_client.Grid);
             _ground.Add(tile);
             if (tile.FromCache) TilesFromCache++;
@@ -285,6 +323,7 @@ namespace EarthGame.Client
                 _terrainMaterial, _groundLayer, "Terrain tile " + tile.Id, true, 0f);
             _tileTerrains[tile.Id] = terrain;
             _tileCrcs[tile.Id] = tile.Crc32;
+            BuildWater(tile.Id);
             if (_coarse != null)
                 TerrainTileBuilder.CutHole(_coarse, -_region.HalfExtentM, -_region.HalfExtentM, tile.OriginEast, tile.OriginNorth, sizeM);
             Debug.Log("[client] tile " + tile.Id + (tile.FromCache ? " from cache" : " from the wire") + ": " + tile.Posts + " posts at " + tile.CellM + " m, origin "
@@ -350,7 +389,7 @@ namespace EarthGame.Client
             _terrainMaterial = Resources.Load<Material>("EarthGame/TerrainLit");
             _groundLayer = Resources.Load<TerrainLayer>("EarthGame/GroundLayer");
             Material skyMaterial = Resources.Load<Material>("EarthGame/Sky");
-            Material seaMaterial = Resources.Load<Material>("EarthGame/Sea");
+            Material seaMaterial = _seaMaterial = Resources.Load<Material>("EarthGame/Sea");
             if (_terrainMaterial == null || _groundLayer == null || skyMaterial == null || seaMaterial == null)
                 Debug.LogError("[client] runtime assets missing under Resources/EarthGame; run EarthGame > Apply project checklist");
             _mirrorMaterial = new Material(seaMaterial != null ? seaMaterial.shader : Shader.Find("Universal Render Pipeline/Lit"));

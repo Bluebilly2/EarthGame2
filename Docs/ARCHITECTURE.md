@@ -284,6 +284,14 @@ corpus runs, its raw results in the contracted run logs (§10), recomputed indep
   Render Graph on → GPU Occlusion on (validate: open bug with the Resident Drawer) → Depth Priming = Forced → STP on
   at render scale 0.7 (1440p output) as the default quality; native 1440p as an option. Asserted by an edit-mode
   test.
+- **Water** (M1.4c, 2026-09-10): the standing water of each streamed tile is its own mesh, built from the depth
+  the server sent over that tile's ground (§7). A cell is water only when all four of its posts carry depth and
+  sits at the lowest of their surfaces, so the drawn edge stops at the last cell wholly under water and never
+  stands above its bank; cells merge along a row while the surface holds at one height, because standing water is
+  flat. `WaterSurface` in ClientCore finds the rectangles and is tested headlessly; `WaterTileBuilder` in the
+  Unity layer turns them into a mesh and nothing else. The mesh carries no collider: what a body may wade in is
+  the server's and the mover's, not the view's. The sea keeps the plane it has had since 2026-09-08 and only
+  water above the datum is drawn from a tile, so the two never contend for one surface.
 - Budget: 13.3 ms design at 1080p-internal (60 fps hard floor at 16.7 ms; any frame over 33 ms is a named
   defect): shadows 1.6, terrain 1.8, grass/understorey 3.0, trees 2.0, props 0.7, fauna 0.6, sky/fog/water 0.8,
   post 1.2, UI 0.4, reserve 0.6; SSAO off until measured. CPU: sim tick 2.0, streaming hard-capped 1.5 (a
@@ -382,6 +390,7 @@ mandatory in every file from the first write.
 | 2026-09-09 | Leaving a session's interest takes 50 m more than entering it, gones never wait on the budget, and a state that carries an item's rest goes reliably | An entity on the radius would flap in and out every tick; a viewer told nothing of a death draws a ghost; the rest is the last state an item ever sends, and an unreliable last state can leave a cobble hanging in the air for good |
 | 2026-09-09 | The player file moves from JSON (version 1) to binary (version 2) with wading and stance | Version 1 dropped both, so a body saved wading came back dry and the round trip's digest differed; a format that cannot round-trip its own digest is changed by version, not patched in place |
 | 2026-09-09 | Definition keys are the tables' names as slugs (`animal/eastern-grey-kangaroo`), hashed FNV-1a 32, the catalogue refusing a collision at load | A key read by a person and a hash carried by the wire, with the collision found on the first run rather than as a founder holding the wrong thing |
+| 2026-09-10 | Standing water is drawn from the depth streamed over each tile, merged along a row into one quad per run; the sea keeps its plane and only water above the datum is drawn from a tile | Standing water is flat, so a kilometre tile under water is a quad a row rather than sixty thousand a tile. The sea has had a plane at the datum around the founder since 2026-09-08 and two surfaces at one height would fight for it; drawing the sea from the layer that knows its shape is left to the look, with the debt stated |
 | 2026-09-10 | A lake covers only the ground beneath its own surface, both for a mapped outline and for a flat read off the ground | The flat was made water at its patch's median, so about half of a dished flat held water under its own bed: 5.6 ha of the Bherwerre world, by up to 0.486 m. Found by measuring what a client would be sent, since the depth over the ground is what travels |
 | 2026-09-10 | One function opens a world for the game and the host, refusing terrain it cannot read rather than reaching for the region's bake | The host and the game each had their own reader, and both answered a missing or corrupt heights layer by quietly standing the world on the bake: its ground changed under its players, and its digest with it. The lenient `TryLoadTerrain` is gone and a source rule keeps the second path from growing back |
 | 2026-09-10 | World preparation runs off the Unity main thread and reports stage boundaries | The layer chain froze New world before a frame could be shown; a loading panel needs both worker progress and a live main thread. Saved terrain corruption now fails explicitly instead of silently substituting a bake. |

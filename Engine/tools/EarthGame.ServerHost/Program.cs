@@ -247,7 +247,8 @@ namespace EarthGame.ServerHost
                                 break;
                             default:
                                 if (cmd.StartsWith("spawn ", StringComparison.Ordinal)) Spawn(server, cmd);
-                                else Log("unknown command '" + cmd + "' (status, pause, resume, digest, spawn <key> <east> <north> [<up>], save, stop)");
+                                else if (cmd.StartsWith("stand ", StringComparison.Ordinal)) Stand(server, cmd);
+                                else Log("unknown command '" + cmd + "' (status, pause, resume, digest, spawn <key> <east> <north> [<up>], stand <name> <east> <north>, save, stop)");
                                 break;
                         }
                     }
@@ -458,6 +459,28 @@ namespace EarthGame.ServerHost
             }
             return map;
         }
+        /// <summary>stand &lt;name&gt; &lt;east&gt; &lt;north&gt;: a remembered body put there, so that name's next join wakes there (M1.4c).</summary>
+        private static void Stand(GameServer server, string cmd)
+        {
+            string[] parts = cmd.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 4)
+            {
+                Log("stand takes a name, an east and a north");
+                return;
+            }
+            try
+            {
+                SavedPlayer p = server.StandPlayer(parts[1], double.Parse(parts[2], CultureInfo.InvariantCulture), double.Parse(parts[3], CultureInfo.InvariantCulture));
+                Log("stood " + p.Name + " at east " + p.Body.East.ToString("0.0", CultureInfo.InvariantCulture)
+                    + " north " + p.Body.North.ToString("0.0", CultureInfo.InvariantCulture)
+                    + ", on ground at " + p.Body.Up.ToString("0.00", CultureInfo.InvariantCulture) + " m; save to keep it");
+            }
+            catch (Exception ex) when (ex is FormatException || ex is ArgumentException)
+            {
+                Log("stand refused: " + ex.Message);
+            }
+        }
+
         /// <summary>spawn &lt;key&gt; &lt;east&gt; &lt;north&gt; [&lt;up&gt;]: an item dropped there, falling when above the ground (M1.3).</summary>
         private static void Spawn(GameServer server, string cmd)
         {
