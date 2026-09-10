@@ -153,6 +153,45 @@ namespace EarthGame.ClientCore
             return n;
         }
 
+        /// <summary>
+        /// Lets go of the tiles farthest from a centre until each layer is inside <see cref="MaxTilesPerLayer"/>,
+        /// keeping the centre's own tile and the eight around it whatever happens. Returns how many were let go.
+        /// A tile let go is still on disk, so walking back to it costs a header and a read rather than the wire.
+        /// </summary>
+        public int Trim(TileGrid grid, TileId centre)
+        {
+            if (grid == null || _held.Count == 0) return 0;
+            int dropped = 0;
+            foreach (TileLayer layer in TileLayers.All)
+            {
+                List<TileId> ids = new List<TileId>();
+                foreach (var pair in _held) if (pair.Key.Layer == layer) ids.Add(pair.Key.Id);
+                if (ids.Count <= MaxTilesPerLayer) continue;
+                // Farthest first, by the square of the distance in tiles; ties by name, so two clients agree.
+                ids.Sort((a, b) =>
+                {
+                    int byRange = Range(b, centre).CompareTo(Range(a, centre));
+                    return byRange != 0 ? byRange : string.CompareOrdinal(b.ToString(), a.ToString());
+                });
+                for (int i = 0; i < ids.Count && ids.Count - dropped > MaxTilesPerLayer; i++)
+                {
+                    TileId id = ids[i];
+                    if (Range(id, centre) <= 2) continue;   // the centre and its eight neighbours
+                    _held.Remove((layer, id));
+                    if (layer == TileLayer.Ground) _ground.Remove(id);
+                    dropped++;
+                    TileDropped?.Invoke(layer, id);
+                }
+            }
+            return dropped;
+        }
+
+        private static int Range(TileId a, TileId b)
+        {
+            int dx = a.Ix - b.Ix, dz = a.Iz - b.Iz;
+            return dx * dx + dz * dz;
+        }
+
         /// <summary>A held tile of a layer, or null.</summary>
         public ReceivedTile Holding(TileLayer layer, TileId id) => _held.TryGetValue((layer, id), out ReceivedTile tile) ? tile : null;
 
@@ -163,6 +202,16 @@ namespace EarthGame.ClientCore
 
         public event Action<ReceivedTile> TileReady;
         public event Action<TileLayer, TileId, string> TileFailed;
+        /// <summary>A tile let go to stay inside the bound; the client forgets asking for it and may ask again.</summary>
+        public event Action<TileLayer, TileId> TileDropped;
+
+        /// <summary>
+        /// Most tiles of one layer a client keeps (M1.4b promise 6). A kilometre tile of the Bherwerre ground is
+        /// about 250 kB in memory as posts, so twenty-five of three layers is the order of twenty megabytes and
+        /// covers the founder's tile with two rings around it. The tile under the founder and its eight
+        /// neighbours are never let go, whatever the bound says.
+        /// </summary>
+        public int MaxTilesPerLayer { get; set; } = 25;
 
         public bool Holds(TileId id) => _ground.ContainsKey(id);
 

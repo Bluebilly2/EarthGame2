@@ -108,6 +108,7 @@ namespace EarthGame.Client
             _client.Dropped += OnDropped;
             _client.TileReady += OnTileReady;
             _client.TileFailed += OnTileFailed;
+            _client.TileDropped += OnTileDropped;
             _client.PlayerLeft += OnPlayerLeft;
             Interactive = false;
             if (_player != null) _player.Frozen = true;
@@ -138,6 +139,7 @@ namespace EarthGame.Client
                 _client.Dropped -= OnDropped;
                 _client.TileReady -= OnTileReady;
                 _client.TileFailed -= OnTileFailed;
+                _client.TileDropped -= OnTileDropped;
                 _client.PlayerLeft -= OnPlayerLeft;
             }
             _transport?.Dispose();
@@ -225,6 +227,16 @@ namespace EarthGame.Client
         }
 
         /// <summary>A tile arrived (from the wire or the cache): the ground knows it now; its Terrain is built on a later frame.</summary>
+        /// <summary>A tile the client let go of: its ground leaves the collider and its Terrain leaves the scene.</summary>
+        private void OnTileDropped(TileLayer layer, TileId id)
+        {
+            if (layer != TileLayer.Ground) return;
+            _ground?.Remove(id);
+            if (_tileTerrains.TryGetValue(id, out Terrain terrain) && terrain != null) Destroy(terrain.gameObject);
+            _tileTerrains.Remove(id);
+            _tileCrcs.Remove(id);
+        }
+
         private void OnTileReady(ReceivedTile tile)
         {
             // The water layers arrive beside the ground from M1.4b; drawing them is the slice after it, and the

@@ -40,6 +40,8 @@ namespace EarthGame.ClientCore
         private uint _sequence;
         private long _lastUpdateMs = long.MinValue;
         private long _tickObservedAtMs = long.MinValue;
+        private TileId _centre;
+        private bool _hasCentre;
 
         public GameClient(IClientTransport transport, ITileCache tileCache = null)
         {
@@ -123,6 +125,8 @@ namespace EarthGame.ClientCore
         public event Action<uint> PlayerLeft;
         public event Action<ReceivedTile> TileReady;
         public event Action<TileLayer, TileId, string> TileFailed;
+        /// <summary>A tile the client let go to stay inside its bound (M1.4b); the view drops what it drew of it.</summary>
+        public event Action<TileLayer, TileId> TileDropped;
         public event Action SnapshotEnded;
 
         /// <summary>Opens the connection; the Hello is sent when the transport reports Connected.</summary>
@@ -172,7 +176,9 @@ namespace EarthGame.ClientCore
         public int RequestTilesAround(double east, double north)
         {
             if (State != ClientState.Connected || Grid == null || Tiles == null) return 0;
-            IReadOnlyList<TileId> around = Grid.Around(Grid.ForPosition(east, north));
+            _centre = Grid.ForPosition(east, north);
+            _hasCentre = true;
+            IReadOnlyList<TileId> around = Grid.Around(_centre);
             int asked = 0;
             foreach (TileLayer layer in TileLayers.All)
             {
@@ -419,6 +425,13 @@ namespace EarthGame.ClientCore
             {
                 _outstanding.Remove((tile.Layer, tile.Id));
                 TileReady?.Invoke(tile);
+                if (_hasCentre) Tiles.Trim(Grid, _centre);
+            };
+            Tiles.TileDropped += (layer, id) =>
+            {
+                // Forgotten, so walking back to it asks again; the disk cache answers that without the wire.
+                _requested.Remove((layer, id));
+                TileDropped?.Invoke(layer, id);
             };
             Tiles.TileFailed += (layer, id, why) =>
             {
@@ -429,6 +442,7 @@ namespace EarthGame.ClientCore
             _outstanding.Clear();
             _requested.Clear();
             _unserved.Clear();
+            _hasCentre = false;
             TilesRequested = false;
             SnapshotApplied = false;
             _others.Clear();

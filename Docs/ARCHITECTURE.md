@@ -205,7 +205,10 @@ id. `RegionSaveTests` holds the save law by sabotage: each persisted field flipp
   region and the 64 km skirt stay the bake on disk, stated as such. Since M1.4b (2026-09-10) the client asks for
   three layers of each of those tiles — the ground, the water's depth over it, and the water's class — and a
   layer the world has none of is answered with a zero-post header once, after which the client stops asking for
-  it. **Interactive keeps the meaning CANON ruling 11 gave it**: the ground under the founder, the snapshot, the
+  it. A client keeps at most `TileReceiver.MaxTilesPerLayer` (25) tiles of each layer, letting the farthest go
+  first and never the tile under the founder or the eight around it; a tile let go stays on disk, so walking
+  back to it costs a header and a read rather than the wire, and the client forgets having asked so that it
+  asks again. **Interactive keeps the meaning CANON ruling 11 gave it**: the ground under the founder, the snapshot, the
   tile built. The water travels beside the ground and gates nothing, so N1 measures the same thing as before. The client's ground (`TileHeightfield`) reads
   the tiles bilinearly exactly as the server reads the raster, and is NaN where no tile is held.
 - **Snapshot and interest:** the Welcome is followed by a `PlayerState` for every body the joiner can see and a
