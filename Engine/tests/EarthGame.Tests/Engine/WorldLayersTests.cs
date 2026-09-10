@@ -131,6 +131,44 @@ namespace EarthGame.Tests.Engine
             Assert.That(WakeScorer.Factor(double.PositiveInfinity, 500.0), Is.EqualTo(0.0));
         }
 
+        /// <summary>
+        /// Water lies on the ground, never under it (2026-09-10). A flat read off the ground settles at one level,
+        /// and the cells of the flat that stand above that level are its margin, not its water: the real world of
+        /// 2026-09-09 had 5.6 ha of lake whose surface was below its own bed, by as much as half a metre, which
+        /// would draw as ground poking through a lake and makes the depth a client is sent meaningless.
+        /// </summary>
+        [Test]
+        public void ALakeCoversOnlyTheGroundBeneathItsOwnSurface()
+        {
+            // A dish 0.4 m deep in a plain at 22 m, rimmed steeply: flat by the window and inside the level band,
+            // so the whole dish grows as one patch and about half of it stands above the level the patch settles at.
+            const int Side = 81;
+            RegionRaster dish = TestRasters.FromLaw(Side, 10.0, 800.0, "dish", (row, col) =>
+            {
+                double r = Math.Sqrt((row - 40) * (row - 40) + (col - 40) * (col - 40));
+                if (r < 15.0) return (float)(19.6 + 0.4 * (r / 15.0));
+                if (r < 17.0) return (float)(20.0 + 2.0 * ((r - 15.0) / 2.0));
+                return 22.0f;
+            });
+            WorldLayers w = WorldLayers.Compute(dish, 1347UL);
+
+            int water = 0, above = 0;
+            double deepest = 0.0;
+            for (int r = 0; r < Side; r++)
+                for (int c = 0; c < Side; c++)
+                {
+                    int i = r * Side + c;
+                    double under = w.Heights[r, c] - w.Surface[i];
+                    if (under > deepest) deepest = under;
+                    if ((WaterClass)w.Water[i] != WaterClass.Lake) continue;
+                    water++;
+                    if (w.Heights[r, c] > w.Surface[i] + 1e-4) above++;
+                }
+            Assert.That(water, Is.GreaterThan(100), "the dish is a lake at all");
+            Assert.That(above, Is.Zero, above + " lake cells stand above their own water surface");
+            Assert.That(deepest, Is.LessThanOrEqualTo(1e-4), "no cell anywhere has its surface below its ground, by " + deepest.ToString("0.000") + " m");
+        }
+
         [Test]
         public void TheMappedBodiesStandAtTheirLevelsAndTheGroundsFlatsStillRead()
         {

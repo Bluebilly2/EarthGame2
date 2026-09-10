@@ -407,7 +407,12 @@ namespace EarthGame.Engine
                 foreach (int i in patch) levels.Add(z[i]);
                 levels.Sort();
                 float surface = levels[levels.Count / 2];
-                foreach (int i in patch) { lake[i] = true; _level[i] = surface; }
+                // The flat's extent says there is a lake here; its level says how much of the flat is under water.
+                // A cell of the flat standing above that level is its margin, as it is for a mapped outline: until
+                // 2026-09-10 every cell of the patch was made water at the median of the patch, so about half of a
+                // dished flat held water below its own bed — 5.6 ha of the Bherwerre world, by up to half a metre.
+                foreach (int i in patch)
+                    if (z[i] <= surface) { lake[i] = true; _level[i] = surface; }
             }
             if (waterBodies != null) Mapped(z, waterBodies, lake);
             return lake;
