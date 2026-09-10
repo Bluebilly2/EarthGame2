@@ -51,6 +51,28 @@ namespace EarthGame.ClientCore
                 height = double.NaN;
                 return false;
             }
+            height = TileGround.HeightAt(tile, east, north);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// How one tile is read between its posts: bilinear, clamped to the tile's own square, exactly as the
+    /// server's <see cref="Heightfield"/> reads the raster the tile was cut from.
+    ///
+    /// <para>One owner, because two callers want it. A field of held tiles reads through it (above), and so does
+    /// the worker that prepares a tile for drawing (M1.4e) — and that one must not go through the field: a
+    /// tile's last post is its neighbour's first, and at the edge of what a client holds the neighbour is not
+    /// held, so the field answered NaN there and the tile would have been built with a row of nothing.
+    /// Neighbouring tiles share their edge posts, so reading the tile's own is the same number wherever both
+    /// exist.</para>
+    /// </summary>
+    public static class TileGround
+    {
+        public static double HeightAt(ReceivedTile tile, double east, double north)
+        {
+            if (tile == null) throw new ArgumentNullException(nameof(tile));
+            if (tile.Heights == null) throw new ArgumentException("tile " + tile.Id + " carries no heights", nameof(tile));
             int last = tile.Posts - 1;
             double fx = (east - tile.OriginEast) / tile.CellM;
             double fz = (north - tile.OriginNorth) / tile.CellM;
@@ -65,8 +87,7 @@ namespace EarthGame.ClientCore
             float[,] h = tile.Heights;
             double south = h[z0, x0] + (h[z0, x0 + 1] - h[z0, x0]) * tx;
             double northRow = h[z0 + 1, x0] + (h[z0 + 1, x0 + 1] - h[z0 + 1, x0]) * tx;
-            height = south + (northRow - south) * tz;
-            return true;
+            return south + (northRow - south) * tz;
         }
     }
 }

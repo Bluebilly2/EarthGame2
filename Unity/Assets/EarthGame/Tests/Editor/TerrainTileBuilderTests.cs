@@ -45,14 +45,14 @@ namespace EarthGame.Tests.Editor
                 Assert.That(tile.transform.position.z, Is.EqualTo(-20f));
                 Assert.That(tile.transform.position.y, Is.EqualTo(100f), "the tile's base is its lowest post");
                 TerrainData data = tile.terrainData;
-                Assert.That(data.heightmapResolution, Is.EqualTo(TerrainTileBuilder.Posts));
+                Assert.That(data.heightmapResolution, Is.EqualTo(TerrainTileBuilder.TilePosts));
                 Assert.That(data.size.x, Is.EqualTo(TerrainTileBuilder.TileSizeM));
                 // The south-west post is row 4, column 0 of the raster; the sampled world height is base + relative.
                 float southWest = data.GetHeight(0, 0) + tile.transform.position.y;
                 Assert.That(southWest, Is.EqualTo((float)Law(4, 0)).Within(0.01f));
                 // Ten metres east of the south-west corner, still on the first raster row from the south.
                 float posts10m = 10f / TerrainTileBuilder.PostSpacingM;
-                float east10 = data.GetInterpolatedHeight(posts10m / (TerrainTileBuilder.Posts - 1), 0f) + tile.transform.position.y;
+                float east10 = data.GetInterpolatedHeight(posts10m / (TerrainTileBuilder.TilePosts - 1), 0f) + tile.transform.position.y;
                 Assert.That(east10, Is.EqualTo((float)Law(4, 1)).Within(0.05f));
                 Assert.That(tile.gameObject.layer, Is.EqualTo(EarthGame.Shared.Layers.Terrain));
                 Assert.That(tile.GetComponent<TerrainCollider>(), Is.Not.Null, "the tile is the client's ground");

@@ -133,6 +133,16 @@
       ],
       "checks": "The world's ground cover follows from the world's other layers: every post's cover by the cascade, every post's wetness quarter by the wetness layer, the posts no stored value can decide against what the storage steps predict, and the region's shares by cover with a floor under how varied the country must be.",
       "independent_of_the_tool_by": "recomputing the cover in numpy from the water, topology, plant, soil and wetness layers by the cascade restated from the M1.4d contract, with the plants' forms held in the check from ECOSYSTEM.md and a species it does not know refused rather than guessed; never imports GroundCovers or any game code"
+    },
+    {
+      "name": "build_check",
+      "path": "Tools/verifiers/checks/build_check.py",
+      "author": "Claude",
+      "gates": [
+        "M1.4-streaming"
+      ],
+      "checks": "The client starts no streaming work in a frame whose 1.5 ms allowance is already spent; the preparation of a tile really runs off the main thread and the named Unity steps account for what the main thread spends; what is left is TerrainData.SetHeights and not something new growing beside it; every tile held was built. It prints the worst frame of streaming work beside the design frame and the named-defect line.",
+      "independent_of_the_tool_by": "reading run.jsonl alone -- the client's per-tile build records, not its own summary of itself -- and restating ARCHITECTURE section 8's budget, design frame and named-defect line as its own constants; it imports no game code and computes its own totals and shares"
     }
   ]
 }

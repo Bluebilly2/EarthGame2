@@ -35,6 +35,16 @@ namespace EarthGame.Client
         private int _errors;
         private bool _running;
 
+        /// <summary>What one tile cost to make ready to draw (M1.4e); the runtime reports each one as it lands.</summary>
+        public void RecordBuild(ClientRuntime.TileBuildReport report)
+        {
+            _log?.Record(T, Tick, "build", new JsonObject().With("what", report.What)
+                .With("ix", report.Id.Ix).With("iz", report.Id.Iz)
+                .With("worker_ms", report.WorkerMs).With("main_ms", report.MainMs).With("frame_ms", report.FrameMs).With("before_ms", report.BeforeMs)
+                .With("texture_ms", report.TextureMs).With("heights_ms", report.HeightsMs)
+                .With("object_ms", report.ObjectMs).With("water_ms", report.WaterMs));
+        }
+
         public void Begin(string dir, Camera camera, PlayerController player, ScriptedInputSource script, HudController hud, Func<long> serverTick, JsonObject header)
         {
             _dir = dir;

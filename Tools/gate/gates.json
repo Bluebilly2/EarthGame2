@@ -381,11 +381,19 @@
             "Tools/verifiers/checks/cover_check.py",
             "Artefacts/worlds/gate"
           ]
+        },
+        {
+          "name": "build_check on what that join cost the client",
+          "cmd": [
+            "python",
+            "Tools/verifiers/checks/build_check.py"
+          ]
         }
       ],
       "verifiers": [
         "tile_check",
-        "cover_check"
+        "cover_check",
+        "build_check"
       ],
       "owner_decides": "the ground's colour, from the frames of M1.4d; the water is data here and is drawn by M1.4c"
     }

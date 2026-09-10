@@ -1,3 +1,4 @@
+using EarthGame.ClientCore;
 using EarthGame.Engine;
 using EarthGame.Shared;
 using UnityEngine;
@@ -15,9 +16,22 @@ namespace EarthGame.Client
     /// </summary>
     public static class TerrainTileBuilder
     {
-        public const int Posts = 1025;
+        /// <summary>
+        /// Posts along a streamed tile's Terrain (2^n + 1, as Unity requires): 1.95 m over a kilometre, two for
+        /// every 4 m post the wire carried, which is the rule the colour map follows too. Sampling them costs
+        /// 21.9 ms a tile (Release, 2026-09-10), which is why it happens on a worker.
+        /// </summary>
+        public const int TilePosts = 513;
+
+        /// <summary>
+        /// Posts along the coarse ring and the far skirt: 7.8 m over the region, 62.5 m over the surround. Kept
+        /// at what it has been since M1.A, because the ring already undersamples the 4 m bake it reads. Both are
+        /// built once at a join, and sampling one costs 65.6 ms (Release, 2026-09-10): that is the rest of the
+        /// debt "client view creation is still synchronous" and it is not this slice's (M1.4e non-goals).
+        /// </summary>
+        public const int CoarsePosts = 1025;
         public const float TileSizeM = 1000f;
-        public static float PostSpacingM => TileSizeM / (Posts - 1);
+        public static float PostSpacingM => TileSizeM / (TilePosts - 1);
 
         /// <summary>The posts of a tile whose south-west corner is at (originEast, originNorth), as [north, east].</summary>
         public static float[,] SamplePosts(IHeightSource heightfield, double originEast, double originNorth, int posts, double spacing, out float minM, out float maxM)
@@ -54,28 +68,65 @@ namespace EarthGame.Client
             data.heightmapResolution = posts;
             data.size = new Vector3(sizeM, range, sizeM);
             data.SetHeights(0, 0, normalised);
-            if (layer != null)
-            {
-                data.terrainLayers = new[] { layer };
-                // A fresh TerrainData gives its one layer no weight anywhere; the ground rendered as a flat
-                // colour until the weight map was filled by hand (frames of 2026-09-08).
-                data.alphamapResolution = 64;
-                float[,,] weights = new float[data.alphamapResolution, data.alphamapResolution, 1];
-                for (int z = 0; z < data.alphamapResolution; z++)
-                    for (int x = 0; x < data.alphamapResolution; x++)
-                        weights[z, x, 0] = 1f;
-                data.SetAlphamaps(0, 0, weights);
-            }
+            SetOneLayer(data, layer);
             return data;
+        }
+
+        /// <summary>
+        /// The tile's one layer, given all the weight. A fresh TerrainData gives its layer no weight anywhere and
+        /// the ground rendered as a flat colour until the weight map was filled by hand (frames of 2026-09-08).
+        /// </summary>
+        private static void SetOneLayer(TerrainData data, TerrainLayer layer)
+        {
+            if (layer == null) return;
+            data.terrainLayers = new[] { layer };
+            data.alphamapResolution = 64;
+            float[,,] weights = new float[data.alphamapResolution, data.alphamapResolution, 1];
+            for (int z = 0; z < data.alphamapResolution; z++)
+                for (int x = 0; x < data.alphamapResolution; x++)
+                    weights[z, x, 0] = 1f;
+            data.SetAlphamaps(0, 0, weights);
         }
 
         /// <summary>The kilometre tile at full detail, as before.</summary>
         public static TerrainData BuildData(IHeightSource heightfield, double originEast, double originNorth, TerrainLayer layer, out float baseM)
-            => BuildData(heightfield, originEast, originNorth, TileSizeM, Posts, layer, out baseM);
+            => BuildData(heightfield, originEast, originNorth, TileSizeM, TilePosts, layer, out baseM);
+
+        /// <summary>
+        /// Builds and places a streamed tile from what a worker prepared (M1.4e): the heights are already
+        /// sampled and normalised, so all this does is what Unity will not do off the main thread.
+        /// </summary>
+        public static TerrainData BuildData(PreparedTile prepared, TerrainLayer layer)
+        {
+            if (prepared == null) throw new System.ArgumentNullException(nameof(prepared));
+            TerrainData data = new TerrainData();
+            data.heightmapResolution = prepared.Posts;
+            data.size = new Vector3(prepared.SizeM, prepared.RangeM, prepared.SizeM);
+            // 21 ms of a tile's 24 on the main thread, measured 2026-09-10, and there is no cheaper way to say
+            // it: SetHeightsDelayLOD with SyncHeightmap was measured the same day at 21 to 25 ms, the same work
+            // under two names. It is Unity's own cost, it is recorded in DEBTS.md, and the budget above it stops
+            // a second tile joining it in one frame.
+            data.SetHeights(0, 0, prepared.Normalised);
+            SetOneLayer(data, layer);
+            return data;
+        }
+
+        /// <summary>Puts prepared terrain data in the scene, collidable: this is the client's ground.</summary>
+        public static Terrain Place(TerrainData data, PreparedTile prepared, Material material, string name)
+        {
+            GameObject go = Terrain.CreateTerrainGameObject(data);
+            go.name = name;
+            go.layer = Layers.Terrain;
+            go.transform.position = new Vector3((float)prepared.OriginEast, prepared.BaseM, (float)prepared.OriginNorth);
+            Terrain terrain = go.GetComponent<Terrain>();
+            if (material != null) terrain.materialTemplate = material;
+            Settle(terrain, true);
+            return terrain;
+        }
 
         /// <summary>Builds and places the near tile in the scene: collidable, full detail.</summary>
         public static Terrain Build(IHeightSource heightfield, double originEast, double originNorth, Material material, TerrainLayer layer, string name)
-            => Build(heightfield, originEast, originNorth, TileSizeM, Posts, material, layer, name, true, 0f);
+            => Build(heightfield, originEast, originNorth, TileSizeM, TilePosts, material, layer, name, true, 0f);
 
         /// <summary>
         /// Builds and places a tile of any size. Coarse layers are sunk by <paramref name="sinkM"/> so a finer
@@ -92,6 +143,13 @@ namespace EarthGame.Client
             go.transform.position = new Vector3((float)originEast, baseM - sinkM, (float)originNorth);
             Terrain terrain = go.GetComponent<Terrain>();
             if (material != null) terrain.materialTemplate = material;
+            Settle(terrain, collidable);
+            return terrain;
+        }
+
+        /// <summary>What every tile is set to, wherever it was built from.</summary>
+        private static void Settle(Terrain terrain, bool collidable)
+        {
             // Not instanced. In the built player the instanced terrain first drew nothing (its instancing variants
             // were stripped) and, with the variants kept, drew without the sun: a probe sphere beside it was lit
             // and the ground stayed sky-blue (frames of 2026-09-08). The non-instanced path draws lit. The cost
@@ -106,10 +164,9 @@ namespace EarthGame.Client
             terrain.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
             if (!collidable)
             {
-                TerrainCollider collider = go.GetComponent<TerrainCollider>();
+                TerrainCollider collider = terrain.GetComponent<TerrainCollider>();
                 if (collider != null) Object.Destroy(collider);
             }
-            return terrain;
         }
 
         /// <summary>

@@ -81,12 +81,23 @@ namespace EarthGame.Client
             _runtime.Welcomed += OnWelcomed;
             _runtime.BecameInteractive += OnInteractive;
             _runtime.Dropped += OnDropped;
+            _runtime.TileBuilt += OnTileBuilt;
             _running = true;
             Debug.Log("[scenario] " + scenario + " for " + _duration + " s, logging to " + dir);
         }
 
         private double T => _clock.Elapsed.TotalSeconds;
         private long Tick => _runtime.Client != null ? _runtime.Client.LastServerTick : -1;
+
+        /// <summary>What one tile cost to make ready to draw (M1.4e), as it lands.</summary>
+        private void OnTileBuilt(ClientRuntime.TileBuildReport report)
+        {
+            _log?.Record(T, Tick, "build", new JsonObject().With("what", report.What)
+                .With("ix", report.Id.Ix).With("iz", report.Id.Iz)
+                .With("worker_ms", report.WorkerMs).With("main_ms", report.MainMs).With("frame_ms", report.FrameMs).With("before_ms", report.BeforeMs)
+                .With("texture_ms", report.TextureMs).With("heights_ms", report.HeightsMs)
+                .With("object_ms", report.ObjectMs).With("water_ms", report.WaterMs));
+        }
 
         private void OnLog(string condition, string stackTrace, LogType type)
         {
@@ -123,7 +134,8 @@ namespace EarthGame.Client
             else if (_firstInteractive < 0.0) _firstInteractive = since;
             _log.Record(T, Tick, "interactive", new JsonObject().With("rejoin", rejoin).With("since_connect_s", since)
                 .With("tiles_held", c.Tiles.Held.Count).With("tiles_from_cache", _runtime.TilesFromCache).With("tiles_refused", c.Tiles.RefusedCount)
-                .With("tiles_built", _runtime.TilesBuilt).With("bytes_received", c.BytesReceived).With("bytes_sent", c.BytesSent).With("rtt_ms", c.LastRttMs)
+                .With("tiles_built", _runtime.TilesBuilt).With("worst_streaming_ms", _runtime.WorstStreamingMs)
+                .With("bytes_received", c.BytesReceived).With("bytes_sent", c.BytesSent).With("rtt_ms", c.LastRttMs)
                 .With("east", _player.State.East).With("up", _player.State.Up).With("north", _player.State.North));
             if (_scenario == "join") Finish(0);
         }

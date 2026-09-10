@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Threading.Tasks;
 using EarthGame.ClientCore;
 using EarthGame.Engine;
 using EarthGame.Protocol;
@@ -26,9 +27,9 @@ namespace EarthGame.Client
         /// <summary>The client's body starts this far above the server's spawn and lands: PhysX's ground and the raster's differ by centimetres, and a body that starts inside the terrain falls through it.</summary>
         private const double SpawnDropM = 0.5;
         private const float DefaultYawDeg = 60f;
-        /// <summary>Posts per streamed tile's Terrain (2^n + 1, as Unity requires): 1.95 m over a kilometre, resampled from the tile's 4 m posts.</summary>
-        private const int TilePosts = 513;
         private const float TileRequestIntervalSeconds = 2f;
+        /// <summary>What the main thread may spend on streaming work in one frame (ARCHITECTURE section 8).</summary>
+        private const double StreamingBudgetMs = 1.5;
 
         private Func<IClientTransport> _transportFactory;
         private string _address;
@@ -49,7 +50,11 @@ namespace EarthGame.Client
         private readonly Dictionary<TileId, long> _waterFrom = new Dictionary<TileId, long>();
         private readonly Dictionary<TileId, TerrainLayer> _coverLayers = new Dictionary<TileId, TerrainLayer>();
         private readonly Dictionary<TileId, uint> _coverFrom = new Dictionary<TileId, uint>();
-        private readonly Queue<ReceivedTile> _tilesToBuild = new Queue<ReceivedTile>();
+        private readonly Dictionary<TileId, Task<PreparedTile>> _preparing = new Dictionary<TileId, Task<PreparedTile>>();
+        private readonly Dictionary<TileId, Task<byte[]>> _colouring = new Dictionary<TileId, Task<byte[]>>();
+        private readonly List<TileId> _finished = new List<TileId>();
+        private FrameBudget _budget;
+        private readonly System.Diagnostics.Stopwatch _clockMs = System.Diagnostics.Stopwatch.StartNew();
         private readonly Dictionary<uint, Transform> _mirrorBodies = new Dictionary<uint, Transform>();
         private readonly List<uint> _goneMirrors = new List<uint>();
         private Heightfield _bakedRegion;
@@ -81,6 +86,29 @@ namespace EarthGame.Client
         /// <summary>Unity real time at the current connection's Connect.</summary>
         public double ConnectedAtRealtime => _connectedAt;
         public int TilesBuilt => _tileTerrains.Count;
+
+        /// <summary>The worst frame of streaming work on the main thread since the client started, milliseconds.</summary>
+        public double WorstStreamingMs => _budget != null ? _budget.WorstFrameMs : 0.0;
+
+        /// <summary>What one tile cost to make ready to draw (M1.4e), for a run log to record.</summary>
+        public struct TileBuildReport
+        {
+            public TileId Id;
+            /// <summary>What the worker spent sampling and colouring it, milliseconds; zero when only Unity was involved.</summary>
+            public double WorkerMs;
+            /// <summary>What the main thread spent on it, milliseconds.</summary>
+            public double MainMs;
+            /// <summary>What the whole frame's streaming work spent by the time this landed, milliseconds.</summary>
+            public double FrameMs;
+            /// <summary>What the frame had already spent when this began, milliseconds: what the budget decided on.</summary>
+            public double BeforeMs;
+            /// <summary>What was made: "ground" or "colour".</summary>
+            public string What;
+            /// <summary>The main thread's cost split by step, milliseconds, so a budget that is missed says where.</summary>
+            public double HeightsMs, ObjectMs, TextureMs, WaterMs;
+        }
+
+        public event Action<TileBuildReport> TileBuilt;
         public int TilesFromCache { get; private set; }
 
         /// <summary>The Welcome of a connection; the flag says whether it was a rejoin.</summary>
@@ -172,10 +200,7 @@ namespace EarthGame.Client
                     _nextTileRequestAt = Time.realtimeSinceStartup + TileRequestIntervalSeconds;
                     _client.RequestTilesAround(_player.State.East, _player.State.North);
                 }
-                // One tile's Terrain per frame: nine in one frame stalled the client for most of a second on
-                // 2026-09-08, long enough for the first mirror sample to find one state and an estimate fourteen
-                // ticks past it. The tile under the founder is taken first, so interactive is not made to wait.
-                if (_tilesToBuild.Count > 0) BuildTile(TakeTileToBuild());
+                DrainPreparations();
                 CheckInteractive();
                 DrawMirrors(nowMs);
                 UpdateHud(dt);
@@ -262,23 +287,35 @@ namespace EarthGame.Client
         /// texture over the tile and becomes that tile's own terrain layer; a tile whose cover has not arrived
         /// keeps the flat layer until it does, and a world that has no cover layer keeps it for good.
         /// </summary>
-        private void BuildCover(TileId id)
+        /// <summary>
+        /// A cover that arrived after its ground was built: the map is made on a worker like any other (M1.4e)
+        /// and only the texture and the layer are made here.
+        /// </summary>
+        private void StartColouring(TileId id)
         {
             if (_client?.Tiles == null) return;
             ReceivedTile cover = _client.Tiles.Holding(TileLayer.GroundCover, id);
             if (cover?.Codes == null) return;
             if (_coverFrom.TryGetValue(id, out uint built) && built == cover.Crc32 && _coverLayers.ContainsKey(id)) return;
+            if (_colouring.ContainsKey(id)) return;
+            _coverFrom[id] = cover.Crc32;
+            _colouring[id] = Task.Run(() => GroundColourMap.Build(cover));
+        }
+
+        private void BuildCover(TileId id, byte[] map, double before)
+        {
+            double started = _clockMs.Elapsed.TotalMilliseconds;
+            if (!_tileTerrains.TryGetValue(id, out Terrain terrain) || terrain == null || terrain.terrainData == null) return;
             if (_coverLayers.TryGetValue(id, out TerrainLayer previous)) GroundLayerBuilder.Free(previous);
             _coverLayers.Remove(id);
-            float sizeM = (float)((cover.Posts - 1) * cover.CellM);
-            byte[] rgb = GroundColourMap.Build(cover);
-            TerrainLayer layer = GroundLayerBuilder.Build(rgb, GroundColourMap.Texels, sizeM, _groundLayer, "Ground cover " + id);
+            float sizeM = terrain.terrainData.size.x;
+            TerrainLayer layer = GroundLayerBuilder.Build(map, GroundColourMap.Texels, sizeM, _groundLayer, "Ground cover " + id);
             if (layer == null) return;
             _coverLayers[id] = layer;
-            _coverFrom[id] = cover.Crc32;
-            if (_tileTerrains.TryGetValue(id, out Terrain terrain) && terrain != null && terrain.terrainData != null)
-                terrain.terrainData.terrainLayers = new[] { layer };
-            Debug.Log("[client] cover on tile " + id + ": " + GroundColourMap.Texels + " texels a side over " + F(sizeM) + " m");
+            terrain.terrainData.terrainLayers = new[] { layer };
+            double mainMs = _clockMs.Elapsed.TotalMilliseconds - started;
+            Debug.Log("[client] cover on tile " + id + ": " + GroundColourMap.Texels + " texels a side over " + F(sizeM) + " m, " + F(mainMs) + " ms drawn");
+            TileBuilt?.Invoke(new TileBuildReport { Id = id, WorkerMs = 0.0, MainMs = mainMs, FrameMs = _budget.SpentMs, BeforeMs = before, What = "colour", TextureMs = mainMs });
         }
 
         /// <summary>A tile the client let go of: its ground leaves the collider, its Terrain and its water the scene.</summary>
@@ -297,6 +334,8 @@ namespace EarthGame.Client
                 _coverFrom.Remove(id);
             }
             if (layer != TileLayer.Ground) return;
+            _preparing.Remove(id);
+            _colouring.Remove(id);
             _ground?.Remove(id);
             if (_tileTerrains.TryGetValue(id, out Terrain terrain) && terrain != null) Destroy(terrain.gameObject);
             _tileTerrains.Remove(id);
@@ -310,7 +349,7 @@ namespace EarthGame.Client
             if (tile.Layer != TileLayer.Ground)
             {
                 if (tile.Layer == TileLayer.WaterDepth) BuildWater(tile.Id);
-                else if (tile.Layer == TileLayer.GroundCover) BuildCover(tile.Id);
+                else if (tile.Layer == TileLayer.GroundCover && _tileTerrains.ContainsKey(tile.Id)) StartColouring(tile.Id);
                 return;
             }
             if (_ground == null) _ground = new TileHeightfield(_client.Grid);
@@ -322,49 +361,141 @@ namespace EarthGame.Client
                 CheckInteractive();
                 return;
             }
-            _tilesToBuild.Enqueue(tile);
+            // Sampling the posts and building the colour map are pure over this tile alone, so they go to a
+            // worker and the main thread is left with what only Unity can do (M1.4e).
+            if (_preparing.ContainsKey(tile.Id)) return;
+            ReceivedTile cover = _client.Tiles.Holding(TileLayer.GroundCover, tile.Id);
+            if (cover != null) _coverFrom[tile.Id] = cover.Crc32;
+            System.Diagnostics.Stopwatch clock = _clockMs;
+            _preparing[tile.Id] = Task.Run(() => TilePreparation.Prepare(tile, TerrainTileBuilder.TilePosts, cover,
+                GroundColourMap.Texels, () => clock.Elapsed.TotalMilliseconds));
         }
 
         /// <summary>The next tile to build: the one under the founder if it is queued, else the oldest.</summary>
-        private ReceivedTile TakeTileToBuild()
+        /// <summary>
+        /// The finished preparations, taken while this frame's streaming budget has time left (M1.4e). What is
+        /// left waits for the next frame: nine tiles built in one frame stalled the client for most of a second
+        /// on 2026-09-08, long enough for the first mirror sample to find one state and an estimate fourteen
+        /// ticks past it. The tile under the founder is taken first, so interactive is not made to wait.
+        /// </summary>
+        private void DrainPreparations()
         {
-            if (_player != null && _ground != null && _tilesToBuild.Count > 1)
-            {
-                TileId under = _ground.Grid.ForPosition(_player.State.East, _player.State.North);
-                if (!_tileTerrains.ContainsKey(under))
-                {
-                    ReceivedTile[] queued = _tilesToBuild.ToArray();
-                    for (int i = 0; i < queued.Length; i++)
-                    {
-                        if (!queued[i].Id.Equals(under)) continue;
-                        _tilesToBuild.Clear();
-                        for (int j = 0; j < queued.Length; j++)
-                            if (j != i) _tilesToBuild.Enqueue(queued[j]);
-                        return queued[i];
-                    }
-                }
-            }
-            return _tilesToBuild.Dequeue();
+            if (_budget == null) return;
+            _budget.BeginFrame();
+            while (_budget.TryStart(out double spent) && TakeGround(out PreparedTile prepared)) BuildTile(prepared, spent);
+            while (_budget.TryStart(out double left) && TakeColour(out TileId id, out byte[] map)) BuildCover(id, map, left);
+            _budget.EndFrame();
         }
 
-        private void BuildTile(ReceivedTile tile)
+        /// <summary>The next prepared ground, the one under the founder first; false when none has finished.</summary>
+        private bool TakeGround(out PreparedTile prepared)
         {
+            prepared = null;
+            if (_preparing.Count == 0) return false;
+            TileId? under = _player != null && _ground != null
+                ? _ground.Grid.ForPosition(_player.State.East, _player.State.North)
+                : (TileId?)null;
+            TileId chosen = default;
+            bool found = false;
+            foreach (KeyValuePair<TileId, Task<PreparedTile>> pair in _preparing)
+            {
+                if (!pair.Value.IsCompleted) continue;
+                if (!found || (under.HasValue && pair.Key.Equals(under.Value)))
+                {
+                    chosen = pair.Key;
+                    found = true;
+                    if (under.HasValue && pair.Key.Equals(under.Value)) break;
+                }
+            }
+            if (!found) return false;
+            Task<PreparedTile> task = _preparing[chosen];
+            _preparing.Remove(chosen);
+            if (task.IsFaulted)
+            {
+                Debug.LogError("[client] preparing tile " + chosen + " failed: " + task.Exception?.GetBaseException().Message);
+                return false;
+            }
+            // A tile the client let go of while it was being prepared is not built.
+            if (_ground == null || !_ground.Holds(chosen)) return false;
+            prepared = task.Result;
+            return prepared != null;
+        }
+
+        private bool TakeColour(out TileId id, out byte[] map)
+        {
+            id = default;
+            map = null;
+            bool found = false;
+            foreach (KeyValuePair<TileId, Task<byte[]>> pair in _colouring)
+            {
+                if (!pair.Value.IsCompleted) continue;
+                id = pair.Key;
+                map = pair.Value.IsFaulted ? null : pair.Value.Result;
+                found = true;
+                break;
+            }
+            if (!found) return false;
+            _colouring.Remove(id);
+            return map != null && _tileTerrains.ContainsKey(id);
+        }
+
+        private void BuildTile(PreparedTile prepared, double before)
+        {
+            double started = _clockMs.Elapsed.TotalMilliseconds;
+            double at = started;
             Terrain previous;
-            if (_tileTerrains.TryGetValue(tile.Id, out previous) && previous != null) Destroy(previous.gameObject);
-            float sizeM = (float)((tile.Posts - 1) * tile.CellM);
-            // The tile's own colour when its cover has already arrived, else the flat layer until it does.
-            TerrainLayer painted = _coverLayers.TryGetValue(tile.Id, out TerrainLayer own) ? own : _groundLayer;
-            Terrain terrain = TerrainTileBuilder.Build(_ground, tile.OriginEast, tile.OriginNorth, sizeM, TilePosts,
-                _terrainMaterial, painted, "Terrain tile " + tile.Id, true, 0f);
-            _tileTerrains[tile.Id] = terrain;
-            _tileCrcs[tile.Id] = tile.Crc32;
-            BuildWater(tile.Id);
-            BuildCover(tile.Id);
+            if (_tileTerrains.TryGetValue(prepared.Id, out previous) && previous != null) Destroy(previous.gameObject);
+            TerrainLayer painted = _groundLayer;
+            if (prepared.ColourMap != null)
+            {
+                if (_coverLayers.TryGetValue(prepared.Id, out TerrainLayer stale)) GroundLayerBuilder.Free(stale);
+                TerrainLayer made = GroundLayerBuilder.Build(prepared.ColourMap, prepared.ColourTexels, prepared.SizeM,
+                    _groundLayer, "Ground cover " + prepared.Id);
+                if (made != null)
+                {
+                    _coverLayers[prepared.Id] = made;
+                    _coverFrom[prepared.Id] = prepared.CoverCrc;
+                    painted = made;
+                }
+            }
+            else if (_coverLayers.TryGetValue(prepared.Id, out TerrainLayer own))
+            {
+                painted = own;
+            }
+            double textureMs = Since(ref at);
+            TerrainData data = TerrainTileBuilder.BuildData(prepared, painted);
+            double heightsMs = Since(ref at);
+            Terrain terrain = TerrainTileBuilder.Place(data, prepared, _terrainMaterial, "Terrain tile " + prepared.Id);
+            double objectMs = Since(ref at);
+            _tileTerrains[prepared.Id] = terrain;
+            _tileCrcs[prepared.Id] = prepared.GroundCrc;
+            BuildWater(prepared.Id);
             if (_coarse != null)
-                TerrainTileBuilder.CutHole(_coarse, -_region.HalfExtentM, -_region.HalfExtentM, tile.OriginEast, tile.OriginNorth, sizeM);
-            Debug.Log("[client] tile " + tile.Id + (tile.FromCache ? " from cache" : " from the wire") + ": " + tile.Posts + " posts at " + tile.CellM + " m, origin "
-                      + F(tile.OriginEast) + " " + F(tile.OriginNorth) + "; " + _tileTerrains.Count + " built");
+                TerrainTileBuilder.CutHole(_coarse, -_region.HalfExtentM, -_region.HalfExtentM, prepared.OriginEast, prepared.OriginNorth, prepared.SizeM);
+            double waterMs = Since(ref at);
+            // A cover that arrived before this tile was built is asked for now: on a join over the in-memory
+            // transport the small cover tile lands first, and the frames of 2026-09-10 came back one flat tan
+            // because nothing on either path then asked for it.
+            if (prepared.ColourMap == null) StartColouring(prepared.Id);
+            double mainMs = _clockMs.Elapsed.TotalMilliseconds - started;
+            Debug.Log("[client] tile " + prepared.Id + ": " + prepared.Posts + " posts, " + F(prepared.WorkerMs) + " ms prepared, "
+                      + F(mainMs) + " ms drawn (texture " + F(textureMs) + ", heights " + F(heightsMs) + ", object " + F(objectMs)
+                      + ", water " + F(waterMs) + "); " + _tileTerrains.Count + " built");
+            TileBuilt?.Invoke(new TileBuildReport
+            {
+                Id = prepared.Id, WorkerMs = prepared.WorkerMs, MainMs = mainMs, FrameMs = _budget.SpentMs, BeforeMs = before, What = "ground",
+                TextureMs = textureMs, HeightsMs = heightsMs, ObjectMs = objectMs, WaterMs = waterMs,
+            });
             CheckInteractive();
+        }
+
+        /// <summary>Milliseconds since the mark, and moves the mark to now.</summary>
+        private double Since(ref double mark)
+        {
+            double now = _clockMs.Elapsed.TotalMilliseconds;
+            double spent = now - mark;
+            mark = now;
+            return spent;
         }
 
         private void CheckInteractive()
@@ -445,13 +576,13 @@ namespace EarthGame.Client
                 // through; sunk under them), holes cut where tiles arrive; beyond it the 64 km surround as the
                 // far skirt.
                 _coarse = TerrainTileBuilder.Build(_bakedRegion, -_region.HalfExtentM, -_region.HalfExtentM, (float)_region.ExtentM,
-                    TerrainTileBuilder.Posts, _terrainMaterial, _groundLayer, "Terrain (region coarse)", true, 1.5f);
+                    TerrainTileBuilder.CoarsePosts, _terrainMaterial, _groundLayer, "Terrain (region coarse)", true, 1.5f);
                 Heightfield surround = RegionDataLocator.TryLoadRaster(_region, "surround", out string surroundMessage);
                 Debug.Log("[client] " + surroundMessage);
                 if (surround != null)
                 {
                     Terrain skirt = TerrainTileBuilder.Build(surround, -surround.HalfExtentM, -surround.HalfExtentM, (float)surround.Raster.ExtentM,
-                        TerrainTileBuilder.Posts, _terrainMaterial, _groundLayer, "Terrain (surround skirt)", false, 15f);
+                        TerrainTileBuilder.CoarsePosts, _terrainMaterial, _groundLayer, "Terrain (surround skirt)", false, 15f);
                     TerrainTileBuilder.CutHole(skirt, -surround.HalfExtentM, -surround.HalfExtentM, -_region.HalfExtentM, -_region.HalfExtentM, _region.ExtentM);
                 }
             }
@@ -543,6 +674,11 @@ namespace EarthGame.Client
                 Cursor.visible = false;
             }
 
+            // ARCHITECTURE section 8: streaming is capped at 1.5 ms of CPU a frame, a stopwatch and never an
+            // item count. What a piece of work costs once started is measured and reported, not pretended away.
+            System.Diagnostics.Stopwatch clock = _clockMs;
+            _budget = new FrameBudget(StreamingBudgetMs, () => clock.Elapsed.TotalMilliseconds);
+
             ViewBuilt = true;
 
             // The first-frame scenario is the recorder's own; every other scenario is the runner's, which was
@@ -558,6 +694,7 @@ namespace EarthGame.Client
                     .With("terrain", _bakedRegion != null);
                 Recorder recorder = gameObject.AddComponent<Recorder>();
                 recorder.Begin(_recordDir, _camera, _player, script, _hud, () => _client.LastServerTick, header);
+                TileBuilt += recorder.RecordBuild;
             }
         }
 
