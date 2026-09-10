@@ -31,7 +31,7 @@ namespace EarthGame.Tests.Server
         {
             RegionRaster heights = TestRasters.MadeCoast();
             WorldCreation.Result r = WorldCreation.Create(Path.Combine(_dir, "a"), FixtureRegion, 1347UL, heights, "2026-09-09T00:00:00Z", TestRasters.MadeWaterBodies());
-            string[] expected = { "heights", "surface", "soil_depth", "wetness", "suitability", "water", "overstory", "understory", "topology", "stone", "shore_distance", "fresh_water_distance",
+            string[] expected = { "heights", "surface", "soil_depth", "wetness", "suitability", "water", "overstory", "understory", "topology", "cover", "stone", "shore_distance", "fresh_water_distance",
                                   "capacity_easterngreykangaroo", "capacity_piedoystercatcher", "capacity_superbfairywren",
                                   "stone_distance", "fibre_distance", "firewood_distance", "shelter_distance", "wake_score", "catchment" };
             foreach (string name in expected)

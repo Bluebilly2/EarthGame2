@@ -75,7 +75,10 @@ namespace EarthGame.Engine
         /// <summary>The water this world can stream, or null for a world whose folder holds none.</summary>
         public WorldWater Water { get; }
 
-        public WorldState(ulong seed, Region region, WorldClock clock, Heightfield terrain = null, long tick = 0, Double3? wake = null, WorldWater water = null)
+        /// <summary>What covers each cell of this world (M1.4d), as the folder's own layer; null on a world made before it.</summary>
+        public RegionRaster Cover { get; }
+
+        public WorldState(ulong seed, Region region, WorldClock clock, Heightfield terrain = null, long tick = 0, Double3? wake = null, WorldWater water = null, RegionRaster cover = null)
         {
             Seed = seed;
             Region = region ?? throw new ArgumentNullException(nameof(region));
@@ -87,6 +90,8 @@ namespace EarthGame.Engine
             Tick = tick;
             Wake = wake;
             Water = water;
+            if (cover != null && !cover.IsIntegral) throw new ArgumentException("the ground cover is " + cover.Dtype + ", not a code layer", nameof(cover));
+            Cover = cover;
         }
 
         /// <summary>

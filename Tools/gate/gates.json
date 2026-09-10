@@ -373,12 +373,21 @@
             "Tools/verifiers/checks/tile_check.py",
             "Artefacts/worlds/gate"
           ]
+        },
+        {
+          "name": "cover_check on the world the gate made",
+          "cmd": [
+            "python",
+            "Tools/verifiers/checks/cover_check.py",
+            "Artefacts/worlds/gate"
+          ]
         }
       ],
       "verifiers": [
-        "tile_check"
+        "tile_check",
+        "cover_check"
       ],
-      "owner_decides": "nothing in this slice; the water is data here and is drawn in the next one"
+      "owner_decides": "the ground's colour, from the frames of M1.4d; the water is data here and is drawn by M1.4c"
     }
   }
 }

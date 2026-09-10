@@ -175,7 +175,10 @@ namespace EarthGame.Protocol
         internal static TileLayer Read(PacketReader r)
         {
             byte value = r.ReadByte();
-            if (value > (byte)TileLayer.WaterClass) throw new ProtocolException("tile layer " + value + " is not one this build knows");
+            // Asked of the set itself, not of the last layer's number: the highest layer written here and the
+            // set written there was one fact in two places, and adding the ground cover refused every join
+            // (2026-09-10).
+            if (!TileLayers.IsKnown(value)) throw new ProtocolException("tile layer " + value + " is not one this build knows");
             return (TileLayer)value;
         }
     }

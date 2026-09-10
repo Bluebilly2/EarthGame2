@@ -17,6 +17,7 @@ namespace EarthGame.Server
     {
         private readonly Heightfield _terrain;
         private readonly WorldWater _water;
+        private readonly RegionRaster _cover;
         private readonly TileGrid _grid;
         private readonly Dictionary<(TileLayer Layer, TileId Id), EncodedTile> _encoded = new Dictionary<(TileLayer, TileId), EncodedTile>();
         private readonly PacketWriter _writer = new PacketWriter(ProtocolInfo.TileChunkBytes + 64);
@@ -26,11 +27,21 @@ namespace EarthGame.Server
             if (world == null) throw new ArgumentNullException(nameof(world));
             _terrain = world.Terrain;
             _water = world.Water;
+            _cover = world.Cover;
             _grid = new TileGrid(world.Region.ExtentM);
         }
 
         /// <summary>Whether this world can answer for a layer at all.</summary>
-        public bool Serves(TileLayer layer) => layer == TileLayer.Ground ? _terrain != null : _terrain != null && _water != null;
+        public bool Serves(TileLayer layer)
+        {
+            if (_terrain == null) return false;
+            switch (layer)
+            {
+                case TileLayer.Ground: return true;
+                case TileLayer.GroundCover: return _cover != null;
+                default: return _water != null;
+            }
+        }
 
         public TileGrid Grid => _grid;
 
@@ -70,6 +81,7 @@ namespace EarthGame.Server
                     case TileLayer.Ground: tile = TileCodec.Encode(_terrain, _grid, id); break;
                     case TileLayer.WaterDepth: tile = TileCodec.EncodeDepth(_water.Surface, _terrain, _grid, id); break;
                     case TileLayer.WaterClass: tile = TileCodec.EncodeCodes(_water.Classes, TileLayer.WaterClass, _grid, id); break;
+                    case TileLayer.GroundCover: tile = TileCodec.EncodeCodes(_cover, TileLayer.GroundCover, _grid, id); break;
                     default: throw new ArgumentOutOfRangeException(nameof(layer), "no such layer: " + layer);
                 }
                 _encoded[(layer, id)] = tile;

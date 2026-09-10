@@ -121,8 +121,18 @@
       "gates": [
         "M1.4-streaming"
       ],
-      "checks": "Every tile in a client's disk cache agrees with the world folder's own layer: the ground to half a centimetre, the surface put back from ground plus depth to two, the water's class post for post, and the cache inside the residency bound.",
+      "checks": "Every tile in a client's disk cache agrees with the world folder's own layer: the ground to half a centimetre, the surface put back from ground plus depth to two, the water's class and the ground's cover post for post, and the cache inside the residency bound.",
       "independent_of_the_tool_by": "inflating the cached bytes with zlib and reading them by the layouts ARCHITECTURE sections 7 and 10 state, including the tile grid's geometry and the cell a post sits on, restated in Python; never imports TileCodec, TileGrid or any game code, so a writer that drifts from its stated format is caught by a reader that did not"
+    },
+    {
+      "name": "cover_check",
+      "path": "Tools/verifiers/checks/cover_check.py",
+      "author": "Claude",
+      "gates": [
+        "M1.4-streaming"
+      ],
+      "checks": "The world's ground cover follows from the world's other layers: every post's cover by the cascade, every post's wetness quarter by the wetness layer, the posts no stored value can decide against what the storage steps predict, and the region's shares by cover with a floor under how varied the country must be.",
+      "independent_of_the_tool_by": "recomputing the cover in numpy from the water, topology, plant, soil and wetness layers by the cascade restated from the M1.4d contract, with the plants' forms held in the check from ECOSYSTEM.md and a species it does not know refused rather than guessed; never imports GroundCovers or any game code"
     }
   ]
 }

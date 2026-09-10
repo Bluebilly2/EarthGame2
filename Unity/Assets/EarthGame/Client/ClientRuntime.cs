@@ -47,6 +47,8 @@ namespace EarthGame.Client
         private readonly Dictionary<TileId, uint> _tileCrcs = new Dictionary<TileId, uint>();
         private readonly Dictionary<TileId, GameObject> _waterTiles = new Dictionary<TileId, GameObject>();
         private readonly Dictionary<TileId, long> _waterFrom = new Dictionary<TileId, long>();
+        private readonly Dictionary<TileId, TerrainLayer> _coverLayers = new Dictionary<TileId, TerrainLayer>();
+        private readonly Dictionary<TileId, uint> _coverFrom = new Dictionary<TileId, uint>();
         private readonly Queue<ReceivedTile> _tilesToBuild = new Queue<ReceivedTile>();
         private readonly Dictionary<uint, Transform> _mirrorBodies = new Dictionary<uint, Transform>();
         private readonly List<uint> _goneMirrors = new List<uint>();
@@ -255,6 +257,30 @@ namespace EarthGame.Client
             Debug.Log("[client] water on tile " + id + ": " + quads.Count + " rectangle(s) above the datum");
         }
 
+        /// <summary>
+        /// The colour of a tile's ground, from the cover the server streamed for it (M1.4d). The map is one
+        /// texture over the tile and becomes that tile's own terrain layer; a tile whose cover has not arrived
+        /// keeps the flat layer until it does, and a world that has no cover layer keeps it for good.
+        /// </summary>
+        private void BuildCover(TileId id)
+        {
+            if (_client?.Tiles == null) return;
+            ReceivedTile cover = _client.Tiles.Holding(TileLayer.GroundCover, id);
+            if (cover?.Codes == null) return;
+            if (_coverFrom.TryGetValue(id, out uint built) && built == cover.Crc32 && _coverLayers.ContainsKey(id)) return;
+            if (_coverLayers.TryGetValue(id, out TerrainLayer previous)) GroundLayerBuilder.Free(previous);
+            _coverLayers.Remove(id);
+            float sizeM = (float)((cover.Posts - 1) * cover.CellM);
+            byte[] rgb = GroundColourMap.Build(cover);
+            TerrainLayer layer = GroundLayerBuilder.Build(rgb, GroundColourMap.Texels, sizeM, _groundLayer, "Ground cover " + id);
+            if (layer == null) return;
+            _coverLayers[id] = layer;
+            _coverFrom[id] = cover.Crc32;
+            if (_tileTerrains.TryGetValue(id, out Terrain terrain) && terrain != null && terrain.terrainData != null)
+                terrain.terrainData.terrainLayers = new[] { layer };
+            Debug.Log("[client] cover on tile " + id + ": " + GroundColourMap.Texels + " texels a side over " + F(sizeM) + " m");
+        }
+
         /// <summary>A tile the client let go of: its ground leaves the collider, its Terrain and its water the scene.</summary>
         private void OnTileDropped(TileLayer layer, TileId id)
         {
@@ -263,6 +289,12 @@ namespace EarthGame.Client
                 if (drawn != null) Destroy(drawn);
                 _waterTiles.Remove(id);
                 _waterFrom.Remove(id);
+            }
+            if (_coverLayers.TryGetValue(id, out TerrainLayer painted))
+            {
+                GroundLayerBuilder.Free(painted);
+                _coverLayers.Remove(id);
+                _coverFrom.Remove(id);
             }
             if (layer != TileLayer.Ground) return;
             _ground?.Remove(id);
@@ -278,6 +310,7 @@ namespace EarthGame.Client
             if (tile.Layer != TileLayer.Ground)
             {
                 if (tile.Layer == TileLayer.WaterDepth) BuildWater(tile.Id);
+                else if (tile.Layer == TileLayer.GroundCover) BuildCover(tile.Id);
                 return;
             }
             if (_ground == null) _ground = new TileHeightfield(_client.Grid);
@@ -319,11 +352,14 @@ namespace EarthGame.Client
             Terrain previous;
             if (_tileTerrains.TryGetValue(tile.Id, out previous) && previous != null) Destroy(previous.gameObject);
             float sizeM = (float)((tile.Posts - 1) * tile.CellM);
+            // The tile's own colour when its cover has already arrived, else the flat layer until it does.
+            TerrainLayer painted = _coverLayers.TryGetValue(tile.Id, out TerrainLayer own) ? own : _groundLayer;
             Terrain terrain = TerrainTileBuilder.Build(_ground, tile.OriginEast, tile.OriginNorth, sizeM, TilePosts,
-                _terrainMaterial, _groundLayer, "Terrain tile " + tile.Id, true, 0f);
+                _terrainMaterial, painted, "Terrain tile " + tile.Id, true, 0f);
             _tileTerrains[tile.Id] = terrain;
             _tileCrcs[tile.Id] = tile.Crc32;
             BuildWater(tile.Id);
+            BuildCover(tile.Id);
             if (_coarse != null)
                 TerrainTileBuilder.CutHole(_coarse, -_region.HalfExtentM, -_region.HalfExtentM, tile.OriginEast, tile.OriginNorth, sizeM);
             Debug.Log("[client] tile " + tile.Id + (tile.FromCache ? " from cache" : " from the wire") + ": " + tile.Posts + " posts at " + tile.CellM + " m, origin "

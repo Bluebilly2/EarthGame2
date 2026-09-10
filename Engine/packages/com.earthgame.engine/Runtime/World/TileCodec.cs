@@ -17,12 +17,52 @@ namespace EarthGame.Engine
         WaterDepth = 1,
         /// <summary>Each post's <see cref="WaterClass"/> as a code.</summary>
         WaterClass = 2,
+        /// <summary>Each post's <see cref="GroundCovers"/> code: what covers it, and which quarter of the land's wetness it is in.</summary>
+        GroundCover = 3,
     }
 
     /// <summary>Every layer a tile can carry. Both ends walk this, so neither has to be told the set.</summary>
     public static class TileLayers
     {
-        public static readonly TileLayer[] All = { TileLayer.Ground, TileLayer.WaterDepth, TileLayer.WaterClass };
+        public static readonly TileLayer[] All = { TileLayer.Ground, TileLayer.WaterDepth, TileLayer.WaterClass, TileLayer.GroundCover };
+
+        /// <summary>
+        /// Whether a layer travels as codes — raw bytes through deflate — rather than as metres. One owner: the
+        /// receiver asked this of the layer's number instead and dropped every cover tile it was sent, silently,
+        /// because a byte a post is not a square of int16s (2026-09-10).
+        /// </summary>
+        public static bool CarriesCodes(TileLayer layer)
+        {
+            switch (layer)
+            {
+                case TileLayer.WaterClass:
+                case TileLayer.GroundCover: return true;
+                default: return false;
+            }
+        }
+
+        /// <summary>Whether a byte off the wire names a layer this build knows.</summary>
+        public static bool IsKnown(byte value)
+        {
+            foreach (TileLayer layer in All) if ((byte)layer == value) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// The folder a layer's tiles are cached under, and the name a verifier reads. One owner: a name that
+        /// lived in the cache's path and again in a check would be the named bug shape.
+        /// </summary>
+        public static string FolderOf(TileLayer layer)
+        {
+            switch (layer)
+            {
+                case TileLayer.Ground: return "ground";
+                case TileLayer.WaterDepth: return "water-depth";
+                case TileLayer.WaterClass: return "water-class";
+                case TileLayer.GroundCover: return "ground-cover";
+                default: throw new ArgumentOutOfRangeException(nameof(layer), "no such layer: " + layer);
+            }
+        }
     }
 
     /// <summary>A tile of one layer as it travels: the posts along one side, the ground pitch, and the compressed bytes.</summary>

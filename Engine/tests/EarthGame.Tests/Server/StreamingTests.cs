@@ -117,8 +117,12 @@ namespace EarthGame.Tests.Server
             return new WorldWater(surface, classes);
         }
 
+        /// <summary>The tiny fixture's cover: fresh water where the lake stands, grass elsewhere, wetter to the east.</summary>
+        private static RegionRaster Cover() => TestRasters.FromCodes(5, 10.0, 40.0, "tiny_cover", "cover",
+            (row, col) => GroundCovers.Pack(col <= 1 ? GroundCover.FreshWater : GroundCover.Grass, col % GroundCovers.Quarters), null);
+
         private static WorldState WateredWorld() =>
-            new WorldState(1, FixtureRegion, FixtureRegion.WakeClock(), Ground(), 0, null, Water());
+            new WorldState(1, FixtureRegion, FixtureRegion.WakeClock(), Ground(), 0, null, Water(), Cover());
 
         /// <summary>
         /// The water reaches the client beside the ground (M1.4b promises 3 to 5): the depth standing over the
@@ -137,6 +141,7 @@ namespace EarthGame.Tests.Server
             Assert.That(rig.A.Tiles.CountOf(TileLayer.Ground), Is.EqualTo(1));
             Assert.That(rig.A.Tiles.CountOf(TileLayer.WaterDepth), Is.EqualTo(1));
             Assert.That(rig.A.Tiles.CountOf(TileLayer.WaterClass), Is.EqualTo(1));
+            Assert.That(rig.A.Tiles.CountOf(TileLayer.GroundCover), Is.EqualTo(1));
 
             TileId id = new TileId(0, 0);
             ReceivedTile ground = rig.A.Tiles.Held[id];
@@ -172,12 +177,12 @@ namespace EarthGame.Tests.Server
             Assert.That(rig.A.IsInteractive, Is.True, "the ground alone still makes a client interactive");
             Assert.That(rig.A.Tiles.CountOf(TileLayer.Ground), Is.EqualTo(1));
             Assert.That(rig.A.Tiles.CountOf(TileLayer.WaterDepth), Is.Zero);
-            Assert.That(rig.A.Tiles.RefusedCount, Is.EqualTo(2), "the two water layers of the one tile, once each");
+            Assert.That(rig.A.Tiles.RefusedCount, Is.EqualTo(3), "the two water layers and the cover of the one tile, once each");
             long served = rig.Server.Tiles.BytesServed;
             rig.A.RequestTilesAround(0.0, 0.0);
             rig.Pump(3);
             Assert.That(rig.Server.Tiles.BytesServed, Is.EqualTo(served), "nothing was asked for a second time");
-            Assert.That(rig.A.Tiles.RefusedCount, Is.EqualTo(2));
+            Assert.That(rig.A.Tiles.RefusedCount, Is.EqualTo(3));
         }
 
         [Test]
@@ -220,7 +225,7 @@ namespace EarthGame.Tests.Server
             Rig rig = Start(new WorldState(7, Region.Bherwerre, Region.Bherwerre.WakeClock()));
             rig.A = rig.Join("William");
             rig.Pump(5);
-            Assert.That(rig.A.Tiles.RefusedCount, Is.EqualTo(9 * 3), "the nine tiles around the wake, each of the three layers refused");
+            Assert.That(rig.A.Tiles.RefusedCount, Is.EqualTo(9 * TileLayers.All.Length), "the nine tiles around the wake, every layer refused");
             Assert.That(rig.A.Tiles.Held.Count, Is.EqualTo(0));
             Assert.That(rig.A.IsInteractive, Is.True, "refused is answered; the client does not wait");
         }

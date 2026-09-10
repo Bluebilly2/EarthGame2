@@ -61,7 +61,7 @@ namespace EarthGame.ClientCore
         }
 
         private string PathFor(string regionId, TileLayer layer, TileId id)
-            => Path.Combine(_root, regionId, layer == TileLayer.Ground ? "ground" : layer == TileLayer.WaterDepth ? "water-depth" : "water-class", id.Ix + "_" + id.Iz + ".tile");
+            => Path.Combine(_root, regionId, TileLayers.FolderOf(layer), id.Ix + "_" + id.Iz + ".tile");
 
         public uint KnownCrc(string regionId, TileLayer layer, TileId id)
         {
@@ -300,7 +300,7 @@ namespace EarthGame.ClientCore
             byte[,] codes = null;
             try
             {
-                if (header.Layer == TileLayer.WaterClass) codes = TileCodec.UnpackCodes(bytes, header.Posts);
+                if (TileLayers.CarriesCodes(header.Layer)) codes = TileCodec.UnpackCodes(bytes, header.Posts);
                 else heights = TileCodec.Unpack(bytes, header.Posts);
             }
             catch (InvalidDataException ex)

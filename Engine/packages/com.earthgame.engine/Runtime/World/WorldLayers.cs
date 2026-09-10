@@ -138,6 +138,8 @@ namespace EarthGame.Engine
         public uint[] TopologyMask { get; }
         /// <summary>Stone index into <see cref="StoneType.All"/> plus one; zero for none.</summary>
         public byte[] Stone { get; }
+        /// <summary>What covers each cell and how wet it is, packed as <see cref="GroundCovers"/> states.</summary>
+        public byte[] Cover { get; }
         /// <summary>Per species in <see cref="AnimalSpecies.All"/>, animals per km².</summary>
         public float[][] Capacity { get; }
 
@@ -162,6 +164,7 @@ namespace EarthGame.Engine
             Suitability = new float[count];
             TopologyMask = new uint[count];
             Stone = new byte[count];
+            Cover = new byte[count];
             Capacity = new float[AnimalSpecies.All.Count][];
             for (int s = 0; s < Capacity.Length; s++) Capacity[s] = new float[count];
             progress?.Invoke("Finding lakes and wetlands");
@@ -197,6 +200,8 @@ namespace EarthGame.Engine
             w.Community(seed);
             progress?.Invoke("Reading landforms");
             w.Topology();
+            progress?.Invoke("Reading the ground cover");
+            w.Covers();
             progress?.Invoke("Finding stone");
             w.Stones(seed);
             progress?.Invoke("Calculating animal habitat");
@@ -661,6 +666,24 @@ namespace EarthGame.Engine
         }
 
         public bool Has(int row, int col, Topology bit) => (TopologyMask[Index(row, col)] & (uint)bit) != 0;
+
+        // ---- ground cover ----
+
+        /// <summary>
+        /// What covers each cell (M1.4d): the one thing the client is sent about the ground's appearance, because
+        /// the fields it comes from cost more on the wire than the ground itself. The rule is
+        /// <see cref="GroundCovers.Of"/>; this only feeds it what this world made.
+        /// </summary>
+        private void Covers()
+        {
+            for (int r = 0; r < Height; r++)
+                for (int c = 0; c < Width; c++)
+                {
+                    int i = Index(r, c);
+                    GroundCover cover = GroundCovers.Of((WaterClass)Water[i], TopologyMask[i], UnderstoryAt(r, c), OverstoryAt(r, c), Soil.DepthM[i]);
+                    Cover[i] = GroundCovers.Pack(cover, GroundCovers.QuarterFor(Soil.Wetness01[i]));
+                }
+        }
 
         // ---- stone ----
 

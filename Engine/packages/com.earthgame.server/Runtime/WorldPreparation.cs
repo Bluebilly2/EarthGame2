@@ -52,8 +52,9 @@ namespace EarthGame.Server
                     throw new InvalidDataException("The saved terrain does not match this world's layer manifest.");
                 Report("Reading the water");
                 WorldWater water = ReadWater(worldDir);
+                RegionRaster cover = ReadCover(worldDir);
                 Report("Restoring the world");
-                WorldState world = WorldSave.Restore(saved, terrain, region, water);
+                WorldState world = WorldSave.Restore(saved, terrain, region, water, cover);
                 Report("World ready");
                 return new Result { World = world, Saved = saved, Checksums = saved.Layers };
             }
@@ -67,7 +68,7 @@ namespace EarthGame.Server
             Report("Reading prepared terrain");
             Heightfield ground = new Heightfield(RegionRaster.Load(created.Layers["heights"]));
             WorldState made = new WorldState(seed, region, region.WakeClock(), ground, 0,
-                new Double3(created.Wake.East, 0, created.Wake.North), ReadWater(worldDir));
+                new Double3(created.Wake.East, 0, created.Wake.North), ReadWater(worldDir), ReadCover(worldDir));
             Report("Saving the world");
             WorldSave.Write(worldDir, made, null, nowUtc, created.Checksums);
             Report("World ready");
@@ -87,6 +88,16 @@ namespace EarthGame.Server
             if (hasSurface != hasClasses)
                 throw new InvalidDataException("this world has " + (hasSurface ? "a water surface without its classes" : "water classes without their surface") + "; its layers are half written");
             return new WorldWater(RegionRaster.Load(surface), RegionRaster.Load(classes));
+        }
+
+        /// <summary>
+        /// The ground cover a world folder holds, for the server to stream (M1.4d); null on a world made before
+        /// it, whose client draws the ground in one flat colour as it did before.
+        /// </summary>
+        private static RegionRaster ReadCover(string worldDir)
+        {
+            string path = Path.Combine(worldDir, WorldCreation.LayersFolder, "cover.json");
+            return File.Exists(path) ? RegionRaster.Load(path) : null;
         }
 
         private static Heightfield ReadBake(string dataDir)

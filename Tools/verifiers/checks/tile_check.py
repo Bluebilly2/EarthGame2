@@ -7,12 +7,12 @@ are restated from ARCHITECTURE section 10 and section 7, so a writer that drifts
 by a reader that did not drift with it.
 
 The formats, as section 10 states them:
-  - A cache file is <root>/<region>/<layer>/<ix>_<iz>.tile, the layer folder being ground, water-depth or
-    water-class. Its first four bytes are the CRC-32 (IEEE, little-endian) of everything after them.
+  - A cache file is <root>/<region>/<layer>/<ix>_<iz>.tile, the layer folder being ground, water-depth,
+    water-class or ground-cover. Its first four bytes are the CRC-32 (IEEE, little-endian) of everything after them.
   - Those bytes are a raw deflate stream (no zlib header).
   - Inflated, a layer of metres (ground, water-depth) is posts squared signed 16-bit little-endian centimetres,
     each row its first post absolute and every later post the difference from the one before.
-  - A layer of codes (water-class) is posts squared raw bytes.
+  - A layer of codes (water-class, ground-cover) is posts squared raw bytes.
   - The tile grid is the region's alone: a kilometre tile where the extent divides into kilometres, else the whole
     region as one tile; tile (0, 0) at the south-west corner; a tile's origin is (-extent/2 + ix * size,
     -extent/2 + iz * size) and it has size/cell + 1 posts a side, sharing an edge post with each neighbour.
@@ -29,7 +29,9 @@ Rows, each with both numbers:
      read 0.005000000000002558 m, half a centimetre and two femtometres of arithmetic;
   3. the water's depth: the largest disagreement between ground + depth and the world's surface layer, against
      two centimetres (each of the two was quantised to one);
-  4. the water's class: how many posts disagree with the world's water layer, which must be none;
+  4. the water's class and the ground's cover: how many posts disagree with the world's own layers, which must
+     be none. Whether the cover layer is itself right is cover_check's row, not this one: this check reads the
+     wire and the cache, that one reads the rule;
   5. how many tiles of each layer the cache holds, against the residency bound section 7 states.
 
 Exit 0 when every row passes, 1 when any fails, 2 when the world or the cache is missing.
@@ -49,7 +51,7 @@ import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 DEFAULT_WORLD = os.path.join("Artefacts", "worlds", "gate")
 NP_DTYPES = {"u8": "u1", "u16": "<u2", "i16": "<i2", "u32": "<u4", "f32": "<f4"}
-GROUND, DEPTH, CLASS = "ground", "water-depth", "water-class"
+GROUND, DEPTH, CLASS, COVER = "ground", "water-depth", "water-class", "ground-cover"
 # Half a centimetre is what rounding to int16 centimetres costs; the nanometre is for the float that carries it.
 GROUND_TOLERANCE_M = 0.005 + 1e-9
 # Twice that, since the client adds two separately rounded numbers to put a surface back together.
@@ -112,6 +114,7 @@ def main(argv):
     heights_sidecar, heights = layer(world, "heights")
     surface_sidecar, surface = layer(world, "surface")
     water_sidecar, water = layer(world, "water")
+    cover_sidecar, cover = layer(world, "cover")
     if heights is None or surface is None or water is None:
         print("the world's heights, surface and water layers are needed under %s" % os.path.join(ROOT, world, "layers"))
         return 2
@@ -133,11 +136,12 @@ def main(argv):
         print("no tiles cached under %s" % cache_root)
         return 2
 
-    counts = {GROUND: 0, DEPTH: 0, CLASS: 0}
+    counts = {GROUND: 0, DEPTH: 0, CLASS: 0, COVER: 0}
     bad_crc, bad_shape = [], []
     worst_ground = (0.0, "")
     worst_depth = (0.0, "")
     class_wrong = 0
+    cover_wrong = 0
     compared = 0
     for path in files:
         name = os.path.basename(path)
@@ -154,11 +158,18 @@ def main(argv):
             continue
         counts[folder] += 1
         try:
-            if folder == CLASS:
+            if folder in (CLASS, COVER):
                 held = unpack_codes(body, posts)
-                truth = world_block(water, water_sidecar, ix, iz, posts)
+                if folder == COVER and cover is None:
+                    bad_shape.append("%s in %s: this world has no cover layer to check it against" % (name, folder))
+                    continue
+                truth = world_block(water if folder == CLASS else cover,
+                                    water_sidecar if folder == CLASS else cover_sidecar, ix, iz, posts)
                 wrong = int((held != truth).sum())
-                class_wrong += wrong
+                if folder == CLASS:
+                    class_wrong += wrong
+                else:
+                    cover_wrong += wrong
                 compared += held.size
             else:
                 held = unpack_metres(body, posts)
@@ -184,8 +195,11 @@ def main(argv):
            "largest disagreement %.6f m at %s; two roundings of a centimetre allow %.2f" % (worst_depth[0], worst_depth[1] or "no depth tile", DEPTH_TOLERANCE_M))
     expect("the water's class matches post for post", counts[CLASS] > 0 and class_wrong == 0,
            "%d posts disagree of %d class tiles" % (class_wrong, counts[CLASS]))
+    expect("the ground cover matches post for post", counts[COVER] > 0 and cover_wrong == 0,
+           "%d posts disagree of %d cover tiles" % (cover_wrong, counts[COVER]))
     expect("the cache is inside the residency bound", all(n <= RESIDENCY for n in counts.values()),
-           "ground %d, depth %d, class %d held; the bound is %d each" % (counts[GROUND], counts[DEPTH], counts[CLASS], RESIDENCY))
+           "ground %d, depth %d, class %d, cover %d held; the bound is %d each"
+           % (counts[GROUND], counts[DEPTH], counts[CLASS], counts[COVER], RESIDENCY))
 
     if failures:
         print("tile_check: FAIL (%s)" % ", ".join(failures))

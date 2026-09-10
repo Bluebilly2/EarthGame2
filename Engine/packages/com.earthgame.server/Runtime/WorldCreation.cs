@@ -70,6 +70,8 @@ namespace EarthGame.Server
                 "PlantSpecies.All index + 1, 0 for none: " + SpeciesList(), by, nowUtcText));
             SaveLayer("topology", RegionRaster.WriteCodes(dir, "topology", heights, "topology", "u32", "flags", layers.TopologyMask,
                 "Topology bits: 1 sea, 2 beach, 4 dune, 8 wetland, 16 forest, 32 heath, 64 crest, 128 cliff, 256 shore platform, 512 lake, 1024 creek", by, nowUtcText));
+            SaveLayer("cover", RegionRaster.WriteCodes(dir, "cover", heights, "cover", "u8", "id", Widen(layers.Cover),
+                GroundCovers.Legend(), by, nowUtcText));
             SaveLayer("stone", RegionRaster.WriteCodes(dir, "stone", heights, "stone", "u8", "id", Widen(layers.Stone),
                 "StoneType.All index + 1, 0 for none: " + StoneList(), by, nowUtcText));
             uint[] catchment = new uint[count];
