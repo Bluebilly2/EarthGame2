@@ -2,6 +2,8 @@
 
 **Status:** design pillar, binding. Owner direction, 2026-08-25:
 *"i want to design a real ecosystem and let it form naturally."*
+Clarified by the owner on 2026-09-10 (CANON ruling 22): *"the idea that things are there because they should be
+is a guide for how it should be designed. dont need to literally simulate them coming into existence."*
 
 ## What was wrong
 
@@ -25,7 +27,7 @@ vegetation that nothing competed for. Each is the same mistake at a different le
 
 ## The chain
 
-Each link is a consequence of the one above it. Nothing in it is placed.
+Each link is a consequence of the one above it.
 
 | | Made by | Produces |
 |---|---|---|
@@ -36,49 +38,25 @@ Each link is a consequence of the one above it. Nothing in it is placed.
 | **5. Plants** | soil + climate + light, and competition | communities, not a biome stamp |
 | **6. Animals** | what the plants support | populations that eat, move and die |
 
+That is a rule for how the world is designed, not a history to be simulated (ruling 22). Nobody sees the world
+before its first load, so its first state is generated in one go from the country's own facts — a stone lies
+where that stone crops out, a stick where that tree stands — and from then on it changes as time passes and as
+players act. The generation has to be good, and it has to produce a state the chain could have reached.
+
 The founder's knowledge has to transfer at every link (§3). Someone who knows that a north-facing
 slope is drier, that a valley floor holds deeper soil, that river flats grow different trees from a
 ridge crest, should be able to act on all of it — and they will be right, because each of those is
 a consequence here rather than a rule.
 
-## What this replaces
+## How EarthGame2 builds it
 
-`TerrainSynthesis` classifies terrain and applies noise appropriate to the class. That gets the
-*character* of a place roughly right and the *structure* of it entirely wrong, because character
-was never the thing that made landforms. Erosion is not a filter applied to noise afterwards; it
-is the thing that produced the shape in the first place, and it has to run.
-
-The channel incision added while chasing the water problem was a fake of exactly this. It goes.
-
-## Where it runs
-
-Erosion is stateful and iterative, and the terrain is currently a pure function of position. The
-two are reconciled the way the drainage network already is: **simulate on a region grid, cache the
-result, and let the height function read it.** A region is computed once, deterministically, from
-its own coordinates — so it is still reproducible from nothing and still never saved, but within a
-region the ground is the outcome of a process rather than a formula.
-
-## Build order
-
-- **E1 Landform** — **done.** A landscape evolution model: uplift, fluvial incision by stream power, hillslope
-  diffusion. This is the slice that makes valleys exist. `SLICE_E1_EROSION.md`.
-- **E2 Water, again** — **done.** The incision hack is deleted; the drainage now follows valleys that water made,
-  and the water sits in them. Wetlands where the ground is flat and wet, ponds only in real basins.
-- **E3 Soil** — **done.** Depth from weathering against creep from what the model deposited; texture from the rock it came from;
-  drainage from slope and position. Litter and moisture already read from the ground — they start
-  reading this instead.
-- **E4 Plants** (`SLICE_E4_PLANTS.md`) — **done.** Eight species described by what they can stand,
-  contesting every site; suitability multiplies its conditions, so one a plant cannot meet rules it
-  out however good the rest are. Measured on the real landscape: she-oak 98% of the dry exposed
-  crests, stringybark 77% of the mid slopes, silver wattle 68% of the gully margins, ribbon gum 66%
-  of the wet flats, with a genuine ecotone between each. Exposure came out inversely correlated
-  with wetness on its own — crests dry and windy, hollows wet and sheltered — because the erosion
-  made both.
-- **E5 Animals** (`CONTRACT_E5_ANIMALS.md`) — **in flight.** What the plants can support:
-  capacity from the E4 communities, presence as a stateless seeded function on the day's own
-  clock, four pre-human species at the wake site.
-
-E1–E4 are done. E5 was reached 2026-09-01 and its contract exists.
+v1 built the chain on a global grid of about 9.8 km a pixel, so it had to make its own landform by erosion (its
+E-slices, `Docs/v1/SLICE_E1_EROSION.md` onwards). EarthGame2 starts from real elevation at 4 to 8 m, whose
+valleys are already the record of what water did, so it does not erode (ARCHITECTURE §3, decision of
+2026-09-07): links 1 and 2 are the data, and links 3 to 6 are computed from them once, when a world is created,
+and saved as its layers (`WorldLayers`). What the layers say is the world's first state. The things that stand
+and lie in it — trees, shrubs, grass, stones, litter — are to be generated from those layers, and are not built
+yet (DEBTS.md); the simulation takes the world on from there.
 
 ## The test that decides whether this worked
 
@@ -93,7 +71,7 @@ The chain above was built in v1 on a Southern Highlands species list. v2's regio
 southern shore of Jervis Bay (ARCHITECTURE §3), and the species are its own. Each row names where the plant
 stands on the peninsula and what its tolerances in `PlantSpecies.cs` are set from. The tolerances are not
 measurements: they are Claude's reading of the habitat each source describes, stated as numbers so that a
-person who knows the country can dispute them line by line (the owner's lane in the M1.2 contract).
+person who knows the country can dispute them line by line (checked against published sources by the agent: CANON ruling 21).
 
 Sources: the Booderee National Park management plan's vegetation communities (Director of National Parks;
 the park is the Commonwealth half of the peninsula); PlantNET, the NSW flora online (Royal Botanic Gardens
@@ -154,7 +132,8 @@ census a world creation prints (`census.txt`) is these rules read out over the r
   within 500 m of the region's edge, under 2 m, steeper than ten degrees, a lake, a swamp, a creek or a stream
   underfoot, ground as wet as a swamp's, the cliff or the platform itself. Ties go to the least wind exposure
   (the site's, the coast's salt wind included), then the first cell in row order. The census prints the winner's
-  reading, the region's stated wake's reading in the same terms, and the water by name.
+  reading and the water by name (and, until it is taken out of the code, the distance to the point ruling 20
+  withdrew).
 
 ### The animals of Bherwerre (M1.2, promise 5)
 
@@ -170,4 +149,4 @@ ceiling that `AnimalCapacity` scales down by forage, water and slope. The source
 
 What the list leaves out, and why: the swamp wallaby, the echidna, the bandicoot and the possums of the
 peninsula's record wait on M1.7's second contract; the megafauna are absent because the peninsula has no
-fossil record of them and CANON.md asks every species to be justified from the regional record.
+fossil record of them the canon has them (2026-08-25), and this list names only what the peninsula's own record supports.

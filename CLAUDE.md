@@ -5,12 +5,14 @@ points here rather than repeating them: one file, one set of rules, no drift bet
 
 ## Read first
 - `Docs/GAME_DESIGN.md` — the constitution (owner-authored; § numbering is the shared vocabulary).
-- `Docs/CANON.md` — the owner's dated rulings and the constitutional amendments. Owner rulings are amended only by
-  a later dated entry.
+- `Docs/CANON.md` — what the owner has decided, kept current, and the constitutional amendments. Only his
+  decisions go there.
 - `Docs/ARCHITECTURE.md` — how it is built (living; amended in the same commit as any change that contradicts it).
 - `Docs/STANDARDS.md` — the laws of code and proof, each dated and carrying its failure story; demotable by a
   dated entry, never silently ignored.
 - `Docs/DEBTS.md` — what is owed and by whom. There are no TODO comments in code.
+- `Docs/WORKING.md` — how the work is done here: the loop, working with the owner, the checklist before a commit,
+  and this machine's traps.
 - The current contract under `Docs/contracts/` — what the slice in flight promises and how it is proved.
 
 ## Layering and the commands

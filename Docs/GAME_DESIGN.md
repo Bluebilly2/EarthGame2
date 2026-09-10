@@ -7,11 +7,10 @@
 > technical decisions, prefer solutions that preserve the principles below even if the first
 > implementation is simplified.
 >
-> Note on the current prototype: `Docs/ARCHITECTURE.md` describes the first-person planet-walker
-> prototype (small procedural planet, Unity, Built-in RP). That prototype is a presentation-layer
-> walking skeleton — it proves first-person embodiment on a spherical world with a seamless
-> ground-to-space transition. It intentionally does NOT yet satisfy Section 2 (real Earth) or the
-> simulation architecture below. See Section 45 for the mandated first simulation slice.
+> Note for EarthGame2 (2026-09-10): the planet-walker prototype this note once described was v1's
+> (`Docs/v1/ARCHITECTURE.md`). EarthGame2's architecture is `Docs/ARCHITECTURE.md`, and the dated amendments
+> to this constitution (§45's first slice deferred; §2's Earth begun as one bounded real region) are in
+> `Docs/CANON.md`.
 
 ---
 

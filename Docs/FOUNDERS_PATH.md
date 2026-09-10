@@ -10,6 +10,13 @@ objectives the founder is met with. This creates a defined length of the game; w
 problem in later versions."* Constraints already fixed by the owner: stranger-shippable bar;
 animals and weather in; procedural sound.
 
+> **Reading this in EarthGame2 (2026-09-10).** The arc, its purpose and the owner's settled points are binding
+> as signed. Three things in it belong to v1 and are read that way: the place is now Bherwerre on Jervis Bay
+> (CANON ruling 8); the systems it lists as existing and tested exist in v1's engine and are ported into
+> EarthGame2 slice by slice, most of them not yet; and FABLE, DEV 1 and "the queue" were v1's agents and work
+> queue. The "animals present, not hunted" reconciliation was FABLE's, open to the owner's veto, and CANON
+> does not treat it as his.
+
 ## How a "path" can exist in a game that forbids scripts
 
 GAME_DESIGN §5–6 forbids a hand-authored quest line, and this document does not create one.
@@ -106,7 +113,7 @@ preservation move to *Beyond the beta*. (FABLE's reconciliation — owner may ve
 ## What a developer must see (the demo lens the purpose demands)
 
 Ninety minutes must carry the vision. The arc is staged so these are unmissable: **a real
-place** (Seven Mile Beach as itself); **an oracle that cannot lie** (ask it anything; its
+place** (Bherwerre as itself); **an oracle that cannot lie** (ask it anything; its
 answer is the same model the world runs); **materials over recipes** (damp tinder fails and
 says why; two flakes off one core are different tools); **building judged by physics** (the
 windbreak on the wrong side does nothing); **a world that made itself** (valleys water cut,
@@ -161,7 +168,7 @@ and spoilage (S–M), the multi-day storm and the solstice finale (S), deadfall 
 components (S).
 
 Everything else the path uses — thermal physics, knapping, cordage, fire, forage/roast/pound,
-sleep, locomotion, saves, the oracle — **already exists and is tested.**
+sleep, locomotion, saves, the oracle — **already exists and is tested in v1's engine**, and is ported into EarthGame2 slice by slice.
 
 ## Settled by the owner, 2026-09-01
 

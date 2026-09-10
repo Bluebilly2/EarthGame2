@@ -1,6 +1,11 @@
 # The Civilisation of One
 ### A chronicle of the ascent, from bare skin to self-replicating industry
 
+> **Status (2026-09-10).** The narrative the project started from (in v1's first commit, 2026-08-25), kept as
+> the picture of where the game is going. Where it disagrees with a later ruling, the ruling stands: the
+> founder is ageless (CANON, 2026-08-25), so the race against old age in *The Standing Question* is not the
+> game's; and the first world is Bherwerre on Jervis Bay (ruling 8), not the Southern Highlands.
+
 ---
 
 ## Prologue: The Anomaly

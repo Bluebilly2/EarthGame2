@@ -12,7 +12,8 @@ joined by an in-memory transport, every message serialised; a friend joins the s
 dedicated server is the same server object in a console with no client. The world is a bounded 8 × 8 km region
 on a tangent plane anchored at a real place (Bherwerre Peninsula, NSW), its ground the record of real elevation
 data at 5–30 m with procedural detail only below that, its soil, plants and animals derived from that ground
-once at world creation and saved as layers. Nothing in the landscape is placed.
+at world creation and saved as layers: the world starts in a generated state that follows from the country, and
+changes from there by simulation and by what players do (CANON ruling 22).
 
 ## 2. Assemblies
 
@@ -60,8 +61,9 @@ still runs on the main thread; this slice does not claim a frame-time budget for
   that no other literal metre appears in the world code. The edge: the sea on the coast sides; on land a soft
   boundary with a "not yet" vignette on the client; animals treat it as impassable; a static far skirt draws
   what lies beyond.
-- **Region:** `bherwerre` — centre 35.140°S 150.675°E; box 150.6311–150.7189°E, 35.1761–35.1039°S; wake point
-  about 35.159°S 150.6485°E (Cave Beach swale, snapped to the 1 m DEM at bake time). Fallback region: Ulladulla.
+- **Region:** `bherwerre` — centre 35.140°S 150.675°E; box 150.6311–150.7189°E, 35.1761–35.1039°S; `Region.Bherwerre`
+  still carries a stated wake point (about 35.159°S 150.6485°E) that CANON ruling 20 withdrew, and taking it out
+  of the code is owed (DEBTS.md); the wake is the scorer's (below). Fallback region: Ulladulla.
 - **Data at the region's true resolution:** AWS Terrain Tiles at zoom 14–15, baked by `Tools/data/bake_region.py`
   to `Data/regions/bherwerre/heights.r32` with a sidecar recording the effective source resolution per tile
   (SRTM 30 m inland, Geoscience Australia 5 m where present). Procedural detail (v1's `TerrainSynthesis` recipes
@@ -83,17 +85,19 @@ still runs on the main thread; this slice does not claim a frame-time budget for
 - **Layer format:** `eg2.raster` version 2 (§10): a raw grid and a JSON sidecar (name, layer, dtype, scale,
   unit, shape, frame, source, checksum), written by the Python bake and by `RegionRaster.Write` in the pipeline
   and read by `RegionRaster`; the loader's tests pin both writers to one fixture by checksum. The world folder's
-  layers and their dtypes are §10's table; the ground-colour layer waits for M1.4.
+  layers and their dtypes are §10's table, the ground's cover among them since M1.4d.
 - **The wake point** is chosen by the world-creation pipeline (`WakeScorer`) scoring every standable cell
   against the criteria (fresh water 500 m, knappable stone 1 km, fibre and firewood 500 m, shelter rock 2 km),
   each graded from the thing itself to three times its distance so that the product has one best place rather
   than a plateau; a cell is no place to wake when it is sea, within 500 m of the region's edge, under 2 m,
   steeper than ten degrees, water underfoot (a lake, a swamp, a creek), sodden ground or the shelter rock
   itself; ties go to the least wind exposure. The winner is written into `world.json`; the same scorer read out
-  in words, with the water read out by name, is the census (`census.txt`), and `Region`'s stated wake is the
-  census's expectation.
-- **The ground-colour oracle** (v1's `GroundColourAt`) is the one function that says what a square metre looks
-  like from what it is; terrain textures, grass, litter and impostors all derive from it.
+  in words, with the water read out by name, is the census (`census.txt`); until it is taken out of the code, the census also reports
+  the distance to `Region`'s withdrawn point.
+- **What the ground looks like** is two facts with one owner each, one on either side of the wire:
+  `GroundCovers.Of` in the engine says what covers a cell (the world's `cover` layer, M1.4d), and `GroundPalette`
+  in ClientCore says what that cover looks like. The terrain's colour, and later grass, litter and impostors, ask
+  those two and nothing else. v1's `GroundColourAt` was one function; the split is the price of the wire (§8).
 - **Climate:** `Climate`/`Synoptic`/`Weather` ported; station 068034 (Point Perpendicular Lighthouse, 1899–2004)
   with 068072 (Nowra) as the second anchor; pre-human baseline by the owner's rule; the known 03:00-minimum
   defect fixed as a contracted step.
@@ -237,21 +241,22 @@ id. `RegionSaveTests` holds the save law by sabotage: each persisted field flipp
   the held-tick pause driven from the player's own log) and `Tools/verifiers/checks/join_check.py` recomputes
   N1–N4 from the logs.
 - **Plan B (true cost):** FishNet 4.7 requires the server to be a Unity process; adopting it replaces
-  `EarthGame.Server`'s replication and its dotnet tests and forfeits the pure-.NET dedicated server. Decided at
-  the week-3 checkpoint against N1–N4 only.
+  `EarthGame.Server`'s replication and its dotnet tests and forfeits the pure-.NET dedicated server. Not taken:
+  at the checkpoint the owner kept the hand-rolled netcode (CANON ruling 19, 2026-09-10).
 
-### 7.1 The M1.B checkpoint criteria (owner ruling, ratified 2026-09-07 with three amendments)
+### 7.1 The M1.B checkpoint criteria (owner ruling 11, ratified 2026-09-07 with three amendments; decided 2026-09-10)
 
 "Healthy" has no adjectives. The decision is made against N1–N4 and nothing else; if any fails and cannot pass
 within one further contracted week, plan B is taken. Sunk cost does not vote. Each is measured by a scenario the
-corpus runs, its raw results in the contracted run logs (§10), recomputed independently by the owner's
-`join_check.py`.
+corpus runs, its raw results in the contracted run logs (§10), recomputed independently by
+`join_check.py`. The owner decided on the corpus of 2026-09-08, every row green: the hand-rolled netcode stays
+(CANON ruling 19). Later slices go on measuring N1 under the same conditions (`Tools/world/stream.py`).
 
 - **N1 Join-in-progress, time-to-interactive.** *Interactive* = the joining client holds the nine 1 km layer
   tiles around its player, has collidable ground under the player, and has applied its first entity snapshot.
   Pass: ≤ 10 s at 100 ms RTT ±20 ms jitter, 2% loss, 10 Mbit/s send cap; ≤ 20 s at 200 ms RTT, 5% loss,
-  5 Mbit/s send cap. (Nine tiles of heights, community and colour are about 3 MB compressed, roughly 2.5 s at
-  10 Mbit/s; 10 s is where a person suspects a hang; 200 ms and 5% loss is worse than any Australia-to-Australia
+  5 Mbit/s send cap. (Nine tiles were first estimated at about 3 MB compressed; measured, the four layers streamed
+  since M1.4d come to about 490 KB. 10 s is where a person suspects a hang; 200 ms and 5% loss is worse than any Australia-to-Australia
   link.)
 - **N2 Corrections on the scripted walk.** The ten-minute walk uses legal inputs only, so every server
   correction is a false positive by construction. Pass: ≤ 0.5 corrections per player-minute over the whole walk;
@@ -317,8 +322,9 @@ corpus runs, its raw results in the contracted run logs (§10), recomputed indep
   Stopwatch budget, never an item count), culling/submit 2.0, physics 1.5, fauna 1.0, UI/scripts 1.0. VRAM ceiling
   3,500 MB of content. Measurement: uncapped, visible window on a named display at a stated resolution,
   median/p95/worst, machine load recorded.
-- Terrain: tiled Unity Terrain (64 tiles of 1 km at 1025 posts; the 3×3 around each player at full detail and
-  collidable; a static far skirt beyond the boundary). Each streamed tile carries its own terrain layer, whose
+- Terrain: tiled Unity Terrain (kilometre tiles streamed at 513 posts, `TerrainTileBuilder.TilePosts`, the
+  3 × 3 around each player collidable; the coarse ring over the region and the 64 km skirt beyond it at 1025,
+  `CoarsePosts`). Each streamed tile carries its own terrain layer, whose
   picture is that tile's cover (above); the coarse ring and the skirt keep the flat layer, because a cover is a
   fact of a world and they are read from the region's bake. Grain underfoot waits for a terrain material that can
   multiply a tiled detail texture by the colour map: the stock layer blends, and a blend washes the colour out
@@ -365,9 +371,9 @@ mandatory in every file from the first write.
 ## 11. Verification
 
 - `dotnet test Engine/EarthGame.slnx` — the engine-free suite; exit code is the verdict; never piped.
-- `Tools/gate/run_gate.py <gate>` — refuses when an owner verifier is missing or a stub, then runs the gate's
-  steps; `Tools/hooks/pre-push` runs the engine suite, the Unity compile check when present, and the verifier-lane
-  authorship rule.
+- `Tools/gate/run_gate.py <gate>` — refuses when a verifier is missing or a stub, then runs the gate's
+  steps; `Tools/hooks/pre-push` runs the engine suite, and the Unity compile check when present (its third check,
+  the verifier-lane authorship rule, went with CANON ruling 17).
 - Unity edit-mode tests: the settings checklist, prefab instantiation, registry completeness, the
   `MaterialPropertyBlock` scan. Built-player scenario runs with frames and `run.jsonl` from M1.A.
 
@@ -375,7 +381,7 @@ mandatory in every file from the first write.
 
 | Date | Decision | Why |
 |---|---|---|
-| 2026-09-07 | Hand-rolled protocol over the engine-free core; FishNet is plan B | FishNet/NGO/Mirror require a Unity server process, forfeiting the engine-free server, its dotnet tests and the pure-.NET dedicated server |
+| 2026-09-07 | Hand-rolled protocol over the engine-free core; FishNet is plan B | FishNet/NGO/Mirror require a Unity server process, forfeiting the engine-free server, its dotnet tests and the pure-.NET dedicated server. Kept by the owner at the checkpoint (CANON ruling 19, 2026-09-10) |
 | 2026-09-07 | Client-authoritative movement validated by the server; mover as a pure function in the engine | What Minecraft and Rust actually ship; prediction later is a switch, not a rewrite |
 | 2026-09-07 | No landform evolution on real data | With 5–30 m data the valleys are already the record; erosion would re-carve a real place |
 | 2026-09-07 | Fauna materialised from the presence function inside the interest radius | One source of expectation, one authority for what exists |
@@ -405,7 +411,7 @@ mandatory in every file from the first write.
 | 2026-09-09 | The sea's floor is a rule (one in twenty from the shore, to 30 m) until the Geoscience Australia grids are read | The tiles carry no bathymetry; wading needed a floor at the shore, and the shelf off this coast is of that order (`region_stats.py --world` checks the rule, not the sea) |
 | 2026-09-09 | Lakes are found before the drainage and are its sinks; the ground's flats are one level with a rim, and the mapped outlines (OpenStreetMap, `bake_water.py`) stand at the median of the bake's ground inside them | A fill that had to spill read Windermere's closed basin as a 106 ha pond thirty metres deep; the tiles are noise over these lakes (12 to 50 m inside Windermere's outline, a bowl inside McKenzie's), so the outlines are the only evidence of where the water is, and the median is the level the ground itself supports |
 | 2026-09-09 | The wake's criteria grade from the thing itself to three times the stated distance; sea, the region's edge, low ground, steep ground, water underfoot, sodden ground and the shelter rock itself are no place to wake; ties go to the least wind exposure | Threshold factors scored a whole coast at 1.000 and woke the founder at the first cell in row order on the north edge; then in a creek mouth on a platform; then at a paperbark swamp's edge. Each rule is named in the census so the owner can call it wrong |
-| 2026-09-09 | `Region`'s stated wake stays at 35.159°S 150.6485°E although Destination NSW and OpenStreetMap put Cave Beach 2.1 km east of it | CANON ruling 8 names the number; the corpus scenarios' loop is laid out from the spawn and M1.B's numbers were run on that ground; `census_check.py` keeps the row red and DEBTS.md names the owner's ruling |
+| 2026-09-09 | `Region`'s stated wake stays at 35.159°S 150.6485°E although Destination NSW and OpenStreetMap put Cave Beach 2.1 km east of it | CANON ruling 8 names the number; the corpus scenarios' loop is laid out from the spawn and M1.B's numbers were run on that ground; `census_check.py` keeps the row red and DEBTS.md names the owner's ruling. The point itself was withdrawn by CANON ruling 20 (2026-09-10); taking it out of the code is owed |
 | 2026-09-09 | The oystercatcher forages by the tideline: its water factor is the shore's, not fresh water's | A shorebird that needed a creek within range had no capacity on the beach it lives on |
 | 2026-09-09 | The gate creates a world under `Artefacts/worlds/gate` (`Tools/world/create.py`) and the verifiers read that folder | A verifier that read a hand-made probe would check yesterday's code; the folder is rebuilt from the current host on every gate run and lists its layers with their sizes and checksums, as the contract asks to see them |
 | 2026-09-09 | An entity's fields carry the tick they changed at; a session's interest set carries the tick of its last send per entity; what is sent is the fields stamped at or after that tick | A dirty flag cleared after a broadcast is cleared for the session whose byte budget deferred the message too; stamps are dirtiness per viewer, and the budget defers without losing |
