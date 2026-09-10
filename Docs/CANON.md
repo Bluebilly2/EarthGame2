@@ -142,3 +142,19 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     Bherwerre is not his lane. The agent researches the real place from published sources, names them, and
     records where the generated world disagrees as debts or fixes. What the owner keeps is the look (frames) and
     the feel (hands); a description of country he has not walked is neither.
+
+22. **The chain of consequences is a design rule, not a simulation requirement.** The owner, on being told that
+    things in the world must arrive as consequences and never as a spawn table: "on my ecosystem ruling, the idea
+    that things are there because they should be is a guide for how it should be designed. dont need to literally
+    simulate them coming into existence." The 2026-08-25 ruling stands as what it always meant: **what exists
+    where must follow from the country** — a stone lies there because that stone outcrops there, a stick lies
+    there because that tree stands there. What is not required is simulating the history that put it there. The
+    world may place things directly from the facts it already holds; it must not place them from a list that owes
+    the country nothing.
+
+23. **The ground's colour is not judged on an empty plane.** The owner, sent the palette and the frames: "in the
+    pictures, everything is incredibly smooth, will it be like that for long? judging quality of the colour
+    palette feels arbitrary when it is just a coloured smooth plane." The judgement of M1.4d's palette is
+    deferred, not given: ground colour is mostly seen between and under the things standing on it, and nothing
+    stands on it yet. The palette is asked about again when the country has grain underfoot, relief below 4 m,
+    and plants — and the frames that ask are frames with those in them.
