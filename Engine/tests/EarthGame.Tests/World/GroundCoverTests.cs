@@ -72,6 +72,30 @@ namespace EarthGame.Tests.World
                 Is.EqualTo(GroundCover.ForestFloor), "nothing growing under it, so what shows is the litter");
         }
 
+        /// <summary>
+        /// The dune is asked what grows on it before it is called sand (M1.2b, 2026-09-10): the other way round,
+        /// every dune on the peninsula read as bare sand, where the park says the dunes are held by what grows on
+        /// them. Sand shows only where nothing grows, or only the sand-binder, whose runners leave it showing.
+        /// </summary>
+        [Test]
+        public void OnTheDuneWhatGrowsIsWhatShows()
+        {
+            Assert.That(Of(WaterClass.Dry, Topology.Dune, PlantSpecies.Lomandra, PlantSpecies.CoastBanksia), Is.EqualTo(GroundCover.Sedge));
+            Assert.That(Of(WaterClass.Dry, Topology.Dune | Topology.Heath, PlantSpecies.HeathBanksia, null), Is.EqualTo(GroundCover.Heath));
+            Assert.That(Of(WaterClass.Dry, Topology.Dune, PlantSpecies.KangarooGrass, null), Is.EqualTo(GroundCover.Grass));
+            Assert.That(Of(WaterClass.Dry, Topology.Dune, null, PlantSpecies.CoastBanksia), Is.EqualTo(GroundCover.ForestFloor),
+                "a banksia with nothing under it drops its litter on the dune as anywhere");
+            Assert.That(Of(WaterClass.Dry, Topology.Dune, null, null), Is.EqualTo(GroundCover.DuneSand), "where nothing grows the dune is sand");
+            Assert.That(Of(WaterClass.Dry, Topology.Dune, PlantSpecies.Spinifex, null), Is.EqualTo(GroundCover.DuneSand),
+                "and where only the sand-binder grows, the sand shows through it");
+            Assert.That(Of(WaterClass.Dry, Topology.Dune | Topology.Cliff, null, null), Is.EqualTo(GroundCover.DuneSand),
+                "a dune's steep face is still sand: the dune is asked before the cliff");
+            Assert.That(Of(WaterClass.Dry, Topology.None, PlantSpecies.Spinifex, null), Is.EqualTo(GroundCover.BareEarth),
+                "off the dune a pioneer leaves its ground showing too");
+            Assert.That(Of(WaterClass.Dry, Topology.Beach, PlantSpecies.Lomandra, null), Is.EqualTo(GroundCover.Sand),
+                "and the beach is sand whatever a layer claims grows on it");
+        }
+
         [Test]
         public void ACoverAndAQuarterGoInAndComeOut()
         {

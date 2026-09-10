@@ -6,35 +6,43 @@ from the layers it is made of — the water class, the topology, the plant commu
 wetness — by the cascade restated below from the contract, in numpy, importing nothing the game runs. A cover
 that agreed with the engine because it called the engine would be a stub with extra steps.
 
-The cascade, as `Docs/contracts/M1.4_GROUND_COLOUR.md` promise 1 states it, first match winning:
+The cascade, as `Docs/contracts/M1.4_GROUND_COLOUR.md` promise 1 states it and the M1.2b contract
+(`Docs/contracts/M1.2_PLANTS_AGAINST_RECORDS.md`, promise 5) reorders it, first match winning:
 
     salt water                        -> sea
     lake, stream or creek             -> fresh water
     topology wetland                  -> swamp floor
     topology beach                    -> sand
-    topology dune                     -> dune sand
+    topology dune                     -> what grows there, as below; dune sand where nothing does
     topology cliff or shore platform  -> rock
     soil not deeper than 5 cm         -> rock
-    understory shrub                  -> heath
-    understory bracken                -> bracken
-    understory herb                   -> sedge
-    understory grass                  -> grass
-    a canopy with nothing under it    -> forest floor
+    what grows there:
+      understory shrub                -> heath
+      understory bracken              -> bracken
+      understory herb                 -> sedge
+      understory grass                -> grass
+      a canopy with nothing under it  -> forest floor
     otherwise                         -> bare earth
+
+where the pioneer, the sand-binder, is passed over as an understory: it holds its ground thinly, and the ground
+shows through it.
 
 and the byte is that cover in the low six bits with the quarter of the land's own wetness (0 to 1, quartered at
 0.25, 0.5 and 0.75) in the top two.
 
 The plants' forms are not in any layer: the sidecar's legend names the species and this file holds the form of
-each, from `Docs/ECOSYSTEM.md` and the field guides it cites. A species the table does not know fails the check
-rather than being guessed at, which is what should happen when the species list grows and nobody told the ground.
+each, from `Docs/ECOSYSTEM.md` and the field guides it cites, with the one pioneer (the plant ECOSYSTEM.md gives a
+ceiling of soil) held as its own form. A species the table does not know fails the check rather than being guessed
+at, which is what should happen when the species list grows and nobody told the ground.
 
 A post the layers cannot decide is not counted against either side. The cascade turns on two thresholds — soil
 deeper than 5 cm, and the quarters of wetness at 0.25, 0.50 and 0.75 — and the engine read the true numbers while
 this check reads the record of them, which is stored to the centimetre and to one part in 255. A post whose
 stored value sits within half a step of a threshold could honestly be on either side, so it is counted and named
 rather than failed: on the first run of this check they were 17 posts of four million at exactly 5 cm of soil,
-and 5,731 within half a step of a wetness cut (2026-09-10). Everything else must agree exactly.
+and 5,731 within half a step of a wetness cut (2026-09-10). Only a post the cascade asks about its soil can sit on
+that edge; the water, the wet ground, the beach, the dune and the cliffs are decided before it. Everything else
+must agree exactly.
 
 Rows, each with both numbers:
   1. every post's cover matches the cascade, but for those the stored soil depth cannot decide;
@@ -77,8 +85,9 @@ QUARTERS = 4
 FORMS = {
     "Blackbutt": "tree", "Bangalay": "tree", "OldManBanksia": "smalltree", "CoastBanksia": "smalltree",
     "SwampPaperbark": "smalltree", "GrassTree": "shrub", "HeathBanksia": "shrub", "Bracken": "bracken",
-    "Lomandra": "herb", "SawSedge": "herb", "KangarooGrass": "grass", "Spinifex": "grass",
+    "Lomandra": "herb", "SawSedge": "herb", "KangarooGrass": "grass", "Spinifex": "pioneer",
 }
+# No cover for the pioneer: it is passed over, and the ground under it decides.
 FORM_COVER = {"shrub": HEATH, "bracken": BRACKEN, "herb": SEDGE, "grass": GRASS}
 
 
@@ -137,16 +146,23 @@ def main(argv):
     def put(mask, value):
         np.copyto(computed, np.uint8(value), where=(computed == 0) & mask)
 
+    def grown(where):
+        """What grows decides, the understory before the canopy; the pioneer is passed over."""
+        for form, cover in FORM_COVER.items():
+            put(where & np.isin(under, [i for i, f in forms.items() if f == form]), cover)
+        put(where & (over > 0), LITTER)
+
     put(water == W_SEA, SEA)
     put(np.isin(water, [W_LAKE, W_STREAM, W_CREEK]), FRESH)
     put((topo & T_WETLAND) > 0, SWAMP)
     put((topo & T_BEACH) > 0, SAND)
-    put((topo & T_DUNE) > 0, DUNE)
+    dune = (topo & T_DUNE) > 0
+    grown(dune)
+    put(dune, DUNE)
     put((topo & (T_CLIFF | T_PLATFORM)) > 0, ROCK)
+    asks_the_soil = computed == 0
     put(~(soil > BARE_SOIL_M), ROCK)
-    for form, cover in FORM_COVER.items():
-        put(np.isin(under, [i for i, f in forms.items() if f == form]), cover)
-    put(over > 0, LITTER)
+    grown(np.ones(computed.shape, bool))
     put(computed == 0, BARE)
 
     quarter_stated = cover_stated >> 6
@@ -155,7 +171,7 @@ def main(argv):
     # What the record cannot decide: the stored value sits within half its own step of the threshold.
     soil_step = got["soil_depth"][0]["scale"]
     wet_step = got["wetness"][0]["scale"]
-    soil_undecidable = np.abs(soil - BARE_SOIL_M) <= soil_step / 2 + 1e-12
+    soil_undecidable = (np.abs(soil - BARE_SOIL_M) <= soil_step / 2 + 1e-12) & asks_the_soil
     cuts = np.arange(1, QUARTERS) / float(QUARTERS)
     wet_undecidable = np.zeros(wet.shape, bool)
     for cut in cuts:

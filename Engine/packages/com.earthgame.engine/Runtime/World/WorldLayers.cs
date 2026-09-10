@@ -196,10 +196,11 @@ namespace EarthGame.Engine
             w.SeaFloor();
             progress?.Invoke("Preparing water");
             w.WaterBodies();
+            progress?.Invoke("Reading landforms");
+            w.Landforms();
             progress?.Invoke("Growing plant communities");
             w.Community(seed);
-            progress?.Invoke("Reading landforms");
-            w.Topology();
+            w.Stands();
             progress?.Invoke("Reading the ground cover");
             w.Covers();
             progress?.Invoke("Finding stone");
@@ -554,7 +555,7 @@ namespace EarthGame.Engine
 
         // ---- the site a cell offers a plant ----
 
-        /// <summary>The site at a cell, before any canopy: wetness and depth from the soil, slope and openness from the ground, salt wind from the coast.</summary>
+        /// <summary>The site at a cell, before any canopy: wetness from the soil, the soil a root can use, slope and openness from the ground, salt wind from the coast.</summary>
         public PlantSite SiteAt(int row, int col)
         {
             int i = Index(row, col);
@@ -562,11 +563,34 @@ namespace EarthGame.Engine
             return new PlantSite
             {
                 Wetness = Soil.WetnessAt(col, row),
-                SoilDepthM = Soil.DepthAt(col, row),
+                SoilDepthM = RootingDepthM(i, coastWind),
                 Slope = Slope[i],
                 Exposure = Math.Max(Exposure[i], coastWind),
                 Shaded = false,
             };
+        }
+
+        /// <summary>
+        /// The soil a root can use, m: the soil model's depth, except on the sand the sea has laid down (M1.2b,
+        /// 2026-09-10).
+        ///
+        /// <para>The soil model measures the loose material over the rock, and under a beach or a dune that is sand
+        /// piled up, not soil formed. Soil forms on sand only where plants hold it long enough to build it, and the
+        /// salt wind is what stops them: so the beach, which the waves still rework, has none, and a dune has the
+        /// soil model's depth less the share of it the salt wind reaches. The young dune is left to the sand-binder,
+        /// and the plants that want soil start where it has formed. The animals are handed the same site, so a
+        /// burrower's ground thins on the young dune with the plants'.</para>
+        ///
+        /// <para>Found by holding the world against the Atlas of Living Australia's records: read as soil, the loose
+        /// sand kept spinifex off every dune (its ceiling is 20 cm) and grew bracken, a plant of the forest floor,
+        /// over half the ground within 100 m of the sea.</para>
+        /// </summary>
+        private double RootingDepthM(int i, double coastWind)
+        {
+            uint bits = TopologyMask[i];
+            if ((bits & (uint)Engine.Topology.Beach) != 0) return 0.0;
+            double depth = Soil.DepthM[i];
+            return (bits & (uint)Engine.Topology.Dune) != 0 ? depth * (1.0 - coastWind) : depth;
         }
 
         private void Community(ulong seed)
@@ -581,7 +605,9 @@ namespace EarthGame.Engine
                     var rng = new SimRandom(SimRandom.DeriveSeed(stream, i.ToString()));
                     double rollCanopy = rng.NextDouble();
                     double rollUnder = rng.NextDouble();
-                    PlantSpecies canopy = PlantCommunity.Canopy(site, rollCanopy);
+                    // Drawn third, so the two draws every world has made since M1.2 keep their values.
+                    double rollStand = rng.NextDouble();
+                    PlantSpecies canopy = PlantCommunity.Canopy(site, rollStand, rollCanopy);
                     Overstory[i] = (byte)(canopy == null ? 0 : IndexOf(canopy) + 1);
                     Suitability[i] = canopy == null ? 0f : (float)canopy.Suitability(site);
                     PlantSite under = site;
@@ -612,7 +638,12 @@ namespace EarthGame.Engine
 
         // ---- topology ----
 
-        private void Topology()
+        /// <summary>
+        /// The ground's own shapes: the sea, the shore, the beach and the dune, the cliffs, the water and the crests.
+        /// Read before anything grows, because the plants read them — nothing roots in a beach — and the plants' own
+        /// marks, the forest and the heath, are added by <see cref="Stands"/> once they have grown.
+        /// </summary>
+        private void Landforms()
         {
             ReadOnlySpan<float> z = Heights.Values;
             int reach = Math.Max(1, (int)Math.Round(HardCoastReachM / CellM));
@@ -648,10 +679,6 @@ namespace EarthGame.Engine
                     if (Water[i] == (byte)WaterClass.Creek || Water[i] == (byte)WaterClass.Stream) bits |= (uint)Engine.Topology.Creek;
                     if (shore <= DuneReachM && shore > ShoreReachM && h > PlatformMaxHeightM && !hardCoast && (bits & (uint)Engine.Topology.Wetland) == 0 && (bits & (uint)Engine.Topology.Lake) == 0)
                         bits |= (uint)Engine.Topology.Dune;
-                    PlantSpecies canopy = OverstoryAt(r, c);
-                    PlantSpecies floor = UnderstoryAt(r, c);
-                    if (canopy != null && canopy.Form == PlantForm.Tree) bits |= (uint)Engine.Topology.Forest;
-                    else if (floor != null && floor.Form == PlantForm.Shrub) bits |= (uint)Engine.Topology.Heath;
                     bool top = true;
                     for (int dr = -crest; dr <= crest && top; dr++)
                         for (int dc = -crest; dc <= crest; dc++)
@@ -662,6 +689,19 @@ namespace EarthGame.Engine
                         }
                     if (top && Exposure[i] > 0.3f) bits |= (uint)Engine.Topology.Crest;
                     TopologyMask[i] = bits;
+                }
+        }
+
+        /// <summary>The marks the plants leave on the landforms once they have grown: forest where a tree stands, heath where a shrub is the ground layer.</summary>
+        private void Stands()
+        {
+            for (int r = 0; r < Height; r++)
+                for (int c = 0; c < Width; c++)
+                {
+                    PlantSpecies canopy = OverstoryAt(r, c);
+                    PlantSpecies floor = UnderstoryAt(r, c);
+                    if (canopy != null && canopy.Form == PlantForm.Tree) TopologyMask[Index(r, c)] |= (uint)Engine.Topology.Forest;
+                    else if (floor != null && floor.Form == PlantForm.Shrub) TopologyMask[Index(r, c)] |= (uint)Engine.Topology.Heath;
                 }
         }
 

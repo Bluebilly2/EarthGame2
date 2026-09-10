@@ -83,6 +83,120 @@ namespace EarthGame.Tests.Engine
             Assert.That(w.StoneAt(155, 80), Is.Null, "nor on the sea");
         }
 
+        /// <summary>
+        /// The soil a root can use on sand is the soil that has formed there (M1.2b, 2026-09-10). The made coast's
+        /// planes hold more than a metre of loose material right down to the water, and a plant reading that as soil
+        /// would stand on the beach; the beach, which the waves rework, has none a root can use, and the dune has
+        /// more the further it lies from the sea.
+        /// </summary>
+        [Test]
+        public void OnTheSandTheSoilIsWhatHasFormedNotWhatHasPiledUp()
+        {
+            WorldLayers w = Layers();
+            Assert.That(w.Has(147, 80, Topology.Beach), Is.True);
+            Assert.That(w.Soil.DepthAt(80, 147), Is.GreaterThan(1.0f), "the soil model has sand under the beach");
+            Assert.That(w.SiteAt(147, 80).SoilDepthM, Is.EqualTo(0.0), "none of which a root can use");
+            Assert.That(w.OverstoryAt(147, 80), Is.Null);
+            Assert.That(w.UnderstoryAt(147, 80), Is.Null, "so the beach carries nothing");
+
+            // Up the dune well east of the lake, whose rim would put a slope of its own in the way; a flat that reads
+            // as swamp is not dune, and is stepped over.
+            double previous = 0.0;
+            int dunes = 0;
+            for (int row = 142; row >= 92; row -= 10)
+            {
+                if (!w.Has(row, 140, Topology.Dune)) continue;
+                dunes++;
+                double reads = w.SiteAt(row, 140).SoilDepthM;
+                Assert.That(reads, Is.LessThan(w.Soil.DepthAt(140, row)), "the dune's sand is not all soil at row " + row);
+                Assert.That(reads, Is.GreaterThan(previous), "and more of it is, the further from the sea: row " + row);
+                previous = reads;
+            }
+            Assert.That(dunes, Is.GreaterThanOrEqualTo(4), "the walk up the dune crossed dune");
+            Assert.That(w.Has(60, 140, Topology.Dune), Is.False, "the plain beyond the dunes");
+            Assert.That(w.SiteAt(60, 140).SoilDepthM, Is.EqualTo((double)w.Soil.DepthAt(140, 60)), "reads the soil model's depth as its soil");
+        }
+
+        /// <summary>
+        /// What the soil on the sand does to what grows (M1.2b): the sand-binder holds the young dune and is gone from
+        /// the dune where soil has formed, and the salt specialist stands only where the salt wind reaches.
+        /// </summary>
+        [Test]
+        public void TheSandBinderHoldsTheYoungDuneAndTheSaltSpecialistTheSaltWind()
+        {
+            WorldLayers w = Layers();
+            int young = 0, older = 0, coast = 0;
+            for (int r = 0; r < Side; r++)
+                for (int c = 0; c < Side; c++)
+                {
+                    if (w.UnderstoryAt(r, c) == PlantSpecies.Spinifex && w.Has(r, c, Topology.Dune))
+                    {
+                        if (w.ShoreDistanceM[r * Side + c] <= 150f) young++;
+                        else older++;
+                    }
+                    if (w.OverstoryAt(r, c) != PlantSpecies.CoastBanksia) continue;
+                    coast++;
+                    Assert.That(w.SiteAt(r, c).Exposure, Is.GreaterThan(PlantSpecies.CoastBanksia.MinExposure),
+                        "the coast banksia at row " + r + " col " + c + " stands in the salt wind");
+                }
+            Assert.That(young, Is.GreaterThan(0), "the sand-binder holds the dune nearest the sea");
+            Assert.That(older, Is.Zero, "and is gone from the dune where soil has formed");
+            Assert.That(coast, Is.GreaterThan(0), "and the salt specialist has somewhere to stand");
+        }
+
+        /// <summary>
+        /// A canopy stands as often as the ground suits trees (M1.2b): the salt-blown sand nearest the sea, where only
+        /// coast banksia grows at all, is more open than the plain behind it, and the made coast is not one closed
+        /// canopy.
+        /// </summary>
+        [Test]
+        public void TheCanopyOpensWhereTreesBarelyGrow()
+        {
+            WorldLayers w = Layers();
+            int land = 0, covered = 0, dune = 0, duneCovered = 0, plain = 0, plainCovered = 0;
+            for (int r = 0; r < Side; r++)
+                for (int c = 0; c < Side; c++)
+                {
+                    int i = r * Side + c;
+                    var water = (WaterClass)w.Water[i];
+                    if (water == WaterClass.Sea || water == WaterClass.Lake || WorldLayers.IsFresh(water)) continue;
+                    bool stands = w.Overstory[i] != 0;
+                    land++;
+                    if (stands) covered++;
+                    if (w.Has(r, c, Topology.Dune) && w.ShoreDistanceM[i] <= 150f) { dune++; if (stands) duneCovered++; }
+                    if (r >= 95 && r <= 105 && c >= 110) { plain++; if (stands) plainCovered++; }
+                }
+            double onDune = duneCovered / (double)dune, onPlain = plainCovered / (double)plain;
+            Assert.That(onDune, Is.LessThan(onPlain), "the young dune is more open than the plain: " + onDune.ToString("P0") + " against " + onPlain.ToString("P0"));
+            Assert.That(covered / (double)land, Is.LessThan(0.95), "and the coast is not one closed canopy: " + (covered / (double)land).ToString("P0"));
+        }
+
+        /// <summary>The dune is asked what grows on it before it is called sand (M1.2b), on the made coast as on the peninsula.</summary>
+        [Test]
+        public void TheDuneCarriesWhatGrowsOnIt()
+        {
+            WorldLayers w = Layers();
+            int dune = 0, held = 0;
+            for (int r = 0; r < Side; r++)
+                for (int c = 0; c < Side; c++)
+                {
+                    int i = r * Side + c;
+                    var water = (WaterClass)w.Water[i];
+                    if (!w.Has(r, c, Topology.Dune) || WorldLayers.IsFresh(water) || water == WaterClass.Swamp) continue;
+                    dune++;
+                    PlantSpecies under = w.UnderstoryAt(r, c), over = w.OverstoryAt(r, c);
+                    GroundCover cover = GroundCovers.CoverOf(w.Cover[i]);
+                    if ((under == null || under.IsPioneer) && over == null)
+                        Assert.That(cover, Is.EqualTo(GroundCover.DuneSand), "nothing holds row " + r + " col " + c + ", so it is sand");
+                    else
+                    {
+                        held++;
+                        Assert.That(cover, Is.Not.EqualTo(GroundCover.DuneSand), "something grows at row " + r + " col " + c + ", so it is not bare sand");
+                    }
+                }
+            Assert.That(held, Is.GreaterThan(dune / 2), "most of the dune is held by what grows on it: " + held + " of " + dune);
+        }
+
         [Test]
         public void TheAnimalsFollowTheirLivings()
         {

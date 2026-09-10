@@ -215,6 +215,59 @@ namespace EarthGame.Tests.Engine
             Assert.That(atLimit, Is.LessThan(wellInside * 0.5), "but well thinned by then: " + atLimit.ToString("F3") + " against " + wellInside.ToString("F3"));
         }
 
+        /// <summary>
+        /// The salt specialist's floor (M1.2b, 2026-09-10): coast banksia stands the salt wind the trees cannot, and
+        /// where the wind does not reach, the trees that wanted shelter take the ground. Without it the banksia held
+        /// two fifths of the real peninsula, most of it far from any salt.
+        /// </summary>
+        [Test]
+        public void ASaltSpecialistLosesWhereTheSaltWindDoesNotReach()
+        {
+            PlantSpecies coast = PlantSpecies.CoastBanksia;
+            PlantSite dune = Site(wetness: 0.25, soil: 0.40, exposure: 0.90);
+            PlantSite sheltered = Site(wetness: 0.25, soil: 0.40, exposure: 0.10);
+            Assert.That(coast.Suitability(dune), Is.GreaterThan(0.3), "the dune in the salt wind is its country");
+            Assert.That(coast.Suitability(sheltered), Is.EqualTo(0.0).Within(1e-9), "the same dry sand out of the wind is not");
+            PlantSpecies instead = Dominant(sheltered);
+            Assert.That(instead, Is.Not.Null.And.Not.EqualTo(coast), "and something else holds it: " + Name(instead));
+
+            double justAbove = coast.Suitability(Site(wetness: 0.25, soil: 0.40, exposure: coast.MinExposure + 0.02));
+            Assert.That(justAbove, Is.GreaterThan(0.0).And.LessThan(coast.Suitability(dune) * 0.5),
+                "thinned rather than cut just above the floor: " + justAbove.ToString("F3"));
+
+            int floored = 0;
+            foreach (PlantSpecies s in PlantSpecies.All)
+                if (s.MinExposure > 0.0) floored++;
+            Assert.That(floored, Is.EqualTo(1), "exactly one plant on this coast needs the salt wind to hold its ground; if that changes, this test should be the thing that notices");
+        }
+
+        /// <summary>
+        /// A tall plant stands on a cell as often as the ground suits the best of them (M1.2b, 2026-09-10). Drawn the
+        /// old way, any tree that could stand at all took the cell, and the peninsula came out under a canopy on all
+        /// but a tenth of a percent of its land.
+        /// </summary>
+        [Test]
+        public void ATreeStandsAsOftenAsTheGroundSuitsTrees()
+        {
+            PlantSite forest = Site(wetness: 0.55, soil: 1.00, exposure: 0.20);
+            PlantSite saltDune = Site(wetness: 0.20, soil: 0.14, exposure: 0.95);   // only coast banksia, and barely
+            PlantSite rock = Site(wetness: 0.50, soil: 0.00, exposure: 0.50);
+            const int n = 1000;
+            foreach (PlantSite site in new[] { forest, saltDune })
+            {
+                int stands = 0;
+                for (int i = 0; i < n; i++)
+                    if (PlantCommunity.Canopy(site, (i + 0.5) / n, 0.5) != null) stands++;
+                Assert.That(stands / (double)n, Is.EqualTo(PlantCommunity.CanopyCover(site)).Within(0.002),
+                    "a canopy on as many cells as the ground suits the best of the trees");
+            }
+            Assert.That(PlantCommunity.CanopyCover(forest), Is.GreaterThan(0.5), "the deep moist sand is mostly under trees");
+            Assert.That(PlantCommunity.CanopyCover(saltDune), Is.LessThan(0.2), "the salt-blown dune is mostly open");
+            Assert.That(PlantCommunity.CanopyCover(rock), Is.EqualTo(0.0), "and bare rock carries none");
+            Assert.That(PlantCommunity.Canopy(saltDune, 0.99, 0.5), Is.Null, "a roll past the cover leaves the cell open");
+            Assert.That(PlantCommunity.Canopy(saltDune, 0.01, 0.5), Is.SameAs(PlantSpecies.CoastBanksia), "and a roll inside it draws the tree as before");
+        }
+
         [Test]
         public void TheBarkThatStripsIsTheBarkAPersonWouldStrip()
         {

@@ -60,3 +60,14 @@ under `Data/`, fetched and never committed; the Overpass response is cached unde
 sidecar names every way used. Data (c) OpenStreetMap contributors, made available under the Open Database
 Licence 1.0: https://www.openstreetmap.org/copyright and https://opendatacommons.org/licenses/odbl/1-0/. Any
 world folder that carries layers derived from it carries this attribution in the layer's sidecar.
+
+## Atlas of Living Australia occurrence records — each record under its resource's licence
+
+Where Bherwerre's twelve plants have been recorded is fetched from the Atlas of Living Australia's occurrence web
+service (biocache, https://biocache-ws.ala.org.au/ws/) by `Tools/data/fetch_ala.py` and cached under
+`Data/cache/ala/` (a dataset under `Data/`, fetched and never committed, and never shipped). It is read only by
+`Tools/verifiers/checks/species_check.py`, to check the world against it; nothing in a world or a build is derived
+from it. Every record keeps the licence and the name of the data resource it came from beside it in the cache: at
+the fetch of 2026-09-10 most were CC-BY 4.0, others CC-BY-NC 4.0, CC-BY 3.0 AU, CC0 or CC-BY-SA, and some
+resources state none. Attribution: the Atlas of Living Australia (https://www.ala.org.au/) and the data providers
+named in each record's `resource` field.

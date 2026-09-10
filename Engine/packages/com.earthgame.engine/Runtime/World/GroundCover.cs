@@ -72,8 +72,15 @@ namespace EarthGame.Engine
 
         /// <summary>
         /// What covers a cell, from what the world made of it. The order is the whole rule and it reads as a
-        /// person reads country: what is under water, then what is wet ground, then what is sand or rock, then
-        /// what grows on it, and only then the litter of a canopy with nothing underneath.
+        /// person reads country: what is under water, then what is wet ground, then the beach; then what grows on
+        /// the dune, or the dune's own sand where nothing does; then rock; then what grows on everything else, and
+        /// only then the litter of a canopy with nothing underneath.
+        ///
+        /// <para>The dune is asked what grows on it before it is called sand (M1.2b, 2026-09-10). Asked the other
+        /// way round, every dune on the peninsula read as bare sand, where the park that holds them says they are
+        /// held by what grows on them. The beach stays sand, because nothing roots in it
+        /// (<see cref="WorldLayers.SiteAt"/>), and a pioneer is passed over wherever it grows: it holds ground
+        /// nothing else will and holds it thinly, so what shows between its runners is the ground.</para>
         ///
         /// <para>The understory is asked before the canopy because the ground under an open banksia is the
         /// ground layer, not the tree: asking the canopy first painted a third of the peninsula as one colour
@@ -85,10 +92,16 @@ namespace EarthGame.Engine
             if (water == WaterClass.Lake || water == WaterClass.Stream || water == WaterClass.Creek) return GroundCover.FreshWater;
             if ((topology & (uint)Topology.Wetland) != 0) return GroundCover.SwampFloor;
             if ((topology & (uint)Topology.Beach) != 0) return GroundCover.Sand;
-            if ((topology & (uint)Topology.Dune) != 0) return GroundCover.DuneSand;
+            if ((topology & (uint)Topology.Dune) != 0) return Grown(understory, overstory, GroundCover.DuneSand);
             if ((topology & (uint)(Topology.Cliff | Topology.ShorePlatform)) != 0) return GroundCover.Rock;
             if (!(soilDepthM > BareSoilM)) return GroundCover.Rock;
-            if (understory != null)
+            return Grown(understory, overstory, GroundCover.BareEarth);
+        }
+
+        /// <summary>What grows on ground that holds something, the understory before the canopy; the ground itself where nothing does.</summary>
+        private static GroundCover Grown(PlantSpecies understory, PlantSpecies overstory, GroundCover ground)
+        {
+            if (understory != null && !understory.IsPioneer)
                 switch (understory.Form)
                 {
                     case PlantForm.Shrub: return GroundCover.Heath;
@@ -98,7 +111,7 @@ namespace EarthGame.Engine
                     case PlantForm.Grass: return GroundCover.Grass;
                 }
             if (overstory != null) return GroundCover.ForestFloor;
-            return GroundCover.BareEarth;
+            return ground;
         }
 
         /// <summary>Which quarter of the land's own wetness a reading falls in; anything unreadable is the driest.</summary>

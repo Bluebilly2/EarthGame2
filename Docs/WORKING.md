@@ -112,9 +112,10 @@ got wrong was duplication (a copy of `CLAUDE.md` as `AGENTS.md`; the dedicated h
 - A world: `python Tools/world/create.py <folder>` (about 18 s in the host). A shaped join: `python
   Tools/world/stream.py --build`. The corpus: `python Tools/corpus/run.py` (`--quick` for a smoke test; about 75
   minutes in full, with the host built Release and a player built with `--player`); it creates its own world
-  first and gives every scenario a copy.
+  first and gives every scenario a copy; when the wake moves, `python Tools/corpus/lay_loop.py --write` lays its
+  loop again, and the player is rebuilt.
 - `Data/` is fetched, never committed: `python Tools/data/bake_region.py --zoom 14 --cell-m 4` for the heights,
-  `python Tools/data/bake_water.py` for the OpenStreetMap outlines. `Artefacts/`, `Saves/`, `Build/` and logs are
+  `python Tools/data/bake_water.py` for the OpenStreetMap outlines, `python Tools/data/fetch_ala.py` for the plants' records. `Artefacts/`, `Saves/`, `Build/` and logs are
   ignored by git.
 - Unity `.meta` files here are minimal; hand-written YAML prefabs import cleanly; commit the metas a batch import
   generates for new engine sources.

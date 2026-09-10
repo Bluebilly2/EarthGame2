@@ -47,9 +47,9 @@ namespace EarthGame.Engine
     /// Bherwerre's, from the dune forest to the swamp, each with its source in ECOSYSTEM.md.
     ///
     /// <para>Nothing here records that coast banksia grows on the foredune. It records that coast banksia wants
-    /// dry ground, will root in almost nothing, and does not mind salt wind — and the dune follows. That is the
-    /// whole difference between a world with an ecology and a world with a biome lookup (GAME_DESIGN §6, §8,
-    /// and <c>Docs/ECOSYSTEM.md</c>).</para>
+    /// dry ground, will root in almost nothing, stands the salt wind and loses to the trees wherever there is
+    /// none — and the dune follows. That is the whole difference between a world with an ecology and a world with
+    /// a biome lookup (GAME_DESIGN §6, §8, and <c>Docs/ECOSYSTEM.md</c>).</para>
     ///
     /// <para>Suitability multiplies the conditions rather than averaging them, because that is how
     /// tolerance really works: one condition a plant cannot meet rules it out no matter how good
@@ -88,6 +88,9 @@ namespace EarthGame.Engine
         /// </summary>
         public double MaxSoilDepthM { get; }
 
+        /// <summary>A plant with a ceiling on its soil: it holds ground nothing else will, and holds it thinly.</summary>
+        public bool IsPioneer => !double.IsPositiveInfinity(MaxSoilDepthM);
+
         /// <summary>The steepest face it will hold on to, rise over run.</summary>
         public double MaxSlope { get; }
 
@@ -96,6 +99,18 @@ namespace EarthGame.Engine
 
         /// <summary>0 needs shelter, 1 stands on an open crest in the salt wind.</summary>
         public double ExposureTolerance { get; }
+
+        /// <summary>
+        /// Exposure below which this plant is gone, 0 to 1. Zero for everything but the salt specialist.
+        ///
+        /// <para>The counterpart of <see cref="MaxSoilDepthM"/>, and competition for the same reason. Coast banksia
+        /// is not on the dune because it needs salt; it is there because it stands the salt wind the trees cannot,
+        /// and where the wind does not reach, the trees that wanted shelter take the ground. With no floor it had
+        /// nothing to lose inland: it held two fifths of the peninsula at a median kilometre from the sea, and was
+        /// what the world grew where people had recorded blackbutt, bangalay and old-man banksia (the Atlas of
+        /// Living Australia's records, M1.2b, 2026-09-10).</para>
+        /// </summary>
+        public double MinExposure { get; }
 
         public double MinHeightM { get; }
         public double MaxHeightM { get; }
@@ -118,7 +133,8 @@ namespace EarthGame.Engine
                              double shadeTolerance, double exposureTolerance,
                              double minHeightM, double maxHeightM,
                              double maxSoilDepthM = double.PositiveInfinity,
-                             double strippableBarkM = 0.0)
+                             double strippableBarkM = 0.0,
+                             double minExposure = 0.0)
         {
             Name = name;
             DisplayName = displayName;
@@ -130,6 +146,7 @@ namespace EarthGame.Engine
             MaxSlope = maxSlope;
             ShadeTolerance = shadeTolerance;
             ExposureTolerance = exposureTolerance;
+            MinExposure = minExposure;
             MinHeightM = minHeightM;
             MaxHeightM = maxHeightM;
             StrippableBarkM = strippableBarkM;
@@ -162,7 +179,7 @@ namespace EarthGame.Engine
             // out by arithmetic. A veto beside it would be a second statement of one rule that
             // could never disagree because it could never fire — which a sabotage found, by
             // removing it and changing nothing.
-            if (!double.IsPositiveInfinity(MaxSoilDepthM))
+            if (IsPioneer)
             {
                 soil = Math.Min(soil, SimMath.Clamp01((MaxSoilDepthM - site.SoilDepthM)
                                                       / Math.Max(0.05, 0.35 * MaxSoilDepthM)));
@@ -176,7 +193,13 @@ namespace EarthGame.Engine
                 ? ShadeTolerance
                 : 1.0 - 0.6 * (1.0 - ExposureTolerance) * site.Exposure;
 
-            return SimMath.Clamp01(moisture * soil * slope * SimMath.Clamp01(light));
+            // And a floor on the wind, for a salt specialist: nothing at the floor and full vigour a little above
+            // it, the same ramp as the soil's, and for the same reason no veto beside it.
+            double salt = MinExposure > 0.0
+                ? SimMath.Clamp01((site.Exposure - MinExposure) / Math.Max(0.05, 0.35 * MinExposure))
+                : 1.0;
+
+            return SimMath.Clamp01(moisture * soil * slope * SimMath.Clamp01(light) * salt);
         }
 
         /// <summary>How tall an individual of this species grows here, m.</summary>
@@ -215,13 +238,14 @@ namespace EarthGame.Engine
             shadeTolerance: 0.20, exposureTolerance: 0.60,
             minHeightM: 4.0, maxHeightM: 12.0);
 
-        /// <summary>Coast banksia. The seaward face of the dune, where nothing else woody stands the salt.</summary>
+        /// <summary>Coast banksia. The seaward face of the dune, where nothing else woody stands the salt, and nowhere the salt wind does not reach.</summary>
         public static readonly PlantSpecies CoastBanksia = new PlantSpecies(
             "CoastBanksia", "coast banksia", PlantForm.SmallTree,
             moistureOptimum: 0.30, moistureBreadth: 0.22,
             minSoilDepthM: 0.12, maxSlope: 0.60,
             shadeTolerance: 0.15, exposureTolerance: 0.98,
-            minHeightM: 5.0, maxHeightM: 15.0);
+            minHeightM: 5.0, maxHeightM: 15.0,
+            minExposure: 1.0 - WorldLayers.DuneReachM / WorldLayers.CoastWindReachM);   // the salt wind at the dunes' inland edge
 
         /// <summary>Swamp paperbark. The rim of the swamp and the lake, feet in the water; bark in sheets.</summary>
         public static readonly PlantSpecies SwampPaperbark = new PlantSpecies(
@@ -287,7 +311,8 @@ namespace EarthGame.Engine
         /// almost pure sand, needs full sun, and does not care about salt wind — nothing in this list stands more
         /// of it. What it cannot do is compete: <see cref="MaxSoilDepthM"/> takes it out wherever real soil has
         /// formed, which is why it holds the foredune and appears nowhere inland. The beach itself stays bare,
-        /// because 20 mm of sand is under even this plant's floor — the founder still has to walk to the dune.</para>
+        /// because no soil forms where the waves still rework the sand (<see cref="WorldLayers.SiteAt"/>) — the
+        /// founder still has to walk to the dune.</para>
         ///
         /// <para>Deliberately the <i>second</i>-best string in the world. Its runners are shorter and weaker than a
         /// lomandra leaf, so the cord it lays is workable rather than good, and the walk to the dune toe is still
@@ -332,6 +357,13 @@ namespace EarthGame.Engine
     /// underneath: where a tree stands, the ground below it is shaded, and the understory is then
     /// scored against a shaded site. That one ordering is the whole reason bracken grows under the
     /// blackbutts and not out in the heath beside them.</para>
+    ///
+    /// <para>Nor is every site won by something tall (M1.2b, 2026-09-10). A tall plant stands on a cell as often
+    /// as the ground suits the best of them: where a blackbutt is at its best most cells carry a canopy, and where
+    /// the only tree that will grow at all barely can, most are open and the heath, the grass and the sand-binder
+    /// have the sun. Drawn the old way, any tree that could stand on a cell took it, and the peninsula came out
+    /// under a canopy on all but a tenth of a percent of its land, the beaches included, where the park that holds
+    /// it describes heaths; nothing that needs full sun could win anywhere a tree could survive.</para>
     /// </summary>
     public static class PlantCommunity
     {
@@ -350,6 +382,17 @@ namespace EarthGame.Engine
         /// <summary>The overstory here, or null where nothing tall can stand.</summary>
         public static PlantSpecies Canopy(in PlantSite site, double roll)
             => Draw(site, roll, PlantForm.Tree, PlantForm.SmallTree);
+
+        /// <summary>How much of this ground the tall plants cover, 0 to 1: as much as the best suited of them is suited to it.</summary>
+        public static double CanopyCover(in PlantSite site)
+            => Math.Max(TotalSuitability(site, PlantForm.Tree), TotalSuitability(site, PlantForm.SmallTree));
+
+        /// <summary>
+        /// The overstory on one cell, or null where the cell is open: something tall stands there when the first
+        /// roll falls inside <see cref="CanopyCover"/>, and which one it is is the second roll's draw.
+        /// </summary>
+        public static PlantSpecies Canopy(in PlantSite site, double standRoll, double speciesRoll)
+            => standRoll < CanopyCover(site) ? Canopy(site, speciesRoll) : null;
 
         /// <summary>The understory here, scored against whatever the canopy is doing to the light.</summary>
         public static PlantSpecies Understory(in PlantSite site, double roll)

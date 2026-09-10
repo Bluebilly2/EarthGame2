@@ -127,6 +127,14 @@
           ]
         },
         {
+          "name": "species_check on the gate world",
+          "cmd": [
+            "python",
+            "Tools/verifiers/checks/species_check.py",
+            "Artefacts/worlds/gate"
+          ]
+        },
+        {
           "name": "region_stats on the gate world's sea floor",
           "cmd": [
             "python",
@@ -141,6 +149,7 @@
         "solar_check",
         "drainage_check",
         "census_check",
+        "species_check",
         "region_stats"
       ],
       "owner_decides": "the census, read as a document about the country: where it reads wrong is a debt or a fix (M1.2 contract, exit)"

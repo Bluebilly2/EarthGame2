@@ -82,7 +82,7 @@ Sydney) for each species' habitat; the site research of 2026-09-07 recorded in t
 | Blackbutt, *Eucalyptus pilularis* | tree, 20–40 m | the tall forest on the deeper, moist sands behind the dunes and on the sandstone slopes | needs half a metre of sand and shelter from the salt wind; the timber and the rough lower bark |
 | Bangalay, *E. botryoides* | tree, 12–25 m | the eucalypt nearest the sea and around the swamps; sand, salt wind, wet feet | salt-hardy (exposure 0.75), wide moisture, fibrous bark to the branches |
 | Old-man banksia, *Banksia serrata* | small tree | heathy woodland on dry sand behind the foredune, out of the worst wind | dry optimum, thin sand, moderate exposure |
-| Coast banksia, *B. integrifolia* | small tree | the seaward face of the dune, where nothing else woody stands the salt | roots in 120 mm of sand; exposure tolerance near one |
+| Coast banksia, *B. integrifolia* | small tree | the seaward face of the dune, where nothing else woody stands the salt | roots in 120 mm of sand; exposure tolerance near one, and a floor on it: out of the salt wind the trees take its ground |
 | Swamp paperbark, *Melaleuca ericifolia* | small tree | the rim of Ryans Swamp and the lakes, feet in the water | wet optimum with a narrow breadth; bark in sheets |
 | Grass tree, *Xanthorrhoea resinosa* | shrub | the heath on poor sand in full sun | needs almost no soil, no shade; the fire drill's spindle |
 | Heath banksia, *B. ericifolia* | shrub | the heath itself, head high and dense, on the poorer and damper sands | wide moisture, thin sand, open ground |
@@ -90,11 +90,41 @@ Sydney) for each species' habitat; the site research of 2026-09-07 recorded in t
 | Lomandra, *Lomandra longifolia* | herb | the dune toe, the forest floor, the creek edges | the widest moisture range here; the fibre of the first cordage |
 | Saw-sedge, *Gahnia sieberiana* (with the *Baumea* sedgeland) | herb | the swamp and the lake shore, where the ground is water half the year | wet optimum, narrow; shade-tolerant enough for the paperbark's rim |
 | Kangaroo grass, *Themeda triandra* | grass | everywhere the trees and the heath are not | wide moisture, open ground; the first bedding |
-| Spinifex, *Spinifex sericeus* | grass | the foredune, binding the sand | the one pioneer: a ceiling of 200 mm of soil takes it out wherever real soil has formed |
+| Spinifex, *Spinifex sericeus* | grass | the foredune, binding the sand | the one pioneer: a ceiling of 200 mm of soil takes it out wherever real soil has formed, and on a dune the soil is what the salt wind has let form, so it holds the young dune nearest the sea |
 
-What the list leaves out, and why: the rock platforms and the beach carry nothing (20 mm of sand is under
-even spinifex's floor); the *Casuarina* and *Allocasuarina* of the sandstone country wait on the stone layer
+What the list leaves out, and why: the rock platforms and the beach carry nothing (the waves rework a beach, so
+no soil forms on it: `WorldLayers.SiteAt`); the *Casuarina* and *Allocasuarina* of the sandstone country wait on the stone layer
 that says where the sandstone crops out; the rainforest gullies of the escarpment are beyond the box.
+
+### Held against where people found them (M1.2b, 2026-09-10)
+
+The rules above were first held against the place on 2026-09-10 (CANON ruling 21), with the Atlas of Living
+Australia's occurrence records of the twelve plants inside the box (`Tools/data/fetch_ala.py`: 587 records, 340
+usable once the Booderee Botanic Gardens' planted specimens and the records not placed to within 100 m are dropped)
+and the park's own account of its country. `species_check.py` asks, plant by plant, whether the world grows it round
+the places it was recorded more than it grows it anywhere, and whether it grows it about as far from the sea. Four
+things in the rules were wrong, and each is now a rule of its own:
+
+- **The soil a root can use on sand** is the soil that has formed there. The soil model's depth is the loose
+  material over the rock, two metres and more of sand under a beach, and read as soil it put plants of the forest
+  floor on the foredune and kept spinifex off every dune. The beach, which the waves still rework, has none a root
+  can use, and a dune has the soil model's depth less the share of it the salt wind reaches (`WorldLayers.SiteAt`).
+- **Coast banksia has a floor on exposure**, at the salt wind of the dunes' inland edge: it stands the salt the
+  trees cannot, and out of the wind the trees take the ground. Without it, it held two fifths of the land at a
+  median kilometre from the sea, where its records are at a median 392 m.
+- **A tall plant stands on a cell as often as the ground suits the best of them** (`PlantCommunity.CanopyCover`).
+  Drawn the old way, any tree that could stand on a cell took it, and 99.9 % of the land stood under a canopy, the
+  beaches included, where the park describes heaths. The canopy covers about half the land now, and the heath, the
+  grass and the sand-binder have the open ground.
+- **The dune is asked what grows on it before it is called sand** (`GroundCovers.Of`). The park says its dunes
+  are held by what grows on them; the world's 1,005 ha of dune read as bare sand, and 85 ha of bare dune sand remain.
+
+What is still off is owed in DEBTS.md ("The plants the records still find nearer the sea"): the records put
+blackbutt, bangalay, lomandra and saw-sedge within about 450 m of the sea, and the world grows them a kilometre
+inland. The records are presence only, gathered along tracks and biased towards plants people notice, so they say
+where a plant is and never how much of it there is; they were checked for the bias that would matter most here,
+and the recorders walked the whole peninsula rather than its beaches (all the usable records at a median 935 m from
+the sea, against the land's 958 m).
 
 ### The stones (v1's open item E0)
 
