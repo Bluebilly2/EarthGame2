@@ -121,3 +121,24 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     1.3 travel-pace factor, gait multipliers 1.0 / 1.7 / 2.6, a 0.5 m jump, a 0.4 m step, 45° walkable, and the
     camera smoothed vertically only. They change only by a later dated ruling from the owner's hands, never from
     frames or from a contract's number.
+
+### Rulings of 2026-09-10
+
+19. **The hand-rolled netcode stands** (ruling 11's decision, made on 2026-09-10 by the owner on the M1.B numbers):
+    "keep yours, it sounds like it works." Plan B is closed: FishNet is not adopted, and the transport, the
+    protocol, the tile streaming, the entity store and the mirror are the game's own. M1.B's criteria N1 to N4
+    stay as the standing budget and every gate after this one measures against them; a later dated ruling is what
+    changes that, never a failing run.
+
+20. **The wake is wherever the country is best; the region states no point.** The owner, asked whether ruling 8's
+    coordinates or Cave Beach 2.1 km east of them was meant: "i dont actually care where the player wakes,
+    somewhere in this region thats all." Ruling 8's stated point is withdrawn as a requirement. `WakeScorer`'s
+    choice is the wake, the census stops reporting a distance from a point nobody named, and the check's red row
+    goes with it. Nothing moves on the ground: the scorer already chose east -1352 north 1904 and the founder has
+    been waking there.
+
+21. **The census is the agent's to check against the real place.** Following ruling 20: "look/research the area, i
+    dont really know too well." The owner does not hold the peninsula in his head, so reading the census against
+    Bherwerre is not his lane. The agent researches the real place from published sources, names them, and
+    records where the generated world disagrees as debts or fixes. What the owner keeps is the look (frames) and
+    the feel (hands); a description of country he has not walked is neither.
