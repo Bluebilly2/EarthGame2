@@ -72,6 +72,85 @@ namespace EarthGame.Tests.Engine
             Assert.That(() => TileCodec.Encode(tiny, grid, new TileId(2, 0)), Throws.TypeOf<ArgumentOutOfRangeException>());
         }
 
+        /// <summary>A pond 1.25 m deep over part of the made coast's plain; the surface is the ground everywhere else.</summary>
+        private static float PondSurface(int row, int col)
+        {
+            float ground = TestRasters.MadeCoastHeight(row, col);
+            bool pond = row >= 60 && row <= 80 && col >= 60 && col <= 80;
+            return pond ? ground + 1.25f : ground;
+        }
+
+        /// <summary>
+        /// The water travels as the depth over the tile's own ground (M1.4b promise 2): zero wherever the ground is
+        /// dry, so deflate is left with the wet part alone, and the client puts the surface back to the centimetre.
+        /// </summary>
+        [Test]
+        public void WaterTravelsAsDepthOverTheGroundAndCostsAFractionOfASurface()
+        {
+            Assert.That(TileCodec.Version, Is.EqualTo(2));
+            RegionRaster groundRaster = TestRasters.MadeCoast();
+            RegionRaster surface = TestRasters.FromLaw(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "surface", PondSurface);
+            Heightfield ground = new Heightfield(groundRaster);
+            TileGrid grid = new TileGrid(TestRasters.MadeExtentM);
+            TileId id = new TileId(0, 0);
+
+            EncodedTile depthTile = TileCodec.EncodeDepth(surface, ground, grid, id);
+            Assert.That(depthTile.Layer, Is.EqualTo(TileLayer.WaterDepth));
+            Assert.That(depthTile.Posts, Is.EqualTo(TestRasters.MadeSide));
+            float[,] depth = TileCodec.Unpack(depthTile.Bytes, depthTile.Posts);
+            float[,] groundPosts = TileCodec.Unpack(TileCodec.Encode(ground, grid, id).Bytes, depthTile.Posts);
+
+            // The tile's rows run north from its origin; the raster's run south from its top.
+            int pondRow = TestRasters.MadeSide - 1 - 70, dryRow = TestRasters.MadeSide - 1 - 100;
+            Assert.That(depth[pondRow, 70], Is.EqualTo(1.25f).Within(0.01f), "the pond is as deep as it was made");
+            Assert.That(depth[dryRow, 70], Is.EqualTo(0f), "dry ground carries no depth at all");
+            double worst = 0.0;
+            for (int z = 0; z < depthTile.Posts; z++)
+                for (int x = 0; x < depthTile.Posts; x++)
+                {
+                    double put = groundPosts[z, x] + depth[z, x];
+                    double truth = PondSurface(TestRasters.MadeSide - 1 - z, x);
+                    worst = Math.Max(worst, Math.Abs(put - truth));
+                }
+            Assert.That(worst, Is.LessThanOrEqualTo(0.02), "the surface the client puts back is off by " + worst.ToString("0.000") + " m");
+
+            EncodedTile asItsOwnSurface = TileCodec.Encode(new Heightfield(surface), grid, id);
+            Assert.That(depthTile.Bytes.Length * 4, Is.LessThan(asItsOwnSurface.Bytes.Length),
+                "depth " + depthTile.Bytes.Length + " bytes against a surface of its own at " + asItsOwnSurface.Bytes.Length);
+        }
+
+        /// <summary>A code layer is carried as codes, never interpolated: a lake's id averaged with the dry ground beside it is neither.</summary>
+        [Test]
+        public void ACodeLayerRoundTripsExactlyAndPacksSmall()
+        {
+            RegionRaster water = TestRasters.FromCodes(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "made_water", "water",
+                (row, col) => row >= 150 ? 7u : (row >= 60 && row <= 80 && col >= 60 && col <= 80 ? 5u : 0u), null);
+            TileGrid grid = new TileGrid(TestRasters.MadeExtentM);
+            TileId id = new TileId(0, 0);
+
+            EncodedTile tile = TileCodec.EncodeCodes(water, TileLayer.WaterClass, grid, id);
+            Assert.That(tile.Layer, Is.EqualTo(TileLayer.WaterClass));
+            byte[,] codes = TileCodec.UnpackCodes(tile.Bytes, tile.Posts);
+            int lake = 0, sea = 0, dry = 0;
+            for (int z = 0; z < tile.Posts; z++)
+                for (int x = 0; x < tile.Posts; x++)
+                {
+                    uint truth = water.Code(TestRasters.MadeSide - 1 - z, x);
+                    Assert.That(codes[z, x], Is.EqualTo((byte)truth), "post " + z + "," + x);
+                    if (truth == 5) lake++;
+                    else if (truth == 7) sea++;
+                    else dry++;
+                }
+            Assert.That(lake, Is.EqualTo(21 * 21));
+            Assert.That(sea, Is.GreaterThan(0));
+            Assert.That(dry, Is.GreaterThan(0));
+            Assert.That(tile.Bytes.Length, Is.LessThan(TileCodec.Encode(new Heightfield(TestRasters.MadeCoast()), grid, id).Bytes.Length / 4),
+                "codes with long runs pack far smaller than metres: " + tile.Bytes.Length + " bytes");
+            Assert.That(() => TileCodec.EncodeCodes(TestRasters.MadeCoast(), TileLayer.WaterClass, grid, id), Throws.ArgumentException,
+                "a layer of metres is not a code layer");
+            Assert.That(() => TileCodec.UnpackCodes(tile.Bytes, tile.Posts - 1), Throws.TypeOf<InvalidDataException>(), "a square that is not the one packed");
+        }
+
         [Test]
         public void CorruptOrShortDataIsRefused()
         {
