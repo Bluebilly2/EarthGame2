@@ -7,24 +7,30 @@ using EarthGame.Transport;
 namespace EarthGame.Server
 {
     /// <summary>
-    /// The server's side of layer streaming (M1.B, promise 1): a tile of the world's heightfield encoded once and
-    /// kept, served on request as a header and a run of reliable chunks. A tile whose checksum the client already
-    /// holds is answered with the header alone. Without a terrain the service answers every request with a
-    /// header of zero posts, which the client logs rather than waits for.
+    /// The server's side of layer streaming (M1.B promise 1, extended by M1.4b): a tile of one of the world's
+    /// layers encoded once and kept, served on request as a header and a run of reliable chunks. A tile whose
+    /// checksum the client already holds is answered with the header alone. A layer this world does not have —
+    /// the ground of a server started without region data, the water of a world saved before M1.2 — is answered
+    /// with a header of zero posts, which the client logs rather than waits for.
     /// </summary>
     public sealed class TileService
     {
         private readonly Heightfield _terrain;
+        private readonly WorldWater _water;
         private readonly TileGrid _grid;
-        private readonly Dictionary<TileId, EncodedTile> _encoded = new Dictionary<TileId, EncodedTile>();
+        private readonly Dictionary<(TileLayer Layer, TileId Id), EncodedTile> _encoded = new Dictionary<(TileLayer, TileId), EncodedTile>();
         private readonly PacketWriter _writer = new PacketWriter(ProtocolInfo.TileChunkBytes + 64);
 
         public TileService(WorldState world)
         {
             if (world == null) throw new ArgumentNullException(nameof(world));
             _terrain = world.Terrain;
+            _water = world.Water;
             _grid = new TileGrid(world.Region.ExtentM);
         }
+
+        /// <summary>Whether this world can answer for a layer at all.</summary>
+        public bool Serves(TileLayer layer) => layer == TileLayer.Ground ? _terrain != null : _terrain != null && _water != null;
 
         public TileGrid Grid => _grid;
 
@@ -40,23 +46,33 @@ namespace EarthGame.Server
         {
             if (_terrain == null) return 0;
             int count = 0;
-            for (int iz = 0; iz < _grid.TilesPerSide; iz++)
-                for (int ix = 0; ix < _grid.TilesPerSide; ix++)
-                {
-                    Encoded(new TileId(ix, iz));
-                    count++;
-                }
+            foreach (TileLayer layer in TileLayers.All)
+            {
+                if (!Serves(layer)) continue;
+                for (int iz = 0; iz < _grid.TilesPerSide; iz++)
+                    for (int ix = 0; ix < _grid.TilesPerSide; ix++)
+                    {
+                        Encoded(new TileId(ix, iz), layer);
+                        count++;
+                    }
+            }
             return count;
         }
 
-        /// <summary>The encoded tile, made on first request.</summary>
-        public EncodedTile Encoded(TileId id)
+        /// <summary>The encoded tile of a layer, made on first request.</summary>
+        public EncodedTile Encoded(TileId id, TileLayer layer = TileLayer.Ground)
         {
-            EncodedTile tile;
-            if (!_encoded.TryGetValue(id, out tile))
+            if (!_encoded.TryGetValue((layer, id), out EncodedTile tile))
             {
-                tile = TileCodec.Encode(_terrain, _grid, id);
-                _encoded[id] = tile;
+                if (!Serves(layer)) throw new InvalidOperationException("this world has no " + layer + " to serve");
+                switch (layer)
+                {
+                    case TileLayer.Ground: tile = TileCodec.Encode(_terrain, _grid, id); break;
+                    case TileLayer.WaterDepth: tile = TileCodec.EncodeDepth(_water.Surface, _terrain, _grid, id); break;
+                    case TileLayer.WaterClass: tile = TileCodec.EncodeCodes(_water.Classes, TileLayer.WaterClass, _grid, id); break;
+                    default: throw new ArgumentOutOfRangeException(nameof(layer), "no such layer: " + layer);
+                }
+                _encoded[(layer, id)] = tile;
             }
             return tile;
         }
@@ -71,7 +87,8 @@ namespace EarthGame.Server
                 TileHeaderMessage header;
                 header.Ix = id.Ix;
                 header.Iz = id.Iz;
-                if (_terrain == null || !_grid.Contains(id))
+                header.Layer = want.Layer;
+                if (!Serves(want.Layer) || !_grid.Contains(id))
                 {
                     header.Posts = 0;
                     header.CellM = 0f;
@@ -83,7 +100,7 @@ namespace EarthGame.Server
                     Send(connection, header);
                     continue;
                 }
-                EncodedTile tile = Encoded(id);
+                EncodedTile tile = Encoded(id, want.Layer);
                 bool unchanged = want.KnownCrc32 != 0 && want.KnownCrc32 == tile.Crc32;
                 int chunkCount = unchanged ? 0 : (tile.Bytes.Length + ProtocolInfo.TileChunkBytes - 1) / ProtocolInfo.TileChunkBytes;
                 header.Posts = (ushort)tile.Posts;
@@ -103,6 +120,7 @@ namespace EarthGame.Server
                     TileChunkMessage chunk;
                     chunk.Ix = id.Ix;
                     chunk.Iz = id.Iz;
+                    chunk.Layer = want.Layer;
                     chunk.Index = (ushort)i;
                     chunk.Bytes = slice;
                     _writer.Reset();

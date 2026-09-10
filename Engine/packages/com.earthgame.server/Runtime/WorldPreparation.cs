@@ -50,8 +50,10 @@ namespace EarthGame.Server
                     terrain = ReadBake(dataDir);
                 if (saved.Layers.TryGetValue("heights", out string expected) && terrain.Raster.Sha256 != expected)
                     throw new InvalidDataException("The saved terrain does not match this world's layer manifest.");
+                Report("Reading the water");
+                WorldWater water = ReadWater(worldDir);
                 Report("Restoring the world");
-                WorldState world = WorldSave.Restore(saved, terrain, region);
+                WorldState world = WorldSave.Restore(saved, terrain, region, water);
                 Report("World ready");
                 return new Result { World = world, Saved = saved, Checksums = saved.Layers };
             }
@@ -60,16 +62,31 @@ namespace EarthGame.Server
             Heightfield bake = ReadBake(dataDir);
             Report("Reading lakes and wetlands");
             string waterPath = Path.Combine(dataDir, "water_bodies.json");
-            RegionRaster water = File.Exists(waterPath) ? RegionRaster.Load(waterPath) : null;
-            WorldCreation.Result created = WorldCreation.Create(worldDir, region, seed, bake.Raster, nowUtc, water, Report);
+            RegionRaster outlines = File.Exists(waterPath) ? RegionRaster.Load(waterPath) : null;
+            WorldCreation.Result created = WorldCreation.Create(worldDir, region, seed, bake.Raster, nowUtc, outlines, Report);
             Report("Reading prepared terrain");
             Heightfield ground = new Heightfield(RegionRaster.Load(created.Layers["heights"]));
             WorldState made = new WorldState(seed, region, region.WakeClock(), ground, 0,
-                new Double3(created.Wake.East, 0, created.Wake.North));
+                new Double3(created.Wake.East, 0, created.Wake.North), ReadWater(worldDir));
             Report("Saving the world");
             WorldSave.Write(worldDir, made, null, nowUtc, created.Checksums);
             Report("World ready");
             return new Result { World = made, Checksums = created.Checksums, Census = created.Census };
+        }
+
+        /// <summary>
+        /// The water layers a world folder holds, for the server to stream (M1.4b); null when it has neither, which
+        /// is any world made before M1.2. One present without the other is a folder half written, and is refused.
+        /// </summary>
+        private static WorldWater ReadWater(string worldDir)
+        {
+            string surface = Path.Combine(worldDir, WorldCreation.LayersFolder, "surface.json");
+            string classes = Path.Combine(worldDir, WorldCreation.LayersFolder, "water.json");
+            bool hasSurface = File.Exists(surface), hasClasses = File.Exists(classes);
+            if (!hasSurface && !hasClasses) return null;
+            if (hasSurface != hasClasses)
+                throw new InvalidDataException("this world has " + (hasSurface ? "a water surface without its classes" : "water classes without their surface") + "; its layers are half written");
+            return new WorldWater(RegionRaster.Load(surface), RegionRaster.Load(classes));
         }
 
         private static Heightfield ReadBake(string dataDir)

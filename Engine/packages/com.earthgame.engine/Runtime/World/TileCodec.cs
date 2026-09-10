@@ -19,6 +19,12 @@ namespace EarthGame.Engine
         WaterClass = 2,
     }
 
+    /// <summary>Every layer a tile can carry. Both ends walk this, so neither has to be told the set.</summary>
+    public static class TileLayers
+    {
+        public static readonly TileLayer[] All = { TileLayer.Ground, TileLayer.WaterDepth, TileLayer.WaterClass };
+    }
+
     /// <summary>A tile of one layer as it travels: the posts along one side, the ground pitch, and the compressed bytes.</summary>
     public sealed class EncodedTile
     {

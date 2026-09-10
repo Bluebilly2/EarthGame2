@@ -43,11 +43,12 @@ namespace EarthGame.Protocol
         EntityGone = 16,
     }
 
-    /// <summary>One tile the client wants, with the checksum of the copy it already holds (zero for none).</summary>
+    /// <summary>One tile of one layer the client wants, with the checksum of the copy it already holds (zero for none).</summary>
     public struct TileWant
     {
         public int Ix;
         public int Iz;
+        public TileLayer Layer;
         public uint KnownCrc32;
     }
 
@@ -66,6 +67,7 @@ namespace EarthGame.Protocol
             {
                 w.WriteInt32(Wants[i].Ix);
                 w.WriteInt32(Wants[i].Iz);
+                w.WriteByte((byte)Wants[i].Layer);
                 w.WriteUInt32(Wants[i].KnownCrc32);
             }
         }
@@ -79,6 +81,7 @@ namespace EarthGame.Protocol
             {
                 m.Wants[i].Ix = r.ReadInt32();
                 m.Wants[i].Iz = r.ReadInt32();
+                m.Wants[i].Layer = TileWire.Read(r);
                 m.Wants[i].KnownCrc32 = r.ReadUInt32();
             }
             return m;
@@ -94,6 +97,7 @@ namespace EarthGame.Protocol
     {
         public int Ix;
         public int Iz;
+        public TileLayer Layer;
         public ushort Posts;
         public float CellM;
         public double OriginEast;
@@ -107,6 +111,7 @@ namespace EarthGame.Protocol
             w.WriteByte((byte)MessageKind.TileHeader);
             w.WriteInt32(Ix);
             w.WriteInt32(Iz);
+            w.WriteByte((byte)Layer);
             w.WriteUInt16(Posts);
             w.WriteSingle(CellM);
             w.WriteDouble(OriginEast);
@@ -121,6 +126,7 @@ namespace EarthGame.Protocol
             TileHeaderMessage m;
             m.Ix = r.ReadInt32();
             m.Iz = r.ReadInt32();
+            m.Layer = TileWire.Read(r);
             m.Posts = r.ReadUInt16();
             m.CellM = r.ReadSingle();
             m.OriginEast = r.ReadDouble();
@@ -137,6 +143,7 @@ namespace EarthGame.Protocol
     {
         public int Ix;
         public int Iz;
+        public TileLayer Layer;
         public ushort Index;
         public byte[] Bytes;
 
@@ -145,6 +152,7 @@ namespace EarthGame.Protocol
             w.WriteByte((byte)MessageKind.TileChunk);
             w.WriteInt32(Ix);
             w.WriteInt32(Iz);
+            w.WriteByte((byte)Layer);
             w.WriteUInt16(Index);
             w.WriteBytes(Bytes ?? System.Array.Empty<byte>());
         }
@@ -154,9 +162,21 @@ namespace EarthGame.Protocol
             TileChunkMessage m;
             m.Ix = r.ReadInt32();
             m.Iz = r.ReadInt32();
+            m.Layer = TileWire.Read(r);
             m.Index = r.ReadUInt16();
             m.Bytes = r.ReadBytes();
             return m;
+        }
+    }
+
+    /// <summary>The layer byte of a tile message, refused rather than guessed when this build does not know it.</summary>
+    internal static class TileWire
+    {
+        internal static TileLayer Read(PacketReader r)
+        {
+            byte value = r.ReadByte();
+            if (value > (byte)TileLayer.WaterClass) throw new ProtocolException("tile layer " + value + " is not one this build knows");
+            return (TileLayer)value;
         }
     }
 

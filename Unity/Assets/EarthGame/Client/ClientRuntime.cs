@@ -214,7 +214,7 @@ namespace EarthGame.Client
             Dropped?.Invoke(reason);
         }
 
-        private void OnTileFailed(TileId id, string why)
+        private void OnTileFailed(TileLayer layer, TileId id, string why)
         {
             Debug.Log("[client] tile " + id + " not held: " + why);
         }
@@ -227,6 +227,9 @@ namespace EarthGame.Client
         /// <summary>A tile arrived (from the wire or the cache): the ground knows it now; its Terrain is built on a later frame.</summary>
         private void OnTileReady(ReceivedTile tile)
         {
+            // The water layers arrive beside the ground from M1.4b; drawing them is the slice after it, and the
+            // ground is what a Terrain is built from.
+            if (tile.Layer != TileLayer.Ground) return;
             if (_ground == null) _ground = new TileHeightfield(_client.Grid);
             _ground.Add(tile);
             if (tile.FromCache) TilesFromCache++;

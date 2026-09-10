@@ -104,6 +104,82 @@ namespace EarthGame.Tests.Server
             Assert.That(rig.A.BytesReceived, Is.EqualTo(rig.Server.Sessions[0].Connection.BytesSent), "both ends count the same payload bytes");
         }
 
+        /// <summary>The tiny fixture's own law, as its sidecar states it: 100 + row + 10 x col, and five more at the centre cell.</summary>
+        private static float TinyGround(int row, int col) => 100f + row + 10f * col + (row == 2 && col == 2 ? 5f : 0f);
+
+        /// <summary>The tiny fixture with two metres of water standing over its two western columns.</summary>
+        private static WorldWater Water()
+        {
+            RegionRaster surface = TestRasters.FromLaw(5, 10.0, 40.0, "tiny_surface",
+                (row, col) => TinyGround(row, col) + (col <= 1 ? 2f : 0f));
+            RegionRaster classes = TestRasters.FromCodes(5, 10.0, 40.0, "tiny_water", "water",
+                (row, col) => col <= 1 ? (uint)WaterClass.Lake : 0u, null);
+            return new WorldWater(surface, classes);
+        }
+
+        private static WorldState WateredWorld() =>
+            new WorldState(1, FixtureRegion, FixtureRegion.WakeClock(), Ground(), 0, null, Water());
+
+        /// <summary>
+        /// The water reaches the client beside the ground (M1.4b promises 3 to 5): the depth standing over the
+        /// tile's own posts and the class of each, with the surface put back together where it stands. The join
+        /// waits for the ground alone, which is what CANON ruling 11 measures.
+        /// </summary>
+        [Test]
+        public void TheWaterArrivesBesideTheGroundAndTheSurfacePutsBackTogether()
+        {
+            Rig rig = Start(WateredWorld());
+            DiskTileCache cache = new DiskTileCache(_cacheDir);
+            rig.A = rig.Join("William", cache);
+            rig.Pump(6);
+            Assert.That(rig.A.IsInteractive, Is.True);
+            Assert.That(rig.A.Tiles.RefusedCount, Is.Zero, "this world has every layer");
+            Assert.That(rig.A.Tiles.CountOf(TileLayer.Ground), Is.EqualTo(1));
+            Assert.That(rig.A.Tiles.CountOf(TileLayer.WaterDepth), Is.EqualTo(1));
+            Assert.That(rig.A.Tiles.CountOf(TileLayer.WaterClass), Is.EqualTo(1));
+
+            TileId id = new TileId(0, 0);
+            ReceivedTile ground = rig.A.Tiles.Held[id];
+            ReceivedTile depth = rig.A.Tiles.Holding(TileLayer.WaterDepth, id);
+            ReceivedTile classes = rig.A.Tiles.Holding(TileLayer.WaterClass, id);
+            Assert.That(depth.Heights, Is.Not.Null, "a layer of metres");
+            Assert.That(classes.Codes, Is.Not.Null, "a layer of codes");
+            Assert.That(classes.Heights, Is.Null);
+            for (int z = 0; z < ground.Posts; z++)
+                for (int x = 0; x < ground.Posts; x++)
+                {
+                    bool wet = x <= 1;
+                    Assert.That(depth.Heights[z, x], Is.EqualTo(wet ? 2f : 0f).Within(0.01f), "depth at " + z + "," + x);
+                    Assert.That(classes.Codes[z, x], Is.EqualTo(wet ? (byte)WaterClass.Lake : (byte)0), "class at " + z + "," + x);
+                    double surface = ground.Heights[z, x] + depth.Heights[z, x];
+                    double truth = TinyGround(ground.Posts - 1 - z, x) + (wet ? 2.0 : 0.0);
+                    Assert.That(surface, Is.EqualTo(truth).Within(0.02), "the surface put back at " + z + "," + x);
+                }
+
+            // The wire carried the water for a fraction of what the ground cost, because dry posts are zero.
+            Assert.That(depth.Crc32, Is.Not.EqualTo(ground.Crc32));
+            Assert.That(Directory.Exists(Path.Combine(_cacheDir, "fixture", "water-depth")), Is.True, "each layer caches under its own name");
+            Assert.That(cache.KnownCrc("fixture", TileLayer.WaterClass, id), Is.EqualTo(classes.Crc32));
+        }
+
+        /// <summary>A world whose folder held no water: the client is told once and stops asking as it walks.</summary>
+        [Test]
+        public void AWorldWithoutWaterRefusesItOnceAndIsNotAskedAgain()
+        {
+            Rig rig = Start(World());
+            rig.A = rig.Join("William");
+            rig.Pump(6);
+            Assert.That(rig.A.IsInteractive, Is.True, "the ground alone still makes a client interactive");
+            Assert.That(rig.A.Tiles.CountOf(TileLayer.Ground), Is.EqualTo(1));
+            Assert.That(rig.A.Tiles.CountOf(TileLayer.WaterDepth), Is.Zero);
+            Assert.That(rig.A.Tiles.RefusedCount, Is.EqualTo(2), "the two water layers of the one tile, once each");
+            long served = rig.Server.Tiles.BytesServed;
+            rig.A.RequestTilesAround(0.0, 0.0);
+            rig.Pump(3);
+            Assert.That(rig.Server.Tiles.BytesServed, Is.EqualTo(served), "nothing was asked for a second time");
+            Assert.That(rig.A.Tiles.RefusedCount, Is.EqualTo(2));
+        }
+
         [Test]
         public void ARejoinWithCachedTilesIsAnsweredByHeadersAlone()
         {
@@ -113,7 +189,7 @@ namespace EarthGame.Tests.Server
             rig.Pump(5);
             Assert.That(rig.A.IsInteractive, Is.True);
             long servedFirst = rig.Server.Tiles.BytesServed;
-            Assert.That(cache.KnownCrc("fixture", new TileId(0, 0)), Is.Not.EqualTo(0u), "the tile is on disk");
+            Assert.That(cache.KnownCrc("fixture", TileLayer.Ground, new TileId(0, 0)), Is.Not.EqualTo(0u), "the tile is on disk");
 
             rig.A.Disconnect("cable");
             rig.Pump(3);
@@ -122,7 +198,9 @@ namespace EarthGame.Tests.Server
             Assert.That(rig.A.IsInteractive, Is.True);
             Assert.That(rig.A.Tiles.Held[new TileId(0, 0)].FromCache, Is.True);
             Assert.That(rig.A.Tiles.BytesReceived, Is.EqualTo(0), "no chunk crossed the wire");
-            Assert.That(rig.Server.Tiles.BytesServed - servedFirst, Is.LessThan(64), "a header, nothing more");
+            // Three headers now (M1.4b): the ground this client already holds, and the two water layers a world
+            // built from a bare heightfield has none of. No chunk of any of them crosses the wire.
+            Assert.That(rig.Server.Tiles.BytesServed - servedFirst, Is.LessThan(200), "headers, nothing more");
         }
 
         [Test]
@@ -142,7 +220,7 @@ namespace EarthGame.Tests.Server
             Rig rig = Start(new WorldState(7, Region.Bherwerre, Region.Bherwerre.WakeClock()));
             rig.A = rig.Join("William");
             rig.Pump(5);
-            Assert.That(rig.A.Tiles.RefusedCount, Is.EqualTo(9), "the nine tiles around the wake, each refused");
+            Assert.That(rig.A.Tiles.RefusedCount, Is.EqualTo(9 * 3), "the nine tiles around the wake, each of the three layers refused");
             Assert.That(rig.A.Tiles.Held.Count, Is.EqualTo(0));
             Assert.That(rig.A.IsInteractive, Is.True, "refused is answered; the client does not wait");
         }

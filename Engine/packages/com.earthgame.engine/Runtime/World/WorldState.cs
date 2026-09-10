@@ -4,6 +4,28 @@ using System.Collections.Generic;
 namespace EarthGame.Engine
 {
     /// <summary>
+    /// The water a world can stream beside its ground (M1.4b): the surface it stands at, and its class per cell,
+    /// both as the world folder's own layers. Null on a world whose folder has neither — any world saved before
+    /// M1.2 — and such a server streams the ground alone and says so.
+    /// </summary>
+    public sealed class WorldWater
+    {
+        public WorldWater(RegionRaster surface, RegionRaster classes)
+        {
+            Surface = surface ?? throw new ArgumentNullException(nameof(surface));
+            Classes = classes ?? throw new ArgumentNullException(nameof(classes));
+            if (classes.Width != surface.Width || classes.Height != surface.Height)
+                throw new ArgumentException("the water's class is " + classes.Width + "x" + classes.Height + " and its surface " + surface.Width + "x" + surface.Height, nameof(classes));
+            if (!classes.IsIntegral) throw new ArgumentException("the water's class is " + classes.Dtype + ", not a code layer", nameof(classes));
+        }
+
+        /// <summary>Where the water's surface stands, metres; the ground itself where none stands.</summary>
+        public RegionRaster Surface { get; }
+        /// <summary>Each cell's <see cref="WaterClass"/> as a code.</summary>
+        public RegionRaster Classes { get; }
+    }
+
+    /// <summary>
     /// Everything the server is authoritative for, in one object: identity, time, the region and its ground, the
     /// entities and the systems that move them. There is exactly one instance per running world and it is owned
     /// by the server; a client holds a read-only mirror, never a WorldState.
@@ -50,7 +72,10 @@ namespace EarthGame.Engine
         /// <summary>Where the players are, for the scheduler's distances; the server fills it before each update.</summary>
         public List<Double3> InterestPoints { get; } = new List<Double3>();
 
-        public WorldState(ulong seed, Region region, WorldClock clock, Heightfield terrain = null, long tick = 0, Double3? wake = null)
+        /// <summary>The water this world can stream, or null for a world whose folder holds none.</summary>
+        public WorldWater Water { get; }
+
+        public WorldState(ulong seed, Region region, WorldClock clock, Heightfield terrain = null, long tick = 0, Double3? wake = null, WorldWater water = null)
         {
             Seed = seed;
             Region = region ?? throw new ArgumentNullException(nameof(region));
@@ -61,6 +86,7 @@ namespace EarthGame.Engine
             Terrain = terrain;
             Tick = tick;
             Wake = wake;
+            Water = water;
         }
 
         /// <summary>

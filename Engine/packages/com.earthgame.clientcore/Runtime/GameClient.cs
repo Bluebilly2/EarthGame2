@@ -32,8 +32,9 @@ namespace EarthGame.ClientCore
         private readonly PacketWriter _writer = new PacketWriter(256);
         private readonly Dictionary<uint, PlayerStateMessage> _others = new Dictionary<uint, PlayerStateMessage>();
         private readonly Dictionary<uint, RemoteMirror> _mirrors = new Dictionary<uint, RemoteMirror>();
-        private readonly HashSet<TileId> _outstanding = new HashSet<TileId>();
-        private readonly HashSet<TileId> _requested = new HashSet<TileId>();
+        private readonly HashSet<(TileLayer Layer, TileId Id)> _outstanding = new HashSet<(TileLayer, TileId)>();
+        private readonly HashSet<(TileLayer Layer, TileId Id)> _requested = new HashSet<(TileLayer, TileId)>();
+        private readonly HashSet<TileLayer> _unserved = new HashSet<TileLayer>();
         private string _playerName;
         private string _password;
         private uint _sequence;
@@ -58,7 +59,19 @@ namespace EarthGame.ClientCore
         public TileReceiver Tiles { get; private set; }
 
         /// <summary>Tiles asked for and not yet answered (held, refused or failed).</summary>
-        public int TilesOutstanding => _outstanding.Count;
+        /// <summary>Ground tiles asked for and not yet answered. The water layers travel beside them and gate nothing.</summary>
+        public int TilesOutstanding
+        {
+            get
+            {
+                int n = 0;
+                foreach (var key in _outstanding) if (key.Layer == TileLayer.Ground) n++;
+                return n;
+            }
+        }
+
+        /// <summary>Tiles of any layer asked for and not yet answered, for a harness watching the whole stream.</summary>
+        public int TilesOutstandingOfEveryLayer => _outstanding.Count;
 
         /// <summary>True once the tiles around the spawn have been asked for.</summary>
         public bool TilesRequested { get; private set; }
@@ -67,7 +80,12 @@ namespace EarthGame.ClientCore
         public bool SnapshotApplied { get; private set; }
 
         /// <summary>Tiles answered and snapshot applied: what the client core can say of N1's "interactive".</summary>
-        public bool IsInteractive => State == ClientState.Connected && SnapshotApplied && TilesRequested && _outstanding.Count == 0;
+        /// <summary>
+        /// What CANON ruling 11 (N1) measures: the ground under the founder answered, the snapshot applied. The
+        /// water layers of M1.4b arrive beside the ground and are deliberately not part of it, so the number this
+        /// reports means the same thing after that slice as before it.
+        /// </summary>
+        public bool IsInteractive => State == ClientState.Connected && SnapshotApplied && TilesRequested && TilesOutstanding == 0;
 
         /// <summary>Why the server said no, or why the link dropped. Empty while connected.</summary>
         public string LastReason { get; private set; } = string.Empty;
@@ -104,7 +122,7 @@ namespace EarthGame.ClientCore
         public event Action<PlayerStateMessage> PlayerStateReceived;
         public event Action<uint> PlayerLeft;
         public event Action<ReceivedTile> TileReady;
-        public event Action<TileId, string> TileFailed;
+        public event Action<TileLayer, TileId, string> TileFailed;
         public event Action SnapshotEnded;
 
         /// <summary>Opens the connection; the Hello is sent when the transport reports Connected.</summary>
@@ -155,18 +173,26 @@ namespace EarthGame.ClientCore
         {
             if (State != ClientState.Connected || Grid == null || Tiles == null) return 0;
             IReadOnlyList<TileId> around = Grid.Around(Grid.ForPosition(east, north));
-            List<TileId> fresh = new List<TileId>(around.Count);
-            for (int i = 0; i < around.Count; i++)
-                if (_requested.Add(around[i])) fresh.Add(around[i]);
-            if (fresh.Count == 0) return 0;
-            TileRequestMessage request;
-            request.Wants = Tiles.WantsFor(fresh);
-            PacketWriter w = new PacketWriter(16 + fresh.Count * 12);
-            request.Write(w);
-            _transport.Connection.Send(w.Written, Delivery.Reliable);
-            for (int i = 0; i < fresh.Count; i++) _outstanding.Add(fresh[i]);
+            int asked = 0;
+            foreach (TileLayer layer in TileLayers.All)
+            {
+                // A layer this world has none of answers every tile with a refusal; asking once is how the client
+                // finds that out, and asking again for every tile it walks onto is how it would waste the wire.
+                if (_unserved.Contains(layer)) continue;
+                List<TileId> fresh = new List<TileId>(around.Count);
+                for (int i = 0; i < around.Count; i++)
+                    if (_requested.Add((layer, around[i]))) fresh.Add(around[i]);
+                if (fresh.Count == 0) continue;
+                TileRequestMessage request;
+                request.Wants = Tiles.WantsFor(layer, fresh);
+                PacketWriter w = new PacketWriter(16 + fresh.Count * 16);
+                request.Write(w);
+                _transport.Connection.Send(w.Written, Delivery.Reliable);
+                for (int i = 0; i < fresh.Count; i++) _outstanding.Add((layer, fresh[i]));
+                if (layer == TileLayer.Ground) asked = fresh.Count;
+            }
             TilesRequested = true;
-            return fresh.Count;
+            return asked;
         }
 
         /// <summary>The server's tick now, as this client estimates it from the newest tick seen and the time since.</summary>
@@ -391,16 +417,18 @@ namespace EarthGame.ClientCore
             Tiles = new TileReceiver(Welcome.RegionId, _tileCache);
             Tiles.TileReady += tile =>
             {
-                _outstanding.Remove(tile.Id);
+                _outstanding.Remove((tile.Layer, tile.Id));
                 TileReady?.Invoke(tile);
             };
-            Tiles.TileFailed += (id, why) =>
+            Tiles.TileFailed += (layer, id, why) =>
             {
-                _outstanding.Remove(id);
-                TileFailed?.Invoke(id, why);
+                _outstanding.Remove((layer, id));
+                if (why.StartsWith("the server has no ", StringComparison.Ordinal)) _unserved.Add(layer);
+                TileFailed?.Invoke(layer, id, why);
             };
             _outstanding.Clear();
             _requested.Clear();
+            _unserved.Clear();
             TilesRequested = false;
             SnapshotApplied = false;
             _others.Clear();
