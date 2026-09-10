@@ -141,7 +141,7 @@ namespace EarthGame.Engine
         /// <summary>Per species in <see cref="AnimalSpecies.All"/>, animals per km².</summary>
         public float[][] Capacity { get; }
 
-        private WorldLayers(RegionRaster heights, RegionRaster waterBodies)
+        private WorldLayers(RegionRaster heights, RegionRaster waterBodies, Action<string> progress)
         {
             Heights = heights;
             Width = heights.Width;
@@ -164,8 +164,11 @@ namespace EarthGame.Engine
             Stone = new byte[count];
             Capacity = new float[AnimalSpecies.All.Count][];
             for (int s = 0; s < Capacity.Length; s++) Capacity[s] = new float[count];
+            progress?.Invoke("Finding lakes and wetlands");
             _lake = Lakes(heights, waterBodies);
+            progress?.Invoke("Tracing drainage");
             Drainage = DrainageNetwork.Of(heights, _lake);
+            progress?.Invoke("Forming soil");
             Soil = new SoilModel(Drainage);
         }
 
@@ -178,17 +181,25 @@ namespace EarthGame.Engine
         /// water bodies are the bake's outlines (<c>Tools/data/bake_water.py</c>, OpenStreetMap), optional: without
         /// them the lakes are read off the ground alone.
         /// </summary>
-        public static WorldLayers Compute(RegionRaster heights, ulong seed, RegionRaster waterBodies = null)
+        public static WorldLayers Compute(RegionRaster heights, ulong seed, RegionRaster waterBodies = null, Action<string> progress = null)
         {
             if (heights == null) throw new ArgumentNullException(nameof(heights));
-            WorldLayers w = new WorldLayers(heights, waterBodies);
+            WorldLayers w = new WorldLayers(heights, waterBodies, progress);
+            progress?.Invoke("Reading slopes and wind exposure");
             w.SlopeAndExposure();
+            progress?.Invoke("Measuring the shore");
             w.Distances();
+            progress?.Invoke("Preparing the sea floor");
             w.SeaFloor();
+            progress?.Invoke("Preparing water");
             w.WaterBodies();
+            progress?.Invoke("Growing plant communities");
             w.Community(seed);
+            progress?.Invoke("Reading landforms");
             w.Topology();
+            progress?.Invoke("Finding stone");
             w.Stones(seed);
+            progress?.Invoke("Calculating animal habitat");
             w.Capacities();
             return w;
         }

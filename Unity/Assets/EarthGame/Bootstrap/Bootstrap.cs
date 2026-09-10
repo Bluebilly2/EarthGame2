@@ -1,5 +1,9 @@
 using System;
 using System.Globalization;
+using System.Collections;
+using System.Collections.Concurrent;
+using System.Threading;
+using System.Threading.Tasks;
 using System.IO;
 using EarthGame.Client;
 using EarthGame.Engine;
@@ -57,6 +61,15 @@ namespace EarthGame.Bootstrap
         private float _nextAutosaveAt;
         private float _quitAt = -1f;
         private bool _launched;
+        private LoadingController _loading;
+        private LoadingRecorder _loadingRecorder;
+        private Task<WorldPreparation.Result> _preparation;
+        private CancellationTokenSource _preparationCancellation;
+        private readonly ConcurrentQueue<string> _loadingStages = new ConcurrentQueue<string>();
+        private Region _loadingRegion;
+        private double _loadingStarted;
+        private int _loadingUpdates;
+        private bool _quitting;
 
         public LaunchMode Mode => _mode;
         public GameServer Server => _server;
@@ -116,49 +129,111 @@ namespace EarthGame.Bootstrap
         {
             if (_launched) return;
             _launched = true;
-            Region region = Region.Bherwerre;
+            _loadingRegion = Region.Bherwerre;
+            _loadingStarted = Time.realtimeSinceStartupAsDouble;
+            _loadingUpdates = 0;
+            GameObject overlay = new GameObject("World loading");
+            _loading = overlay.AddComponent<LoadingController>();
+            _loading.Build();
+            _loading.Back += ReturnAfterLoadFailure;
+            if (LaunchArgs.Has("loading-record"))
+            {
+                _loadingRecorder = gameObject.AddComponent<LoadingRecorder>();
+                _loadingRecorder.Begin(LaunchArgs.Get("loading-record", null), _loading);
+            }
+            StartCoroutine(BeginPreparation());
+        }
+
+        private IEnumerator BeginPreparation()
+        {
+            // Give the overlay a frame before starting disk work. Worker closures hold plain values only.
+            yield return null;
+            if (_quitting) yield break;
+            if (_mode == LaunchMode.Join)
+            {
+                StartConnections(_loadingRegion, null, null);
+                yield break;
+            }
+            Region region = _loadingRegion;
             if (_worldDir == null)
             {
                 string name = LaunchArgs.Get("world", "world-" + _seed.ToString(CultureInfo.InvariantCulture));
                 _worldDir = Path.Combine(RegionDataLocator.SavesDir(), name);
             }
 
-            WorldState world = null;
-            WorldSaveInfo saved = null;
-            if (_mode != LaunchMode.Join)
-            {
-                Heightfield terrain = RegionDataLocator.TryLoadHeightfield(region, out string message);
-                Debug.Log("[bootstrap] " + message);
-                if (WorldSave.Exists(_worldDir))
-                {
-                    saved = WorldSave.Read(_worldDir);
-                    Heightfield worldTerrain = WorldCreation.TryLoadTerrain(_worldDir, out string terrainMessage);
-                    Debug.Log("[bootstrap] " + terrainMessage);
-                    world = WorldSave.Restore(saved, worldTerrain ?? terrain);
-                    _seed = world.Seed;
-                    Debug.Log("[bootstrap] continuing " + _worldDir + " at tick " + world.Tick + ", day " + (world.Clock.DaysElapsed + 1) + ", " + saved.Players.Count + " player(s) remembered");
-                }
-                else if (terrain != null)
-                {
-                    // A new world runs the chain once and keeps its layers (M1.2); a minute in the editor's Mono.
-                    double started = Time.realtimeSinceStartupAsDouble;
-                    string now = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
-                    RegionRaster waterBodies = null;
-                    string waterSidecar = Path.Combine(RegionDataLocator.DataDir(region), "water_bodies.json");
-                    if (File.Exists(waterSidecar)) waterBodies = RegionRaster.Load(waterSidecar);
-                    Debug.Log("[bootstrap] water bodies: " + (waterBodies == null ? "none at " + waterSidecar + "; lakes read off the ground alone" : waterSidecar));
-                    WorldCreation.Result created = WorldCreation.Create(_worldDir, region, _seed, terrain.Raster, now, waterBodies);
-                    Heightfield worldTerrain = new Heightfield(RegionRaster.Load(created.Layers["heights"]));
-                    world = new WorldState(_seed, region, region.WakeClock(), worldTerrain, 0, new Double3(created.Wake.East, 0.0, created.Wake.North));
-                    _layerChecksums = created.Checksums;
-                    Debug.Log("[bootstrap] created " + _worldDir + " in " + (Time.realtimeSinceStartupAsDouble - started).ToString("0.0") + " s: " + created.Layers.Count + " layers\n" + created.Census);
-                }
-                else
-                {
-                    world = new WorldState(_seed, region, region.WakeClock(), terrain);
-                }
-            }
+            string worldDir = _worldDir;
+            string dataDir = RegionDataLocator.DataDir(region);
+            ulong seed = _seed;
+            string now = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
+            var stages = _loadingStages;
+            var cancellation = new CancellationTokenSource();
+            _preparationCancellation = cancellation;
+            CancellationToken token = cancellation.Token;
+            _preparation = Task.Run(() => WorldPreparation.Load(worldDir, dataDir, region, seed, now, stages.Enqueue, token));
+            // Observe errors even if the Unity object disappears before the task finishes.
+            _preparation.ContinueWith(task => { _ = task.Exception; }, CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+        }
 
+        private void PollPreparation()
+        {
+            while (_loadingStages.TryDequeue(out string stage))
+            {
+                _loading?.SetStage(stage);
+                _loadingRecorder?.Stage(stage);
+                Debug.Log("[loading] " + stage);
+            }
+            if (_preparation == null) return;
+            _loadingUpdates++;
+            if (!_preparation.IsCompleted) return;
+            Task<WorldPreparation.Result> done = _preparation;
+            _preparation = null;
+            _preparationCancellation.Dispose();
+            _preparationCancellation = null;
+            if (_quitting) return;
+            try
+            {
+                WorldPreparation.Result ready = done.GetAwaiter().GetResult();
+                _seed = ready.World.Seed;
+                _layerChecksums = ready.Checksums;
+                _loadingRecorder?.Prepared();
+                Debug.Log("[loading] prepared in " + (Time.realtimeSinceStartupAsDouble - _loadingStarted).ToString("0.0")
+                    + " s; main-thread updates " + _loadingUpdates);
+                if (ready.Census != null) Debug.Log("[bootstrap] " + ready.Census);
+                StartConnections(_loadingRegion, ready.World, ready.Saved);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("[loading] " + ex.Message);
+                _loading?.ShowFailure(ex.Message, _server == null && _clientRuntime == null);
+                _loadingRecorder?.Failed(ex.Message);
+            }
+        }
+
+        private void ReturnAfterLoadFailure()
+        {
+            if (_preparation != null || _server != null || _clientRuntime != null) return;
+            CloseLoading();
+            _launched = false;
+            _worldDir = null;
+            _layerChecksums = null;
+            ShowShell();
+            _loadingRecorder?.ReturnedToMenu();
+        }
+
+        private void CloseLoading()
+        {
+            if (_loading == null) return;
+            GameObject overlay = _loading.gameObject;
+            _loading.Close();
+            Destroy(overlay);
+            _loading = null;
+        }
+
+        private void StartConnections(Region region, WorldState world, WorldSaveInfo saved)
+        {
+            if (_quitting) return;
+            _loading?.SetStage("Preparing the ground around you");
             UdpOptions clientOptions = ClientUdpOptions();
             switch (_mode)
             {
@@ -190,6 +265,7 @@ namespace EarthGame.Bootstrap
                     StartServer(new UdpServerTransport(new UdpOptions()), world, saved, _port);
                     break;
             }
+            if (_mode == LaunchMode.Dedicated) CloseLoading();
             _lastRealtime = Time.realtimeSinceStartupAsDouble;
             _nextAutosaveAt = Time.realtimeSinceStartup + AutosaveIntervalSeconds;
             // A scenario ends itself; without one, -eg-seconds is how long the process runs.
@@ -246,6 +322,8 @@ namespace EarthGame.Bootstrap
         private void StartClient(Func<IClientTransport> transportFactory, string address, int port, Region region)
         {
             _clientRuntime = gameObject.AddComponent<ClientRuntime>();
+            _clientRuntime.BecameInteractive += _ => { _loadingRecorder?.Ready(); CloseLoading(); };
+            _clientRuntime.Dropped += reason => _loading?.ShowFailure(reason, false);
             if (_recordDir != null && _scenario != null && _scenario != Recorder.Scenario)
             {
                 // The runner's clock must start before the connection does: its first record is N1's number.
@@ -262,6 +340,7 @@ namespace EarthGame.Bootstrap
 
         private void Update()
         {
+            PollPreparation();
             if (_server != null)
             {
                 double now = Time.realtimeSinceStartupAsDouble;
@@ -294,10 +373,24 @@ namespace EarthGame.Bootstrap
             }
         }
 
-        private void OnApplicationQuit() => Save();
+        private void OnApplicationQuit()
+        {
+            _quitting = true;
+            _preparationCancellation?.Cancel();
+            Save();
+        }
 
         private void OnDestroy()
         {
+            _quitting = true;
+            _preparationCancellation?.Cancel();
+            if (_preparationCancellation != null)
+            {
+                var cancellation = _preparationCancellation;
+                _preparation?.ContinueWith(_ => cancellation.Dispose(), TaskScheduler.Default);
+                _preparationCancellation = null;
+            }
+            CloseLoading();
             _serverTransport?.Dispose();
         }
 

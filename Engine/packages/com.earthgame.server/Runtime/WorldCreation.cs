@@ -36,11 +36,12 @@ namespace EarthGame.Server
         /// Runs the chain and writes the folder. The date is the host's; the engine reads no clock. The water bodies
         /// are the bake's mapped outlines when the region has them (<c>water_bodies.json</c> beside the heights).
         /// </summary>
-        public static Result Create(string worldDir, Region region, ulong seed, RegionRaster heights, string nowUtcText, RegionRaster waterBodies = null)
+        public static Result Create(string worldDir, Region region, ulong seed, RegionRaster heights, string nowUtcText, RegionRaster waterBodies = null, Action<string> progress = null)
         {
             if (region == null) throw new ArgumentNullException(nameof(region));
             if (heights == null) throw new ArgumentNullException(nameof(heights));
-            WorldLayers layers = WorldLayers.Compute(heights, seed, waterBodies);
+            WorldLayers layers = WorldLayers.Compute(heights, seed, waterBodies, progress);
+            progress?.Invoke("Choosing the wake");
             WakeScorer scorer = new WakeScorer(layers);
             WakeScore wake = scorer.Best();
             string census = scorer.Census(wake, region) + layers.WaterCensus();
@@ -51,59 +52,66 @@ namespace EarthGame.Server
             Result result = new Result { Dir = dir, Wake = wake, Census = census, Computed = layers };
             int count = layers.Width * layers.Height;
 
-            Put(result, "heights", RegionRaster.Write(dir, "heights", heights, "heights", "f32", 1.0, "m", layers.HeightsWithFloor,
+            SaveLayer("heights", RegionRaster.Write(dir, "heights", heights, "heights", "f32", 1.0, "m", layers.HeightsWithFloor,
                 "the bake's heights with the sea floor of WorldLayers.SeaFloor", by, nowUtcText));
-            Put(result, "surface", RegionRaster.Write(dir, "surface", heights, "surface", "f32", 1.0, "m", layers.Surface,
+            SaveLayer("surface", RegionRaster.Write(dir, "surface", heights, "surface", "f32", 1.0, "m", layers.Surface,
                 "the water's surface where water stands (the sea at the datum, a lake at its level), else the ground's", by, nowUtcText));
-            Put(result, "soil_depth", RegionRaster.Write(dir, "soil_depth", heights, "soil_depth", "u16", 0.01, "m", layers.Soil.DepthM,
+            SaveLayer("soil_depth", RegionRaster.Write(dir, "soil_depth", heights, "soil_depth", "u16", 0.01, "m", layers.Soil.DepthM,
                 "SoilModel over DrainageNetwork", by, nowUtcText));
-            Put(result, "wetness", RegionRaster.Write(dir, "wetness", heights, "wetness", "u8", 1.0 / 255.0, "1", layers.Soil.Wetness01,
+            SaveLayer("wetness", RegionRaster.Write(dir, "wetness", heights, "wetness", "u8", 1.0 / 255.0, "1", layers.Soil.Wetness01,
                 "SoilModel topographic wetness, scaled to the land's own percentiles", by, nowUtcText));
-            Put(result, "suitability", RegionRaster.Write(dir, "suitability", heights, "suitability", "u8", 1.0 / 255.0, "1", layers.Suitability,
+            SaveLayer("suitability", RegionRaster.Write(dir, "suitability", heights, "suitability", "u8", 1.0 / 255.0, "1", layers.Suitability,
                 "the winning canopy's suitability (PlantCommunity)", by, nowUtcText));
-            Put(result, "water", RegionRaster.WriteCodes(dir, "water", heights, "water", "u8", "id", Widen(layers.Water),
+            SaveLayer("water", RegionRaster.WriteCodes(dir, "water", heights, "water", "u8", "id", Widen(layers.Water),
                 "WaterClass: 0 dry, 1 damp, 2 trickle, 3 creek, 4 stream, 5 lake (fresh), 6 swamp, 7 sea (salt)", by, nowUtcText));
-            Put(result, "overstory", RegionRaster.WriteCodes(dir, "overstory", heights, "overstory", "u8", "id", Widen(layers.Overstory),
+            SaveLayer("overstory", RegionRaster.WriteCodes(dir, "overstory", heights, "overstory", "u8", "id", Widen(layers.Overstory),
                 "PlantSpecies.All index + 1, 0 for none: " + SpeciesList(), by, nowUtcText));
-            Put(result, "understory", RegionRaster.WriteCodes(dir, "understory", heights, "understory", "u8", "id", Widen(layers.Understory),
+            SaveLayer("understory", RegionRaster.WriteCodes(dir, "understory", heights, "understory", "u8", "id", Widen(layers.Understory),
                 "PlantSpecies.All index + 1, 0 for none: " + SpeciesList(), by, nowUtcText));
-            Put(result, "topology", RegionRaster.WriteCodes(dir, "topology", heights, "topology", "u32", "flags", layers.TopologyMask,
+            SaveLayer("topology", RegionRaster.WriteCodes(dir, "topology", heights, "topology", "u32", "flags", layers.TopologyMask,
                 "Topology bits: 1 sea, 2 beach, 4 dune, 8 wetland, 16 forest, 32 heath, 64 crest, 128 cliff, 256 shore platform, 512 lake, 1024 creek", by, nowUtcText));
-            Put(result, "stone", RegionRaster.WriteCodes(dir, "stone", heights, "stone", "u8", "id", Widen(layers.Stone),
+            SaveLayer("stone", RegionRaster.WriteCodes(dir, "stone", heights, "stone", "u8", "id", Widen(layers.Stone),
                 "StoneType.All index + 1, 0 for none: " + StoneList(), by, nowUtcText));
             uint[] catchment = new uint[count];
             for (int r = 0; r < layers.Height; r++)
                 for (int c = 0; c < layers.Width; c++)
                     catchment[r * layers.Width + c] = (uint)Math.Round(layers.Drainage.CatchmentM2(c, r) / layers.Drainage.CellAreaM2);
-            Put(result, "catchment", RegionRaster.WriteCodes(dir, "catchment", heights, "catchment", "u32", "cells", catchment,
+            SaveLayer("catchment", RegionRaster.WriteCodes(dir, "catchment", heights, "catchment", "u32", "cells", catchment,
                 "DrainageNetwork: the cells draining through each cell, itself included, on the filled surface with the sea as the sink", by, nowUtcText));
-            Put(result, "shore_distance", RegionRaster.WriteCodes(dir, "shore_distance", heights, "shore_distance", "u16", "m", Metres(layers.ShoreDistanceM),
+            SaveLayer("shore_distance", RegionRaster.WriteCodes(dir, "shore_distance", heights, "shore_distance", "u16", "m", Metres(layers.ShoreDistanceM),
                 "metres to the nearest sea cell, capped at 65535", by, nowUtcText));
-            Put(result, "fresh_water_distance", RegionRaster.WriteCodes(dir, "fresh_water_distance", heights, "fresh_water_distance", "u16", "m", Metres(layers.FreshWaterDistanceM),
+            SaveLayer("fresh_water_distance", RegionRaster.WriteCodes(dir, "fresh_water_distance", heights, "fresh_water_distance", "u16", "m", Metres(layers.FreshWaterDistanceM),
                 "metres to the nearest creek, stream or lake cell; 65535 for none", by, nowUtcText));
             IReadOnlyList<AnimalSpecies> species = AnimalSpecies.All;
             for (int s = 0; s < species.Count; s++)
             {
                 string name = "capacity_" + species[s].Name.ToLowerInvariant();
-                Put(result, name, RegionRaster.Write(dir, name, heights, name, "u16", 0.01, "1/km2", layers.Capacity[s],
+                SaveLayer(name, RegionRaster.Write(dir, name, heights, name, "u16", 0.01, "1/km2", layers.Capacity[s],
                     "AnimalCapacity.PerKm2 for " + species[s].DisplayName, by, nowUtcText));
             }
-            Put(result, "stone_distance", RegionRaster.WriteCodes(dir, "stone_distance", heights, "stone_distance", "u16", "m", Metres(scorer.StoneDistanceM),
+            SaveLayer("stone_distance", RegionRaster.WriteCodes(dir, "stone_distance", heights, "stone_distance", "u16", "m", Metres(scorer.StoneDistanceM),
                 "metres to the nearest knappable stone (Knappability at or above WakeScorer.KnappableFloor); 65535 for none", by, nowUtcText));
-            Put(result, "fibre_distance", RegionRaster.WriteCodes(dir, "fibre_distance", heights, "fibre_distance", "u16", "m", Metres(scorer.FibreDistanceM),
+            SaveLayer("fibre_distance", RegionRaster.WriteCodes(dir, "fibre_distance", heights, "fibre_distance", "u16", "m", Metres(scorer.FibreDistanceM),
                 "metres to the nearest fibre plant (lomandra, saw-sedge, spinifex); 65535 for none", by, nowUtcText));
-            Put(result, "firewood_distance", RegionRaster.WriteCodes(dir, "firewood_distance", heights, "firewood_distance", "u16", "m", Metres(scorer.FirewoodDistanceM),
+            SaveLayer("firewood_distance", RegionRaster.WriteCodes(dir, "firewood_distance", heights, "firewood_distance", "u16", "m", Metres(scorer.FirewoodDistanceM),
                 "metres to the nearest canopy; 65535 for none", by, nowUtcText));
-            Put(result, "shelter_distance", RegionRaster.WriteCodes(dir, "shelter_distance", heights, "shelter_distance", "u16", "m", Metres(scorer.ShelterDistanceM),
+            SaveLayer("shelter_distance", RegionRaster.WriteCodes(dir, "shelter_distance", heights, "shelter_distance", "u16", "m", Metres(scorer.ShelterDistanceM),
                 "metres to the nearest cliff or shore platform; 65535 for none", by, nowUtcText));
-            Put(result, "wake_score", RegionRaster.Write(dir, "wake_score", heights, "wake_score", "u8", 1.0 / 255.0, "1", scorer.ScoreField(),
+            SaveLayer("wake_score", RegionRaster.Write(dir, "wake_score", heights, "wake_score", "u8", 1.0 / 255.0, "1", scorer.ScoreField(),
                 "WakeScorer: the product of the five graded criteria on standable ground; the wake is its greatest cell, first in row order", by, nowUtcText));
 
+            progress?.Invoke("Writing the census");
             string censusPath = Path.Combine(worldDir, CensusFile);
             File.WriteAllText(censusPath + ".part", census, new UTF8Encoding(false));
             if (File.Exists(censusPath)) File.Delete(censusPath);
             File.Move(censusPath + ".part", censusPath);
             return result;
+
+            void SaveLayer(string name, string sidecarPath)
+            {
+                Put(result, name, sidecarPath);
+                progress?.Invoke("Saved " + name);
+            }
         }
 
         private static void Put(Result result, string name, string sidecarPath)

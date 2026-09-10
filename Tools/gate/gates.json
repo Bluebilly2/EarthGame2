@@ -278,6 +278,49 @@
         "save_check"
       ],
       "owner_decides": "the frames of the cobble and the stick at rest (M1.3 contract, promise 7): whether things land where his eyes expect"
+    },
+    "M1.4-loading": {
+      "steps": [
+        {
+          "name": "dotnet test",
+          "cmd": [
+            "dotnet",
+            "test",
+            "Engine/EarthGame.slnx",
+            "--nologo"
+          ]
+        },
+        {
+          "name": "Unity-layer compile",
+          "cmd": [
+            "dotnet",
+            "build",
+            "Engine/EarthGame.Unity.Compile.csproj",
+            "--nologo",
+            "-v",
+            "minimal"
+          ]
+        },
+        {
+          "name": "Unity tests, build and isolated startup recordings",
+          "cmd": [
+            "python",
+            "Tools/world/loading.py",
+            "--build"
+          ]
+        },
+        {
+          "name": "loading_check",
+          "cmd": [
+            "python",
+            "Tools/verifiers/checks/loading_check.py"
+          ]
+        }
+      ],
+      "verifiers": [
+        "loading_check"
+      ],
+      "owner_decides": "appearance and feel; this gate closes only the loading part of M1.4"
     }
   }
 }

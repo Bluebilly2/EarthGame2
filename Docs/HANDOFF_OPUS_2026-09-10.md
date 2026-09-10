@@ -5,6 +5,11 @@ handoff, not canon: `Docs/CANON.md` rules, `Docs/ARCHITECTURE.md` describes, `Do
 `Docs/DEBTS.md` owes, and the contract in flight promises. This file tells the successor where things stand,
 how the work is done here, where the last model's judgement was spent, and how to spend less of it.
 
+Subsequent work, Codex, 2026-09-10: the loading part of M1.4 is now recorded in
+[`contracts/M1.4_LOADING.md`](contracts/M1.4_LOADING.md), including its proof and
+remaining work. The status table and proposed cut below are the earlier handoff;
+read the newer contract before treating loading as still unimplemented.
+
 ## 0. Read in this order, before touching anything
 
 1. `CLAUDE.md` (two minutes; the house rules).
