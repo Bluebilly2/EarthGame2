@@ -61,9 +61,9 @@ still runs on the main thread; this slice does not claim a frame-time budget for
   that no other literal metre appears in the world code. The edge: the sea on the coast sides; on land a soft
   boundary with a "not yet" vignette on the client; animals treat it as impassable; a static far skirt draws
   what lies beyond.
-- **Region:** `bherwerre` — centre 35.140°S 150.675°E; box 150.6311–150.7189°E, 35.1761–35.1039°S; `Region.Bherwerre`
-  still carries a stated wake point (about 35.159°S 150.6485°E) that CANON ruling 20 withdrew, and taking it out
-  of the code is owed (DEBTS.md); the wake is the scorer's (below). Fallback region: Ulladulla.
+- **Region:** `bherwerre` — centre 35.140°S 150.675°E; box 150.6311–150.7189°E, 35.1761–35.1039°S; the region names
+  no wake point of its own (CANON ruling 20); the wake is the scorer's (below), and a world made without one wakes
+  the founder at the region's centre. Fallback region: Ulladulla.
 - **Data at the region's true resolution:** AWS Terrain Tiles at zoom 14–15, baked by `Tools/data/bake_region.py`
   to `Data/regions/bherwerre/heights.r32` with a sidecar recording the effective source resolution per tile
   (SRTM 30 m inland, Geoscience Australia 5 m where present). Procedural detail (v1's `TerrainSynthesis` recipes
@@ -92,8 +92,7 @@ still runs on the main thread; this slice does not claim a frame-time budget for
   than a plateau; a cell is no place to wake when it is sea, within 500 m of the region's edge, under 2 m,
   steeper than ten degrees, water underfoot (a lake, a swamp, a creek), sodden ground or the shelter rock
   itself; ties go to the least wind exposure. The winner is written into `world.json`; the same scorer read out
-  in words, with the water read out by name, is the census (`census.txt`); until it is taken out of the code, the census also reports
-  the distance to `Region`'s withdrawn point.
+  in words, with the water read out by name, is the census (`census.txt`).
 - **What the ground looks like** is two facts with one owner each, one on either side of the wire:
   `GroundCovers.Of` in the engine says what covers a cell (the world's `cover` layer, M1.4d), and `GroundPalette`
   in ClientCore says what that cover looks like. The terrain's colour, and later grass, litter and impostors, ask
@@ -238,7 +237,9 @@ id. `RegionSaveTests` holds the save law by sabotage: each persisted field flipp
   (`-eg-latency`, `-eg-jitter`, `-eg-loss`, `-eg-sendcap`) and runs a scenario with `-eg-scenario` and
   `-eg-record` (`ScenarioRunner`: the founder driven along `Routes.WakeLoop` by a `RouteFollower`; `join`, `walk`,
   `soak`, `rejoin`; the first-frame recorder stays). `Tools/corpus/run.py` is the harness (§7.1's conditions,
-  the held-tick pause driven from the player's own log) and `Tools/verifiers/checks/join_check.py` recomputes
+  the held-tick pause driven from the player's own log; since 2026-09-10 every scenario runs on its own copy of a
+  world the harness creates first, so founders wake where the scorer chose and walk `Routes.WakeLoop`, laid round
+  that wake) and `Tools/verifiers/checks/join_check.py` recomputes
   N1–N4 from the logs.
 - **Plan B (true cost):** FishNet 4.7 requires the server to be a Unity process; adopting it replaces
   `EarthGame.Server`'s replication and its dotnet tests and forfeits the pure-.NET dedicated server. Not taken:
@@ -411,7 +412,7 @@ mandatory in every file from the first write.
 | 2026-09-09 | The sea's floor is a rule (one in twenty from the shore, to 30 m) until the Geoscience Australia grids are read | The tiles carry no bathymetry; wading needed a floor at the shore, and the shelf off this coast is of that order (`region_stats.py --world` checks the rule, not the sea) |
 | 2026-09-09 | Lakes are found before the drainage and are its sinks; the ground's flats are one level with a rim, and the mapped outlines (OpenStreetMap, `bake_water.py`) stand at the median of the bake's ground inside them | A fill that had to spill read Windermere's closed basin as a 106 ha pond thirty metres deep; the tiles are noise over these lakes (12 to 50 m inside Windermere's outline, a bowl inside McKenzie's), so the outlines are the only evidence of where the water is, and the median is the level the ground itself supports |
 | 2026-09-09 | The wake's criteria grade from the thing itself to three times the stated distance; sea, the region's edge, low ground, steep ground, water underfoot, sodden ground and the shelter rock itself are no place to wake; ties go to the least wind exposure | Threshold factors scored a whole coast at 1.000 and woke the founder at the first cell in row order on the north edge; then in a creek mouth on a platform; then at a paperbark swamp's edge. Each rule is named in the census so the owner can call it wrong |
-| 2026-09-09 | `Region`'s stated wake stays at 35.159°S 150.6485°E although Destination NSW and OpenStreetMap put Cave Beach 2.1 km east of it | CANON ruling 8 names the number; the corpus scenarios' loop is laid out from the spawn and M1.B's numbers were run on that ground; `census_check.py` keeps the row red and DEBTS.md names the owner's ruling. The point itself was withdrawn by CANON ruling 20 (2026-09-10); taking it out of the code is owed |
+| 2026-09-09 | `Region`'s stated wake stays at 35.159°S 150.6485°E although Destination NSW and OpenStreetMap put Cave Beach 2.1 km east of it | CANON ruling 8 names the number; the corpus scenarios' loop is laid out from the spawn and M1.B's numbers were run on that ground; `census_check.py` keeps the row red and DEBTS.md names the owner's ruling. The point itself was withdrawn by CANON ruling 20 (2026-09-10) and left the code the same day |
 | 2026-09-09 | The oystercatcher forages by the tideline: its water factor is the shore's, not fresh water's | A shorebird that needed a creek within range had no capacity on the beach it lives on |
 | 2026-09-09 | The gate creates a world under `Artefacts/worlds/gate` (`Tools/world/create.py`) and the verifiers read that folder | A verifier that read a hand-made probe would check yesterday's code; the folder is rebuilt from the current host on every gate run and lists its layers with their sizes and checksums, as the contract asks to see them |
 | 2026-09-09 | An entity's fields carry the tick they changed at; a session's interest set carries the tick of its last send per entity; what is sent is the fields stamped at or after that tick | A dirty flag cleared after a broadcast is cleared for the session whose byte budget deferred the message too; stamps are dirtiness per viewer, and the budget defers without losing |
@@ -427,3 +428,5 @@ mandatory in every file from the first write.
 | 2026-09-10 | A tile is prepared on a worker and only Unity's own calls are left on the main thread, under a stopwatch that starts no work on a spent frame | Nobody had measured it: sampling a tile's posts is 21.9 ms and its colour map 7.1 ms against §8's 1.5 ms a frame, and the whole of it was on the main thread. What cannot move is `SetHeights` at 21 ms, which is Unity's own call and a debt; the budget's job is to stop a second tile joining it in one frame, and the run log now says what each tile cost so a check can hold it there |
 | 2026-09-10 | A tile's posts are sampled from that tile, not through the field of held tiles | A tile's last post is its neighbour's first, and at the edge of what a client holds the neighbour is not held: the field answered NaN and 1,025 posts of every outermost tile were built from nothing. Neighbours share their edge posts, so reading the tile's own is the same number wherever both exist |
 | 2026-09-10 | A tile's colour is its own terrain layer, one picture stretched once over the kilometre, and grain underfoot waits | The stock terrain layer can carry either a colour at the raster's pitch or a detail texture at its own, and blending two layers averages them, which washes the colour out. Measured on the frames: the ground at the boots varies by one level in 255 where the old tiled texture gave it grain. A material that multiplies the two is its own slice (DEBTS.md) |
+| 2026-09-10 | A world made without a wake puts the founder at the region's centre | The region named a wake point until CANON ruling 20 withdrew it; a bare world (a test's, a save from before M1.2) still needs somewhere, and the centre is the one point the region already owns: the origin of its frame |
+| 2026-09-10 | The corpus runs on a created world, a copy per scenario, and its walking loop is laid round that world's wake | The corpus's server ran on the bare bake and woke founders at the stated point the loop was laid round, while every real world since M1.2 wakes where the scorer chose, 4 km away. The new loop was found by a search over the gate world's layers, checked every 2 m, and walked: 0 corrections in ten minutes for each of the two players over the wire (100 ms ± 20 ms with 2 % loss, 200 ms ± 40 ms with 5 % loss) and for SOLO, two minutes of each on the bank and three on the shore, every N2 row of join_check green |

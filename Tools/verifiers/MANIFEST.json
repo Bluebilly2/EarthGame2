@@ -30,7 +30,7 @@
         "M1.1",
         "M1.2"
       ],
-      "checks": "Bherwerre Trig Point (170 m, a kilometre east of the box) reads as a summit in the surround and as the hill's flank in the region raster; the region's high ground is that hill and nowhere else; the east-west and north-south mirror images find only low ground; Jervis Bay and the ocean off Cave Beach are water; the ground north of the wake is land.",
+      "checks": "Bherwerre Trig Point (170 m, a kilometre east of the box) reads as a summit in the surround and as the hill's flank in the region raster; the region's high ground is that hill and nowhere else; the east-west and north-south mirror images find only low ground; Jervis Bay and the ocean off Cave Beach are water; the ground north of a point behind Bherwerre Beach is land.",
       "independent_of_the_tool_by": "coordinates and heights from Wikidata Q15107571, peakbagger.com, Parks Australia (booderee.gov.au) and beachesontheair.com, cited in the file, converted to raster cells by the frame rule the sidecar states rather than by the engine's code"
     },
     {
@@ -91,7 +91,7 @@
       "gates": [
         "M1.2"
       ],
-      "checks": "The world's water and topology layers put Lake Windermere, Lake McKenzie, Blacks Waterhole and Ryans Swamp where the published sources do at the published sizes, the bay salt, Cave Beach a beach with dune behind it, the south-east shore hard, and say how far the region's stated wake and the chosen wake lie from Cave Beach.",
+      "checks": "The world's water and topology layers put Lake Windermere, Lake McKenzie, Blacks Waterhole and Ryans Swamp where the published sources do at the published sizes, the bay salt, Cave Beach a beach with dune behind it, the south-east shore hard, and say how far the chosen wake lies from Cave Beach.",
       "independent_of_the_tool_by": "numpy over the layers' raw files with the frame rule the sidecars state; areas from Wikipedia (Jervis Bay Territory), positions and McKenzie's elevation from Wikidata, Cave Beach from Destination NSW (visitnsw.com), Steamers Head from Wikidata, the bay point from beachesontheair.com; the bake's outlines are OpenStreetMap's and only Blacks Waterhole's position falls back to them, which the row says"
     },
     {

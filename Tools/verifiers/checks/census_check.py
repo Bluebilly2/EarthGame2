@@ -40,12 +40,9 @@ Rows, each printed with both numbers:
      distance is printed), and so does the fact, found on 2026-09-09, that the box's south-east corner is land:
      the shore leaves the box through its south edge east of Summercloud Bay, so the corner holds no sea.
      Bherwerre Beach's corner (west of -1500 m, south of -2500 m) is beach and carries less platform than beach.
-  8. The region's stated wake (Docs/ARCHITECTURE.md section 3, restated here: 35.159 S 150.6485 E, "the Cave
-     Beach swale") lies within 500 m of Cave Beach. Found red on 2026-09-09: Destination NSW and OpenStreetMap
-     both put Cave Beach 2.1 km east of the stated point, which lies behind Bherwerre Beach; the ruling is the
-     owner's (DEBTS.md), and the row stays red until it is made.
-  9. The chosen wake (world.json): its distance from Cave Beach, printed as a note; the contract lets the scorer
-     land elsewhere when the census says why.
+  8. The chosen wake (world.json): its distance from Cave Beach, printed as a note. The scorer may land anywhere
+     in the region (CANON ruling 20, which on 2026-09-10 withdrew the point this check once held the region to:
+     35.159 S 150.6485 E, recorded as "the Cave Beach swale" though it lies behind Bherwerre Beach).
 
 Exit 0 when every row passes, 1 when any fails, 2 when a layer is missing.
 Run from the repository root:  python Tools/verifiers/checks/census_check.py [world folder]
@@ -70,7 +67,6 @@ RYANS = (-35.16666667, 150.66666667, 1500.0)
 CAVE_BEACH = (-35.162201, 150.671814)
 STEAMERS_HEAD = (-35.17978, 150.7369)
 BAY_POINT = (-35.136686 + 500.0 / 111195.0, 150.7180)
-STATED_WAKE = (-35.159, 150.6485)
 
 SEA, LAKE, SWAMP = 7, 5, 6
 BEACH, DUNE, CLIFF, PLATFORM = 2, 4, 128, 256
@@ -273,11 +269,7 @@ def main(argv):
     expect("Bherwerre Beach's corner is soft", soft_beach >= 1.0 and soft_beach > soft_hard,
            "beach %.1f ha, platform or cliff %.1f ha in the corner west of -1500 m and south of -2500 m" % (soft_beach, soft_hard))
 
-    # 8 and 9. The wakes.
-    we, wn = frame.local(STATED_WAKE[0], STATED_WAKE[1])
-    stated_d = math.hypot(we - ce, wn - cn)
-    expect("the region's stated wake lies at Cave Beach", stated_d <= 500.0,
-           "%.0f m from Destination NSW's Cave Beach; the stated point (35.159 S 150.6485 E) lies behind Bherwerre Beach" % stated_d)
+    # 8. The wake the world chose.
     saved = json.load(open(world_json, encoding="utf-8"))
     if "wake_east" in saved and "wake_north" in saved:
         chosen_d = math.hypot(saved["wake_east"] - ce, saved["wake_north"] - cn)

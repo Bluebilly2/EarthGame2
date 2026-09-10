@@ -178,35 +178,15 @@ namespace EarthGame.Engine
 
         /// <summary>
         /// The census: the wake read out as country, one line per thing a person would look for, with the
-        /// distance and the criterion beside it, and where the winner lies from the region's stated wake.
+        /// distance and the criterion beside it.
         /// </summary>
-        public string Census(WakeScore s, Region region)
+        public string Census(WakeScore s)
         {
             StringBuilder sb = new StringBuilder();
             int i = s.Row * _layers.Width + s.Col;
             sb.Append("wake at east ").Append(F(s.East)).Append(" north ").Append(F(s.North))
               .Append(" (row ").Append(s.Row).Append(", col ").Append(s.Col).Append("), ").Append(F(_layers.Heights[s.Row, s.Col])).Append(" m above the sea; score ")
               .Append(s.Score.ToString("0.000", CultureInfo.InvariantCulture)).Append('\n');
-            if (region != null)
-            {
-                LocalFrame frame = LocalFrame.ForRegion(region);
-                frame.FromLatLon(region.WakeLatitudeDeg, region.WakeLongitudeDeg, out double statedEast, out double statedNorth);
-                double d = Math.Sqrt((s.East - statedEast) * (s.East - statedEast) + (s.North - statedNorth) * (s.North - statedNorth));
-                sb.Append("the region's stated wake is ").Append(F(d)).Append(" m away, at east ").Append(F(statedEast)).Append(" north ").Append(F(statedNorth)).Append('\n');
-                double half = _layers.Heights.ExtentM * 0.5;
-                int sr = (int)Math.Round((half - statedNorth) / _layers.CellM), sc = (int)Math.Round((statedEast + half) / _layers.CellM);
-                if (sr < 0 || sc < 0 || sr >= _layers.Height || sc >= _layers.Width) sb.Append("  which lies outside the region\n");
-                else
-                {
-                    WakeScore t = At(sr, sc);
-                    string why = Unstandable(sr, sc);
-                    sb.Append("  there (row ").Append(sr).Append(", col ").Append(sc).Append("): ").Append(Topologies(_layers.TopologyMask[sr * _layers.Width + sc]))
-                      .Append("; score ").Append(t.Score.ToString("0.000", CultureInfo.InvariantCulture)).Append(why == null ? "" : " (no place to wake: " + why + ")")
-                      .Append("; fresh water ").Append(D(t.WaterM)).Append(", knappable stone ").Append(D(t.StoneM)).Append(", fibre ").Append(D(t.FibreM))
-                      .Append(", firewood ").Append(D(t.FirewoodM)).Append(", shelter rock ").Append(D(t.ShelterM))
-                      .Append("; wind exposure ").Append(_layers.SiteAt(sr, sc).Exposure.ToString("0.00", CultureInfo.InvariantCulture)).Append('\n');
-                }
-            }
             sb.Append("the ground: ").Append(Topologies(_layers.TopologyMask[i])).Append("; soil ")
               .Append(_layers.Soil.DepthAt(s.Col, s.Row).ToString("0.00", CultureInfo.InvariantCulture)).Append(" m, wetness ")
               .Append(_layers.Soil.WetnessAt(s.Col, s.Row).ToString("0.00", CultureInfo.InvariantCulture)).Append(", slope ")

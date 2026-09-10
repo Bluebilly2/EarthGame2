@@ -13,7 +13,7 @@ The references, and where they come from:
     booderee.gov.au, Steamers Head beaches); Steamers Beach at 35.171945 S, 150.724771 E (beachesontheair.com).
   - Green Patch Beach, on Jervis Bay's shore: 35.136686 S, 150.723938 E (beachesontheair.com); the bay lies
     north of it, so 500 m north of that latitude at the box's eastern edge is water. Wreck Bay and the Tasman
-    Sea lie south of the wake. Water is 0 m in this source.
+    Sea lie south of Bherwerre Beach. Water is 0 m in this source.
 
 Checks, each printed with both numbers:
   1. the surround raster at the trig point reads a summit: 140..185 m (a 64 m cell averages a 170 m top);
@@ -24,7 +24,7 @@ Checks, each printed with both numbers:
      and its north-south mirror image (the north-east corner) finds nothing above 60 m;
   5. the bay and the ocean are water: the cell 500 m north of Green Patch Beach's latitude at the box's eastern
      edge and the cell a kilometre off Cave Beach at 35.172 S 150.650 E are at or below 0 m, and the ground
-     300 m north of the wake is land. (A first draft put "the bay" in the north-west corner from memory and the
+     300 m north of a point behind Bherwerre Beach is land. (A first draft put "the bay" in the north-west corner from memory and the
      raster read land there; the raster was right and the memory wrong, which is what a published point is for.)
 
 Exit 0 when every check passes, 1 when any fails, 2 when a raster is missing.
@@ -44,7 +44,7 @@ TRIG_LAT, TRIG_LON, TRIG_M = -35.16166667, 150.73027778, 170.0
 GREEN_PATCH_LAT, GREEN_PATCH_LON = -35.136686, 150.723938
 BAY_LAT, BAY_LON = GREEN_PATCH_LAT + 500.0 / 111195.0, 150.7180   # 500 m north of the beach's latitude, inside the box
 OCEAN_LAT, OCEAN_LON = -35.172, 150.650
-WAKE_LAT, WAKE_LON = -35.159, 150.6485
+PROBE_LAT, PROBE_LON = -35.159, 150.6485   # behind Bherwerre Beach: the site research's first wake, now a probe
 EARTH_RADIUS_M = 6371000.0
 
 
@@ -142,16 +142,16 @@ def main():
     expect("no hill at the north-south mirror", ns is not None and ns < 60.0,
            "highest within 2 km of east %.0f north %.0f: %s m at %s" % (fe, -fn, "%.1f" % ns if ns is not None else "none", where_ns))
 
-    # 5. Water where the map has water, land where the founder wakes.
+    # 5. Water where the map has water, land behind the beach.
     for name, lat, lon in (("Jervis Bay", BAY_LAT, BAY_LON), ("the ocean off Cave Beach", OCEAN_LAT, OCEAN_LON)):
         e, n = local(lat, lon, fine_sidecar)
         r, c = cell(e, n, fine_sidecar)
         v = float(fine[r, c])
         expect("%s is water" % name, v <= 0.0, "row %d col %d -> %.1f m" % (r, c, v))
-    we, wn = local(WAKE_LAT, WAKE_LON, fine_sidecar)
-    r, c = cell(we, wn + 300.0, fine_sidecar)
+    pe, pn = local(PROBE_LAT, PROBE_LON, fine_sidecar)
+    r, c = cell(pe, pn + 300.0, fine_sidecar)
     v = float(fine[r, c])
-    expect("300 m north of the wake is land", v > 0.0, "row %d col %d -> %.1f m" % (r, c, v))
+    expect("300 m north of the point behind Bherwerre Beach is land", v > 0.0, "row %d col %d -> %.1f m" % (r, c, v))
 
     if failures:
         print("summit_check: FAIL (%s)" % ", ".join(failures))

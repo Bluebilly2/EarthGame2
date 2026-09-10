@@ -16,7 +16,7 @@ namespace EarthGame.Tests.Server
     public sealed class EntitySessionTests
     {
         private static readonly Region Fixture = new Region("fixture", "Fixture", Region.Bherwerre.CentreLatitudeDeg,
-            Region.Bherwerre.CentreLongitudeDeg, TestRasters.MadeExtentM, 237, 8.0, Region.Bherwerre.CentreLatitudeDeg, Region.Bherwerre.CentreLongitudeDeg);
+            Region.Bherwerre.CentreLongitudeDeg, TestRasters.MadeExtentM, 237, 8.0);
 
         private Heightfield _ground;
 

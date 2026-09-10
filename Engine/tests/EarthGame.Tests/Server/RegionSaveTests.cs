@@ -12,7 +12,7 @@ namespace EarthGame.Tests.Server
     public sealed class RegionSaveTests
     {
         private static readonly Region Fixture = new Region("fixture", "Fixture", Region.Bherwerre.CentreLatitudeDeg,
-            Region.Bherwerre.CentreLongitudeDeg, TestRasters.MadeExtentM, 237, 8.0, Region.Bherwerre.CentreLatitudeDeg, Region.Bherwerre.CentreLongitudeDeg);
+            Region.Bherwerre.CentreLongitudeDeg, TestRasters.MadeExtentM, 237, 8.0);
         private const string Now = "2026-09-09T10:00:00Z";
 
         private string _dir;

@@ -15,7 +15,8 @@ Peninsula, not against the sidecar's own min_m, max_m and sea_fraction, which th
     tolerated, a hundred is not);
   - the box has sea on two sides (Jervis Bay to the north-east, Wreck Bay and the Tasman Sea to the south and
     east) and the peninsula between: between 10 % and 40 % of cells at or below sea level;
-  - the founder wakes on low ground behind a beach: the wake cell is land between 3 and 40 m.
+  - the ground behind Bherwerre Beach is low land: the cell at 35.159 S 150.6485 E (the site research's first
+    wake, withdrawn as a wake by CANON ruling 20 and kept as a probe) lies between 3 and 40 m.
 
 With --world <folder> (M1.2) it checks a created world's heights layer instead: the sea has the floor the rule
 states (WorldLayers: one in twenty from the shore, to 30 m; "the sea has no floor" in DEBTS.md), so every sea
@@ -37,11 +38,11 @@ import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 REGION = os.path.join(ROOT, "Data", "regions", "bherwerre")
 
-WAKE_LAT, WAKE_LON = -35.159, 150.6485   # Docs/ARCHITECTURE.md §3
+PROBE_LAT, PROBE_LON = -35.159, 150.6485  # behind Bherwerre Beach: the site research's first wake, now a probe
 MAX_M_RANGE = (110.0, 250.0)             # Parks Australia: slopes at Steamers Head rise 130 m
 MIN_M_FLOOR = -60.0                      # no bathymetry in the source; only despike residue may dip below zero
 SEA_FRACTION_RANGE = (0.10, 0.40)        # sea on two sides of a peninsula box
-WAKE_M_RANGE = (3.0, 40.0)               # low ground behind Cave Beach
+PROBE_M_RANGE = (3.0, 40.0)              # low ground behind the beach
 
 
 def cell_of(lat, lon, sidecar):
@@ -159,9 +160,9 @@ def main():
     sea_cells = heights[heights <= 0.0]
     expect("sea is flat in this source", sea_cells.size > 0 and float(np.percentile(-sea_cells, 99.9)) <= 10.0,
            "99.9th percentile of depth %.1f m (a source without bathymetry reads 0)" % (float(np.percentile(-sea_cells, 99.9)) if sea_cells.size else float("nan")))
-    r, c = cell_of(WAKE_LAT, WAKE_LON, sidecar)
-    wake = float(heights[r, c])
-    expect("the wake is low land", WAKE_M_RANGE[0] <= wake <= WAKE_M_RANGE[1], "row %d col %d -> %.1f m, expected %.0f..%.0f" % (r, c, wake, WAKE_M_RANGE[0], WAKE_M_RANGE[1]))
+    r, c = cell_of(PROBE_LAT, PROBE_LON, sidecar)
+    probe = float(heights[r, c])
+    expect("the ground behind Bherwerre Beach is low land", PROBE_M_RANGE[0] <= probe <= PROBE_M_RANGE[1], "row %d col %d -> %.1f m, expected %.0f..%.0f" % (r, c, probe, PROBE_M_RANGE[0], PROBE_M_RANGE[1]))
 
     if failures:
         print("region_stats: FAIL (%s)" % ", ".join(failures))

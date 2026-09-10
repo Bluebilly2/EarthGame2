@@ -95,22 +95,15 @@ namespace EarthGame.Engine
         }
 
         /// <summary>
-        /// Where a new player's feet are put: the region's wake point, on the ground (or at the water's surface if
-        /// the ground there is below it). The server owns this; the client is told in its Welcome.
+        /// Where a new player's feet are put: the world's wake, on the ground (or at the water's surface if the
+        /// ground there is below it). A world made without one — a test's bare world, a save from before M1.2 —
+        /// puts them at the region's centre, the origin of its frame: the region names no point of its own since
+        /// CANON ruling 20 withdrew the one it had. The server owns this; the client is told in its Welcome.
         /// </summary>
         public Double3 SpawnPoint()
         {
-            double east, north;
-            if (Wake.HasValue)
-            {
-                east = Wake.Value.X;
-                north = Wake.Value.Z;
-            }
-            else
-            {
-                LocalFrame frame = LocalFrame.ForRegion(Region);
-                frame.FromLatLon(Region.WakeLatitudeDeg, Region.WakeLongitudeDeg, out east, out north);
-            }
+            double east = Wake.HasValue ? Wake.Value.X : 0.0;
+            double north = Wake.HasValue ? Wake.Value.Z : 0.0;
             double up = Terrain != null ? Math.Max(Heightfield.SeaLevelM, Terrain.HeightAt(east, north)) : Heightfield.SeaLevelM;
             return new Double3(east, up, north);
         }

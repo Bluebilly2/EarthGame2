@@ -20,7 +20,7 @@ namespace EarthGame.Tests.Server
         private const int Side = 401;
 
         private static readonly Region FixtureRegion = new Region("fixture", "Fixture", Region.Bherwerre.CentreLatitudeDeg,
-            Region.Bherwerre.CentreLongitudeDeg, ExtentM, 237, 8.0, Region.Bherwerre.CentreLatitudeDeg, Region.Bherwerre.CentreLongitudeDeg);
+            Region.Bherwerre.CentreLongitudeDeg, ExtentM, 237, 8.0);
 
         /// <summary>A plain that rises east and north, so no two tiles pack alike.</summary>
         private static float GroundLaw(int row, int col) => 20f + col * 0.05f + (Side - 1 - row) * 0.03f;

@@ -9,7 +9,7 @@ namespace EarthGame.Tests.Engine
     public sealed class TieredTickTests
     {
         private static readonly Region Fixture = new Region("fixture", "Fixture", Region.Bherwerre.CentreLatitudeDeg,
-            Region.Bherwerre.CentreLongitudeDeg, TestRasters.MadeExtentM, 237, 8.0, Region.Bherwerre.CentreLatitudeDeg, Region.Bherwerre.CentreLongitudeDeg);
+            Region.Bherwerre.CentreLongitudeDeg, TestRasters.MadeExtentM, 237, 8.0);
 
         private const double Dt = 0.05;
 

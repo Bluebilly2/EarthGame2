@@ -132,8 +132,7 @@ census a world creation prints (`census.txt`) is these rules read out over the r
   within 500 m of the region's edge, under 2 m, steeper than ten degrees, a lake, a swamp, a creek or a stream
   underfoot, ground as wet as a swamp's, the cliff or the platform itself. Ties go to the least wind exposure
   (the site's, the coast's salt wind included), then the first cell in row order. The census prints the winner's
-  reading and the water by name (and, until it is taken out of the code, the distance to the point ruling 20
-  withdrew).
+  reading and the water by name.
 
 ### The animals of Bherwerre (M1.2, promise 5)
 

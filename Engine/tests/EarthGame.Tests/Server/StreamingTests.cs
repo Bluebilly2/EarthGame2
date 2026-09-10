@@ -16,7 +16,7 @@ namespace EarthGame.Tests.Server
     public sealed class StreamingTests
     {
         private static readonly Region FixtureRegion = new Region("fixture", "Fixture", Region.Bherwerre.CentreLatitudeDeg,
-            Region.Bherwerre.CentreLongitudeDeg, 40.0, 237, 8.0, Region.Bherwerre.CentreLatitudeDeg, Region.Bherwerre.CentreLongitudeDeg);
+            Region.Bherwerre.CentreLongitudeDeg, 40.0, 237, 8.0);
 
         private static Heightfield Ground() => new Heightfield(RegionRaster.Load(TestPaths.Fixture("raster", "tiny.json")));
 

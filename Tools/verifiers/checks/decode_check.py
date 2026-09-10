@@ -11,7 +11,7 @@ sidecar with json, and the tile arithmetic (Web Mercator) is written here from t
 Checks, each printed with both numbers:
   1. the formula's fixed points: pixel (128, 0, 0) is 0 m; pixel (0, 0, 0) is -32768 m; 123.5 m survives an
      encode-decode round trip;
-  2. the wake point (Cave Beach swale) decodes to land, above sea level and below the peninsula's cliffs, and the
+  2. a point behind Bherwerre Beach decodes to land, above sea level and below the peninsula's cliffs, and the
      bake's raster agrees with the tile's own pixel there within a few metres (bilinear resampling of 7.8 m pixels
      onto 4 m cells is allowed to smooth, never to move the ground);
   3. a point a kilometre off Cave Beach decodes to sea (at or below zero) in the tile and in the raster alike.
@@ -32,8 +32,9 @@ CACHE = os.path.join(ROOT, "Data", "cache", "terrarium")
 REGION = os.path.join(ROOT, "Data", "regions", "bherwerre")
 ZOOM = 14
 
-# Places, restated from Docs/ARCHITECTURE.md §3 rather than read from the engine or the tools.
-WAKE = ("the wake (Cave Beach swale)", -35.159, 150.6485)
+# Places, restated here rather than read from the engine or the tools. The point behind the beach is the site
+# research's first wake (CANON ruling 8); ruling 20 withdrew it as a wake, and it stays here as land to probe.
+LAND = ("a point behind Bherwerre Beach", -35.159, 150.6485)
 SEA = ("a kilometre off Cave Beach", -35.172, 150.650)
 LAND_MIN_M, LAND_MAX_M = 1.0, 150.0     # a coastal swale: above the beach, well below the 130 m cliffs
 SEA_MIN_M, SEA_MAX_M = -200.0, 0.0      # inner shelf off the peninsula
@@ -111,8 +112,8 @@ def main():
     sidecar = json.load(open(sidecar_path, encoding="utf-8"))
     heights = np.fromfile(raw_path, dtype="<f4").reshape(sidecar["height"], sidecar["width"])
 
-    # 2. Land at the wake, in the tile and in the raster.
-    for (name, lat, lon), (lo, hi) in ((WAKE, (LAND_MIN_M, LAND_MAX_M)), (SEA, (SEA_MIN_M, SEA_MAX_M))):
+    # 2. Land behind the beach, in the tile and in the raster.
+    for (name, lat, lon), (lo, hi) in ((LAND, (LAND_MIN_M, LAND_MAX_M)), (SEA, (SEA_MIN_M, SEA_MAX_M))):
         tile_m, path, where = tile_pixel(lat, lon, ZOOM)
         if tile_m is None:
             print("tile not in the cache: %s (fetch it first)" % path)

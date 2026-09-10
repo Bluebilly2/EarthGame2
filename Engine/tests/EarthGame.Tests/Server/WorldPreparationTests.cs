@@ -12,7 +12,7 @@ namespace EarthGame.Tests.Server
     {
         private string _root, _data, _world;
         private static readonly Region Region = new Region("fixture", "Fixture", -35.14, 150.675,
-            TestRasters.MadeExtentM, 237, 8, -35.14, 150.675);
+            TestRasters.MadeExtentM, 237, 8);
         private const string Now = "2026-09-10T00:00:00Z";
 
         [SetUp]
@@ -91,7 +91,7 @@ namespace EarthGame.Tests.Server
             Bake();
             WorldPreparation.Load(_world, _data, Region, 1347, Now, null, CancellationToken.None);
             Region elsewhere = new Region("elsewhere", "Elsewhere", -35.14, 150.675,
-                TestRasters.MadeExtentM, 237, 8, -35.14, 150.675);
+                TestRasters.MadeExtentM, 237, 8);
             InvalidDataException refused = Assert.Throws<InvalidDataException>(
                 () => WorldPreparation.Load(_world, _data, elsewhere, 1347, Now, null, CancellationToken.None));
             Assert.That(refused.Message, Does.Contain("fixture").And.Contain("elsewhere"), "the refusal names both");

@@ -117,7 +117,7 @@ namespace EarthGame.Tests.Engine
             Assert.That(Math.Abs(best.East), Is.LessThanOrEqualTo(TestRasters.MadeExtentM * 0.5 - WakeScorer.EdgeMarginM));
             Assert.That(Math.Abs(best.North), Is.LessThanOrEqualTo(TestRasters.MadeExtentM * 0.5 - WakeScorer.EdgeMarginM));
             Assert.That(best.Score, Is.LessThan(1.0), "the criteria grade, so the best place is one place and not a plateau");
-            string census = scorer.Census(best, null);
+            string census = scorer.Census(best);
             Assert.That(census, Does.Contain("fresh water:"));
             Assert.That(census, Does.Contain("knappable stone:"));
             Assert.That(census, Does.Contain("shelter rock:"));

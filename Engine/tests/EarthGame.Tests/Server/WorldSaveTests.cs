@@ -116,7 +116,7 @@ namespace EarthGame.Tests.Server
             GameClient stranger = new GameClient(ct3);
             stranger.Connect("memory", 1, "Guest", "");
             Pump(fresh, stranger, 5);
-            Assert.That(stranger.Welcome.SpawnEast, Is.Not.EqualTo(-2000.0), "a name the save never saw wakes at the region's wake point");
+            Assert.That(stranger.Welcome.SpawnEast, Is.Not.EqualTo(-2000.0), "a name the save never saw wakes at the world's wake");
         }
 
         [Test]

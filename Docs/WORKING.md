@@ -111,7 +111,8 @@ got wrong was duplication (a copy of `CLAUDE.md` as `AGENTS.md`; the dedicated h
   N things at the wake; without it nothing is in the world.
 - A world: `python Tools/world/create.py <folder>` (about 18 s in the host). A shaped join: `python
   Tools/world/stream.py --build`. The corpus: `python Tools/corpus/run.py` (`--quick` for a smoke test; about 75
-  minutes in full, with the host built Release and a player built with `--player`).
+  minutes in full, with the host built Release and a player built with `--player`); it creates its own world
+  first and gives every scenario a copy.
 - `Data/` is fetched, never committed: `python Tools/data/bake_region.py --zoom 14 --cell-m 4` for the heights,
   `python Tools/data/bake_water.py` for the OpenStreetMap outlines. `Artefacts/`, `Saves/`, `Build/` and logs are
   ignored by git.

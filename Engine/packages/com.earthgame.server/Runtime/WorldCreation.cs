@@ -44,7 +44,7 @@ namespace EarthGame.Server
             progress?.Invoke("Choosing the wake");
             WakeScorer scorer = new WakeScorer(layers);
             WakeScore wake = scorer.Best();
-            string census = scorer.Census(wake, region) + layers.WaterCensus();
+            string census = scorer.Census(wake) + layers.WaterCensus();
 
             string dir = Path.Combine(worldDir, LayersFolder);
             Directory.CreateDirectory(dir);

@@ -10,7 +10,7 @@ namespace EarthGame.Tests.Server
     public sealed class WorldCreationTests
     {
         private static readonly Region FixtureRegion = new Region("fixture", "Fixture", Region.Bherwerre.CentreLatitudeDeg,
-            Region.Bherwerre.CentreLongitudeDeg, TestRasters.MadeExtentM, 237, 8.0, Region.Bherwerre.CentreLatitudeDeg, Region.Bherwerre.CentreLongitudeDeg);
+            Region.Bherwerre.CentreLongitudeDeg, TestRasters.MadeExtentM, 237, 8.0);
 
         private string _dir;
 
@@ -61,7 +61,7 @@ namespace EarthGame.Tests.Server
             Assert.That(gathered - lakeCells, Is.GreaterThan(700u), "the lake, a sink, gathers the ring around it (about 790 cells) and the plain above: " + gathered + " cells into " + lakeCells);
             Assert.That(r.Wake.Score, Is.GreaterThan(0.0));
             string census = File.ReadAllText(Path.Combine(_dir, "a", WorldCreation.CensusFile));
-            Assert.That(census, Does.Contain("the region's stated wake is"));
+            Assert.That(census, Does.Not.Contain("stated wake"), "the region names no wake of its own (CANON ruling 20)");
             Assert.That(census, Does.Contain("Made Lake: "));
             Assert.That(census, Is.EqualTo(r.Census));
             RegionRaster surface = RegionRaster.Load(r.Layers["surface"]);

@@ -18,6 +18,13 @@ What it runs (ARCHITECTURE §7.1; the conditions are CANON ruling 11's, not the 
 Latency is applied on both sockets at half the round trip each way; loss on both sockets at the stated
 percent, so a packet in either direction sees that loss. The send cap is applied to both ends.
 
+Every scenario runs on its own copy of one world, created at the start of the run by Tools/world/create.py (the
+gate's creation, seed 1347): the server continues its copy and a solo player loads its own, so every founder wakes
+where the world's scorer chose and walks Routes.WakeLoop, which is laid around that wake. Until 2026-09-10 the
+server ran on the bare bake and woke founders at the region's stated point; CANON ruling 20 withdrew the point and
+real worlds had woken elsewhere since M1.2, so the corpus now runs what a player runs. A server is waited for until
+its console says it is listening, since loading a world takes longer than the two seconds a bare bake did.
+
 Every process's run.jsonl (eg2.run v1) lands under the output folder; this harness's own summary.json is
 written beside them for a reader's convenience and is what join_check.py ignores by design. The exit code is
 0 only when every player and the server exited 0 and every run.jsonl carries an end record newer than the
@@ -66,13 +73,30 @@ class Server:
         self.dir = out_dir
         self.console_path = os.path.join(out_dir, "console.log")
         self.console = open(self.console_path, "w", encoding="utf-8")
-        args = ["dotnet", server_dll(),
+        world = copy_world(os.path.join(out_dir, "world"))
+        args = ["dotnet", server_dll(), "+server.world", world,
                 "+server.port", str(port), "+server.log", os.path.join(out_dir, "run.jsonl"),
                 "+server.simulate.latency", str(cond["rtt_ms"] // 2), "+server.simulate.jitter", str(cond["jitter_ms"] // 2),
                 "+server.simulate.loss", str(cond["loss_percent"]), "+server.sendcap", str(cond["cap_bytes_per_second"]),
                 "+server.seconds", str(seconds)]
         self.process = subprocess.Popen(args, cwd=ROOT, stdin=subprocess.PIPE, stdout=self.console, stderr=subprocess.STDOUT, text=True)
         self.started = time.time()
+        self.wait_listening()
+
+    def wait_listening(self, timeout=180.0):
+        """Blocks until the console says the server is listening; a server that never does fails the scenario loudly."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self.process.poll() is not None:
+                raise RuntimeError("the server exited with %s before listening; see %s" % (self.process.returncode, self.console_path))
+            try:
+                with open(self.console_path, encoding="utf-8", errors="replace") as f:
+                    if "listening on UDP" in f.read():
+                        return
+            except OSError:
+                pass
+            time.sleep(0.5)
+        raise RuntimeError("the server was not listening after %.0f s; see %s" % (timeout, self.console_path))
 
     def command(self, text):
         try:
@@ -92,12 +116,43 @@ class Server:
         return self.process.returncode
 
 
+WORLD_TEMPLATE = None       # set by main: the world this run created, copied for every scenario
+WORLD_NAME = "world-1347"
+
+
+def create_world(out):
+    """The run's one world, made the way the gate makes it, so every scenario starts from the same country."""
+    global WORLD_TEMPLATE
+    folder = os.path.join(out, "world-template")
+    code = subprocess.call([sys.executable, os.path.join(ROOT, "Tools", "world", "create.py"), folder], cwd=ROOT,
+                           stdout=open(os.path.join(out, "create.log"), "w", encoding="utf-8"), stderr=subprocess.STDOUT)
+    if code != 0 or not os.path.isfile(os.path.join(folder, "world.json")):
+        raise RuntimeError("creating the corpus world failed (exit %s); see %s" % (code, os.path.join(out, "create.log")))
+    WORLD_TEMPLATE = folder
+    saved = json.load(open(os.path.join(folder, "world.json"), encoding="utf-8"))
+    log("world created: wake at east %.0f north %.0f" % (saved.get("wake_east", float("nan")), saved.get("wake_north", float("nan"))))
+
+
+def copy_world(dest):
+    """A scenario's own copy of the run's world, so no scenario's saves leak into the next."""
+    if WORLD_TEMPLATE is None:
+        raise RuntimeError("no corpus world: create_world must run first")
+    if os.path.isdir(dest):
+        shutil.rmtree(dest)
+    shutil.copytree(WORLD_TEMPLATE, dest)
+    return dest
+
+
 def start_player(out_dir, name, scenario, port, cond, mode="join", seconds=None, cycles=None):
     os.makedirs(out_dir, exist_ok=True)
+    if mode == "solo":
+        copy_world(os.path.join(out_dir, "saves", WORLD_NAME))
     args = [PLAYER_EXE, "-batchmode", "-nographics", "-logFile", os.path.join(out_dir, "player.log"),
             "-eg-mode", mode, "-eg-address", "127.0.0.1", "-eg-port", str(port), "-eg-name", name,
             "-eg-scenario", scenario, "-eg-record", out_dir,
             "-eg-saves", os.path.join(out_dir, "saves"), "-eg-tiles", os.path.join(out_dir, "tiles")]
+    if mode == "solo":
+        args += ["-eg-world", WORLD_NAME, "-eg-seed", "1347"]
     if cond is not None:
         args += ["-eg-latency", str(cond["rtt_ms"] // 2), "-eg-jitter", str(cond["jitter_ms"] // 2),
                  "-eg-loss", str(cond["loss_percent"]), "-eg-sendcap", str(cond["cap_bytes_per_second"])]
@@ -285,6 +340,7 @@ def main(argv):
     os.makedirs(out, exist_ok=True)
     wanted = [s.strip() for s in args.scenarios.split(",") if s.strip()]
     log("corpus %s -> %s (%s)" % (",".join(wanted), out, "quick" if args.quick else "full"))
+    create_world(out)
 
     results = {}
     port = args.port
