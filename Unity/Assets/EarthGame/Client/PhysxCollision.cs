@@ -1,3 +1,4 @@
+using EarthGame.ClientCore;
 using EarthGame.Engine;
 using EarthGame.Shared;
 using UnityEngine;
@@ -6,20 +7,22 @@ namespace EarthGame.Client
 {
     /// <summary>
     /// The client's <see cref="IWorldCollision"/>: PhysX casts against the Terrain and prop colliders
-    /// (ARCHITECTURE §9). Ground is a ray straight down through the feet; the sweep is a capsule cast. Water is
-    /// still the sea plane, read off the streamed tiles the client holds, until the water layer exists; where
-    /// no tile is held there is no water. Local metres and Unity metres coincide: +X east, +Y up, +Z north from
-    /// the region centre.
+    /// (ARCHITECTURE §9). Ground is a ray straight down through the feet; the sweep is a capsule cast. Water is where
+    /// the server says it stands (<see cref="StreamedWater"/>, M1.5d): the depth it streams over each tile the client
+    /// holds, or the sea at the datum where no depth has come; where no tile is held there is no water. Until M1.5d it
+    /// was the sea plane alone, and a lake was dry to the founder's legs. Local metres and Unity metres coincide: +X
+    /// east, +Y up, +Z north from the region centre.
     /// </summary>
     public sealed class PhysxCollision : IWorldCollision
     {
         private const float Skin = 0.02f;
-        private readonly IHeightSource _seaReference;
+        private readonly IHeightSource _water;
         private readonly int _mask;
 
-        public PhysxCollision(IHeightSource seaReference)
+        /// <param name="water">Where water stands over the ground the client holds, NaN where none does; null for none anywhere.</param>
+        public PhysxCollision(IHeightSource water)
         {
-            _seaReference = seaReference;
+            _water = water;
             _mask = Layers.Walkable;
         }
 
@@ -59,11 +62,6 @@ namespace EarthGame.Client
             return false;
         }
 
-        public double WaterSurfaceAt(double east, double north)
-        {
-            if (_seaReference == null) return double.NaN;
-            double ground = _seaReference.HeightAt(east, north);
-            return ground < Heightfield.SeaLevelM ? Heightfield.SeaLevelM : double.NaN;
-        }
+        public double WaterSurfaceAt(double east, double north) => _water != null ? _water.HeightAt(east, north) : double.NaN;
     }
 }

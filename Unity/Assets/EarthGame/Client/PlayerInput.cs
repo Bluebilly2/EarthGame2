@@ -49,6 +49,11 @@ namespace EarthGame.Client
     public static class Controls
     {
         public const string Map = "Player";
+
+        /// <summary>The asset's control scheme at the desk, by the binding group its bindings name.</summary>
+        public const string Desk = "Keyboard&Mouse";
+        /// <summary>The asset's control scheme on a gamepad, by the binding group its bindings name.</summary>
+        public const string Pad = "Gamepad";
         public const string Move = "Move";
         public const string Look = "Look";
         public const string Jump = "Jump";
@@ -108,8 +113,10 @@ namespace EarthGame.Client
     /// </summary>
     public sealed class InputSystemSource : IPlayerInputSource
     {
-        private const float MouseDegreesPerPixel = 0.08f;
-        private const float StickDegreesPerSecond = 180f;
+        /// <summary>How far a pixel of mouse turns the view, degrees; the controls scenario aims by it (M1.5d).</summary>
+        public const float MouseDegreesPerPixel = 0.08f;
+        /// <summary>How fast a stick pushed all the way turns the view, degrees a second.</summary>
+        public const float StickDegreesPerSecond = 180f;
 
         private readonly InputAction _move;
         private readonly InputAction _look;

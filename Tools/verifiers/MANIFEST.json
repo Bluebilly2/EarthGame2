@@ -69,9 +69,10 @@
       "path": "Tools/verifiers/checks/join_check.py",
       "author": "Claude",
       "gates": [
-        "M1.B"
+        "M1.B",
+        "M1.5d"
       ],
-      "checks": "Recomputes N1-N4 from the contracted run logs independently of the runner's own summary.",
+      "checks": "Recomputes N1-N4, or one of them with --only, from the contracted run logs independently of the runner's own summary; since M1.5d N2's named segments are the bank, the shore, the cliff's top edge, the shore platform and the wade, and a walk that never reached one fails.",
       "independent_of_the_tool_by": "recomputing every criterion from run.jsonl records alone, with the thresholds restated from CANON ruling 11 rather than imported from the harness"
     },
     {

@@ -44,6 +44,8 @@ namespace EarthGame.Client
         private IClientTransport _transport;
         private ITileCache _tileCache;
         private TileHeightfield _ground;
+        /// <summary>The water's depth over the ground, from the tiles the server streams (M1.4b): what the founder wades in since M1.5d.</summary>
+        private TileHeightfield _depth;
         private readonly Dictionary<TileId, Terrain> _tileTerrains = new Dictionary<TileId, Terrain>();
         private readonly Dictionary<TileId, uint> _tileCrcs = new Dictionary<TileId, uint>();
         private readonly Dictionary<TileId, GameObject> _waterTiles = new Dictionary<TileId, GameObject>();
@@ -248,6 +250,7 @@ namespace EarthGame.Client
                       + ", tick " + welcome.Tick + " at " + welcome.TickRate + " Hz, spawn " + F(welcome.SpawnEast) + " " + F(welcome.SpawnUp) + " " + F(welcome.SpawnNorth)
                       + (rejoin ? ", rejoin" : ""));
             if (_ground == null && _client.Grid != null) _ground = new TileHeightfield(_client.Grid);
+            if (_depth == null && _client.Grid != null) _depth = new TileHeightfield(_client.Grid);
             if (!rejoin)
             {
                 _clock = new WorldClock(welcome.TotalHours);
@@ -349,6 +352,7 @@ namespace EarthGame.Client
         private void OnTileDropped(TileLayer layer, TileId id)
         {
             if (layer == TileLayer.Ground || layer == TileLayer.Stand) _stand?.Drop(id);
+            if (layer == TileLayer.WaterDepth) _depth?.Remove(id);
             if (_waterTiles.TryGetValue(id, out GameObject drawn))
             {
                 if (drawn != null) Destroy(drawn);
@@ -425,7 +429,13 @@ namespace EarthGame.Client
             // from. Either can arrive first, so both paths ask for the pair.
             if (tile.Layer != TileLayer.Ground)
             {
-                if (tile.Layer == TileLayer.WaterDepth) BuildWater(tile.Id);
+                if (tile.Layer == TileLayer.WaterDepth)
+                {
+                    // The depth moves the founder's legs as well as drawing the water (M1.5d).
+                    if (_depth == null) _depth = new TileHeightfield(_client.Grid);
+                    _depth.Add(tile);
+                    BuildWater(tile.Id);
+                }
                 else if (tile.Layer == TileLayer.GroundCover && _tileTerrains.ContainsKey(tile.Id)) StartColouring(tile.Id);
                 return;
             }
@@ -759,10 +769,12 @@ namespace EarthGame.Client
             GameObject body = new GameObject("Player");
             body.layer = Layers.Player;
             _player = body.AddComponent<PlayerController>();
-            ScriptedInputSource script = _recordDir != null ? new ScriptedInputSource() : null;
+            // A recorded scenario drives the founder through the scripted seam, except the controls scenario, which presses
+            // the controls themselves (M1.5d).
+            ScriptedInputSource script = _recordDir != null && _scenario != Recorder.ControlsScenario ? new ScriptedInputSource() : null;
             IPlayerInputSource input = script != null ? script : new InputSystemSource();
             Double3 spawn = new Double3(welcome.SpawnEast, welcome.SpawnUp + SpawnDropM, welcome.SpawnNorth);
-            _player.Attach(_client, new PhysxCollision(_ground), MoverConfig.Default, _region, _camera, input, spawn, DefaultYawDeg, 0f);
+            _player.Attach(_client, new PhysxCollision(_ground != null ? new StreamedWater(_ground, _depth) : null), MoverConfig.Default, _region, _camera, input, spawn, DefaultYawDeg, 0f);
             _player.Ground = _ground;
             _player.Frozen = true;
             // -eg-still: the camera without the stride's dip and sway (M1.5c), for the owner to play against the one he
@@ -788,9 +800,9 @@ namespace EarthGame.Client
 
             ViewBuilt = true;
 
-            // The scenarios that write frames (first-frame, carry) are the recorder's own; every other scenario is the
-            // runner's, which was attached before the connection began so its clock starts at Connect.
-            if (script != null && (_scenario == null || Recorder.IsKnown(_scenario)))
+            // The scenarios that write frames (first-frame, carry, litter, wade, controls) are the recorder's own; every other
+            // scenario is the runner's, which was attached before the connection began so its clock starts at Connect.
+            if (_recordDir != null && (_scenario == null || Recorder.IsKnown(_scenario)))
             {
                 JsonObject header = new JsonObject()
                     .With("region", _region.Id).With("seed", welcome.Seed).With("session", welcome.SessionId)

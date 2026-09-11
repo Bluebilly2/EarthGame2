@@ -5,7 +5,8 @@ namespace EarthGame.Engine
     /// <summary>
     /// The server's collision: a heightfield and nothing else. Ground is wherever the surface is; a "wall" is
     /// ground ahead that rises more than a stride can step, or rises at all where it is too steep to stand; water
-    /// is the sea at a fixed level wherever the ground is below it (lakes arrive with the water layer in M1.2).
+    /// is a world's own surface where it stands above the ground, when one is given (M1.5d), and otherwise the sea at
+    /// a fixed level wherever the ground is below it.
     /// The sweep marches the path in sub-strides of half a capsule radius, which is how a heightfield is swept
     /// without a physics engine and why it disagrees with PhysX's interpolated Terrain collider exactly where
     /// the ground is steepest (DEBTS.md: the named defect class). Also the tests' collision world, over any
@@ -24,21 +25,28 @@ namespace EarthGame.Engine
         private readonly double _walkableSlopeDeg;
         private readonly double _seaLevel;
         private readonly bool _hasSea;
+        private readonly IHeightSource _water;
 
         /// <param name="maxStepRise">The mover's step height: a rise beyond it inside one sub-stride is a wall.</param>
         /// <param name="walkableSlopeDeg">The mover's standable slope: ground rising ahead steeper than this is a wall too.</param>
-        public HeightfieldCollision(IHeightSource ground, double maxStepRise, double walkableSlopeDeg, bool hasSea = true, double seaLevel = 0.0)
+        /// <param name="water">
+        /// A world's own water surface: the water's height where it stands and the ground's elsewhere, as the surface
+        /// layer holds it (M1.2). Given, it alone says where water is, the sea included, and the sea rule is not asked.
+        /// </param>
+        public HeightfieldCollision(IHeightSource ground, double maxStepRise, double walkableSlopeDeg, bool hasSea = true, double seaLevel = 0.0,
+                                    IHeightSource water = null)
         {
             _ground = ground ?? throw new ArgumentNullException(nameof(ground));
             _maxStepRise = maxStepRise;
             _walkableSlopeDeg = walkableSlopeDeg;
             _hasSea = hasSea;
             _seaLevel = seaLevel;
+            _water = water;
         }
 
-        /// <summary>The collision world a mover configuration implies over a ground.</summary>
-        public static HeightfieldCollision For(IHeightSource ground, MoverConfig cfg, bool hasSea = true, double seaLevel = 0.0)
-            => new HeightfieldCollision(ground, cfg.StepHeight, cfg.WalkableSlopeDeg, hasSea, seaLevel);
+        /// <summary>The collision world a mover configuration implies over a ground, and its water when a world has its own.</summary>
+        public static HeightfieldCollision For(IHeightSource ground, MoverConfig cfg, bool hasSea = true, double seaLevel = 0.0, IHeightSource water = null)
+            => new HeightfieldCollision(ground, cfg.StepHeight, cfg.WalkableSlopeDeg, hasSea, seaLevel, water);
 
         public double HeightAt(double east, double north) => _ground.HeightAt(east, north);
 
@@ -103,6 +111,11 @@ namespace EarthGame.Engine
 
         public double WaterSurfaceAt(double east, double north)
         {
+            if (_water != null)
+            {
+                double surface = _water.HeightAt(east, north);
+                return surface > _ground.HeightAt(east, north) ? surface : double.NaN;
+            }
             if (!_hasSea) return double.NaN;
             return _ground.HeightAt(east, north) < _seaLevel ? _seaLevel : double.NaN;
         }

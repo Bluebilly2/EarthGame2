@@ -23,7 +23,7 @@ namespace EarthGame.Client
     /// logged, 1 otherwise; the last record says which. With <c>-eg-hold &lt;seconds&gt;</c> it then measures what a
     /// frame costs (<see cref="Hold"/>).
     /// </summary>
-    public sealed class Recorder : MonoBehaviour
+    public sealed partial class Recorder : MonoBehaviour
     {
         public const string Scenario = "first-frame";
 
@@ -39,8 +39,22 @@ namespace EarthGame.Client
         /// </summary>
         public const string LitterScenario = "litter";
 
+        /// <summary>
+        /// The wading frames (M1.5d), run by <c>-eg-scenario wade</c> with the founder stood on a lake's shore
+        /// (<c>Tools/world/wade.py</c>): the founder walked into the nearest water deep enough to wade.
+        /// </summary>
+        public const string WadeScenario = "wade";
+
+        /// <summary>
+        /// The controls (M1.5d; v1's K1c), run by <c>-eg-scenario controls</c> with <c>-eg-items</c>: the controls asset
+        /// pressed through the Input System by a keyboard, a mouse and a gamepad added to the player, each control checked by
+        /// what it did. The one scenario driven by the controls rather than the scripted seam.
+        /// </summary>
+        public const string ControlsScenario = "controls";
+
         /// <summary>Whether a scenario is one of this recorder's, which write frames, rather than the runner's.</summary>
-        public static bool IsKnown(string scenario) => scenario == Scenario || scenario == CarryScenario || scenario == LitterScenario;
+        public static bool IsKnown(string scenario) => scenario == Scenario || scenario == CarryScenario || scenario == LitterScenario
+                                                       || scenario == WadeScenario || scenario == ControlsScenario;
         private static readonly (int Width, int Height, string Tag)[] Sizes = { (2560, 1440, "1440p"), (1920, 1080, "1080p") };
 
         private string _dir;
@@ -99,7 +113,8 @@ namespace EarthGame.Client
             _log = RunLog.Open(Path.Combine(dir, "run.jsonl"), header.With("scenario", _scenario));
             Application.logMessageReceived += OnLog;
             _running = true;
-            StartCoroutine(_scenario == CarryScenario ? RunCarry() : _scenario == LitterScenario ? RunLitter() : Run());
+            StartCoroutine(_scenario == CarryScenario ? RunCarry() : _scenario == LitterScenario ? RunLitter()
+                : _scenario == WadeScenario ? RunWade() : _scenario == ControlsScenario ? RunControls() : Run());
         }
 
         private double T => _clock.Elapsed.TotalSeconds;

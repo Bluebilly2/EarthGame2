@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """join_check.py: N1-N4 recomputed from the run logs alone.
 
-Usage, from the repository root:  python Tools/verifiers/checks/join_check.py Artefacts/corpus/<stamp>
+Usage, from the repository root:  python Tools/verifiers/checks/join_check.py Artefacts/corpus/<stamp> [--only N2]
+(--only recomputes one criterion and reads nothing the others need.)
 
 Reads every run.jsonl (format eg2.run, version 1; ARCHITECTURE §10) under the corpus folder that
 Tools/corpus/run.py wrote, and recomputes each criterion of ARCHITECTURE §7.1 (CANON ruling 11) from the
@@ -17,7 +18,9 @@ string comparison of what the server wrote at 'pause' and at 'resume'.
 What each row uses:
   N1  join-a/B and join-b/B: the 'interactive' record (rejoin false), since_connect_s.
   N2  walk/A, walk/B, walk-solo/A: 'correction' records over the run's duration ('end'.t), per named divergence
-      segment (bank, shore) over the seconds spent in it ('sample' records), and the largest displacement_m.
+      segment over the seconds spent in them ('sample' records), the largest displacement_m, and that the walk reached
+      every named segment. The named segments are the bank and the shore, and since M1.5d (2026-09-11) the cliff's top
+      edge, the shore platform and the wade into the sea: the three places CANON ruling 13 names.
   N3  rejoin-held/server: every 'pause' digest equals the following 'resume' digest; rejoin-held and rejoin-live:
       every 'interactive' with rejoin true has since_connect_s <= 3; after each rejoin, B's 'mirror' digests equal
       the server's 'bodies' digest of the same session at the same tick; the server's collected heap in the last
@@ -32,6 +35,7 @@ What each row uses:
       sum(over_interval)/sum(count) of 'ticks' <= 0.001 with max p95_ms <= 5;
       server 'bandwidth'.sent averaged over seconds later than 15 s after the session's 'join' <= 20480 B/s.
 """
+import argparse
 import datetime
 import json
 import math
@@ -44,7 +48,7 @@ N1_B_SECONDS = 20.0
 N2_PER_MINUTE = 0.5
 N2_DIVERGENCE_PER_MINUTE = 2.0
 N2_MAX_DISPLACEMENT_M = 1.0
-N2_DIVERGENCE_SEGMENTS = ("bank", "shore")
+N2_DIVERGENCE_SEGMENTS = ("bank", "shore", "cliff", "platform", "wade")
 N3_REJOIN_SECONDS = 3.0
 N3_HEAP_GROWTH_BYTES = 5 * 1024 * 1024
 N4_WORKING_SET_BYTES = 1024 * 1024 * 1024
@@ -133,13 +137,18 @@ def check_n2_log(name, records, rows):
     per_minute = len(corrections) / duration_min if duration_min > 0 else float("inf")
     rows.row(name + " per minute", per_minute <= N2_PER_MINUTE, "%d corrections in %.1f min = %.3f/min <= %.1f" % (len(corrections), duration_min, per_minute, N2_PER_MINUTE))
     samples = kinds(records, "sample")
-    divergence_seconds = sum(1 for s in samples if s.get("segment") in N2_DIVERGENCE_SEGMENTS)
-    divergence_corrections = sum(1 for c in corrections if c.get("segment") in N2_DIVERGENCE_SEGMENTS)
+    seconds_in = {seg: sum(1 for s in samples if s.get("segment") == seg) for seg in N2_DIVERGENCE_SEGMENTS}
+    corrected_in = {seg: sum(1 for c in corrections if c.get("segment") == seg) for seg in N2_DIVERGENCE_SEGMENTS}
+    divergence_seconds = sum(seconds_in.values())
+    divergence_corrections = sum(corrected_in.values())
+    each = ", ".join("%s %d in %.1f min" % (seg, corrected_in[seg], seconds_in[seg] / 60.0) for seg in N2_DIVERGENCE_SEGMENTS)
     if divergence_seconds == 0:
-        rows.row(name + " divergence", False, "the route never reached the bank or the shore")
+        rows.row(name + " divergence", False, "the route never reached a named divergence segment (%s)" % ", ".join(N2_DIVERGENCE_SEGMENTS))
     else:
         rate = divergence_corrections / (divergence_seconds / 60.0)
-        rows.row(name + " divergence", rate <= N2_DIVERGENCE_PER_MINUTE, "%d in %.1f min on %s = %.3f/min <= %.1f" % (divergence_corrections, divergence_seconds / 60.0, "+".join(N2_DIVERGENCE_SEGMENTS), rate, N2_DIVERGENCE_PER_MINUTE))
+        rows.row(name + " divergence", rate <= N2_DIVERGENCE_PER_MINUTE, "%d in %.1f min on %s = %.3f/min <= %.1f (%s)" % (divergence_corrections, divergence_seconds / 60.0, "+".join(N2_DIVERGENCE_SEGMENTS), rate, N2_DIVERGENCE_PER_MINUTE, each))
+    never = [seg for seg in N2_DIVERGENCE_SEGMENTS if seconds_in[seg] == 0]
+    rows.row(name + " segments walked", not never, "every named segment reached" if not never else "never reached: " + ", ".join(never))
     worst = max((float(c.get("displacement_m", 0.0)) for c in corrections), default=0.0)
     rows.row(name + " displacement", worst <= N2_MAX_DISPLACEMENT_M, "largest %.2f m <= %.1f m" % (worst, N2_MAX_DISPLACEMENT_M))
 
@@ -368,20 +377,21 @@ def check_n4(corpus, rows):
 
 
 def main(argv):
-    if len(argv) != 2:
-        print("usage: join_check.py <corpus folder>", file=sys.stderr)
-        return 2
-    corpus = argv[1]
+    checks = (("N1", check_n1), ("N2", check_n2), ("N3", check_n3), ("N4", check_n4))
+    parser = argparse.ArgumentParser(description="N1-N4 recomputed from the run logs alone.")
+    parser.add_argument("corpus")
+    parser.add_argument("--only", choices=[key for key, _ in checks], help="recompute this criterion alone")
+    args = parser.parse_args(argv[1:])
+    corpus = args.corpus
     if not os.path.isdir(corpus):
         print("not a folder: " + corpus, file=sys.stderr)
         return 2
-    print("join_check: " + os.path.abspath(corpus))
+    print("join_check: " + os.path.abspath(corpus) + (" (%s alone)" % args.only if args.only else ""))
     rows = Rows()
     try:
-        check_n1(corpus, rows)
-        check_n2(corpus, rows)
-        check_n3(corpus, rows)
-        check_n4(corpus, rows)
+        for key, check in checks:
+            if args.only is None or args.only == key:
+                check(corpus, rows)
     except (OSError, ValueError, KeyError) as ex:
         print("join_check: cannot read the corpus: %r" % (ex,), file=sys.stderr)
         return 2

@@ -182,6 +182,30 @@ namespace EarthGame.Tests.Engine
             Assert.That(Run(MoverState.AtRest(0.0, 0.6, 0.0), MoverInput.None, dry, 5).Wading, Is.False, "ground above the sea is dry");
         }
 
+        /// <summary>A lake in a world's own water is waded as the sea is, and where a world's water is given the sea rule is not asked (M1.5d).</summary>
+        [Test]
+        public void ALakeInTheWorldsOwnWaterIsWaded()
+        {
+            // Flat ground at 10 m; water stands at 10.6 m west of east 5, and the surface is the ground's elsewhere.
+            Ground ground = new Ground((e, n) => 10.0);
+            Ground surface = new Ground((e, n) => e < 5.0 ? 10.6 : 10.0);
+            IWorldCollision lake = HeightfieldCollision.For(ground, MoverConfig.Default, hasSea: false, water: surface);
+            double walking = Locomotion.SpeedMs(0.0, Gait.Walking, 1.0);
+            MoverState s = Run(MoverState.AtRest(0.0, 10.0, 0.0), MoverInput.Walk(1.0, 0.0), lake, 5);
+            Assert.That(s.Wading, Is.True, "sixty centimetres of lake over the feet is wading");
+            Assert.That(s.HorizontalSpeed, Is.EqualTo(walking * MoverConfig.Default.WadeSpeedFactor).Within(1e-9));
+            for (int i = 0; i < 2000 && s.East < 6.0; i++) s = Mover.Step(s, MoverInput.Walk(1.0, 0.0), Dt, lake);
+            s = Mover.Step(s, MoverInput.Walk(1.0, 0.0), Dt, lake);
+            Assert.That(s.East, Is.GreaterThan(6.0), "walked out of the water");
+            Assert.That(s.Wading, Is.False, "on the dry side");
+            Assert.That(s.HorizontalSpeed, Is.EqualTo(walking).Within(1e-9));
+
+            // Ground below the datum that the world's own water leaves dry is dry.
+            Ground hollow = new Ground((e, n) => -0.6);
+            IWorldCollision dryHollow = HeightfieldCollision.For(hollow, MoverConfig.Default, hasSea: true, water: hollow);
+            Assert.That(Run(MoverState.AtRest(0.0, -0.6, 0.0), MoverInput.None, dryHollow, 5).Wading, Is.False, "the sea rule is not asked");
+        }
+
         [Test]
         public void CrouchingIsSlowerAndSwapsTheStance()
         {

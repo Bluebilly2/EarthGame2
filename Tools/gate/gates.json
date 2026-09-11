@@ -600,6 +600,86 @@
       "verifiers": [],
       "owner_decides": "the feel, with his hands and ears (CANON rulings 12 and 18): the stride's dip and sway against -eg-still, the hand's sway, lag and swing, and the footsteps and landings"
     },
+    "M1.5d": {
+      "steps": [
+        {
+          "name": "dotnet test",
+          "cmd": [
+            "dotnet",
+            "test",
+            "Engine/EarthGame.slnx",
+            "-c",
+            "Debug",
+            "--nologo"
+          ]
+        },
+        {
+          "name": "Unity-layer compile",
+          "cmd": [
+            "dotnet",
+            "build",
+            "Engine/EarthGame.Unity.Compile.csproj",
+            "-c",
+            "Debug",
+            "--nologo",
+            "-v",
+            "minimal"
+          ]
+        },
+        {
+          "name": "Unity edit-mode tests",
+          "cmd": [
+            "python",
+            "Tools/unity/editmode.py"
+          ]
+        },
+        {
+          "name": "create the gate world",
+          "cmd": [
+            "python",
+            "Tools/world/create.py",
+            "Artefacts/worlds/gate"
+          ]
+        },
+        {
+          "name": "the controls, every action's binding pressed in a built player on the gate world",
+          "cmd": [
+            "python",
+            "Tools/world/carry.py",
+            "--build",
+            "--scenario",
+            "controls",
+            "--world",
+            "Artefacts/worlds/gate"
+          ]
+        },
+        {
+          "name": "the wading frames, the same player stood on Lake Windermere's shore",
+          "cmd": [
+            "python",
+            "Tools/world/wade.py",
+            "--player",
+            "Build/Player-Carry/EarthGame2.exe",
+            "--world",
+            "Artefacts/worlds/gate"
+          ]
+        },
+        {
+          "name": "join_check's N2 on the latest corpus, walked on the loop with the cliff's edge, the platform and the wade",
+          "cmd": [
+            "python",
+            "Tools/verifiers/checks/join_check.py",
+            "Artefacts/corpus/latest",
+            "--only",
+            "N2"
+          ]
+        }
+      ],
+      "verifiers": [
+        "join_check"
+      ],
+      "owner_decides": "the feel of wading, with his hands in the water, and the wading frames"
+    },
     "M1.6": {
       "steps": [
         {

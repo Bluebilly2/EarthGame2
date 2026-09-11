@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
-"""carry.py: the carrying frames (M1.5a, M1.5b), recorded by the built player on a world folder, windowless and muted.
+"""carry.py: the carrying frames (M1.5a, M1.5b) and the controls (M1.5d), recorded by the built player on a world folder,
+windowless and muted.
 
 Runs the player SOLO on the world with one of the recorder's scenarios. `carry` (M1.5a) drops six things round the
 wake (-eg-items 6): a stick lying within reach is looked at, picked up and held, the carrying window opened, the
 ground ahead aimed at and the stick put down; then a cobble is picked up and kept. `litter` (M1.5b) does the same with
 a stick of the world's own litter: looked at, taken up, gone from the ground and in the hand, put down again as an
 item; then another is taken and kept. Either way the world is saved on the way out with something carried, for
-save_check.py to read. Leaves the frames, run.jsonl, the tile cache and the player's log under
-Artefacts/frames/<scenario>-<stamp>/.
+save_check.py to read. `controls` (M1.5d, v1's K1c) drops the same six things and presses every control through a
+keyboard, a mouse and a gamepad added to the player, and prints each check the run made. Leaves the frames, run.jsonl,
+the tile cache and the player's log under Artefacts/frames/<scenario>-<stamp>/.
 
 Claude's tool: it runs the player and reports what its end record says. It judges nothing: the frames are the owner's
 to judge, and save_check.py reads the world.
 
 Usage, from the repository root:
-    python Tools/world/carry.py [--build] [--scenario carry|litter] [--player Build/Player-Carry/EarthGame2.exe]
+    python Tools/world/carry.py [--build] [--scenario carry|litter|controls] [--player Build/Player-Carry/EarthGame2.exe]
                                 [--world Artefacts/worlds/gate]
-Exit 0 when the player exits 0 (every frame written, every verb done, nothing logged as an error); 1 otherwise.
+Exit 0 when the player exits 0 (every frame written, every verb done or every check passed, nothing logged as an
+error); 1 otherwise.
 """
 import argparse
 import json
@@ -48,7 +51,7 @@ def run(args, timeout):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build", action="store_true")
-    parser.add_argument("--scenario", choices=("carry", "litter"), default="carry")
+    parser.add_argument("--scenario", choices=("carry", "litter", "controls"), default="carry")
     parser.add_argument("--player", default=str(PLAYER))
     parser.add_argument("--world", default="Artefacts/worlds/gate")
     args = parser.parse_args()
@@ -69,7 +72,7 @@ def main():
         raise RuntimeError("no world at %s; run Tools/world/create.py first" % world)
 
     # -batchmode without -nographics: the recorder renders its frames on the GPU into textures, with no window.
-    things = ["-eg-items", "6"] if args.scenario == "carry" else []
+    things = ["-eg-items", "6"] if args.scenario in ("carry", "controls") else []
     code = run([player, "-batchmode", "-logFile", directory / "player.log",
                 "-eg-mode", "solo", "-eg-name", "William", "-eg-world", world.name, "-eg-saves", world.parent,
                 "-eg-tiles", directory / "tiles", "-eg-record", directory, "-eg-scenario", args.scenario] + things, 600)
@@ -79,9 +82,16 @@ def main():
     end = next((r for r in reversed(records) if r.get("kind") == "end"), {})
     frames = sorted(p.name for p in (directory / "frames").glob("*.png")) if (directory / "frames").is_dir() else []
     print("player exit %d: %d frame(s): %s" % (code, len(frames), ", ".join(frames)))
-    print("picked up %s, put down %s, kept carried %s; answers %s; %s error(s), %s correction(s)"
-          % (end.get("picked_up"), end.get("put_down"), end.get("kept_carried"), end.get("answers"),
-             end.get("errors"), end.get("corrections")))
+    if args.scenario == "controls":
+        for r in records:
+            if r.get("kind") == "control":
+                print("  %s %s (%s): %s" % ("ok    " if r.get("ok") else "FAILED", r.get("name"), r.get("control"), r.get("saw")))
+        print("%s check(s), failed: %s; answers %s; %s error(s), %s correction(s)"
+              % (end.get("checks"), end.get("failed") or "none", end.get("answers"), end.get("errors"), end.get("corrections")))
+    else:
+        print("picked up %s, put down %s, kept carried %s; answers %s; %s error(s), %s correction(s)"
+              % (end.get("picked_up"), end.get("put_down"), end.get("kept_carried"), end.get("answers"),
+                 end.get("errors"), end.get("corrections")))
     for r in records:
         if r.get("kind") in ("error", "exception"):
             print("  %s: %s" % (r["kind"], r.get("message", "")[:300]))

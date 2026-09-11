@@ -2,8 +2,9 @@ namespace EarthGame.ClientCore
 {
     /// <summary>
     /// The scripted routes the scenarios walk, in local metres of the Bherwerre region. Every leg is legal input
-    /// over walkable ground, so every correction on it is a false positive (N2); the named divergence segments are
-    /// the bank and the shore.
+    /// over walkable ground or shallow water, so every correction on it is a false positive (N2); the named divergence
+    /// segments are the bank and the shore, and since M1.5d the cliff's top edge, the shore platform and the wade into
+    /// the sea, the three places CANON ruling 13 names.
     ///
     /// <para>The wake loop is laid by <c>Tools/corpus/lay_loop.py</c> round the wake the world-creation scorer
     /// chooses on the gate world (seed 1347). The tool checks every leg every 2 m against the criteria it states and
@@ -22,23 +23,28 @@ namespace EarthGame.ClientCore
     /// </summary>
     public static class Routes
     {
-        /// <summary>About 1.09 km: along the water's edge, the flat way round to the bank, down it, and the flat way home.</summary>
+        /// <summary>About 0.97 km: the shore, the bank, a cliff's top edge, a shore platform and a wade into the sea, and the flat ways between them.</summary>
         public static Waypoint[] WakeLoop()
         {
             return new[]
             {
-                new Waypoint(-1360.0, 2804.0, "plain", true),
-                new Waypoint(-1328.0, 2788.0, "creek", false),
-                new Waypoint(-1264.0, 2740.0, "bank", false),
-                new Waypoint(-1296.0, 2788.0, "plain", true),
-                new Waypoint(-1328.0, 2836.0, "plain", true),
-                new Waypoint(-1376.0, 2916.0, "plain", true),
-                new Waypoint(-1392.0, 2932.0, "plain", true),
-                new Waypoint(-1424.0, 2948.0, "plain", true),
-                new Waypoint(-1488.0, 3012.0, "plain", true),
-                new Waypoint(-1568.0, 3028.0, "return", true),
-                new Waypoint(-1600.0, 3140.0, "shore", false),
+                new Waypoint(-1392.0, 2836.0, "bank", false),
+                new Waypoint(-1424.0, 2916.0, "plain", true),
                 new Waypoint(-1472.0, 2996.0, "plain", true),
+                new Waypoint(-1600.0, 3140.0, "return", true),
+                new Waypoint(-1568.0, 3028.0, "shore", false),
+                new Waypoint(-1588.0, 3020.0, "wade", false),
+                new Waypoint(-1568.0, 3028.0, "wade", false),
+                new Waypoint(-1552.0, 3012.0, "plain", true),
+                new Waypoint(-1520.0, 3012.0, "platform", false),
+                new Waypoint(-1504.0, 3012.0, "plain", true),
+                new Waypoint(-1456.0, 2996.0, "plain", true),
+                new Waypoint(-1432.0, 2980.0, "plain", true),
+                new Waypoint(-1424.0, 2956.0, "cliff", false),
+                new Waypoint(-1424.0, 2948.0, "plain", true),
+                new Waypoint(-1392.0, 2932.0, "plain", true),
+                new Waypoint(-1376.0, 2916.0, "plain", true),
+                new Waypoint(-1312.0, 2820.0, "plain", true),
             };
         }
     }

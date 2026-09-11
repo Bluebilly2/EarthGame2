@@ -38,6 +38,7 @@ namespace EarthGame.Client
         private float _eyeY;
         private bool _eyeInitialised;
         private ControlsFrame _presses;
+        private ControlsFrame _seen;
         private readonly Stride _stride = new Stride();
 
         public MoverState State;
@@ -188,6 +189,24 @@ namespace EarthGame.Client
             _presses.HandStep += f.HandStep;
             _presses.Menu |= f.Menu;
             _presses.Screenshot |= f.Screenshot;
+            _seen.Jump |= f.Jump;
+            _seen.Use |= f.Use;
+            _seen.Carrying |= f.Carrying;
+            if (f.HandPlace != 0) _seen.HandPlace = f.HandPlace;
+            _seen.HandStep += f.HandStep;
+            _seen.Menu |= f.Menu;
+            _seen.Screenshot |= f.Screenshot;
+        }
+
+        /// <summary>
+        /// Every press the controls delivered since this was last called: how the controls scenario sees a press reach the
+        /// body when its effect is one a windowless run withholds (M1.5d).
+        /// </summary>
+        public ControlsFrame TakeSeen()
+        {
+            ControlsFrame seen = _seen;
+            _seen = default;
+            return seen;
         }
 
         private void FixedUpdate()
