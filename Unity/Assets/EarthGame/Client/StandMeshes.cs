@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using EarthGame.ClientCore;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace EarthGame.Client
 {
@@ -11,9 +12,15 @@ namespace EarthGame.Client
     ///
     /// <para>What makes a tree recognisable from the next ridge is its silhouette, not its surface: a crooked trunk that
     /// never runs straight, bare limbs forking off it, and a crown of separate clumps with sky between them. So a tree
-    /// is a five-sided faceted trunk, one to three limbs, and deformed icosahedra hung off the tips; every triangle
-    /// carries its own face's normal, so each plane catches the sun on its own, and colour is baked into the vertices,
-    /// so a whole forest is a handful of meshes and one material.</para>
+    /// is a five-sided faceted trunk, one to three limbs, and deformed icosahedra hung along their outer ends; every face
+    /// is lit by its own plane, so each catches the sun on its own, and colour is baked into the mesh, so a whole forest
+    /// is a handful of meshes and one material.</para>
+    ///
+    /// <para>A tree's faces share their corners (<see cref="FacetMeshData"/>): each face leads with a corner that carries
+    /// its normal and its colour, and the shader takes both from the leading corner alone, so a face is still one plane
+    /// of one colour while a tree has about as many corners as faces rather than three times as many (2026-09-11, when a
+    /// near tree's thousand-odd corners, each drawn in the depth, colour and two shadow passes, were what the near band
+    /// cost).</para>
     ///
     /// <para>Everything is built at unit height — the foot of the trunk at y = 0, the top of the crown at y = 1 — and
     /// deterministic from the form and the variant alone, never from Unity's random numbers, so a tree is the same tree
@@ -23,6 +30,7 @@ namespace EarthGame.Client
     public static class StandMeshes
     {
         private const int TrunkSides = 5;
+        private const int FarTrunkSides = 3;
         private const int TrunkSegments = 5;
         private const float TrunkTipRadiusShare = 0.35f;
         private const float BendMinDeg = 3f;
@@ -65,81 +73,21 @@ namespace EarthGame.Client
         /// <summary>
         /// A far tree of a tall plant: a three-sided trunk under one lumpy clump, unit height and a crown of unit width, so
         /// the client scales it across by the crown and up by the height. A ridge a few hundred metres off needs the right
-        /// lumpy edge against the sky, not its limbs. Its corners are shared between faces and shaded smooth: far off, a
-        /// facet is smaller than a pixel, and a corner shaded once rather than once for every face it belongs to is most
-        /// of what tens of thousands of far trees cost (2026-09-11, when the far band took 9.5 ms of a frame beside
-        /// Windermere with a corner to every face).
+        /// lumpy edge against the sky, not its limbs.
         /// </summary>
         public static Mesh FarTree(int tall)
         {
             if (FarTrees.TryGetValue(tall, out Mesh mesh)) return mesh;
             TreeForm form = StandForms.ForTall(tall);
-            List<Vector3> verts = new List<Vector3>();
-            List<Vector3> normals = new List<Vector3>();
-            List<Color> colours = new List<Color>();
-            List<int> tris = new List<int>();
-
-            // The trunk: three sides from the ground to the crown, the rough bark at its foot and the species' own above.
-            const int sides = 3;
-            for (int ring = 0; ring < 2; ring++)
-            {
-                float y = ring == 0 ? 0f : 0.62f, r = ring == 0 ? 0.035f : 0.02f;
-                Color bark = ToColor(ring == 0 ? form.BarkLow : form.BarkHigh);
-                for (int k = 0; k < sides; k++)
-                {
-                    float a = k * (Mathf.PI * 2f / sides);
-                    Vector3 outward = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
-                    verts.Add(new Vector3(0f, y, 0f) + outward * r);
-                    normals.Add(outward);
-                    colours.Add(bark);
-                }
-            }
-            for (int k = 0; k < sides; k++)
-            {
-                int k2 = (k + 1) % sides;
-                SharedFace(verts, tris, k, sides + k, sides + k2, new Vector3(0f, 0.31f, 0f));
-                SharedFace(verts, tris, k, sides + k2, k2, new Vector3(0f, 0.31f, 0f));
-            }
-
-            // The clump: an icosahedron with every corner pushed in or out, squashed to the form's crown.
-            Vector3 centre = new Vector3(0f, 0.72f, 0f);
-            Vector3 squash = new Vector3(1f, 0.56f * form.CrownSquash, 1f);
-            Color canopy = ToColor(form.Foliage);
-            int seed = tall * 31 + 5, first = verts.Count;
-            for (int i = 0; i < IcoVerts.Length; i++)
-            {
-                Vector3 d = IcoVerts[i];
-                Vector3 v = d * (0.5f * (ClumpPushMin + ClumpPushSpan * Hash01(seed, i)));
-                verts.Add(centre + new Vector3(v.x * squash.x, v.y * squash.y, v.z * squash.z));
-                normals.Add(new Vector3(d.x / squash.x, d.y / squash.y, d.z / squash.z).normalized);
-                colours.Add(Scale(canopy, Jitter(seed, i, FaceJitter)));
-            }
-            for (int f = 0; f < IcoFaces.Length; f += 3)
-                SharedFace(verts, tris, first + IcoFaces[f], first + IcoFaces[f + 1], first + IcoFaces[f + 2], centre);
-
-            mesh = new Mesh { name = "Far " + form.Name };
-            mesh.SetVertices(verts);
-            mesh.SetNormals(normals);
-            mesh.SetColors(colours);
-            mesh.SetTriangles(tris, 0);
-            mesh.RecalculateBounds();
+            FacetMeshData data = new FacetMeshData();
+            Vector3[] centres = { Vector3.zero, new Vector3(0f, 0.62f, 0f) };
+            Vector3[] dirs = { Vector3.up, Vector3.up };
+            float[] radii = { 0.035f, 0.02f };
+            FacetTube(data, FarTrunkSides, centres, dirs, radii, 0f, tall, ToColor(form.BarkLow), ToColor(form.BarkHigh), 0.5f * form.StockingShare);
+            FacetClump(data, new Vector3(0f, 0.72f, 0f), 0.5f, new Vector3(1f, 0.56f * form.CrownSquash, 1f), ToColor(form.Foliage), FaceJitter, tall * 31 + 5);
+            mesh = data.ToMesh("Far " + form.Name);
             FarTrees[tall] = mesh;
             return mesh;
-        }
-
-        /// <summary>A face over shared corners, wound away from a point inside the shape.</summary>
-        private static void SharedFace(List<Vector3> verts, List<int> tris, int a, int b, int c, Vector3 inside)
-        {
-            Vector3 n = Vector3.Cross(verts[b] - verts[a], verts[c] - verts[a]);
-            if (Vector3.Dot(n, (verts[a] + verts[b] + verts[c]) / 3f - inside) < 0f)
-            {
-                int swap = b;
-                b = c;
-                c = swap;
-            }
-            tris.Add(a);
-            tris.Add(b);
-            tris.Add(c);
         }
 
         /// <summary>A fallen stick, lying along x on the ground: a slender five-sided rod with a kink or two, about a metre long.</summary>
@@ -211,7 +159,7 @@ namespace EarthGame.Client
         private static Mesh BuildTree(int seed, TreeForm form, out float crownWidth)
         {
             System.Random rand = new System.Random(seed);
-            MeshData data = new MeshData();
+            FacetMeshData data = new FacetMeshData();
 
             float trunkLength = form.TrunkLength * Range(rand, 0.94f, 1.06f);
             float leanAzimuth = Range(rand, 0f, 360f);
@@ -244,7 +192,7 @@ namespace EarthGame.Client
             float stocking = form.StockingShare <= 0f
                 ? -1f
                 : Mathf.Clamp(trunkLength * form.StockingShare + Range(rand, -StockingJitter, StockingJitter) * 0.5f, 0.05f, trunkLength * 1.2f);
-            AddTube(data, centres, ringDirs, radii, Range(rand, 0f, Mathf.PI * 2f), seed, ToColor(form.BarkLow), ToColor(form.BarkHigh), stocking);
+            FacetTube(data, TrunkSides, centres, ringDirs, radii, Range(rand, 0f, Mathf.PI * 2f), seed, ToColor(form.BarkLow), ToColor(form.BarkHigh), stocking);
 
             List<Vector3> tips = new List<Vector3> { centres[TrunkSegments] };
             List<Vector3> inner = new List<Vector3> { centres[TrunkSegments - 1] };
@@ -281,7 +229,7 @@ namespace EarthGame.Client
                 limbRingDirs[0] = limbDirs[0];
                 for (int i = 1; i < LimbSegments; i++) limbRingDirs[i] = (limbDirs[i - 1] + limbDirs[i]).normalized;
                 limbRingDirs[LimbSegments] = limbDirs[LimbSegments - 1];
-                AddTube(data, limbCentres, limbRingDirs, limbRadii, Range(rand, 0f, Mathf.PI * 2f), seed, ToColor(form.BarkHigh), ToColor(form.BarkHigh), -1f);
+                FacetTube(data, TrunkSides, limbCentres, limbRingDirs, limbRadii, Range(rand, 0f, Mathf.PI * 2f), seed, ToColor(form.BarkHigh), ToColor(form.BarkHigh), -1f);
                 tips.Add(limbCentres[LimbSegments]);
                 inner.Add(limbCentres[1]);
             }
@@ -302,7 +250,7 @@ namespace EarthGame.Client
                 float offset = radius * Mathf.Lerp(0.55f, 0.95f, form.ClumpOffset / 0.22f * Range(rand, 0.7f, 1f));
                 float azimuth = i * (360f / clumpCount) + Range(rand, -25f, 25f);
                 Vector3 centre = tip + HorizontalAxis(azimuth) * offset + Vector3.up * Range(rand, -0.02f, 0.06f);
-                AddClump(data, centre, radius, new Vector3(1f, form.CrownSquash, 1f), Scale(canopy, 1f + Range(rand, -ClumpJitter, ClumpJitter)), FaceJitter, seed * 97 + i);
+                FacetClump(data, centre, radius, new Vector3(1f, form.CrownSquash, 1f), Scale(canopy, 1f + Range(rand, -ClumpJitter, ClumpJitter)), FaceJitter, seed * 97 + i);
             }
 
             data.ScaleToUnitHeight();
@@ -333,11 +281,10 @@ namespace EarthGame.Client
         // ------------------------------------------------------------------ geometry
 
         /// <summary>
-        /// Skins ring centres with a five-sided tube whose facets run unbroken from butt to tip (the rings' phase carried
-        /// up by parallel transport), rough bark below <paramref name="boundaryY"/> and smooth above; a negative boundary
-        /// is smooth all the way.
+        /// The rings a tube is skinned over: five-sided (or as many as asked) rings about the centres, their phase carried
+        /// up by parallel transport so the facets run unbroken from butt to tip.
         /// </summary>
-        private static void AddTube(MeshData data, Vector3[] centres, Vector3[] ringDirs, float[] radii, float phase, int seed, Color lower, Color upper, float boundaryY)
+        private static Vector3[][] Rings(Vector3[] centres, Vector3[] ringDirs, float[] radii, float phase, int sides)
         {
             int rings = centres.Length;
             Vector3[][] ring = new Vector3[rings][];
@@ -350,14 +297,24 @@ namespace EarthGame.Client
                 right = right.normalized;
                 carried = right;
                 Vector3 forward = Vector3.Cross(axis, right).normalized;
-                ring[i] = new Vector3[TrunkSides];
-                for (int k = 0; k < TrunkSides; k++)
+                ring[i] = new Vector3[sides];
+                for (int k = 0; k < sides; k++)
                 {
-                    float a = phase + k * (Mathf.PI * 2f / TrunkSides);
+                    float a = phase + k * (Mathf.PI * 2f / sides);
                     ring[i][k] = centres[i] + (right * Mathf.Cos(a) + forward * Mathf.Sin(a)) * radii[i];
                 }
             }
-            for (int i = 0; i + 1 < rings; i++)
+            return ring;
+        }
+
+        /// <summary>
+        /// Skins ring centres with a tube of separate faces, rough bark below <paramref name="boundaryY"/> and smooth
+        /// above; a negative boundary is smooth all the way. The sticks' tube.
+        /// </summary>
+        private static void AddTube(MeshData data, Vector3[] centres, Vector3[] ringDirs, float[] radii, float phase, int seed, Color lower, Color upper, float boundaryY)
+        {
+            Vector3[][] ring = Rings(centres, ringDirs, radii, phase, TrunkSides);
+            for (int i = 0; i + 1 < centres.Length; i++)
             {
                 Vector3 inside = (centres[i] + centres[i + 1]) * 0.5f;
                 for (int k = 0; k < TrunkSides; k++)
@@ -372,20 +329,45 @@ namespace EarthGame.Client
             }
         }
 
-        /// <summary>A clump of leaves: an icosahedron with each vertex pushed out by 0.65 to 1.35 of the radius, then squashed.</summary>
-        private static void AddClump(MeshData data, Vector3 centre, float radius, Vector3 squash, Color colour, float faceJitter, int seed)
+        /// <summary>
+        /// Skins ring centres with a tube whose faces share their corners, each face one colour: rough bark below
+        /// <paramref name="boundaryY"/> and smooth above, by the height of the face's middle; a negative boundary is
+        /// smooth all the way.
+        /// </summary>
+        private static void FacetTube(FacetMeshData data, int sides, Vector3[] centres, Vector3[] ringDirs, float[] radii, float phase, int seed, Color lower, Color upper, float boundaryY)
         {
-            Vector3[] verts = new Vector3[IcoVerts.Length];
-            for (int i = 0; i < verts.Length; i++)
+            Vector3[][] ring = Rings(centres, ringDirs, radii, phase, sides);
+            int[][] points = new int[ring.Length][];
+            for (int i = 0; i < ring.Length; i++)
+            {
+                points[i] = new int[sides];
+                for (int k = 0; k < sides; k++) points[i][k] = data.Point(ring[i][k]);
+            }
+            for (int i = 0; i + 1 < ring.Length; i++)
+            {
+                Vector3 inside = (centres[i] + centres[i + 1]) * 0.5f;
+                for (int k = 0; k < sides; k++)
+                {
+                    int k2 = (k + 1) % sides;
+                    float y0 = (ring[i][k].y + ring[i + 1][k].y + ring[i + 1][k2].y) / 3f;
+                    data.Face(points[i][k], points[i + 1][k], points[i + 1][k2], inside, Bark(y0, lower, upper, boundaryY, Jitter(seed, data.FaceCount, FaceJitter)));
+                    float y1 = (ring[i][k].y + ring[i + 1][k2].y + ring[i][k2].y) / 3f;
+                    data.Face(points[i][k], points[i + 1][k2], points[i][k2], inside, Bark(y1, lower, upper, boundaryY, Jitter(seed, data.FaceCount, FaceJitter)));
+                }
+            }
+        }
+
+        /// <summary>A clump of leaves: an icosahedron with each corner pushed out by 0.65 to 1.35 of the radius, then squashed; its faces share their corners.</summary>
+        private static void FacetClump(FacetMeshData data, Vector3 centre, float radius, Vector3 squash, Color colour, float faceJitter, int seed)
+        {
+            int[] points = new int[IcoVerts.Length];
+            for (int i = 0; i < IcoVerts.Length; i++)
             {
                 Vector3 v = IcoVerts[i] * (radius * (ClumpPushMin + ClumpPushSpan * Hash01(seed, i)));
-                verts[i] = new Vector3(v.x * squash.x, v.y * squash.y, v.z * squash.z);
+                points[i] = data.Point(centre + new Vector3(v.x * squash.x, v.y * squash.y, v.z * squash.z));
             }
             for (int f = 0; f < IcoFaces.Length; f += 3)
-            {
-                Color c = Scale(colour, Jitter(seed, f / 3, faceJitter));
-                data.AddFace(centre + verts[IcoFaces[f]], centre + verts[IcoFaces[f + 1]], centre + verts[IcoFaces[f + 2]], centre, c, c, c);
-            }
+                data.Face(points[IcoFaces[f]], points[IcoFaces[f + 1]], points[IcoFaces[f + 2]], centre, Scale(colour, Jitter(seed, f / 3, faceJitter)));
         }
 
         private static Color Bark(float y, Color lower, Color upper, float boundaryY, float jitter)
@@ -453,7 +435,8 @@ namespace EarthGame.Client
 
         /// <summary>
         /// A triangle soup with the winding worked out: each face wound away from a point inside it (the tube's axis, the
-        /// clump's centre), with its own normal and its vertices' colours. Ported from v1's <c>MeshData</c>.
+        /// stone's centre), with its own normal and its vertices' colours. Ported from v1's <c>MeshData</c>; the sticks and
+        /// cobbles, too few to be worth sharing corners.
         /// </summary>
         private sealed class MeshData
         {
@@ -480,6 +463,114 @@ namespace EarthGame.Client
                 _normals.Add(n); _normals.Add(n); _normals.Add(n);
                 _colours.Add(ca); _colours.Add(cb); _colours.Add(cc);
                 _tris.Add(i0); _tris.Add(i0 + 1); _tris.Add(i0 + 2);
+            }
+
+            public Mesh ToMesh(string name)
+            {
+                Mesh mesh = new Mesh { name = name };
+                mesh.SetVertices(_verts);
+                mesh.SetNormals(_normals);
+                mesh.SetColors(_colours);
+                mesh.SetTriangles(_tris, 0);
+                mesh.RecalculateBounds();
+                return mesh;
+            }
+        }
+
+        /// <summary>
+        /// Faces over shared corners, each lit as one plane of one colour. A face leads with a corner that carries its
+        /// normal and its colour — the first corner of its triangle, which is the corner the GPU hands a flat
+        /// (<c>nointerpolation</c>) value from — and borrows whatever corners stand at its other two points, whose normal
+        /// and colour it never reads. A corner leads one face at most; one that stands at a point without leading yet is
+        /// given to the next face that can lead from there, so a mesh has about as many corners as faces.
+        /// </summary>
+        private sealed class FacetMeshData
+        {
+            private readonly List<Vector3> _points = new List<Vector3>();
+            private readonly List<int> _cornerAt = new List<int>();
+            private readonly List<Vector3> _verts = new List<Vector3>();
+            private readonly List<Vector3> _normals = new List<Vector3>();
+            private readonly List<Color> _colours = new List<Color>();
+            private readonly List<bool> _leads = new List<bool>();
+            private readonly List<int> _tris = new List<int>();
+
+            public int FaceCount => _tris.Count / 3;
+
+            /// <summary>A place faces may share a corner at; the number names it.</summary>
+            public int Point(Vector3 position)
+            {
+                _points.Add(position);
+                _cornerAt.Add(-1);
+                return _points.Count - 1;
+            }
+
+            /// <summary>A face over three points, wound away from a point inside the shape, of one plane and one colour.</summary>
+            public void Face(int a, int b, int c, Vector3 inside, Color colour)
+            {
+                Vector3 pa = _points[a], pb = _points[b], pc = _points[c];
+                Vector3 n = Vector3.Cross(pb - pa, pc - pa);
+                if (n.sqrMagnitude < 1e-14f) return;
+                if (Vector3.Dot(n, (pa + pb + pc) / 3f - inside) < 0f)
+                {
+                    int swap = b;
+                    b = c;
+                    c = swap;
+                    n = -n;
+                }
+                n = n.normalized;
+                // Turn the three round, keeping the winding, so the face leads from a point whose corner leads nothing yet.
+                if (Taken(a) && !Taken(b))
+                {
+                    int t = a;
+                    a = b;
+                    b = c;
+                    c = t;
+                }
+                else if (Taken(a) && !Taken(c))
+                {
+                    int t = a;
+                    a = c;
+                    c = b;
+                    b = t;
+                }
+                _tris.Add(Lead(a, n, colour));
+                _tris.Add(Borrow(b, n, colour));
+                _tris.Add(Borrow(c, n, colour));
+            }
+
+            private bool Taken(int point) => _cornerAt[point] >= 0 && _leads[_cornerAt[point]];
+
+            private int Lead(int point, Vector3 normal, Color colour)
+            {
+                int v = _cornerAt[point];
+                if (v >= 0 && !_leads[v])
+                {
+                    _normals[v] = normal;
+                    _colours[v] = colour;
+                    _leads[v] = true;
+                    return v;
+                }
+                v = Corner(point, normal, colour, true);
+                if (_cornerAt[point] < 0) _cornerAt[point] = v;
+                return v;
+            }
+
+            private int Borrow(int point, Vector3 normal, Color colour)
+            {
+                int v = _cornerAt[point];
+                if (v >= 0) return v;
+                v = Corner(point, normal, colour, false);
+                _cornerAt[point] = v;
+                return v;
+            }
+
+            private int Corner(int point, Vector3 normal, Color colour, bool leads)
+            {
+                _verts.Add(_points[point]);
+                _normals.Add(normal);
+                _colours.Add(colour);
+                _leads.Add(leads);
+                return _verts.Count - 1;
             }
 
             /// <summary>Scales the whole thing so its top sits at y = 1, uniformly, so every share of height survives.</summary>
@@ -509,6 +600,7 @@ namespace EarthGame.Client
             public Mesh ToMesh(string name)
             {
                 Mesh mesh = new Mesh { name = name };
+                if (_verts.Count > 65535) mesh.indexFormat = IndexFormat.UInt32;
                 mesh.SetVertices(_verts);
                 mesh.SetNormals(_normals);
                 mesh.SetColors(_colours);

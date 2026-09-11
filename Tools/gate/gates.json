@@ -358,6 +358,13 @@
           ]
         },
         {
+          "name": "Unity edit-mode tests",
+          "cmd": [
+            "python",
+            "Tools/unity/editmode.py"
+          ]
+        },
+        {
           "name": "create the gate world",
           "cmd": [
             "python",
@@ -430,6 +437,13 @@
             "--nologo",
             "-v",
             "minimal"
+          ]
+        },
+        {
+          "name": "Unity edit-mode tests",
+          "cmd": [
+            "python",
+            "Tools/unity/editmode.py"
           ]
         },
         {

@@ -22,7 +22,7 @@ namespace EarthGame.Client
     /// shader draws each instance in exactly one of the two, by its distance against <see cref="SplitM"/>, so no tree
     /// moves from one list to the other as the founder walks. The distance is from the eye this view hands the shader
     /// each frame, not from whatever camera a pass renders for, so the shadow caster's pass puts every instance in the
-    /// band the lit pass does. Sticks and cobbles are drawn near only. No <c>MaterialPropertyBlock</c>: colour is in the
+    /// band the lit pass does. Sticks and cobbles are drawn near only. No per-draw property block: colour is in the
     /// meshes (ARCHITECTURE §8's rule).</para>
     ///
     /// <para>What a frame draws is chosen block by block (2026-09-11: drawing every tree of the nine tiles far every
@@ -115,6 +115,9 @@ namespace EarthGame.Client
         /// <summary>Whether the sticks and cobbles are drawn; <c>-eg-hide loose</c> turns them off.</summary>
         public bool DrawLoose { get; set; } = true;
 
+        /// <summary>Whether the near trees cast shadows; <c>-eg-hide shadows</c> turns them off, so what the shadows cost can be measured apart from the trees.</summary>
+        public bool DrawShadows { get; set; } = true;
+
         private sealed class Block
         {
             public Vector3 Centre;
@@ -150,6 +153,11 @@ namespace EarthGame.Client
             public uint GroundCrc;
             public Block[] Blocks;
             public int Trees;
+            /// <summary>All the tile's trees, foot to crown, when it has any: a whole tile out of the view and out of reach is passed over.</summary>
+            public Bounds Bounds;
+            public bool HasTrees;
+            /// <summary>The tile's own ground, edge to edge: how near anything of it can be, its sticks and cobbles as well as its trees.</summary>
+            public Bounds Ground;
         }
 
         public StandViews(Material template, TileGrid grid)
@@ -269,6 +277,11 @@ namespace EarthGame.Client
             foreach (TileStand tile in _held.Values)
             {
                 trees += tile.Trees;
+                // A tile whose trees are out of the view and whose ground lies beyond the near band's reach has nothing to
+                // draw: its far trees cannot be seen, none of its trees is near enough to shade what can, and nothing of
+                // it lies near enough to show. The reach is to the ground, not the trees, or a beach under the founder's
+                // feet would lose its cobbles to a forest far across the tile.
+                if (tile.HasTrees && Reach(eye, tile.Ground) > SplitM + BlockReach && !GeometryUtility.TestPlanesAABB(_view, tile.Bounds)) continue;
                 foreach (Block block in tile.Blocks)
                 {
                     if (block == null) continue;
@@ -279,7 +292,7 @@ namespace EarthGame.Client
                         bool inView = GeometryUtility.TestPlanesAABB(_view, block.Bounds);
                         if (DrawNear && d < SplitM + BlockReach)
                         {
-                            bool casts = d - BlockReach < castM;
+                            bool casts = DrawShadows && d - BlockReach < castM;
                             if (inView) Gather(block.Near, casts ? _nearGather : _plainGather);
                             else if (casts) Gather(block.Near, _shadowGather);
                         }
@@ -343,6 +356,8 @@ namespace EarthGame.Client
                 GroundCrc = prepared.GroundCrc,
                 Blocks = new Block[_blocksPerSide * _blocksPerSide],
                 Trees = prepared.Trees.Length,
+                Ground = new Bounds(new Vector3((float)(originEast + 0.5 * _grid.TileSizeM), 0f, (float)(originNorth + 0.5 * _grid.TileSizeM)),
+                                    new Vector3((float)_grid.TileSizeM, 1f, (float)_grid.TileSizeM)),
             };
             foreach (StandTree t in prepared.Trees)
             {
@@ -370,6 +385,13 @@ namespace EarthGame.Client
                 block.Grow(new Vector3(t.East - t.CrownM, t.Up - SinkM, t.North - t.CrownM), new Vector3(t.East + t.CrownM, t.Up + t.HeightM, t.North + t.CrownM));
             }
             foreach (Block block in tile.Blocks) block?.Settle();
+            foreach (Block block in tile.Blocks)
+            {
+                if (block?.Near == null) continue;
+                if (!tile.HasTrees) tile.Bounds = block.Bounds;
+                else tile.Bounds.Encapsulate(block.Bounds);
+                tile.HasTrees = true;
+            }
             foreach (LooseInstance s in prepared.Sticks)
             {
                 Block block = BlockAt(tile, originEast, originNorth, s.East, s.North);
@@ -410,6 +432,15 @@ namespace EarthGame.Client
             m.m20 = -s * sx; m.m21 = 0f; m.m22 = c * sz; m.m23 = north;
             m.m30 = 0f; m.m31 = 0f; m.m32 = 0f; m.m33 = 1f;
             return m;
+        }
+
+        /// <summary>How far a box lies from the eye across the ground, m; nought when the eye stands over it.</summary>
+        private static float Reach(Vector3 eye, Bounds box)
+        {
+            Vector3 min = box.min, max = box.max;
+            float dx = Mathf.Max(0f, Mathf.Max(min.x - eye.x, eye.x - max.x));
+            float dz = Mathf.Max(0f, Mathf.Max(min.z - eye.z, eye.z - max.z));
+            return Mathf.Sqrt(dx * dx + dz * dz);
         }
 
         private static void Gather(List<Matrix4x4>[] from, List<Matrix4x4>[] into)

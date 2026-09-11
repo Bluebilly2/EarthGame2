@@ -6,6 +6,8 @@
 // its material's band is folded to a point, which draws nothing. Every pass assumes uniform scaling and takes no light
 // probe, lightmap or LOD fade, so the renderer makes and uploads only each instance's own matrix and not its inverse:
 // a crown's squash bends its normals a little, which a far tree cannot show and a near tree barely does (2026-09-11).
+// A face takes its normal and its colour from its leading corner, never blended across it, so the meshes can share
+// corners between faces and still light each face as one plane of one colour (StandMeshes, 2026-09-11).
 Shader "EarthGame/StandLit"
 {
     Properties
@@ -65,9 +67,11 @@ Shader "EarthGame/StandLit"
             {
                 float4 positionCS : SV_POSITION;
                 float3 positionWS : TEXCOORD0;
-                float3 normalWS : TEXCOORD1;
+                // A face takes its normal and its colour from its leading corner alone: the meshes share corners
+                // between faces, and each face leads with a corner that carries its own (StandMeshes).
+                nointerpolation float3 normalWS : TEXCOORD1;
                 float fog : TEXCOORD2;
-                float4 color : COLOR;
+                nointerpolation float4 color : TEXCOORD3;
             };
 
             Varyings Vert(Attributes input)
@@ -215,7 +219,7 @@ Shader "EarthGame/StandLit"
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
-                float3 normalWS : TEXCOORD0;
+                nointerpolation float3 normalWS : TEXCOORD0;
             };
 
             Varyings VertNormals(Attributes input)

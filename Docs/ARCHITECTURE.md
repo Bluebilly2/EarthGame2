@@ -345,14 +345,18 @@ corpus runs, its raw results in the contracted run logs (§10), recomputed indep
   carries only its own matrix: the shader assumes uniform scaling and takes no light probe, lightmap or LOD fade, and
   the draws ask for no probe, so the renderer makes no inverse matrix and looks nothing up for each of tens of
   thousands of trees a frame. Colour is in the vertices (v1's `EucalyptBuilder`, ported with Bherwerre's forms;
-  `StandForms` in ClientCore is the one table of what each looks like). The bands' materials copy a material asset
+  `StandForms` in ClientCore is the one table of what each looks like). A tree's faces share their corners: each
+  face leads with a corner that carries its normal and its colour, and the shader takes both from the leading corner
+  alone (`nointerpolation`), so a face stays one plane of one colour with about a third of the corners. The bands' materials copy a material asset
   with instancing on (`ProjectSetup`): made from the shader alone, the build stripped its instanced variants and the
   first player drew no trees, as happened to the terrain on 2026-09-08. Measured without a window (the recorder's `-eg-hold`,
-  §12) on a freshly created world in the morning, when the low sun lets every near tree cast: the trees first cost
-  15.2 ms of the median frame beside Windermere and 10.5 ms at the wake, against the budget's 2.0 ms; with the
-  choosing by block, the thinned and cheaper far band and the per-instance savings they cost 4.1 ms and 2.9 ms
-  (beside Windermere each band alone 2.1 ms near and 2.4 ms far, and 1.2 ms of the whole the main thread's choosing
-  and handing over), still over: a debt (DEBTS.md). The sticks and cobbles cost 0.4 ms and 0.3 ms, inside 0.7 ms. On the wire the two layers are small beside the ground: the nine tiles round the gate world's wake
+  §12) on freshly created worlds in the morning, when the low sun lets every near tree cast, each configuration the
+  faster of two passes: the trees first cost 15.2 ms of the median frame beside Windermere and 10.5 ms at the wake;
+  they now cost 4.4 ms and 3.0 ms. The budget's own lines divide that, beside Windermere, into the main thread's
+  choosing and handing over (1.1 ms, against culling and submit's 2.0), the near trees' shadows (0.9 ms, against the
+  1.6 ms the shadows share with the terrain) and the trees drawn (2.0 to 2.4 ms, the bands measured apart or the whole
+  less its shadows and its main thread, against the trees' 2.0). The sticks and cobbles cost 0.2 ms, and 0.6 ms on
+  the wake's beach of cobbles, against 0.7 ms. §8's own protocol, in a visible window, is still owed (DEBTS.md). On the wire the two layers are small beside the ground: the nine tiles round the gate world's wake
   are 110,056 bytes of stand and 119,421 of loose as cached, deflated, against the ground's 282,686 (the M1.6
   gate's shaped join, 2026-09-11).
 - Budget: 13.3 ms design at 1080p-internal (60 fps hard floor at 16.7 ms; any frame over 33 ms is a named
@@ -483,3 +487,4 @@ mandatory in every file from the first write.
 | 2026-09-11 | What a frame draws of the stand is chosen by 64 m block: a far block only in the view, a near block out of the view into the shadows alone, and a near tree casting only where the sun's height lets its shadow reach the pipeline's shadow distance | Every tree of the nine tiles drawn far every frame cost 15.2 ms beside Windermere; far trees cast no shadow, so what is out of the view is nothing, while a near tree behind the founder still shades what is in front |
 | 2026-09-11 | Far trees thin with distance, one in two beyond 500 m and one in four beyond 1 km with their crowns spread to hold the canopy's cover, and a far tree's corners are shared and shaded smooth | After the block choice the far band alone still took 9.5 ms beside Windermere; the thinned, shared-corner band took 3.4 ms, with the forest reading the same in the frames |
 | 2026-09-11 | The stand's draws ask for no light or reflection probe, and its shader assumes uniform scaling and takes no lightmap or LOD fade | A far tree with a fiftieth of a near tree's corners cost a quarter as much, so the cost was per instance, not per corner; without a probe lookup and an inverse matrix for each instance the far band went from 3.4 ms to 2.2 ms (far trees cast no shadow, so the hours of the two runs do not bear on it) |
+| 2026-09-11 | A tree's faces share their corners, each face lit and coloured from its leading corner (`nointerpolation`), and a whole tile whose trees are out of the view and whose ground is beyond the near band's reach is passed over | A near tree had three corners to every face, each drawn in the depth, colour and two shadow passes; sharing them took the near band alone from 2.1 ms to 1.6 ms beside Windermere with the frames unchanged at the same hours (`Artefacts/frames/m16a-7` against `m16a-8`), and the edit-mode `StandMeshesTests` hold every face to its leading corner |

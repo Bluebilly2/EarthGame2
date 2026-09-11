@@ -7,6 +7,7 @@
         "EarthGame.Editor",
         "EarthGame.Shared",
         "EarthGame.Engine",
+        "EarthGame.ClientCore",
         "EarthGame.Client"
     ],
     "includePlatforms": [

@@ -663,19 +663,20 @@ namespace EarthGame.Client
             }
 
             // -eg-hide a,b,c: objects by name switched off after the view is built, to bisect what is drawn. "trees"
-            // ("near" and "far" for one band of them) and "loose" switch off what stands and what lies on the ground,
-            // which is drawn without objects (M1.6a).
+            // ("near" and "far" for one band of them, "shadows" for the near trees' shadows alone) and "loose" switch off
+            // what stands and what lies on the ground, which is drawn without objects (M1.6a).
             string hide = LaunchArgs.Get("hide", null);
             if (!string.IsNullOrEmpty(hide))
             {
                 foreach (string listed in hide.Split(','))
                 {
                     string name = listed.Trim();
-                    if (_stand != null && (name == "trees" || name == "near" || name == "far" || name == "loose"))
+                    if (_stand != null && (name == "trees" || name == "near" || name == "far" || name == "loose" || name == "shadows"))
                     {
                         if (name == "trees" || name == "near") _stand.DrawNear = false;
                         if (name == "trees" || name == "far") _stand.DrawFar = false;
                         if (name == "loose") _stand.DrawLoose = false;
+                        if (name == "shadows") _stand.DrawShadows = false;
                         Debug.Log("[client] -eg-hide " + name + ": hidden");
                         continue;
                     }

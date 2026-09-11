@@ -53,7 +53,9 @@ program, and since 2026-09-08 the agent writes everything, checks included (ruli
 ## Before every commit
 
 1. `git status` read whole: nothing stray, nothing missing (Unity metas included).
-2. The suite run in this tree and the count taken from the run; the Unity-layer compile green.
+2. The suite run in this tree and the count taken from the run; the Unity-layer compile green; and when the Unity
+   layer changed, its edit-mode tests green (`python Tools/unity/editmode.py`); before 2026-09-11 only the loading
+   gate ran them, and a red suite went unseen from M1.6a's landing.
 3. A changed format's version bumped and ARCHITECTURE §10 amended; a changed rule's decision logged with its date.
 4. A new debt in `DEBTS.md` with an owner; no TODO in code.
 5. Anything vendored or fetched in `THIRD_PARTY_NOTICES.md`.
@@ -99,8 +101,9 @@ got wrong was duplication (a copy of `CLAUDE.md` as `AGENTS.md`; the dedicated h
 - Git prints CRLF warnings on every add; they are noise.
 - Python for the tools is `Tools/.venv/Scripts/python.exe` (numpy, Pillow, requests); the gate runner uses it for
   steps that start with `python`. Console output needs `PYTHONIOENCODING=utf-8` for degree signs.
-- `dotnet build Engine/EarthGame.Unity.Compile.csproj` compiles the Unity layer against stubs in seconds and
-  catches most Unity-side breakage.
+- `dotnet build Engine/EarthGame.Unity.Compile.csproj` compiles the Unity layer against the editor's own assemblies
+  (no editor, no licence) in seconds and catches most Unity-side breakage; it needs `Unity/Library/ScriptAssemblies`
+  from one batch import.
 - Unity batch runs need the owner's editor closed (`tasklist | findstr Unity`). Edit-mode tests:
   `"C:/Program Files/Unity/Hub/Editor/6000.3.22f1/Editor/Unity.exe" -batchmode -nographics -projectPath Unity
   -runTests -testPlatform EditMode -testResults <xml> -logFile <log>`. A player build:
@@ -120,3 +123,14 @@ got wrong was duplication (a copy of `CLAUDE.md` as `AGENTS.md`; the dedicated h
 - Unity `.meta` files here are minimal; hand-written YAML prefabs import cleanly; commit the metas a batch import
   generates for new engine sources.
 - In the tests' two-client rig, `Pump(1)` is one server update.
+- A world's clock moves with every host and player run, so a reused world drifts from morning into night. Frames or
+  timings that are to be compared are each taken on a freshly created world, which wakes at about 08:00 (2026-09-11:
+  a timing round that ran into the world's nightfall read the near trees at under half their cost, the sun being
+  down).
+- A frame's cost: the recorder with `-eg-hold 20` (a full turn, the GPU waited for every frame; a `timing` record)
+  and `-eg-hide trees|near|far|shadows|loose` to part the costs. Timing wobbles with whatever else the machine is
+  doing, so a round is run twice, each pass on its own fresh world, and each configuration keeps the faster of its two
+  medians (2026-09-11: three runs in a row came out 2 ms slow).
+- A shader drawn only from materials made at runtime loses its instanced variants in a build: give it a material
+  asset with instancing on (`ProjectSetup`; ARCHITECTURE §12, 2026-09-08 and 2026-09-11). A `-nographics` player has
+  no instancing at all, so code that draws instanced checks `SystemInfo.supportsInstancing` first.
