@@ -10,10 +10,11 @@ namespace EarthGame.Client
     /// <summary>
     /// The founder's body on the client: the engine's <see cref="Mover"/> stepped at Unity's fixed rate (50 Hz)
     /// over <see cref="PhysxCollision"/>, mouse look sampled every render frame, the camera at eye height with
-    /// its vertical motion smoothed and nothing else (plan §4.8), and the body reported to the server at its
+    /// its vertical motion smoothed (plan §4.8, CANON ruling 18), and the body reported to the server at its
     /// tick rate. A Correction from the server is adopted at once and counted; on a legal walk every one is a
     /// false positive the N2 budget charges. The eye's height is the engine's (<see cref="MoverConfig.EyeHeight"/>)
-    /// since M1.5a, because the server measures a verb's reach from it.
+    /// since M1.5a, because the server measures a verb's reach from it. Since M1.5c the stride (<see cref="Stride"/>)
+    /// is laid on top of the smoothed eye, a footfall's dip and a sway across, unless <see cref="Still"/>.
     /// </summary>
     public sealed class PlayerController : MonoBehaviour
     {
@@ -37,10 +38,20 @@ namespace EarthGame.Client
         private float _eyeY;
         private bool _eyeInitialised;
         private ControlsFrame _presses;
+        private readonly Stride _stride = new Stride();
 
         public MoverState State;
         public float YawDeg;
         public float PitchDeg;
+
+        /// <summary>
+        /// The camera without the stride's dip and sway (M1.5c, set by <c>-eg-still</c>): the camera the owner found good
+        /// in ruling 18, kept so that he can play the two and say which stands.
+        /// </summary>
+        public bool Still;
+
+        /// <summary>A foot fell (M1.5c), from the ground the body covered; the client sounds it.</summary>
+        public event Action<Footfall> Stepped;
 
         /// <summary>
         /// While true the body neither steps nor reports: set until the ground under it exists (the streamed tile
@@ -216,6 +227,10 @@ namespace EarthGame.Client
         private void LateUpdate()
         {
             if (_camera == null) return;
+            // The stride walks the ground the body covered in this frame's game time, which is what steps the body; a
+            // frozen body covers none.
+            if (_stride.Advance(Time.deltaTime, Frozen ? 0.0 : State.HorizontalSpeed, Frozen || State.Grounded, out Footfall footfall))
+                Stepped?.Invoke(footfall);
             float eye = (float)(_config ?? MoverConfig.Default).EyeHeight(State.Stance);
             float targetY = (float)State.Up + eye;
             if (!_eyeInitialised)
@@ -230,7 +245,16 @@ namespace EarthGame.Client
                 _eyeY = Mathf.Lerp(_eyeY, targetY, k);
                 if (Mathf.Abs(_eyeY - targetY) > 1.0f) _eyeY = targetY; // a correction or a fall: no long slide
             }
-            _camera.transform.position = new Vector3((float)State.East, _eyeY, (float)State.North);
+            Vector3 at = new Vector3((float)State.East, _eyeY, (float)State.North);
+            if (!Still)
+            {
+                // The stride is laid on the smoothed eye, never in place of its smoothing: a footfall's dip down, and the
+                // sway across the way the founder faces (yaw 0 faces north, so the right hand is east).
+                float yaw = YawDeg * Mathf.Deg2Rad;
+                at += new Vector3(Mathf.Cos(yaw), 0f, -Mathf.Sin(yaw)) * (float)_stride.SwayNowM;
+                at.y -= (float)_stride.DipNowM;
+            }
+            _camera.transform.position = at;
             _camera.transform.rotation = Quaternion.Euler(PitchDeg, YawDeg, 0f);
         }
 

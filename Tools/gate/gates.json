@@ -545,6 +545,61 @@
       ],
       "owner_decides": "the frames of M1.5b: a stick of the litter looked at, taken (gone from the ground and in the hand), and put down again"
     },
+    "M1.5c": {
+      "steps": [
+        {
+          "name": "dotnet test",
+          "cmd": [
+            "dotnet",
+            "test",
+            "Engine/EarthGame.slnx",
+            "-c",
+            "Debug",
+            "--nologo"
+          ]
+        },
+        {
+          "name": "Unity-layer compile",
+          "cmd": [
+            "dotnet",
+            "build",
+            "Engine/EarthGame.Unity.Compile.csproj",
+            "-c",
+            "Debug",
+            "--nologo",
+            "-v",
+            "minimal"
+          ]
+        },
+        {
+          "name": "Unity edit-mode tests",
+          "cmd": [
+            "python",
+            "Tools/unity/editmode.py"
+          ]
+        },
+        {
+          "name": "create the gate world",
+          "cmd": [
+            "python",
+            "Tools/world/create.py",
+            "Artefacts/worlds/gate"
+          ]
+        },
+        {
+          "name": "the carrying frames with the hand that moves, built player on the gate world",
+          "cmd": [
+            "python",
+            "Tools/world/carry.py",
+            "--build",
+            "--world",
+            "Artefacts/worlds/gate"
+          ]
+        }
+      ],
+      "verifiers": [],
+      "owner_decides": "the feel, with his hands and ears (CANON rulings 12 and 18): the stride's dip and sway against -eg-still, the hand's sway, lag and swing, and the footsteps and landings"
+    },
     "M1.6": {
       "steps": [
         {

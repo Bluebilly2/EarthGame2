@@ -138,6 +138,8 @@ namespace EarthGame.Client
             Aim();
             if (presses.Use)
             {
+                // The punch on use (M1.5c): the hand swings whether or not there is anything for it to do.
+                _hand?.Strike();
                 if (Target != null) _client.SendIntent(new IntentMessage { Verb = Verb.PickUp, Target = IntentMessage.TargetEntity, EntityId = Target.Id.Value });
                 else if (TargetLying.HasValue) _client.SendIntent(new IntentMessage { Verb = Verb.PickUp, Target = IntentMessage.TargetLying, Lying = TargetLying.Value });
                 else if (Ground.HasValue && TryInHand(carrying, out _))

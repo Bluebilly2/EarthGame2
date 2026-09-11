@@ -136,9 +136,9 @@ namespace EarthGame.Client
             string hold = LaunchArgs.Get("hold", null);
             if (!string.IsNullOrEmpty(hold) && double.TryParse(hold, NumberStyles.Float, CultureInfo.InvariantCulture, out double seconds) && seconds > 0.0)
                 yield return Hold(seconds);
-            _log.Record(T, Tick, "end", new JsonObject().With("frames", _frames).With("errors", _errors)
+            _log.Record(T, Tick, "end", WithFeet(new JsonObject().With("frames", _frames).With("errors", _errors)
                 .With("corrections", _player.Corrections).With("moves_sent", (int)_player.MovesSent)
-                .With("east", _player.State.East).With("up", _player.State.Up).With("north", _player.State.North));
+                .With("east", _player.State.East).With("up", _player.State.Up).With("north", _player.State.North)));
             _running = false;
             Finish(_errors == 0 && _frames == 3 * Sizes.Length ? 0 : 1);
         }
@@ -217,10 +217,10 @@ namespace EarthGame.Client
                 while (T < until && !(kept = Carries(stone))) yield return null;
             }
             _client.IntentAnswered -= OnAnswered;
-            _log.Record(T, Tick, "end", new JsonObject().With("frames", _frames).With("errors", _errors)
+            _log.Record(T, Tick, "end", WithFeet(new JsonObject().With("frames", _frames).With("errors", _errors)
                 .With("picked_up", picked).With("put_down", put).With("kept_carried", kept).With("answers", string.Join(",", _answers))
                 .With("corrections", _player.Corrections).With("moves_sent", (int)_player.MovesSent)
-                .With("east", _player.State.East).With("up", _player.State.Up).With("north", _player.State.North));
+                .With("east", _player.State.East).With("up", _player.State.Up).With("north", _player.State.North)));
             _running = false;
             Finish(_errors == 0 && picked && put && kept && _frames == 5 * Sizes.Length ? 0 : 1);
         }
@@ -293,10 +293,10 @@ namespace EarthGame.Client
                 while (T < until && !(kept = _client.Taken.IsTaken(thing) && InHand() != 0)) yield return null;
             }
             _client.IntentAnswered -= OnAnswered;
-            _log.Record(T, Tick, "end", new JsonObject().With("frames", _frames).With("errors", _errors)
+            _log.Record(T, Tick, "end", WithFeet(new JsonObject().With("frames", _frames).With("errors", _errors)
                 .With("picked_up", picked).With("put_down", put).With("kept_carried", kept).With("answers", string.Join(",", _answers))
                 .With("corrections", _player.Corrections).With("moves_sent", (int)_player.MovesSent)
-                .With("east", _player.State.East).With("up", _player.State.Up).With("north", _player.State.North));
+                .With("east", _player.State.East).With("up", _player.State.Up).With("north", _player.State.North)));
             _running = false;
             Finish(_errors == 0 && picked && put && kept && _frames == 3 * Sizes.Length ? 0 : 1);
         }
@@ -335,6 +335,13 @@ namespace EarthGame.Client
         }
 
         private void OnAnswered(IntentResultMessage result) => _answers.Add(result.Outcome.ToString());
+
+        /// <summary>An end record with the feet that fell in the run and what they fell on (M1.5c).</summary>
+        private JsonObject WithFeet(JsonObject end)
+        {
+            ClientRuntime runtime = GetComponent<ClientRuntime>();
+            return runtime == null ? end : end.With("footfalls", runtime.Footfalls).With("underfoot", runtime.HeardUnderfoot());
+        }
 
         /// <summary>The nearest thing of a kind lying at rest well within reach of the founder's eye, or null.</summary>
         private EntityView Nearest(Definition kind)

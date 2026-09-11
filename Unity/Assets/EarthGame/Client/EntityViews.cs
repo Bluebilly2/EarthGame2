@@ -17,6 +17,9 @@ namespace EarthGame.Client
     /// <para>The crosshair asks what a ray meets (<see cref="Pick"/>) of each thing's own bounds rather than of a
     /// collider: nothing lying is a collider, so a founder never stumbles on a stick the server's ground does not
     /// have.</para>
+    ///
+    /// <para>A thing that falls and comes to rest is told as <see cref="Landed"/> when it is drawn landing (M1.5c), so the
+    /// sound meets the sight rather than the server's word a few ticks ahead of it.</para>
     /// </summary>
     public sealed class EntityViews
     {
@@ -29,7 +32,14 @@ namespace EarthGame.Client
             public Transform Transform;
             public Bounds Local;
             public float Scale;
+            /// <summary>The height a falling thing was first seen at, m; NaN for a thing not falling.</summary>
+            public double FellFromUp = double.NaN;
+            /// <summary>The tick a fall ended in, until the drawing reaches it; −1 when there is none to tell.</summary>
+            public long LandedTick = -1;
         }
+
+        /// <summary>A thing came down (M1.5c): what it is, where it rests, and the energy it came down with, J.</summary>
+        public event System.Action<Definition, Vector3, double> Landed;
 
         private readonly EntityMirror _mirror;
         private readonly Material _material;
@@ -45,6 +55,7 @@ namespace EarthGame.Client
             _mirror = mirror;
             _material = material;
             _mirror.Spawned += OnSpawned;
+            _mirror.Updated += OnUpdated;
             _mirror.Gone += OnGone;
             foreach (EntityView view in _mirror.Views.Values) OnSpawned(view);
         }
@@ -52,6 +63,7 @@ namespace EarthGame.Client
         public void Dispose()
         {
             _mirror.Spawned -= OnSpawned;
+            _mirror.Updated -= OnUpdated;
             _mirror.Gone -= OnGone;
             foreach (Drawn d in _drawn.Values)
                 if (d.Transform != null) Object.Destroy(d.Transform.gameObject);
@@ -98,8 +110,21 @@ namespace EarthGame.Client
             go.name = view.Definition.Key + " " + view.Id;
             go.transform.localScale = Vector3.one * d.Scale;
             d.Transform = go.transform;
+            if (view.HasItem && !view.Item.Resting) d.FellFromUp = view.Position.Y;
             _drawn[view.Id.Value] = d;
             Place(d, view.Position);
+        }
+
+        /// <summary>A thing's state: one that was falling and is now at rest has landed, in the tick the state names.</summary>
+        private void OnUpdated(EntityView view)
+        {
+            if (!view.HasItem || !_drawn.TryGetValue(view.Id.Value, out Drawn d)) return;
+            if (!view.Item.Resting)
+            {
+                if (double.IsNaN(d.FellFromUp)) d.FellFromUp = view.Position.Y;
+                return;
+            }
+            if (!double.IsNaN(d.FellFromUp) && d.LandedTick < 0) d.LandedTick = view.Tick;
         }
 
         private void OnGone(EntityView view, byte reason)
@@ -111,7 +136,17 @@ namespace EarthGame.Client
         /// <summary>Places every thing where it was at a server tick: the estimated tick less the mirrors' delay, as the other bodies are sampled.</summary>
         public void Draw(double tick)
         {
-            foreach (Drawn d in _drawn.Values) Place(d, d.View.PositionAt(tick));
+            foreach (Drawn d in _drawn.Values)
+            {
+                Place(d, d.View.PositionAt(tick));
+                if (d.LandedTick < 0 || tick < d.LandedTick) continue;
+                // A fall is free fall (ItemFall), so what it came down with is its weight through the height it fell.
+                Double3 rest = d.View.Position;
+                double joules = d.View.Definition.MassKg * ItemFall.GravityMps2 * System.Math.Max(0.0, d.FellFromUp - rest.Y);
+                d.LandedTick = -1;
+                d.FellFromUp = double.NaN;
+                Landed?.Invoke(d.View.Definition, new Vector3((float)rest.X, (float)rest.Y, (float)rest.Z), joules);
+            }
         }
 
         private static void Place(Drawn d, Double3 at)

@@ -67,6 +67,9 @@ namespace EarthGame.Client
         private StandViews _stand;
         private VerbController _verbs;
         private HandView _hand;
+        private Sounds _sounds;
+        /// <summary>How many feet have fallen on each ground (M1.5c), for a run log.</summary>
+        private readonly Dictionary<FootingSound, int> _heard = new Dictionary<FootingSound, int>();
         /// <summary>How many times something has been taken from each tile's cells (M1.5b), so the stand knows to place it again.</summary>
         private readonly Dictionary<TileId, int> _takenVersions = new Dictionary<TileId, int>();
         private Light _sun;
@@ -92,6 +95,9 @@ namespace EarthGame.Client
         /// <summary>Unity real time at the current connection's Connect.</summary>
         public double ConnectedAtRealtime => _connectedAt;
         public int TilesBuilt => _tileTerrains.Count;
+
+        /// <summary>How many feet have fallen since the view was built (M1.5c), for a run log.</summary>
+        public int Footfalls { get; private set; }
 
         /// <summary>The worst frame of streaming work on the main thread since the client started, milliseconds.</summary>
         public double WorstStreamingMs => _budget != null ? _budget.WorstFrameMs : 0.0;
@@ -218,6 +224,8 @@ namespace EarthGame.Client
                 ControlsFrame presses = _player.TakePresses();
                 if (presses.Screenshot && !Application.isBatchMode) Screenshot();
                 _verbs?.Tick(presses, Time.realtimeSinceStartup);
+                // The hand moves with the head and the stride every frame (M1.5c); off the ground it only follows.
+                _hand?.Place(Time.deltaTime, _player.Frozen || !_player.State.Grounded ? 0.0 : _player.State.HorizontalSpeed, _player.PitchDeg);
                 UpdateHud(dt);
             }
         }
@@ -253,8 +261,7 @@ namespace EarthGame.Client
                 _player.Rebind(_client, new Double3(welcome.SpawnEast, welcome.SpawnUp + SpawnDropM, welcome.SpawnNorth));
                 // Each connection has its own mirror: the things are drawn from the new one and the verbs ask the new
                 // client (until 2026-09-11 a rejoin went on drawing the first connection's things and none of its own).
-                _entityViews?.Dispose();
-                _entityViews = new EntityViews(_client.Entities, _stand?.LooseMaterial);
+                ViewEntities();
                 _verbs?.Rebind(_client, _entityViews);
             }
             Welcomed?.Invoke(welcome, rejoin);
@@ -645,8 +652,7 @@ namespace EarthGame.Client
 
             // The entities the server shows this client (M1.3), drawn from the stand's own meshes in the material its
             // loose sticks and cobbles are drawn in (M1.5a), so a stick put down is drawn as the ones lying in the litter.
-            _entityViews?.Dispose();
-            _entityViews = new EntityViews(_client.Entities, _stand?.LooseMaterial);
+            ViewEntities();
 
             if (_bakedRegion != null)
             {
@@ -729,11 +735,13 @@ namespace EarthGame.Client
                 GameObject cam = new GameObject("Main Camera");
                 cam.tag = "MainCamera";
                 _camera = cam.AddComponent<Camera>();
+                cam.AddComponent<AudioListener>();
             }
             _camera.fieldOfView = 65f;
             _camera.nearClipPlane = 0.05f;
             _camera.farClipPlane = 40000f;
-            if (Application.isBatchMode) AudioListener.volume = 0f;
+            // Every automated run is muted: a windowless one, and any a script drives (the client has had sounds since M1.5c).
+            if (Application.isBatchMode || _recordDir != null || _scenario != null) AudioListener.volume = 0f;
             if (LaunchArgs.Has("plain")) RenderPlainly();
 
             // The sun is always this component's own light, so no scene setting can quietly change what the
@@ -757,6 +765,11 @@ namespace EarthGame.Client
             _player.Attach(_client, new PhysxCollision(_ground), MoverConfig.Default, _region, _camera, input, spawn, DefaultYawDeg, 0f);
             _player.Ground = _ground;
             _player.Frozen = true;
+            // -eg-still: the camera without the stride's dip and sway (M1.5c), for the owner to play against the one he
+            // found good in ruling 18.
+            _player.Still = LaunchArgs.Has("still");
+            _player.Stepped += OnStepped;
+            _sounds = new Sounds(_camera.transform);
 
             // The verbs (M1.5a): what the crosshair is on, the verb line, the carrying window and the thing in hand.
             if (_stand != null) _hand = new HandView(_camera, _stand.LooseMaterial);
@@ -792,6 +805,43 @@ namespace EarthGame.Client
                                _scenario ?? Recorder.Scenario, _client, _verbs);
                 TileBuilt += recorder.RecordBuild;
             }
+        }
+
+        /// <summary>The things of the connection's mirror, drawn, and heard when they come down (M1.5c).</summary>
+        private void ViewEntities()
+        {
+            _entityViews?.Dispose();
+            _entityViews = new EntityViews(_client.Entities, _stand?.LooseMaterial);
+            _entityViews.Landed += OnLanded;
+        }
+
+        private void OnLanded(Definition definition, Vector3 at, double joules) => _sounds?.Landing(definition, at, joules);
+
+        /// <summary>A foot fell (M1.5c): it sounds of what the server says is underfoot, and is counted for a run log.</summary>
+        private void OnStepped(Footfall footfall)
+        {
+            FootingSound footing = Underfoot();
+            _sounds?.Step(footfall, footing);
+            Footfalls++;
+            _heard[footing] = (_heard.TryGetValue(footing, out int n) ? n : 0) + 1;
+        }
+
+        /// <summary>What is under the founder's feet: the cover and the water the server streamed for the tile they stand on.</summary>
+        private FootingSound Underfoot()
+        {
+            if (_client?.Tiles == null || _client.Grid == null || _player == null) return FootingSound.Soil;
+            MoverState s = _player.State;
+            TileId id = _client.Grid.ForPosition(s.East, s.North);
+            return Footing.At(_client.Tiles.Holding(TileLayer.GroundCover, id), _client.Tiles.Holding(TileLayer.WaterDepth, id), s.East, s.North, s.Wading);
+        }
+
+        /// <summary>The grounds the feet have fallen on, as <c>name:count</c> in the order the sounds are listed, for a run log (M1.5c).</summary>
+        public string HeardUnderfoot()
+        {
+            List<string> heard = new List<string>();
+            foreach (FootingSound footing in (FootingSound[])Enum.GetValues(typeof(FootingSound)))
+                if (_heard.TryGetValue(footing, out int n)) heard.Add(footing.ToString().ToLowerInvariant() + ":" + n.ToString(CultureInfo.InvariantCulture));
+            return string.Join(",", heard);
         }
 
         private void UpdateHud(double dt)
@@ -839,6 +889,8 @@ namespace EarthGame.Client
         {
             _verbs?.Dispose();
             _hand?.Dispose();
+            _sounds?.Dispose();
+            if (_player != null) _player.Stepped -= OnStepped;
             _entityViews?.Dispose();
             _stand?.Dispose();
             _client?.Disconnect("client destroyed");
