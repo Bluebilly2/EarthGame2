@@ -23,6 +23,7 @@ namespace EarthGame.Editor
         public const string GroundLayerPath = ResourcesFolder + "/GroundLayer.terrainlayer";
         public const string SkyMaterialPath = ResourcesFolder + "/Sky.mat";
         public const string SeaMaterialPath = ResourcesFolder + "/Sea.mat";
+        public const string StandMaterialPath = ResourcesFolder + "/StandLit.mat";
         public const string HudPanelPath = ResourcesFolder + "/HudPanel.asset";
         public const string ThemePath = "Assets/UI Toolkit/UnityDefaultRuntimeTheme.tss";
 
@@ -142,6 +143,20 @@ namespace EarthGame.Editor
                 sea.SetFloat("_Smoothness", 0.92f);
                 sea.SetFloat("_Metallic", 0f);
                 EditorUtility.SetDirty(sea);
+            }
+            EnsureMaterial(StandMaterialPath, "EarthGame/StandLit", created);
+            {
+                // What stands and lies on the ground is drawn instanced, and its bands' materials were first made at
+                // runtime from the shader alone, so no material in the build enabled instancing and the build stripped
+                // the shader's instanced variants: the first player of M1.6a held its trees and none stood in its
+                // frames (2026-09-11). The bands now copy this asset. Applied every run, as the terrain's is.
+                Material stand = AssetDatabase.LoadAssetAtPath<Material>(StandMaterialPath);
+                if (stand != null && !stand.enableInstancing)
+                {
+                    stand.enableInstancing = true;
+                    EditorUtility.SetDirty(stand);
+                    created.Add(StandMaterialPath + " (instancing on)");
+                }
             }
 
             if (AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(ThemePath) == null)

@@ -129,9 +129,10 @@
       "path": "Tools/verifiers/checks/tile_check.py",
       "author": "Claude",
       "gates": [
-        "M1.4-streaming"
+        "M1.4-streaming",
+        "M1.6"
       ],
-      "checks": "Every tile in a client's disk cache agrees with the world folder's own layer: the ground to half a centimetre, the surface put back from ground plus depth to two, the water's class and the ground's cover post for post, and the cache inside the residency bound.",
+      "checks": "Every tile in a client's disk cache agrees with the world folder's own layer: the ground to half a centimetre, the surface put back from ground plus depth to two, the water's class, the ground's cover, what stands and what lies loose post for post, and the cache inside the residency bound.",
       "independent_of_the_tool_by": "inflating the cached bytes with zlib and reading them by the layouts ARCHITECTURE sections 7 and 10 state, including the tile grid's geometry and the cell a post sits on, restated in Python; never imports TileCodec, TileGrid or any game code, so a writer that drifts from its stated format is caught by a reader that did not"
     },
     {
@@ -153,6 +154,16 @@
       ],
       "checks": "The client starts no streaming work in a frame whose 1.5 ms allowance is already spent; the preparation of a tile really runs off the main thread and the named Unity steps account for what the main thread spends; what is left is TerrainData.SetHeights and not something new growing beside it; every tile held was built. It prints the worst frame of streaming work beside the design frame and the named-defect line.",
       "independent_of_the_tool_by": "reading run.jsonl alone -- the client's per-tile build records, not its own summary of itself -- and restating ARCHITECTURE section 8's budget, design frame and named-defect line as its own constants; it imports no game code and computes its own totals and shares"
+    },
+    {
+      "name": "stand_check",
+      "path": "Tools/verifiers/checks/stand_check.py",
+      "author": "Claude",
+      "gates": [
+        "M1.6"
+      ],
+      "checks": "What stands and lies on the ground follows the M1.6a rules: every trunk under its own canopy, no two nearer than their crowns allow, the crowns covering about what the canopy covers, heights inside each plant's range and the sand forest inside BioNet's 5-20 m, stems a hectare of each plant's canopy inside the design's band, sticks only under crowns, cobbles only where stone lies loose.",
+      "independent_of_the_tool_by": "numpy over the world's own layers by the codes their sidecars' legends state; the crown shares and height ranges restated from ECOSYSTEM.md's table and the sand forest's height from NSW BioNet's profile of Bangalay Sand Forest; never imports the engine, so a placement that drifts from the contract's rules is caught by a reader that did not drift with it"
     }
   ]
 }

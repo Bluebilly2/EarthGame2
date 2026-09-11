@@ -405,6 +405,73 @@
         "build_check"
       ],
       "owner_decides": "the ground's colour, from the frames of M1.4d; the water is data here and is drawn by M1.4c"
+    },
+    "M1.6": {
+      "steps": [
+        {
+          "name": "dotnet test",
+          "cmd": [
+            "dotnet",
+            "test",
+            "Engine/EarthGame.slnx",
+            "-c",
+            "Debug",
+            "--nologo"
+          ]
+        },
+        {
+          "name": "Unity-layer compile",
+          "cmd": [
+            "dotnet",
+            "build",
+            "Engine/EarthGame.Unity.Compile.csproj",
+            "-c",
+            "Debug",
+            "--nologo",
+            "-v",
+            "minimal"
+          ]
+        },
+        {
+          "name": "create the gate world",
+          "cmd": [
+            "python",
+            "Tools/world/create.py",
+            "Artefacts/worlds/gate"
+          ]
+        },
+        {
+          "name": "stand_check on the gate world",
+          "cmd": [
+            "python",
+            "Tools/verifiers/checks/stand_check.py",
+            "Artefacts/worlds/gate"
+          ]
+        },
+        {
+          "name": "one shaped join, built player against the host",
+          "cmd": [
+            "python",
+            "Tools/world/stream.py",
+            "--build",
+            "--world",
+            "Artefacts/worlds/gate"
+          ]
+        },
+        {
+          "name": "tile_check on what that client cached, the stand and the loose layers among it",
+          "cmd": [
+            "python",
+            "Tools/verifiers/checks/tile_check.py",
+            "Artefacts/worlds/gate"
+          ]
+        }
+      ],
+      "verifiers": [
+        "stand_check",
+        "tile_check"
+      ],
+      "owner_decides": "the frames of M1.6a: whether what stands and lies on the ground reads as this country, and the ground's colour he deferred in M1.4d until it did"
     }
   }
 }

@@ -320,6 +320,8 @@ namespace EarthGame.Tests.Engine
             Assert.That(b.Overstory, Is.EqualTo(a.Overstory));
             Assert.That(b.Understory, Is.EqualTo(a.Understory));
             Assert.That(b.Stone, Is.EqualTo(a.Stone));
+            Assert.That(b.Stand, Is.EqualTo(a.Stand), "the same trees stand in the same places");
+            Assert.That(b.Loose, Is.EqualTo(a.Loose), "and the same things lie under them");
             Assert.That(b.TopologyMask, Is.EqualTo(a.TopologyMask));
             Assert.That(b.Water, Is.EqualTo(a.Water));
             Assert.That(b.HeightsWithFloor, Is.EqualTo(a.HeightsWithFloor));

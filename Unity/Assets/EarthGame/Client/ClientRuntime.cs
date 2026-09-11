@@ -64,6 +64,7 @@ namespace EarthGame.Client
         private Material _mirrorMaterial;
         private Material _seaMaterial;
         private EntityViews _entityViews;
+        private StandViews _stand;
         private WorldClock _clock;
         private SolarClock _solar;
         private PlayerController _player;
@@ -201,6 +202,7 @@ namespace EarthGame.Client
                     _client.RequestTilesAround(_player.State.East, _player.State.North);
                 }
                 DrainPreparations();
+                if (_stand != null && _camera != null) _stand.Draw(_camera.transform.position);
                 CheckInteractive();
                 DrawMirrors(nowMs);
                 UpdateHud(dt);
@@ -321,6 +323,7 @@ namespace EarthGame.Client
         /// <summary>A tile the client let go of: its ground leaves the collider, its Terrain and its water the scene.</summary>
         private void OnTileDropped(TileLayer layer, TileId id)
         {
+            if (layer == TileLayer.Ground || layer == TileLayer.Stand) _stand?.Drop(id);
             if (_waterTiles.TryGetValue(id, out GameObject drawn))
             {
                 if (drawn != null) Destroy(drawn);
@@ -342,8 +345,35 @@ namespace EarthGame.Client
             _tileCrcs.Remove(id);
         }
 
+        /// <summary>
+        /// Whether what stands on the tiles round the founder is placed (M1.6a): every stand tile the client holds round
+        /// them is drawn, and there is at least one. A world without the layer is never settled, and the recorder waits
+        /// out its timeout.
+        /// </summary>
+        private bool StandSettled()
+        {
+            if (_stand == null || _client?.Tiles == null || _ground == null || _player == null) return false;
+            TileId under = _ground.Grid.ForPosition(_player.State.East, _player.State.North);
+            int held = 0;
+            foreach (TileId id in _ground.Grid.Around(under))
+            {
+                if (_client.Tiles.Holding(TileLayer.Stand, id) == null) continue;
+                if (!_stand.Holds(id)) return false;
+                held++;
+            }
+            return held > 0;
+        }
+
+        /// <summary>What stands and lies on a tile (M1.6a) is placed once its stand and its ground are held; any of its layers arriving asks.</summary>
+        private void WantStand(TileId id)
+        {
+            if (_stand == null || _client?.Tiles == null) return;
+            _stand.Want(_client.Tiles.Holding(TileLayer.Stand, id), _client.Tiles.Holding(TileLayer.Loose, id), _client.Tiles.Holding(TileLayer.Ground, id));
+        }
+
         private void OnTileReady(ReceivedTile tile)
         {
+            if (tile.Layer == TileLayer.Stand || tile.Layer == TileLayer.Loose || tile.Layer == TileLayer.Ground) WantStand(tile.Id);
             // The water a tile carries is drawn as its own mesh (M1.4c); the ground is what a Terrain is built
             // from. Either can arrive first, so both paths ask for the pair.
             if (tile.Layer != TileLayer.Ground)
@@ -384,6 +414,7 @@ namespace EarthGame.Client
             _budget.BeginFrame();
             while (_budget.TryStart(out double spent) && TakeGround(out PreparedTile prepared)) BuildTile(prepared, spent);
             while (_budget.TryStart(out double left) && TakeColour(out TileId id, out byte[] map)) BuildCover(id, map, left);
+            while (_stand != null && _budget.TryStart(out double _) && _stand.TakeOne()) { }
             _budget.EndFrame();
         }
 
@@ -570,6 +601,15 @@ namespace EarthGame.Client
             if (registry == null) Debug.LogError("[client] no prefab registry under Resources/" + PrefabRegistry.ResourcePath + "; entities will be cubes");
             _entityViews = new EntityViews(_client.Entities, registry);
 
+            // What stands and lies on the ground (M1.6a), drawn from the stand and loose tiles the server streams. The
+            // material is an asset so that the build keeps its shader's instanced variants (ProjectSetup). A player
+            // with no graphics device (-nographics, as the shaped join runs) cannot draw instanced and makes no view:
+            // the first build drew anyway, and every frame of that join threw (2026-09-11).
+            Material standMaterial = Resources.Load<Material>("EarthGame/StandLit");
+            if (!SystemInfo.supportsInstancing) Debug.Log("[client] this device draws nothing instanced; what stands on the ground is streamed and not drawn");
+            else if (standMaterial == null) Debug.LogError("[client] no stand material under Resources/EarthGame/StandLit; nothing will stand on the ground");
+            else if (_client.Grid != null && _stand == null) _stand = new StandViews(standMaterial, _client.Grid);
+
             if (_bakedRegion != null)
             {
                 // The whole region at coarse posts (collidable, so a walk past the streamed tiles does not fall
@@ -621,14 +661,23 @@ namespace EarthGame.Client
                 Debug.Log("[client] -eg-probe: sphere and cube at " + at);
             }
 
-            // -eg-hide a,b,c: objects by name switched off after the view is built, to bisect what is drawn.
+            // -eg-hide a,b,c: objects by name switched off after the view is built, to bisect what is drawn. "trees"
+            // and "loose" switch off what stands and what lies on the ground, which is drawn without objects (M1.6a).
             string hide = LaunchArgs.Get("hide", null);
             if (!string.IsNullOrEmpty(hide))
             {
-                foreach (string name in hide.Split(','))
+                foreach (string listed in hide.Split(','))
                 {
-                    GameObject victim = GameObject.Find(name.Trim());
-                    Debug.Log("[client] -eg-hide " + name.Trim() + ": " + (victim != null ? "hidden" : "not found"));
+                    string name = listed.Trim();
+                    if (_stand != null && (name == "trees" || name == "loose"))
+                    {
+                        if (name == "trees") _stand.DrawTrees = false;
+                        else _stand.DrawLoose = false;
+                        Debug.Log("[client] -eg-hide " + name + ": hidden");
+                        continue;
+                    }
+                    GameObject victim = GameObject.Find(name);
+                    Debug.Log("[client] -eg-hide " + name + ": " + (victim != null ? "hidden" : "not found"));
                     if (victim != null) victim.SetActive(false);
                 }
             }
@@ -693,7 +742,8 @@ namespace EarthGame.Client
                     .With("started_utc", DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture))
                     .With("terrain", _bakedRegion != null);
                 Recorder recorder = gameObject.AddComponent<Recorder>();
-                recorder.Begin(_recordDir, _camera, _player, script, _hud, () => _client.LastServerTick, header);
+                recorder.Begin(_recordDir, _camera, _player, script, _hud, () => _client.LastServerTick, header, StandSettled,
+                               () => _stand != null ? _stand.TreeCount : -1);
                 TileBuilt += recorder.RecordBuild;
             }
         }
@@ -713,6 +763,7 @@ namespace EarthGame.Client
                                + "   rtt " + _client.LastRttMs + " ms   corrections " + _player.Corrections
                                + "   tiles " + _tileTerrains.Count + (Interactive ? "" : " (loading)") + "   others " + _client.Mirrors.Count
                                + "   things " + (_entityViews != null ? _entityViews.Count : 0)
+                               + "   trees " + (_stand != null ? _stand.TreeCount : 0)
                                + "   " + _fpsSmoothed.ToString("0") + " fps");
         }
 
@@ -741,6 +792,7 @@ namespace EarthGame.Client
         private void OnDestroy()
         {
             _entityViews?.Dispose();
+            _stand?.Dispose();
             _client?.Disconnect("client destroyed");
             _transport?.Dispose();
         }

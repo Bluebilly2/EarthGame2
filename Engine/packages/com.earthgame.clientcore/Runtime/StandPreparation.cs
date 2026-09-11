@@ -1,0 +1,151 @@
+using System;
+using System.Collections.Generic;
+using EarthGame.Engine;
+
+namespace EarthGame.ClientCore
+{
+    /// <summary>A tree as the client draws it (M1.6a): the foot of its trunk, which way it faces, how tall and how wide.</summary>
+    public struct StandTree
+    {
+        public float East;
+        public float Up;
+        public float North;
+        public float YawDeg;
+        public float HeightM;
+        /// <summary>The crown's diameter, m: the species' crown share of its height.</summary>
+        public float CrownM;
+        /// <summary>The tall plant, as an index into <see cref="StandCodes.Tall"/>.</summary>
+        public int Tall;
+        /// <summary>Which of the drawn variants of its form, from its cell.</summary>
+        public int Variant;
+    }
+
+    /// <summary>A stick or a cobble as the client draws it: where it lies and which way it points.</summary>
+    public struct LooseInstance
+    {
+        public float East;
+        public float Up;
+        public float North;
+        public float YawDeg;
+        public int Variant;
+    }
+
+    /// <summary>A tile's trees, sticks and cobbles, placed for drawing, and the tiles they were placed from.</summary>
+    public sealed class PreparedStand
+    {
+        public TileId Id;
+        public uint StandCrc;
+        public uint LooseCrc;
+        public uint GroundCrc;
+        public StandTree[] Trees;
+        public LooseInstance[] Sticks;
+        public LooseInstance[] Cobbles;
+    }
+
+    /// <summary>
+    /// What stands and lies on a streamed tile, placed for drawing (M1.6a): a worker's job, as a tile's ground is
+    /// (M1.4e). Every post names its cell by <see cref="TileCodec.CellOf"/> and every thing on it its place by
+    /// <see cref="StandLayout"/>, so what is drawn is where the server put it, to the centimetre; the ground under each
+    /// thing is read off the tile's own posts (<see cref="TileGround"/>).
+    ///
+    /// <para>A tile shares its edge posts with its neighbours, so each tile draws its posts but its last row and its
+    /// last column, which are the first of the tile beyond — unless no tile lies beyond, at the region's east and
+    /// north edges. So every cell is drawn once, by one tile, whichever tiles a client holds.</para>
+    /// </summary>
+    public static class StandPreparation
+    {
+        /// <summary>How many shapes each form, and the sticks and the cobbles, are drawn in; a thing's cell picks one.</summary>
+        public const int Variants = 6;
+
+        public static PreparedStand Prepare(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, TileGrid grid)
+        {
+            if (stand == null) throw new ArgumentNullException(nameof(stand));
+            if (ground == null) throw new ArgumentNullException(nameof(ground));
+            if (grid == null) throw new ArgumentNullException(nameof(grid));
+            if (stand.Codes == null) throw new ArgumentException("tile " + stand.Id + " carries no stand codes", nameof(stand));
+            if (ground.Heights == null) throw new ArgumentException("tile " + ground.Id + " carries no heights", nameof(ground));
+            if (!stand.Id.Equals(ground.Id) || stand.Posts != ground.Posts)
+                throw new ArgumentException("the stand of tile " + stand.Id + " and the ground of tile " + ground.Id + " are not one tile's", nameof(ground));
+            if (loose != null && (loose.Codes == null || !loose.Id.Equals(stand.Id) || loose.Posts != stand.Posts))
+                throw new ArgumentException("the loose layer of tile " + loose.Id + " does not match the stand of " + stand.Id, nameof(loose));
+
+            int posts = stand.Posts;
+            double cell = stand.CellM;
+            int cellCm = (int)Math.Round(cell * 100.0);
+            int lastX = stand.Id.Ix == grid.TilesPerSide - 1 ? posts - 1 : posts - 2;
+            int lastZ = stand.Id.Iz == grid.TilesPerSide - 1 ? posts - 1 : posts - 2;
+            List<StandTree> trees = new List<StandTree>();
+            List<LooseInstance> sticks = new List<LooseInstance>();
+            List<LooseInstance> cobbles = new List<LooseInstance>();
+            for (int z = 0; z <= lastZ; z++)
+                for (int x = 0; x <= lastX; x++)
+                {
+                    double postEast = stand.OriginEast + x * cell;
+                    double postNorth = stand.OriginNorth + z * cell;
+                    TileCodec.CellOf(grid.ExtentM, cell, postEast, postNorth, out int row, out int col);
+                    byte code = stand.Codes[z, x];
+                    PlantSpecies species = code == 0 ? null : StandCodes.SpeciesOf(code);
+                    if (species != null)
+                    {
+                        StandLayout.Place(row, col, StandLayout.Kind.Trunk, 0, cellCm, out int eastCm, out int northCm, out int yaw);
+                        double east = postEast + eastCm / 100.0;
+                        double north = postNorth + northCm / 100.0;
+                        double height = StandCodes.HeightOf(code);
+                        trees.Add(new StandTree
+                        {
+                            East = (float)east,
+                            Up = (float)TileGround.HeightAt(ground, east, north),
+                            North = (float)north,
+                            YawDeg = yaw,
+                            HeightM = (float)height,
+                            CrownM = (float)(species.CrownShare * height),
+                            Tall = TallIndex(species),
+                            Variant = VariantOf(row, col, 0UL),
+                        });
+                    }
+                    if (loose == null) continue;
+                    byte things = loose.Codes[z, x];
+                    for (int k = 0; k < LooseCodes.SticksOf(things); k++)
+                        sticks.Add(Lying(StandLayout.Kind.Stick, row, col, k, cellCm, postEast, postNorth, ground));
+                    for (int k = 0; k < LooseCodes.CobblesOf(things); k++)
+                        cobbles.Add(Lying(StandLayout.Kind.Cobble, row, col, k, cellCm, postEast, postNorth, ground));
+                }
+            return new PreparedStand
+            {
+                Id = stand.Id,
+                StandCrc = stand.Crc32,
+                LooseCrc = loose != null ? loose.Crc32 : 0u,
+                GroundCrc = ground.Crc32,
+                Trees = trees.ToArray(),
+                Sticks = sticks.ToArray(),
+                Cobbles = cobbles.ToArray(),
+            };
+        }
+
+        private static LooseInstance Lying(StandLayout.Kind kind, int row, int col, int index, int cellCm, double postEast, double postNorth, ReceivedTile ground)
+        {
+            StandLayout.Place(row, col, kind, index, cellCm, out int eastCm, out int northCm, out int yaw);
+            double east = postEast + eastCm / 100.0;
+            double north = postNorth + northCm / 100.0;
+            return new LooseInstance
+            {
+                East = (float)east,
+                Up = (float)TileGround.HeightAt(ground, east, north),
+                North = (float)north,
+                YawDeg = yaw,
+                Variant = VariantOf(row, col, (ulong)kind << 8 | (uint)(index + 1)),
+            };
+        }
+
+        private static int VariantOf(int row, int col, ulong salt) =>
+            (int)(StandLayout.Mix((((ulong)(uint)row << 32) | (uint)col) ^ (salt << 40)) % Variants);
+
+        private static int TallIndex(PlantSpecies species)
+        {
+            IReadOnlyList<PlantSpecies> all = StandCodes.Tall;
+            for (int i = 0; i < all.Count; i++)
+                if (ReferenceEquals(all[i], species)) return i;
+            return -1;
+        }
+    }
+}

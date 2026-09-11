@@ -78,7 +78,14 @@ namespace EarthGame.Engine
         /// <summary>What covers each cell of this world (M1.4d), as the folder's own layer; null on a world made before it.</summary>
         public RegionRaster Cover { get; }
 
-        public WorldState(ulong seed, Region region, WorldClock clock, Heightfield terrain = null, long tick = 0, Double3? wake = null, WorldWater water = null, RegionRaster cover = null)
+        /// <summary>Where this world's trees stand (M1.6a), as the folder's own layer of <see cref="StandCodes"/>; null on a world made before it.</summary>
+        public RegionRaster Stand { get; }
+
+        /// <summary>What lies loose on this world's ground (M1.6a), as the folder's own layer of <see cref="LooseCodes"/>; null on a world made before it.</summary>
+        public RegionRaster Loose { get; }
+
+        public WorldState(ulong seed, Region region, WorldClock clock, Heightfield terrain = null, long tick = 0, Double3? wake = null, WorldWater water = null, RegionRaster cover = null,
+                          RegionRaster stand = null, RegionRaster loose = null)
         {
             Seed = seed;
             Region = region ?? throw new ArgumentNullException(nameof(region));
@@ -92,6 +99,10 @@ namespace EarthGame.Engine
             Water = water;
             if (cover != null && !cover.IsIntegral) throw new ArgumentException("the ground cover is " + cover.Dtype + ", not a code layer", nameof(cover));
             Cover = cover;
+            if (stand != null && !stand.IsIntegral) throw new ArgumentException("the stand is " + stand.Dtype + ", not a code layer", nameof(stand));
+            if (loose != null && !loose.IsIntegral) throw new ArgumentException("the loose layer is " + loose.Dtype + ", not a code layer", nameof(loose));
+            Stand = stand;
+            Loose = loose;
         }
 
         /// <summary>

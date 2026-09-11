@@ -96,6 +96,19 @@ namespace EarthGame.Engine
         /// <summary>Salt wind: exposure is at least this within a kilometre of the sea, falling with distance.</summary>
         public const double CoastWindReachM = 1000.0;
 
+        /// <summary>
+        /// Trunks to a crown's area of canopy (M1.6a). One to a crown's area would leave about a third of a canopy's
+        /// ground under no crown, as scattered discs do; half as many again is the design, and `stand_check` prints
+        /// the cover it comes to.
+        /// </summary>
+        public const double StandDensity = 1.5;
+
+        /// <summary>How much of their two radii two crowns may overlap; nearer than that, the later trunk is not placed.</summary>
+        public const double CrownOverlap = 0.4;
+
+        /// <summary>Soil thinner than this over the older surfaces lets their stone lie loose, m.</summary>
+        public const double ThinSoilM = 0.25;
+
         public RegionRaster Heights { get; }
         public DrainageNetwork Drainage { get; }
         public SoilModel Soil { get; }
@@ -140,6 +153,10 @@ namespace EarthGame.Engine
         public byte[] Stone { get; }
         /// <summary>What covers each cell and how wet it is, packed as <see cref="GroundCovers"/> states.</summary>
         public byte[] Cover { get; }
+        /// <summary>What stands on each cell (M1.6a): a <see cref="StandCodes"/> code, zero where no trunk stands.</summary>
+        public byte[] Stand { get; }
+        /// <summary>What lies loose on each cell (M1.6a): a <see cref="LooseCodes"/> code.</summary>
+        public byte[] Loose { get; }
         /// <summary>Per species in <see cref="AnimalSpecies.All"/>, animals per km².</summary>
         public float[][] Capacity { get; }
 
@@ -165,6 +182,8 @@ namespace EarthGame.Engine
             TopologyMask = new uint[count];
             Stone = new byte[count];
             Cover = new byte[count];
+            Stand = new byte[count];
+            Loose = new byte[count];
             Capacity = new float[AnimalSpecies.All.Count][];
             for (int s = 0; s < Capacity.Length; s++) Capacity[s] = new float[count];
             progress?.Invoke("Finding lakes and wetlands");
@@ -205,6 +224,10 @@ namespace EarthGame.Engine
             w.Covers();
             progress?.Invoke("Finding stone");
             w.Stones(seed);
+            progress?.Invoke("Standing the trees");
+            w.StandTrees(seed);
+            progress?.Invoke("Laying what lies on the ground");
+            w.LayLoose(seed);
             progress?.Invoke("Calculating animal habitat");
             w.Capacities();
             return w;
@@ -770,6 +793,136 @@ namespace EarthGame.Engine
             byte id = Stone[Index(row, col)];
             return id == 0 ? null : StoneType.All[id - 1];
         }
+
+        // ---- what stands and lies on the ground ----
+
+        /// <summary>
+        /// Individual trees, from the canopy (M1.6a, 2026-09-10). Every cell a canopy stands on is a candidate trunk of
+        /// the canopy's species, as tall as that species grows there; the candidates are taken in an order the seed
+        /// draws, and each is placed with the chance that <see cref="StandDensity"/> trunks to a crown's area of canopy
+        /// gives, unless a trunk already stands nearer than their two crowns allow (<see cref="CrownOverlap"/>, cell
+        /// centre to cell centre). So the crowns cover about the ground the canopy layer says is covered, the big trees
+        /// stand farther apart than the small, and no trunk stands where no canopy does. Nothing is a spawn table:
+        /// where a tree stands follows from where the canopy is, and the canopy from the country (CANON ruling 22).
+        /// </summary>
+        private void StandTrees(ulong seed)
+        {
+            int count = Width * Height;
+            ulong stream = SimRandom.DeriveSeed(seed, "stand");
+            int candidates = 0;
+            for (int i = 0; i < count; i++) if (Overstory[i] != 0) candidates++;
+            // The seed's order: the top half of each key is the cell's hash, the bottom its index, so no two keys tie
+            // and every sort of them agrees.
+            ulong[] order = new ulong[candidates];
+            int n = 0;
+            for (int i = 0; i < count; i++)
+                if (Overstory[i] != 0) order[n++] = (CellHash(stream, i, 0) & 0xFFFFFFFF00000000UL) | (uint)i;
+            Array.Sort(order);
+
+            double largest = 0.0;
+            foreach (PlantSpecies tall in StandCodes.Tall) largest = Math.Max(largest, 0.5 * tall.CrownShare * tall.MaxHeightM);
+            float[] crown = new float[count];
+            double cellArea = CellM * CellM;
+            foreach (ulong key in order)
+            {
+                int i = (int)(key & 0xFFFFFFFFUL);
+                int r = i / Width, c = i % Width;
+                PlantSpecies species = OverstoryAt(r, c);
+                if (!StandCodes.IsTall(species) || species.CrownShare <= 0.0) continue;
+                byte code = StandCodes.Pack(species, species.HeightAt(SiteAt(r, c), Unit(CellHash(stream, i, 2))));
+                double radius = 0.5 * species.CrownShare * StandCodes.HeightOf(code);
+                if (Unit(CellHash(stream, i, 1)) >= StandDensity * cellArea / (Math.PI * radius * radius)) continue;
+                if (Crowded(r, c, radius, largest, crown)) continue;
+                crown[i] = (float)radius;
+                Stand[i] = code;
+            }
+        }
+
+        /// <summary>Whether a trunk already stands nearer to this cell than the two crowns allow.</summary>
+        private bool Crowded(int row, int col, double radius, double largest, float[] crown)
+        {
+            int reach = (int)Math.Ceiling((1.0 - CrownOverlap) * (radius + largest) / CellM);
+            for (int dr = -reach; dr <= reach; dr++)
+            {
+                int r = row + dr;
+                if (r < 0 || r >= Height) continue;
+                for (int dc = -reach; dc <= reach; dc++)
+                {
+                    int c = col + dc;
+                    if (c < 0 || c >= Width) continue;
+                    float other = crown[Index(r, c)];
+                    if (other <= 0f) continue;
+                    if (CellM * Math.Sqrt(dr * dr + dc * dc) < (1.0 - CrownOverlap) * (radius + other)) return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// What lies loose on each cell (M1.6a): the sticks each tree has dropped inside its crown, more under a taller
+        /// tree and under the species that shed more, and cobbles where the ground says stone lies loose — a shore
+        /// platform, a cliff, a creek's or a stream's bed, now and then a beach, and the thin soil over the stone of
+        /// the older surfaces; none on a dune, on deep soil, or under the sea, a lake or a swamp. Which stone a cobble
+        /// is, is the stone layer's.
+        /// </summary>
+        private void LayLoose(ulong seed)
+        {
+            int count = Width * Height;
+            ulong stream = SimRandom.DeriveSeed(seed, "loose");
+            int[] sticks = new int[count];
+            for (int i = 0; i < count; i++)
+            {
+                byte code = Stand[i];
+                if (code == 0) continue;
+                PlantSpecies species = StandCodes.SpeciesOf(code);
+                double height = StandCodes.HeightOf(code);
+                double radius = 0.5 * species.CrownShare * height;
+                int shed = (int)Math.Round(species.SticksPerMetre * height);
+                int row = i / Width, col = i % Width;
+                for (int k = 0; k < shed; k++)
+                {
+                    // Uniform over the crown's disc: the square root spreads the sticks out to the rim.
+                    double d = radius * Math.Sqrt(Unit(CellHash(stream, i, (ulong)(2 * k + 1))));
+                    double a = 2.0 * Math.PI * Unit(CellHash(stream, i, (ulong)(2 * k + 2)));
+                    int r = row - (int)Math.Round(d * Math.Cos(a) / CellM);
+                    int c = col + (int)Math.Round(d * Math.Sin(a) / CellM);
+                    if (r < 0 || c < 0 || r >= Height || c >= Width) continue;
+                    int j = Index(r, c);
+                    if (HoldsLoose(j)) sticks[j]++;
+                }
+            }
+            for (int i = 0; i < count; i++)
+                Loose[i] = LooseCodes.Pack(sticks[i], HoldsLoose(i) ? CobblesAt(i, CellHash(stream, i, 0)) : 0);
+        }
+
+        /// <summary>Whether anything can lie loose on a cell: not under the sea, a lake or a swamp.</summary>
+        private bool HoldsLoose(int i)
+        {
+            WaterClass water = (WaterClass)Water[i];
+            return water != WaterClass.Sea && water != WaterClass.Lake && water != WaterClass.Swamp;
+        }
+
+        /// <summary>
+        /// How many cobbles lie on a cell, from what its ground is. A dune is asked first: it is sand whatever runs across
+        /// it, and a creek cutting the dune has a bed of sand, not stone (the made coast's swale, 2026-09-11).
+        /// </summary>
+        private int CobblesAt(int i, ulong roll)
+        {
+            uint bits = TopologyMask[i];
+            WaterClass water = (WaterClass)Water[i];
+            if ((bits & (uint)Engine.Topology.Dune) != 0) return 0;
+            if ((bits & (uint)Engine.Topology.ShorePlatform) != 0) return 2 + (int)(roll % 4);
+            if ((bits & (uint)Engine.Topology.Cliff) != 0) return 1 + (int)(roll % 2);
+            if (water == WaterClass.Creek || water == WaterClass.Stream) return 1 + (int)(roll % 3);
+            if ((bits & (uint)Engine.Topology.Beach) != 0) return roll % 8 == 0 ? 1 : 0;
+            return Soil.DepthM[i] < ThinSoilM ? (int)(roll % 3) : 0;
+        }
+
+        /// <summary>A cell's own draw from a stream, by salt: whole numbers, so the same seed gives the same world.</summary>
+        private static ulong CellHash(ulong stream, int i, ulong salt) => StandLayout.Mix(StandLayout.Mix(stream ^ (uint)i) ^ salt);
+
+        /// <summary>A draw as a double in [0, 1), from its top 53 bits.</summary>
+        private static double Unit(ulong h) => (h >> 11) * (1.0 / 9007199254740992.0);
 
         // ---- the animals ----
 

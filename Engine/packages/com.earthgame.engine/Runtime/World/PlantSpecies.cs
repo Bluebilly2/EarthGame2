@@ -127,6 +127,25 @@ namespace EarthGame.Engine
         /// </summary>
         public double StrippableBarkM { get; }
 
+        /// <summary>
+        /// How wide the crown is against the tree's height: its diameter as a share of the height. Zero for anything
+        /// that does not stand as a tree.
+        ///
+        /// <para>One number with two readers (M1.6a, 2026-09-10): the world spaces its trunks by it, so that the
+        /// crowns cover about the ground the canopy layer says is covered, and the client draws each crown that wide.
+        /// It is the plant's habit, stated as a number so that a person who knows the trees can dispute it: a forest
+        /// blackbutt carries a narrow crown high on a long trunk, a bangalay a broader one, and a banksia spreads
+        /// about as wide as a small tree is tall.</para>
+        /// </summary>
+        public double CrownShare { get; }
+
+        /// <summary>
+        /// Sticks a tree of this species has lying under it, for each metre of its height (M1.6a). The eucalypts drop
+        /// limbs and twigs through the year, the paperbark a little less; the banksias far less, and more of theirs
+        /// as cones.
+        /// </summary>
+        public double SticksPerMetre { get; }
+
         private PlantSpecies(string name, string displayName, PlantForm form,
                              double moistureOptimum, double moistureBreadth,
                              double minSoilDepthM, double maxSlope,
@@ -134,7 +153,9 @@ namespace EarthGame.Engine
                              double minHeightM, double maxHeightM,
                              double maxSoilDepthM = double.PositiveInfinity,
                              double strippableBarkM = 0.0,
-                             double minExposure = 0.0)
+                             double minExposure = 0.0,
+                             double crownShare = 0.0,
+                             double sticksPerMetre = 0.0)
         {
             Name = name;
             DisplayName = displayName;
@@ -150,6 +171,8 @@ namespace EarthGame.Engine
             MinHeightM = minHeightM;
             MaxHeightM = maxHeightM;
             StrippableBarkM = strippableBarkM;
+            CrownShare = crownShare;
+            SticksPerMetre = sticksPerMetre;
         }
 
         /// <summary>
@@ -219,16 +242,22 @@ namespace EarthGame.Engine
             minSoilDepthM: 0.50, maxSlope: 0.55,
             shadeTolerance: 0.30, exposureTolerance: 0.35,
             minHeightM: 20.0, maxHeightM: 40.0,
-            strippableBarkM: 0.008);          // rough and fibrous below, smooth above; comes away in short slabs
+            strippableBarkM: 0.008,           // rough and fibrous below, smooth above; comes away in short slabs
+            crownShare: 0.35, sticksPerMetre: 0.5);
 
-        /// <summary>Bangalay. The eucalypt nearest the sea and around the swamps: sand, salt wind and wet feet.</summary>
+        /// <summary>
+        /// Bangalay. The eucalypt nearest the sea and around the swamps: sand, salt wind and wet feet. No taller than the
+        /// sand forest it leads here, which NSW BioNet's profile of Bangalay Sand Forest puts at 5 to 20 m; the first
+        /// world to stand its trees (M1.6a, 2026-09-11) grew some above that from a ceiling of 25 m.
+        /// </summary>
         public static readonly PlantSpecies Bangalay = new PlantSpecies(
             "Bangalay", "bangalay", PlantForm.Tree,
             moistureOptimum: 0.65, moistureBreadth: 0.28,
             minSoilDepthM: 0.40, maxSlope: 0.50,
             shadeTolerance: 0.30, exposureTolerance: 0.75,
-            minHeightM: 12.0, maxHeightM: 25.0,
-            strippableBarkM: 0.012);          // rough fibrous bark to the branches
+            minHeightM: 12.0, maxHeightM: 20.0,
+            strippableBarkM: 0.012,           // rough fibrous bark to the branches
+            crownShare: 0.45, sticksPerMetre: 0.5);
 
         /// <summary>Old-man banksia. The heathy woodland on dry sand behind the dunes, out of the worst wind.</summary>
         public static readonly PlantSpecies OldManBanksia = new PlantSpecies(
@@ -236,7 +265,8 @@ namespace EarthGame.Engine
             moistureOptimum: 0.35, moistureBreadth: 0.20,
             minSoilDepthM: 0.15, maxSlope: 0.60,
             shadeTolerance: 0.20, exposureTolerance: 0.60,
-            minHeightM: 4.0, maxHeightM: 12.0);
+            minHeightM: 4.0, maxHeightM: 12.0,
+            crownShare: 0.60, sticksPerMetre: 0.3);
 
         /// <summary>Coast banksia. The seaward face of the dune, where nothing else woody stands the salt, and nowhere the salt wind does not reach.</summary>
         public static readonly PlantSpecies CoastBanksia = new PlantSpecies(
@@ -245,7 +275,8 @@ namespace EarthGame.Engine
             minSoilDepthM: 0.12, maxSlope: 0.60,
             shadeTolerance: 0.15, exposureTolerance: 0.98,
             minHeightM: 5.0, maxHeightM: 15.0,
-            minExposure: 1.0 - WorldLayers.DuneReachM / WorldLayers.CoastWindReachM);   // the salt wind at the dunes' inland edge
+            minExposure: 1.0 - WorldLayers.DuneReachM / WorldLayers.CoastWindReachM,    // the salt wind at the dunes' inland edge
+            crownShare: 0.55, sticksPerMetre: 0.3);
 
         /// <summary>Swamp paperbark. The rim of the swamp and the lake, feet in the water; bark in sheets.</summary>
         public static readonly PlantSpecies SwampPaperbark = new PlantSpecies(
@@ -254,7 +285,8 @@ namespace EarthGame.Engine
             minSoilDepthM: 0.20, maxSlope: 0.40,
             shadeTolerance: 0.35, exposureTolerance: 0.50,
             minHeightM: 3.0, maxHeightM: 9.0,
-            strippableBarkM: 0.015);          // papery layers that come away by the sheet
+            strippableBarkM: 0.015,           // papery layers that come away by the sheet
+            crownShare: 0.50, sticksPerMetre: 0.4);
 
         /// <summary>Grass tree. Poor sandy heath in full sun, and the fire drill's spindle.</summary>
         public static readonly PlantSpecies GrassTree = new PlantSpecies(

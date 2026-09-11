@@ -80,10 +80,10 @@ Sydney) for each species' habitat; the site research of 2026-09-07 recorded in t
 | Plant | Form | Where it stands on the peninsula | The tolerances follow from |
 |---|---|---|---|
 | Blackbutt, *Eucalyptus pilularis* | tree, 20–40 m | the tall forest on the deeper, moist sands behind the dunes and on the sandstone slopes | needs half a metre of sand and shelter from the salt wind; the timber and the rough lower bark |
-| Bangalay, *E. botryoides* | tree, 12–25 m | the eucalypt nearest the sea and around the swamps; sand, salt wind, wet feet | salt-hardy (exposure 0.75), wide moisture, fibrous bark to the branches |
-| Old-man banksia, *Banksia serrata* | small tree | heathy woodland on dry sand behind the foredune, out of the worst wind | dry optimum, thin sand, moderate exposure |
-| Coast banksia, *B. integrifolia* | small tree | the seaward face of the dune, where nothing else woody stands the salt | roots in 120 mm of sand; exposure tolerance near one, and a floor on it: out of the salt wind the trees take its ground |
-| Swamp paperbark, *Melaleuca ericifolia* | small tree | the rim of Ryans Swamp and the lakes, feet in the water | wet optimum with a narrow breadth; bark in sheets |
+| Bangalay, *E. botryoides* | tree, 12–20 m | the eucalypt nearest the sea and around the swamps; sand, salt wind, wet feet | salt-hardy (exposure 0.75), wide moisture, fibrous bark to the branches; no taller than the sand forest it leads here, 5–20 m in NSW BioNet's profile (held to it 2026-09-11, when the first world to stand its trees grew some above it) |
+| Old-man banksia, *Banksia serrata* | small tree, 4–12 m | heathy woodland on dry sand behind the foredune, out of the worst wind | dry optimum, thin sand, moderate exposure |
+| Coast banksia, *B. integrifolia* | small tree, 5–15 m | the seaward face of the dune, where nothing else woody stands the salt | roots in 120 mm of sand; exposure tolerance near one, and a floor on it: out of the salt wind the trees take its ground |
+| Swamp paperbark, *Melaleuca ericifolia* | small tree, 3–9 m | the rim of Ryans Swamp and the lakes, feet in the water | wet optimum with a narrow breadth; bark in sheets |
 | Grass tree, *Xanthorrhoea resinosa* | shrub | the heath on poor sand in full sun | needs almost no soil, no shade; the fire drill's spindle |
 | Heath banksia, *B. ericifolia* | shrub | the heath itself, head high and dense, on the poorer and damper sands | wide moisture, thin sand, open ground |
 | Bracken, *Pteridium esculentum* | herb | under the forest | shade tolerance near one, needs shelter |
@@ -125,6 +125,51 @@ inland. The records are presence only, gathered along tracks and biased towards 
 where a plant is and never how much of it there is; they were checked for the bias that would matter most here,
 and the recorders walked the whole peninsula rather than its beaches (all the usable records at a median 935 m from
 the sea, against the land's 958 m).
+
+### What stands and lies on the ground (M1.6a, 2026-09-11)
+
+The canopy layer names the one tall plant covering each 4 m cell. M1.6a stands single trees in it and lays what has
+fallen from them and what the ground sheds (`WorldLayers.StandTrees` and `LayLoose`; the rules are the contract's,
+`contracts/M1.6_WHAT_STANDS_AND_LIES.md`). Nothing is a spawn table: a tree stands where the canopy is, a stick where
+that tree stands, a cobble where the ground sheds stone (CANON ruling 22).
+
+- **Where a tree stands.** Every canopied cell is a candidate trunk of the canopy's own species, and the candidates
+  are taken in an order the seed draws. Each is placed with the chance that gives 1.5 trunks to a crown's area of
+  canopy, unless a trunk already stands nearer than 0.6 of their two crowns' radii added, cell centre to cell centre
+  (crowns may overlap by 0.4). So the crowns cover about the ground the canopy says is covered, big trees stand
+  farther apart than small ones, and no trunk stands where no canopy does.
+- **How tall and how wide.** A tree is as tall as `PlantSpecies.HeightAt` says its species grows on its cell — half
+  its own draw and half how well the cell suits it, across the range in the table of plants above — kept in steps of
+  1.25 m. Its crown is a share of its height, the one number the world spaces trunks by and the client draws a crown
+  to:
+
+| Plant | Crown across, as a share of its height | Sticks shed, per metre of its height |
+|---|---|---|
+| Blackbutt | 0.35 | 0.5 |
+| Bangalay | 0.45 | 0.5 |
+| Old-man banksia | 0.60 | 0.3 |
+| Coast banksia | 0.55 | 0.3 |
+| Swamp paperbark | 0.50 | 0.4 |
+
+- **What lies.** A tree sheds its sticks per metre times its height, rounded, each at a point uniform over its
+  crown's disc; none falls into the sea, a lake or a swamp. Cobbles lie by what the ground is, the dune asked first:
+  none on a dune, which is sand whatever runs across it; 2 to 5 on a shore platform; 1 or 2 on a cliff; 1 to 3 in a
+  creek's or a stream's bed; one cell of beach in eight holds one; 0 to 2 on soil thinner than 0.25 m, where the stone
+  is near; none on deeper soil. Which stone a cobble is waits for the stone layer to travel with it.
+- **What it was held against** (`stand_check.py`, on the world of seed 1347 as created on 2026-09-11). 992,519
+  trees; 0.739 of the canopied ground under a crown, inside the design's 0.5 to 0.95; stems a hectare of each plant's
+  own canopy — blackbutt 72, bangalay 234, old-man banksia 563, coast banksia 520, swamp paperbark 622 — inside the
+  design's 50 to 1,500, a band the published benchmark by diameter class (Gibbons and others 2010) has still to
+  replace (DEBTS.md). Every bangalay and coast banksia standing on sand is 5 to 20 m tall, as NSW BioNet's profile of
+  Bangalay Sand Forest has that community. The first world stood 1,260 of its 105,821 sand-forest trees above that,
+  up to 23.75 m, because bangalay's ceiling was 25 m; it is 20 m now, bangalay being the tree the sand forest is named
+  for. 3,348,011 sticks lie in 1,405,905 cells, and 209,024 cobbles in 89,064.
+- **Round a player.** The nine tiles a client holds round the wake carry 110,063 trees, 379,456 sticks and 44,475
+  cobbles; round Windermere, the densest of the four vantages the frames are taken from, 176,906 trees and 620,545
+  sticks.
+- **What is not compared.** The fallen wood of Australian forest floors, 19 to 134 t/ha (Woldendorp and Keenan
+  2005, *Austral Ecology* 30), is mostly logs, and this slice lays no logs: its sticks are the hand-sized ones, about
+  a metre long and 3 to 5 cm thick, so their mass is not held against that figure.
 
 ### The stones (v1's open item E0)
 

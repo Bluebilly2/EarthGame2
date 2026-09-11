@@ -52,9 +52,12 @@ namespace EarthGame.Server
                     throw new InvalidDataException("The saved terrain does not match this world's layer manifest.");
                 Report("Reading the water");
                 WorldWater water = ReadWater(worldDir);
-                RegionRaster cover = ReadCover(worldDir);
+                RegionRaster cover = ReadCodes(worldDir, "cover");
+                Report("Reading what stands and lies on the ground");
+                RegionRaster stand = ReadCodes(worldDir, "stand");
+                RegionRaster loose = ReadCodes(worldDir, "loose");
                 Report("Restoring the world");
-                WorldState world = WorldSave.Restore(saved, terrain, region, water, cover);
+                WorldState world = WorldSave.Restore(saved, terrain, region, water, cover, stand, loose);
                 Report("World ready");
                 return new Result { World = world, Saved = saved, Checksums = saved.Layers };
             }
@@ -68,7 +71,8 @@ namespace EarthGame.Server
             Report("Reading prepared terrain");
             Heightfield ground = new Heightfield(RegionRaster.Load(created.Layers["heights"]));
             WorldState made = new WorldState(seed, region, region.WakeClock(), ground, 0,
-                new Double3(created.Wake.East, 0, created.Wake.North), ReadWater(worldDir), ReadCover(worldDir));
+                new Double3(created.Wake.East, 0, created.Wake.North), ReadWater(worldDir), ReadCodes(worldDir, "cover"),
+                ReadCodes(worldDir, "stand"), ReadCodes(worldDir, "loose"));
             Report("Saving the world");
             WorldSave.Write(worldDir, made, null, nowUtc, created.Checksums);
             Report("World ready");
@@ -91,12 +95,13 @@ namespace EarthGame.Server
         }
 
         /// <summary>
-        /// The ground cover a world folder holds, for the server to stream (M1.4d); null on a world made before
-        /// it, whose client draws the ground in one flat colour as it did before.
+        /// A layer of codes a world folder holds for the server to stream: the ground cover since M1.4d, what stands
+        /// and what lies loose since M1.6a. Null on a world made before the layer was, whose client draws without it:
+        /// a flat ground colour, and nothing standing.
         /// </summary>
-        private static RegionRaster ReadCover(string worldDir)
+        private static RegionRaster ReadCodes(string worldDir, string name)
         {
-            string path = Path.Combine(worldDir, WorldCreation.LayersFolder, "cover.json");
+            string path = Path.Combine(worldDir, WorldCreation.LayersFolder, name + ".json");
             return File.Exists(path) ? RegionRaster.Load(path) : null;
         }
 

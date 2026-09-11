@@ -19,12 +19,16 @@ namespace EarthGame.Engine
         WaterClass = 2,
         /// <summary>Each post's <see cref="GroundCovers"/> code: what covers it, and which quarter of the land's wetness it is in.</summary>
         GroundCover = 3,
+        /// <summary>Each post's <see cref="StandCodes"/> code: which tall plant stands on its cell, and how tall (M1.6a).</summary>
+        Stand = 4,
+        /// <summary>Each post's <see cref="LooseCodes"/> code: how many sticks and cobbles lie on its cell (M1.6a).</summary>
+        Loose = 5,
     }
 
     /// <summary>Every layer a tile can carry. Both ends walk this, so neither has to be told the set.</summary>
     public static class TileLayers
     {
-        public static readonly TileLayer[] All = { TileLayer.Ground, TileLayer.WaterDepth, TileLayer.WaterClass, TileLayer.GroundCover };
+        public static readonly TileLayer[] All = { TileLayer.Ground, TileLayer.WaterDepth, TileLayer.WaterClass, TileLayer.GroundCover, TileLayer.Stand, TileLayer.Loose };
 
         /// <summary>
         /// Whether a layer travels as codes — raw bytes through deflate — rather than as metres. One owner: the
@@ -36,7 +40,9 @@ namespace EarthGame.Engine
             switch (layer)
             {
                 case TileLayer.WaterClass:
-                case TileLayer.GroundCover: return true;
+                case TileLayer.GroundCover:
+                case TileLayer.Stand:
+                case TileLayer.Loose: return true;
                 default: return false;
             }
         }
@@ -60,6 +66,8 @@ namespace EarthGame.Engine
                 case TileLayer.WaterDepth: return "water-depth";
                 case TileLayer.WaterClass: return "water-class";
                 case TileLayer.GroundCover: return "ground-cover";
+                case TileLayer.Stand: return "stand";
+                case TileLayer.Loose: return "loose";
                 default: throw new ArgumentOutOfRangeException(nameof(layer), "no such layer: " + layer);
             }
         }
@@ -203,11 +211,22 @@ namespace EarthGame.Engine
         /// </summary>
         private static void CellAt(RegionRaster raster, double east, double north, out int row, out int col)
         {
-            double half = raster.ExtentM * 0.5;
-            col = (int)Math.Round((east + half) / raster.CellM);
-            row = (int)Math.Round((half - north) / raster.CellM);
+            CellOf(raster.ExtentM, raster.CellM, east, north, out row, out col);
             col = Math.Min(raster.Width - 1, Math.Max(0, col));
             row = Math.Min(raster.Height - 1, Math.Max(0, row));
+        }
+
+        /// <summary>
+        /// The raster cell a point of a region sits on, for a reader holding a tile rather than the raster: a client
+        /// placing what stands on a post (M1.6a) reads a post's cell here, so the tile's writer and its reader agree on
+        /// it. A tile's posts land on cell centres, and a post's east and north are whole multiples of the cell, so this
+        /// is exact.
+        /// </summary>
+        public static void CellOf(double extentM, double cellM, double east, double north, out int row, out int col)
+        {
+            double half = extentM * 0.5;
+            col = (int)Math.Round((east + half) / cellM);
+            row = (int)Math.Round((half - north) / cellM);
         }
 
         private static float ValueAt(RegionRaster raster, double east, double north)

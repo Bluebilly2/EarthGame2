@@ -121,8 +121,16 @@ namespace EarthGame.Tests.Server
         private static RegionRaster Cover() => TestRasters.FromCodes(5, 10.0, 40.0, "tiny_cover", "cover",
             (row, col) => GroundCovers.Pack(col <= 1 ? GroundCover.FreshWater : GroundCover.Grass, col % GroundCovers.Quarters), null);
 
+        /// <summary>The tiny fixture's stand (M1.6a): one blackbutt on the centre row, a cell east of the middle.</summary>
+        private static RegionRaster Stand() => TestRasters.FromCodes(5, 10.0, 40.0, "tiny_stand", "stand",
+            (row, col) => row == 2 && col == 3 ? StandCodes.Pack(PlantSpecies.Blackbutt, 30.0) : 0u, null);
+
+        /// <summary>What lies on it: sticks on the blackbutt's cell and its four neighbours, a cobble down the middle column.</summary>
+        private static RegionRaster Loose() => TestRasters.FromCodes(5, 10.0, 40.0, "tiny_loose", "loose",
+            (row, col) => LooseCodes.Pack(Math.Abs(row - 2) + Math.Abs(col - 3) <= 1 ? 3 : 0, col == 2 ? 1 : 0), null);
+
         private static WorldState WateredWorld() =>
-            new WorldState(1, FixtureRegion, FixtureRegion.WakeClock(), Ground(), 0, null, Water(), Cover());
+            new WorldState(1, FixtureRegion, FixtureRegion.WakeClock(), Ground(), 0, null, Water(), Cover(), Stand(), Loose());
 
         /// <summary>
         /// The water reaches the client beside the ground (M1.4b promises 3 to 5): the depth standing over the
@@ -167,6 +175,37 @@ namespace EarthGame.Tests.Server
             Assert.That(cache.KnownCrc("fixture", TileLayer.WaterClass, id), Is.EqualTo(classes.Crc32));
         }
 
+        /// <summary>
+        /// What stands and what lies loose reach the client as layers of codes (M1.6a promise 4), post for post as the
+        /// world holds them, each cached under its own name.
+        /// </summary>
+        [Test]
+        public void WhatStandsAndLiesArrivesPostForPost()
+        {
+            Rig rig = Start(WateredWorld());
+            DiskTileCache cache = new DiskTileCache(_cacheDir);
+            rig.A = rig.Join("William", cache);
+            rig.Pump(6);
+            Assert.That(rig.A.Tiles.RefusedCount, Is.Zero, "this world has every layer");
+            TileId id = new TileId(0, 0);
+            ReceivedTile stand = rig.A.Tiles.Holding(TileLayer.Stand, id);
+            ReceivedTile loose = rig.A.Tiles.Holding(TileLayer.Loose, id);
+            Assert.That(stand.Codes, Is.Not.Null, "a layer of codes");
+            Assert.That(loose.Codes, Is.Not.Null, "a layer of codes");
+            RegionRaster standTruth = Stand(), looseTruth = Loose();
+            for (int z = 0; z < stand.Posts; z++)
+                for (int x = 0; x < stand.Posts; x++)
+                {
+                    int row = stand.Posts - 1 - z;   // a tile's first row is its south edge, a raster's its north
+                    Assert.That(stand.Codes[z, x], Is.EqualTo((byte)standTruth.Code(row, x)), "stand at " + z + "," + x);
+                    Assert.That(loose.Codes[z, x], Is.EqualTo((byte)looseTruth.Code(row, x)), "loose at " + z + "," + x);
+                }
+            Assert.That(StandCodes.SpeciesOf(stand.Codes[2, 3]), Is.SameAs(PlantSpecies.Blackbutt), "the blackbutt on the centre row");
+            Assert.That(StandCodes.HeightOf(stand.Codes[2, 3]), Is.EqualTo(30.0).Within(StandCodes.HeightStepM));
+            Assert.That(Directory.Exists(Path.Combine(_cacheDir, "fixture", "stand")), Is.True, "each layer caches under its own name");
+            Assert.That(Directory.Exists(Path.Combine(_cacheDir, "fixture", "loose")), Is.True);
+        }
+
         /// <summary>A world whose folder held no water: the client is told once and stops asking as it walks.</summary>
         [Test]
         public void AWorldWithoutWaterRefusesItOnceAndIsNotAskedAgain()
@@ -177,12 +216,12 @@ namespace EarthGame.Tests.Server
             Assert.That(rig.A.IsInteractive, Is.True, "the ground alone still makes a client interactive");
             Assert.That(rig.A.Tiles.CountOf(TileLayer.Ground), Is.EqualTo(1));
             Assert.That(rig.A.Tiles.CountOf(TileLayer.WaterDepth), Is.Zero);
-            Assert.That(rig.A.Tiles.RefusedCount, Is.EqualTo(3), "the two water layers and the cover of the one tile, once each");
+            Assert.That(rig.A.Tiles.RefusedCount, Is.EqualTo(TileLayers.All.Length - 1), "every layer but the ground, of the one tile, once each");
             long served = rig.Server.Tiles.BytesServed;
             rig.A.RequestTilesAround(0.0, 0.0);
             rig.Pump(3);
             Assert.That(rig.Server.Tiles.BytesServed, Is.EqualTo(served), "nothing was asked for a second time");
-            Assert.That(rig.A.Tiles.RefusedCount, Is.EqualTo(3));
+            Assert.That(rig.A.Tiles.RefusedCount, Is.EqualTo(TileLayers.All.Length - 1));
         }
 
         [Test]
@@ -203,9 +242,9 @@ namespace EarthGame.Tests.Server
             Assert.That(rig.A.IsInteractive, Is.True);
             Assert.That(rig.A.Tiles.Held[new TileId(0, 0)].FromCache, Is.True);
             Assert.That(rig.A.Tiles.BytesReceived, Is.EqualTo(0), "no chunk crossed the wire");
-            // Three headers now (M1.4b): the ground this client already holds, and the two water layers a world
-            // built from a bare heightfield has none of. No chunk of any of them crosses the wire.
-            Assert.That(rig.Server.Tiles.BytesServed - servedFirst, Is.LessThan(200), "headers, nothing more");
+            // One header a layer: the ground this client already holds, and every other layer, which a world built
+            // from a bare heightfield has none of. No chunk of any of them crosses the wire.
+            Assert.That(rig.Server.Tiles.BytesServed - servedFirst, Is.LessThan(50 * TileLayers.All.Length), "headers, nothing more");
         }
 
         [Test]

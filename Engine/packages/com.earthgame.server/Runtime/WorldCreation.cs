@@ -72,6 +72,10 @@ namespace EarthGame.Server
                 "Topology bits: 1 sea, 2 beach, 4 dune, 8 wetland, 16 forest, 32 heath, 64 crest, 128 cliff, 256 shore platform, 512 lake, 1024 creek", by, nowUtcText));
             SaveLayer("cover", RegionRaster.WriteCodes(dir, "cover", heights, "cover", "u8", "id", Widen(layers.Cover),
                 GroundCovers.Legend(), by, nowUtcText));
+            SaveLayer("stand", RegionRaster.WriteCodes(dir, "stand", heights, "stand", "u8", "id", Widen(layers.Stand),
+                StandCodes.Legend(), by, nowUtcText));
+            SaveLayer("loose", RegionRaster.WriteCodes(dir, "loose", heights, "loose", "u8", "counts", Widen(layers.Loose),
+                LooseCodes.Legend(), by, nowUtcText));
             SaveLayer("stone", RegionRaster.WriteCodes(dir, "stone", heights, "stone", "u8", "id", Widen(layers.Stone),
                 "StoneType.All index + 1, 0 for none: " + StoneList(), by, nowUtcText));
             uint[] catchment = new uint[count];
