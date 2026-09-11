@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using EarthGame.ClientCore;
 using EarthGame.Engine;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+using Debug = UnityEngine.Debug;
 
 namespace EarthGame.Client
 {
@@ -14,13 +17,25 @@ namespace EarthGame.Client
     /// Unity's native calls) and swapped in whole, so the main thread's share of a tile is one dictionary write; every
     /// frame they are drawn instanced from lists that do not change while the founder walks.
     ///
-    /// <para>Two bands, one shader (<c>EarthGame/StandLit</c>). Every tree of every held tile is drawn far — a trunk
-    /// under one clump — and the trees of the blocks near the camera are drawn near, as the grown tree; the shader
-    /// draws each instance in exactly one of the two, by its distance against <see cref="SplitM"/>, so no tree moves
-    /// from one list to the other as the founder walks. The distance is from the eye this view hands the shader each
-    /// frame, not from whatever camera a pass renders for, so the shadow caster's pass puts every instance in the band
-    /// the lit pass does. Sticks and cobbles are drawn near only. No <c>MaterialPropertyBlock</c>: colour is in the
+    /// <para>Two bands, one shader (<c>EarthGame/StandLit</c>). The trees of the 64 m blocks near the camera are drawn
+    /// near, as the grown tree, and the trees of the blocks farther off are drawn far, a trunk under one clump; the
+    /// shader draws each instance in exactly one of the two, by its distance against <see cref="SplitM"/>, so no tree
+    /// moves from one list to the other as the founder walks. The distance is from the eye this view hands the shader
+    /// each frame, not from whatever camera a pass renders for, so the shadow caster's pass puts every instance in the
+    /// band the lit pass does. Sticks and cobbles are drawn near only. No <c>MaterialPropertyBlock</c>: colour is in the
     /// meshes (ARCHITECTURE §8's rule).</para>
+    ///
+    /// <para>What a frame draws is chosen block by block (2026-09-11: drawing every tree of the nine tiles far every
+    /// frame cost five to eight times the trees' share of the frame). A far block is drawn only when it lies in the
+    /// view, because far trees cast no shadow; a near block out of the view is drawn into the shadows alone, because a
+    /// tree behind the founder still shades what is in front. The view is taken wider than the camera's, because it is
+    /// taken before the camera has settled for the frame and a frame may be rendered at another shape than the
+    /// screen's.</para>
+    ///
+    /// <para>Farther off, a block draws one far tree in two, each crown spread to cover what two did, and beyond that one
+    /// in four, so the canopy keeps its cover while the count falls with distance; and a near tree casts only when its
+    /// shadow can reach the ground the shadows are drawn on, which the sun's height decides. Both after the far band
+    /// alone took 9.5 ms of a frame beside Windermere (2026-09-11).</para>
     ///
     /// <para>The bands' materials copy the project's stand material rather than being made from the shader, because a
     /// build keeps a shader's instanced variants only when a material asset asks for them (ProjectSetup,
@@ -39,6 +54,21 @@ namespace EarthGame.Client
 
         /// <summary>How far a trunk's foot is set into the ground, m, so a slope drawn by the terrain's own triangles shows no gap under it.</summary>
         public const float SinkM = 0.15f;
+
+        /// <summary>Beyond this, m, a block's far trees are drawn one in two, each crown spread to cover what two did.</summary>
+        public const float FarHalfM = 500f;
+
+        /// <summary>Beyond this, m, one in four, each crown spread to cover what four did.</summary>
+        public const float FarQuarterM = 1000f;
+
+        /// <summary>The lowest the sun is taken to stand when a shadow's length is worked out, degrees.</summary>
+        private const float LowestSunDeg = 10f;
+
+        /// <summary>How much taller than the camera's the view a block is tested against is, degrees.</summary>
+        private const float ViewMarginDeg = 12f;
+
+        /// <summary>The widest a view is taken to be, width over height: wider than any screen the game is played on.</summary>
+        private const float ViewAspect = 2.4f;
 
         private const float BlockM = 64f;
         private const int Chunk = 1023;
@@ -61,14 +91,26 @@ namespace EarthGame.Client
         private readonly Dictionary<TileId, (ReceivedTile Stand, ReceivedTile Loose, ReceivedTile Ground)> _wanted =
             new Dictionary<TileId, (ReceivedTile, ReceivedTile, ReceivedTile)>();
         private readonly List<Matrix4x4>[] _nearGather;
+        private readonly List<Matrix4x4>[] _shadowGather;
+        private readonly List<Matrix4x4>[] _plainGather;
+        private readonly List<Matrix4x4>[] _farGather;
+        private readonly float _tallestM;
         private readonly List<Matrix4x4>[] _stickGather;
         private readonly List<Matrix4x4>[] _cobbleGather;
+        private readonly Plane[] _view = new Plane[6];
+        private readonly Stopwatch _clock = new Stopwatch();
 
         /// <summary>Trees in the tiles held, for the HUD's line.</summary>
         public int TreeCount { get; private set; }
 
-        /// <summary>Whether the trees are drawn; <c>-eg-hide trees</c> turns them off, so what they cost can be measured.</summary>
-        public bool DrawTrees { get; set; } = true;
+        /// <summary>What the last <see cref="Draw"/> cost the main thread, ms: choosing the blocks and handing them over.</summary>
+        public double LastDrawMs { get; private set; }
+
+        /// <summary>Whether the near band is drawn; <c>-eg-hide near</c> (or <c>trees</c>) turns it off, so what it costs can be measured.</summary>
+        public bool DrawNear { get; set; } = true;
+
+        /// <summary>Whether the far band is drawn; <c>-eg-hide far</c> (or <c>trees</c>) turns it off.</summary>
+        public bool DrawFar { get; set; } = true;
 
         /// <summary>Whether the sticks and cobbles are drawn; <c>-eg-hide loose</c> turns them off.</summary>
         public bool DrawLoose { get; set; } = true;
@@ -76,9 +118,29 @@ namespace EarthGame.Client
         private sealed class Block
         {
             public Vector3 Centre;
+            /// <summary>The block's trees from the lowest foot to the highest crown, which the view is tested against.</summary>
+            public Bounds Bounds;
             public List<Matrix4x4>[] Near;
+            public List<Matrix4x4>[] Far;
+            public List<Matrix4x4>[] FarHalf;
+            public List<Matrix4x4>[] FarQuarter;
+            public int Trees;
             public List<Matrix4x4>[] Sticks;
             public List<Matrix4x4>[] Cobbles;
+            private bool _any;
+            private Vector3 _min, _max;
+
+            public void Grow(Vector3 min, Vector3 max)
+            {
+                _min = _any ? Vector3.Min(_min, min) : min;
+                _max = _any ? Vector3.Max(_max, max) : max;
+                _any = true;
+            }
+
+            public void Settle()
+            {
+                if (_any) Bounds = new Bounds((_min + _max) * 0.5f, _max - _min);
+            }
         }
 
         private sealed class TileStand
@@ -86,9 +148,7 @@ namespace EarthGame.Client
             public uint StandCrc;
             public uint LooseCrc;
             public uint GroundCrc;
-            public Bounds Bounds;
             public Block[] Blocks;
-            public List<Matrix4x4>[] Far;
             public int Trees;
         }
 
@@ -121,6 +181,10 @@ namespace EarthGame.Client
             _farMaterial = Band(template, "Stand far", 1f, SplitM);
             _looseMaterial = Band(template, "Loose near", 0f, LooseDrawM);
             _nearGather = Lists(groups);
+            _shadowGather = Lists(groups);
+            _plainGather = Lists(groups);
+            _farGather = Lists(_tall);
+            foreach (PlantSpecies species in StandCodes.Tall) _tallestM = Mathf.Max(_tallestM, (float)species.MaxHeightM);
             _stickGather = Lists(StandPreparation.Variants);
             _cobbleGather = Lists(StandPreparation.Variants);
         }
@@ -174,28 +238,54 @@ namespace EarthGame.Client
             _wanted.Remove(id);
         }
 
-        /// <summary>Draws every held tile's trees far, the near blocks' trees grown, and the near blocks' sticks and cobbles.</summary>
-        public void Draw(Vector3 eye)
+        /// <summary>
+        /// Draws the near blocks' trees grown (into the shadows alone when out of the view, and casting only where their
+        /// shadows can land), the far blocks in the view as far trees, thinned with distance, and the near blocks' sticks
+        /// and cobbles. <paramref name="sun"/> is the light the shadows are cast by; without one every near tree casts.
+        /// </summary>
+        public void Draw(Camera camera, Light sun)
         {
+            _clock.Restart();
+            Vector3 eye = camera.transform.position;
+            // A shadow is a tree's height over the tangent of the sun's elevation, and it is drawn only within the
+            // pipeline's shadow distance: a near tree farther off than that and its longest shadow casts nothing seen.
+            float shadowM = UniversalRenderPipeline.asset != null ? UniversalRenderPipeline.asset.shadowDistance : SplitM;
+            float elevation = sun != null ? Mathf.Asin(Mathf.Clamp(-sun.transform.forward.y, -1f, 1f)) : 0f;
+            float castM = shadowM + _tallestM / Mathf.Tan(Mathf.Max(elevation, LowestSunDeg * Mathf.Deg2Rad));
             Vector4 at = new Vector4(eye.x, eye.y, eye.z, 0f);
             _nearMaterial.SetVector(EyeId, at);
             _farMaterial.SetVector(EyeId, at);
             _looseMaterial.SetVector(EyeId, at);
+            Matrix4x4 wide = Matrix4x4.Perspective(Mathf.Min(170f, camera.fieldOfView + ViewMarginDeg), Mathf.Max(camera.aspect, ViewAspect),
+                                                   camera.nearClipPlane, camera.farClipPlane);
+            GeometryUtility.CalculateFrustumPlanes(wide * camera.worldToCameraMatrix, _view);
             Clear(_nearGather);
+            Clear(_shadowGather);
+            Clear(_plainGather);
+            Clear(_farGather);
             Clear(_stickGather);
             Clear(_cobbleGather);
             int trees = 0;
             foreach (TileStand tile in _held.Values)
             {
                 trees += tile.Trees;
-                if (DrawTrees)
-                    for (int t = 0; t < _tall; t++) Submit(_farMaterial, _far[t], tile.Far[t], tile.Bounds, ShadowCastingMode.Off);
                 foreach (Block block in tile.Blocks)
                 {
                     if (block == null) continue;
                     float dx = block.Centre.x - eye.x, dz = block.Centre.z - eye.z;
                     float d = Mathf.Sqrt(dx * dx + dz * dz);
-                    if (DrawTrees && d < SplitM + BlockReach) Gather(block.Near, _nearGather);
+                    if (block.Near != null && (DrawNear || DrawFar))
+                    {
+                        bool inView = GeometryUtility.TestPlanesAABB(_view, block.Bounds);
+                        if (DrawNear && d < SplitM + BlockReach)
+                        {
+                            bool casts = d - BlockReach < castM;
+                            if (inView) Gather(block.Near, casts ? _nearGather : _plainGather);
+                            else if (casts) Gather(block.Near, _shadowGather);
+                        }
+                        if (DrawFar && inView && d + BlockReach >= SplitM)
+                            Gather(d < FarHalfM ? block.Far : d < FarQuarterM ? block.FarHalf : block.FarQuarter, _farGather);
+                    }
                     if (DrawLoose && d < LooseDrawM + BlockReach)
                     {
                         Gather(block.Sticks, _stickGather);
@@ -205,13 +295,21 @@ namespace EarthGame.Client
             }
             TreeCount = trees;
             Bounds near = new Bounds(eye, new Vector3(2f * (SplitM + BlockM), 2000f, 2f * (SplitM + BlockM)));
-            for (int g = 0; g < _near.Length; g++) Submit(_nearMaterial, _near[g], _nearGather[g], near, ShadowCastingMode.On);
+            for (int g = 0; g < _near.Length; g++)
+            {
+                Submit(_nearMaterial, _near[g], _nearGather[g], near, ShadowCastingMode.On);
+                Submit(_nearMaterial, _near[g], _plainGather[g], near, ShadowCastingMode.Off);
+                Submit(_nearMaterial, _near[g], _shadowGather[g], near, ShadowCastingMode.ShadowsOnly);
+            }
+            Bounds far = new Bounds(eye, new Vector3(2f * (float)_grid.ExtentM, 4000f, 2f * (float)_grid.ExtentM));
+            for (int t = 0; t < _tall; t++) Submit(_farMaterial, _far[t], _farGather[t], far, ShadowCastingMode.Off);
             Bounds loose = new Bounds(eye, new Vector3(2f * (LooseDrawM + BlockM), 2000f, 2f * (LooseDrawM + BlockM)));
             for (int v = 0; v < StandPreparation.Variants; v++)
             {
                 Submit(_looseMaterial, _sticks[v], _stickGather[v], loose, ShadowCastingMode.Off);
                 Submit(_looseMaterial, _cobbles[v], _cobbleGather[v], loose, ShadowCastingMode.Off);
             }
+            LastDrawMs = _clock.Elapsed.TotalMilliseconds;
         }
 
         public void Dispose()
@@ -238,15 +336,12 @@ namespace EarthGame.Client
         {
             PreparedStand prepared = StandPreparation.Prepare(stand, loose, ground, _grid);
             _grid.Origin(stand.Id, out double originEast, out double originNorth);
-            float size = (float)_grid.TileSizeM;
             TileStand tile = new TileStand
             {
                 StandCrc = prepared.StandCrc,
                 LooseCrc = prepared.LooseCrc,
                 GroundCrc = prepared.GroundCrc,
-                Bounds = new Bounds(new Vector3((float)originEast + 0.5f * size, 200f, (float)originNorth + 0.5f * size), new Vector3(size + 100f, 1000f, size + 100f)),
                 Blocks = new Block[_blocksPerSide * _blocksPerSide],
-                Far = Lists(_tall),
                 Trees = prepared.Trees.Length,
             };
             foreach (StandTree t in prepared.Trees)
@@ -254,10 +349,27 @@ namespace EarthGame.Client
                 int g = t.Tall * StandPreparation.Variants + t.Variant;
                 float across = t.CrownM / _widths[g];
                 Block block = BlockAt(tile, originEast, originNorth, t.East, t.North);
-                if (block.Near == null) block.Near = new List<Matrix4x4>[_near.Length];
+                if (block.Near == null)
+                {
+                    block.Near = new List<Matrix4x4>[_near.Length];
+                    block.Far = new List<Matrix4x4>[_tall];
+                    block.FarHalf = new List<Matrix4x4>[_tall];
+                    block.FarQuarter = new List<Matrix4x4>[_tall];
+                }
+                int nth = block.Trees++;
                 (block.Near[g] ?? (block.Near[g] = new List<Matrix4x4>())).Add(Trs(t.East, t.Up - SinkM, t.North, t.YawDeg, across, t.HeightM, across));
-                tile.Far[t.Tall].Add(Trs(t.East, t.Up - SinkM, t.North, t.YawDeg, t.CrownM, t.HeightM, t.CrownM));
+                (block.Far[t.Tall] ?? (block.Far[t.Tall] = new List<Matrix4x4>())).Add(Trs(t.East, t.Up - SinkM, t.North, t.YawDeg, t.CrownM, t.HeightM, t.CrownM));
+                // One tree in two, and one in four, stand for the rest when a block is far off, their crowns spread by the
+                // root of how many each stands for, so the cover of the canopy holds.
+                if (nth % 2 == 0)
+                    (block.FarHalf[t.Tall] ?? (block.FarHalf[t.Tall] = new List<Matrix4x4>())).Add(Trs(t.East, t.Up - SinkM, t.North, t.YawDeg, t.CrownM * 1.4142f, t.HeightM, t.CrownM * 1.4142f));
+                if (nth % 4 == 0)
+                    (block.FarQuarter[t.Tall] ?? (block.FarQuarter[t.Tall] = new List<Matrix4x4>())).Add(Trs(t.East, t.Up - SinkM, t.North, t.YawDeg, t.CrownM * 2f, t.HeightM, t.CrownM * 2f));
+                // A crown's whole width either side of its trunk: a drawn crown is as wide as the world spaced it by,
+                // but it need not be centred on the trunk.
+                block.Grow(new Vector3(t.East - t.CrownM, t.Up - SinkM, t.North - t.CrownM), new Vector3(t.East + t.CrownM, t.Up + t.HeightM, t.North + t.CrownM));
             }
+            foreach (Block block in tile.Blocks) block?.Settle();
             foreach (LooseInstance s in prepared.Sticks)
             {
                 Block block = BlockAt(tile, originEast, originNorth, s.East, s.North);
@@ -307,14 +419,27 @@ namespace EarthGame.Client
                 if (from[i] != null) into[i].AddRange(from[i]);
         }
 
+        /// <summary>
+        /// Hands a list to the renderer in batches. No light probe or reflection probe is looked up for each instance:
+        /// the shader lights from the sky's own harmonics, and a lookup for every one of tens of thousands of trees a
+        /// frame is work that shows nothing.
+        /// </summary>
         private static void Submit(Material material, Mesh mesh, List<Matrix4x4> matrices, Bounds bounds, ShadowCastingMode shadows)
         {
             if (matrices == null || matrices.Count == 0) return;
-            RenderParams parameters = new RenderParams(material) { worldBounds = bounds, shadowCastingMode = shadows, receiveShadows = true };
+            RenderParams parameters = new RenderParams(material)
+            {
+                worldBounds = bounds,
+                shadowCastingMode = shadows,
+                receiveShadows = true,
+                lightProbeUsage = LightProbeUsage.Off,
+                reflectionProbeUsage = ReflectionProbeUsage.Off,
+            };
             for (int start = 0; start < matrices.Count; start += Chunk)
                 Graphics.RenderMeshInstanced(parameters, mesh, 0, matrices, Mathf.Min(Chunk, matrices.Count - start), start);
         }
 
+        /// <summary>A band's material: a copy of the project's stand material, which is an asset so that a build keeps the shader's instanced variants.</summary>
         private static Material Band(Material template, string name, float band, float splitM)
         {
             Material material = new Material(template) { name = name, enableInstancing = true };

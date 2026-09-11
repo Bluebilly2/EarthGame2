@@ -3,7 +3,9 @@
 // decides which band an instance belongs to by the distance of its origin from _Eye, the eye the client sets each
 // frame, against _SplitM, so every tree is drawn once, near or far, without the client moving it from one list to the
 // other as the founder walks, and every pass, the shadow caster's too, agrees which band that is. An instance outside
-// its material's band is folded to a point, which draws nothing.
+// its material's band is folded to a point, which draws nothing. Every pass assumes uniform scaling and takes no light
+// probe, lightmap or LOD fade, so the renderer makes and uploads only each instance's own matrix and not its inverse:
+// a crown's squash bends its normals a little, which a far tree cannot show and a near tree barely does (2026-09-11).
 Shader "EarthGame/StandLit"
 {
     Properties
@@ -45,6 +47,7 @@ Shader "EarthGame/StandLit"
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_instancing
+            #pragma instancing_options assumeuniformscaling nolightprobe nolightmap nolodfade
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
             #pragma multi_compile_fog
@@ -104,6 +107,7 @@ Shader "EarthGame/StandLit"
             #pragma vertex VertShadow
             #pragma fragment FragShadow
             #pragma multi_compile_instancing
+            #pragma instancing_options assumeuniformscaling nolightprobe nolightmap nolodfade
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
 
@@ -161,6 +165,7 @@ Shader "EarthGame/StandLit"
             #pragma vertex VertDepth
             #pragma fragment FragDepth
             #pragma multi_compile_instancing
+            #pragma instancing_options assumeuniformscaling nolightprobe nolightmap nolodfade
 
             struct Attributes
             {
@@ -198,6 +203,7 @@ Shader "EarthGame/StandLit"
             #pragma vertex VertNormals
             #pragma fragment FragNormals
             #pragma multi_compile_instancing
+            #pragma instancing_options assumeuniformscaling nolightprobe nolightmap nolodfade
 
             struct Attributes
             {

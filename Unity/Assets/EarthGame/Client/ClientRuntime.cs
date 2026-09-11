@@ -65,6 +65,7 @@ namespace EarthGame.Client
         private Material _seaMaterial;
         private EntityViews _entityViews;
         private StandViews _stand;
+        private Light _sun;
         private WorldClock _clock;
         private SolarClock _solar;
         private PlayerController _player;
@@ -202,7 +203,7 @@ namespace EarthGame.Client
                     _client.RequestTilesAround(_player.State.East, _player.State.North);
                 }
                 DrainPreparations();
-                if (_stand != null && _camera != null) _stand.Draw(_camera.transform.position);
+                if (_stand != null && _camera != null) _stand.Draw(_camera, _sun);
                 CheckInteractive();
                 DrawMirrors(nowMs);
                 UpdateHud(dt);
@@ -662,17 +663,19 @@ namespace EarthGame.Client
             }
 
             // -eg-hide a,b,c: objects by name switched off after the view is built, to bisect what is drawn. "trees"
-            // and "loose" switch off what stands and what lies on the ground, which is drawn without objects (M1.6a).
+            // ("near" and "far" for one band of them) and "loose" switch off what stands and what lies on the ground,
+            // which is drawn without objects (M1.6a).
             string hide = LaunchArgs.Get("hide", null);
             if (!string.IsNullOrEmpty(hide))
             {
                 foreach (string listed in hide.Split(','))
                 {
                     string name = listed.Trim();
-                    if (_stand != null && (name == "trees" || name == "loose"))
+                    if (_stand != null && (name == "trees" || name == "near" || name == "far" || name == "loose"))
                     {
-                        if (name == "trees") _stand.DrawTrees = false;
-                        else _stand.DrawLoose = false;
+                        if (name == "trees" || name == "near") _stand.DrawNear = false;
+                        if (name == "trees" || name == "far") _stand.DrawFar = false;
+                        if (name == "loose") _stand.DrawLoose = false;
                         Debug.Log("[client] -eg-hide " + name + ": hidden");
                         continue;
                     }
@@ -700,7 +703,7 @@ namespace EarthGame.Client
             foreach (Light l in FindObjectsByType<Light>(FindObjectsSortMode.None))
                 l.enabled = false;
             GameObject sunObject = new GameObject("Sun");
-            Light sun = sunObject.AddComponent<Light>();
+            Light sun = _sun = sunObject.AddComponent<Light>();
             SunAndSky sky = gameObject.AddComponent<SunAndSky>();
             sky.Attach(_solar, sun, skyMaterial);
 
@@ -743,7 +746,7 @@ namespace EarthGame.Client
                     .With("terrain", _bakedRegion != null);
                 Recorder recorder = gameObject.AddComponent<Recorder>();
                 recorder.Begin(_recordDir, _camera, _player, script, _hud, () => _client.LastServerTick, header, StandSettled,
-                               () => _stand != null ? _stand.TreeCount : -1);
+                               () => _stand != null ? _stand.TreeCount : -1, () => _stand != null ? _stand.LastDrawMs : 0.0);
                 TileBuilt += recorder.RecordBuild;
             }
         }

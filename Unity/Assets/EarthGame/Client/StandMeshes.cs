@@ -63,23 +63,83 @@ namespace EarthGame.Client
         }
 
         /// <summary>
-        /// A far tree of a tall plant: a plain trunk under one lumpy clump, unit height and a crown of unit width, so the
-        /// client scales it across by the crown and up by the height. A ridge a few hundred metres off needs the right
-        /// lumpy edge against the sky, not its limbs.
+        /// A far tree of a tall plant: a three-sided trunk under one lumpy clump, unit height and a crown of unit width, so
+        /// the client scales it across by the crown and up by the height. A ridge a few hundred metres off needs the right
+        /// lumpy edge against the sky, not its limbs. Its corners are shared between faces and shaded smooth: far off, a
+        /// facet is smaller than a pixel, and a corner shaded once rather than once for every face it belongs to is most
+        /// of what tens of thousands of far trees cost (2026-09-11, when the far band took 9.5 ms of a frame beside
+        /// Windermere with a corner to every face).
         /// </summary>
         public static Mesh FarTree(int tall)
         {
             if (FarTrees.TryGetValue(tall, out Mesh mesh)) return mesh;
             TreeForm form = StandForms.ForTall(tall);
-            MeshData data = new MeshData();
-            Vector3[] centres = { Vector3.zero, new Vector3(0f, 0.62f, 0f) };
-            Vector3[] dirs = { Vector3.up, Vector3.up };
-            float[] radii = { 0.035f, 0.02f };
-            AddTube(data, centres, dirs, radii, 0f, tall, ToColor(form.BarkLow), ToColor(form.BarkHigh), 0.5f * form.StockingShare);
-            AddClump(data, new Vector3(0f, 0.72f, 0f), 0.5f, new Vector3(1f, 0.56f * form.CrownSquash, 1f), ToColor(form.Foliage), FaceJitter, tall * 31 + 5);
-            mesh = data.ToMesh("Far " + form.Name);
+            List<Vector3> verts = new List<Vector3>();
+            List<Vector3> normals = new List<Vector3>();
+            List<Color> colours = new List<Color>();
+            List<int> tris = new List<int>();
+
+            // The trunk: three sides from the ground to the crown, the rough bark at its foot and the species' own above.
+            const int sides = 3;
+            for (int ring = 0; ring < 2; ring++)
+            {
+                float y = ring == 0 ? 0f : 0.62f, r = ring == 0 ? 0.035f : 0.02f;
+                Color bark = ToColor(ring == 0 ? form.BarkLow : form.BarkHigh);
+                for (int k = 0; k < sides; k++)
+                {
+                    float a = k * (Mathf.PI * 2f / sides);
+                    Vector3 outward = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                    verts.Add(new Vector3(0f, y, 0f) + outward * r);
+                    normals.Add(outward);
+                    colours.Add(bark);
+                }
+            }
+            for (int k = 0; k < sides; k++)
+            {
+                int k2 = (k + 1) % sides;
+                SharedFace(verts, tris, k, sides + k, sides + k2, new Vector3(0f, 0.31f, 0f));
+                SharedFace(verts, tris, k, sides + k2, k2, new Vector3(0f, 0.31f, 0f));
+            }
+
+            // The clump: an icosahedron with every corner pushed in or out, squashed to the form's crown.
+            Vector3 centre = new Vector3(0f, 0.72f, 0f);
+            Vector3 squash = new Vector3(1f, 0.56f * form.CrownSquash, 1f);
+            Color canopy = ToColor(form.Foliage);
+            int seed = tall * 31 + 5, first = verts.Count;
+            for (int i = 0; i < IcoVerts.Length; i++)
+            {
+                Vector3 d = IcoVerts[i];
+                Vector3 v = d * (0.5f * (ClumpPushMin + ClumpPushSpan * Hash01(seed, i)));
+                verts.Add(centre + new Vector3(v.x * squash.x, v.y * squash.y, v.z * squash.z));
+                normals.Add(new Vector3(d.x / squash.x, d.y / squash.y, d.z / squash.z).normalized);
+                colours.Add(Scale(canopy, Jitter(seed, i, FaceJitter)));
+            }
+            for (int f = 0; f < IcoFaces.Length; f += 3)
+                SharedFace(verts, tris, first + IcoFaces[f], first + IcoFaces[f + 1], first + IcoFaces[f + 2], centre);
+
+            mesh = new Mesh { name = "Far " + form.Name };
+            mesh.SetVertices(verts);
+            mesh.SetNormals(normals);
+            mesh.SetColors(colours);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateBounds();
             FarTrees[tall] = mesh;
             return mesh;
+        }
+
+        /// <summary>A face over shared corners, wound away from a point inside the shape.</summary>
+        private static void SharedFace(List<Vector3> verts, List<int> tris, int a, int b, int c, Vector3 inside)
+        {
+            Vector3 n = Vector3.Cross(verts[b] - verts[a], verts[c] - verts[a]);
+            if (Vector3.Dot(n, (verts[a] + verts[b] + verts[c]) / 3f - inside) < 0f)
+            {
+                int swap = b;
+                b = c;
+                c = swap;
+            }
+            tris.Add(a);
+            tris.Add(b);
+            tris.Add(c);
         }
 
         /// <summary>A fallen stick, lying along x on the ground: a slender five-sided rod with a kink or two, about a metre long.</summary>

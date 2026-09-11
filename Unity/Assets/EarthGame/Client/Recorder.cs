@@ -57,11 +57,13 @@ namespace EarthGame.Client
 
         private Func<bool> _ready;
         private Func<int> _trees;
+        private Func<double> _standCpu;
 
-        public void Begin(string dir, Camera camera, PlayerController player, ScriptedInputSource script, HudController hud, Func<long> serverTick, JsonObject header, Func<bool> ready = null, Func<int> trees = null)
+        public void Begin(string dir, Camera camera, PlayerController player, ScriptedInputSource script, HudController hud, Func<long> serverTick, JsonObject header, Func<bool> ready = null, Func<int> trees = null, Func<double> standCpu = null)
         {
             _ready = ready;
             _trees = trees;
+            _standCpu = standCpu;
             _dir = dir;
             _camera = camera;
             _player = player;
@@ -121,7 +123,8 @@ namespace EarthGame.Client
         /// What a frame costs, measured without a window (M1.6a): the founder turns a full circle over the given seconds,
         /// and every frame the world is rendered into a 1080p target and the GPU is waited for with a one-pixel read, so
         /// a frame's time is the CPU's work and then the GPU's, never overlapped. One <c>timing</c> record gives the
-        /// median, the 95th percentile and the worst; runs with and without <c>-eg-hide trees</c> and
+        /// median, the 95th percentile and the worst, and the median of what choosing and handing over the stand cost
+        /// the main thread; runs with and without <c>-eg-hide trees</c> (or <c>near</c>, <c>far</c>) and
         /// <c>-eg-hide loose</c> part what those cost from the rest. ARCHITECTURE §8's protocol asks for a visible
         /// window, which no automated run opens; this is the measure that can be taken without one.
         /// </summary>
@@ -133,12 +136,14 @@ namespace EarthGame.Client
             Texture2D pixel = new Texture2D(1, 1, TextureFormat.RGB24, false);
             RenderPipeline.StandardRequest request = new RenderPipeline.StandardRequest { destination = rt };
             List<double> times = new List<double>();
+            List<double> standCpu = new List<double>();
             float yaw = _script.YawTargetDeg;
             double from = T, last = T;
             while (T < from + seconds)
             {
                 _script.YawTargetDeg = yaw + (float)(360.0 * (T - from) / seconds);
                 yield return new WaitForEndOfFrame();
+                if (_standCpu != null) standCpu.Add(_standCpu());
                 RenderPipeline.SubmitRenderRequest(_camera, request);
                 RenderTexture.active = rt;
                 pixel.ReadPixels(new Rect(0, 0, 1, 1), 0, 0);
@@ -150,7 +155,9 @@ namespace EarthGame.Client
             // The first interval began before the circle did.
             if (times.Count > 1) times.RemoveAt(0);
             times.Sort();
+            standCpu.Sort();
             _log.Record(T, Tick, "timing", new JsonObject().With("seconds", seconds).With("frames", times.Count)
+                .With("stand_cpu_ms", Rank(standCpu, 0.5))
                 .With("width", width).With("height", height)
                 .With("median_ms", Rank(times, 0.5)).With("p95_ms", Rank(times, 0.95)).With("worst_ms", times.Count > 0 ? times[times.Count - 1] : 0.0)
                 .With("hidden", LaunchArgs.Get("hide", "")).With("trees", _trees != null ? _trees() : -1));
