@@ -70,6 +70,19 @@ namespace EarthGame.ClientCore
             }
         }
 
+        /// <summary>
+        /// A swimming stroke (M1.5e), one of <see cref="Variants"/>: water pulled and let go, a wash that swells over its first
+        /// eighth of a second and falls away over half a second, duller than a wading step's splash and with no knock in it.
+        /// </summary>
+        public static float[] Stroke(int variant)
+        {
+            ulong v = (ulong)(((variant % Variants) + Variants) % Variants) * 17UL;
+            float[] data = Percussive(0.55, 0.0, 0.0, 5.0, 0.45, 2700UL + v);
+            int swell = Math.Min(data.Length, (int)(0.12 * SampleRate));
+            for (int i = 0; i < swell; i++) data[i] *= (float)i / swell;
+            return data;
+        }
+
         /// <summary>A stone landing: short, low, and over (v1).</summary>
         public static float[] StoneLanding() => Percussive(0.22, 140.0, 0.35, 28.0, 0.30, 1201UL);
 

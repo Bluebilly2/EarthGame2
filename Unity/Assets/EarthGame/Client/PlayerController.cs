@@ -14,7 +14,9 @@ namespace EarthGame.Client
     /// tick rate. A Correction from the server is adopted at once and counted; on a legal walk every one is a
     /// false positive the N2 budget charges. The eye's height is the engine's (<see cref="MoverConfig.EyeHeight"/>)
     /// since M1.5a, because the server measures a verb's reach from it. Since M1.5c the stride (<see cref="Stride"/>)
-    /// is laid on top of the smoothed eye, a footfall's dip and a sway across, unless <see cref="Still"/>.
+    /// is laid on top of the smoothed eye, a footfall's dip and a sway across, unless <see cref="Still"/>; in the water
+    /// since M1.5e, a stroke's. A development game's founder can fly (M1.5e, <see cref="Flight"/>): the fly key takes the
+    /// body out of the mover's hands, and gives it back.
     /// </summary>
     public sealed class PlayerController : MonoBehaviour
     {
@@ -32,6 +34,8 @@ namespace EarthGame.Client
         private Camera _camera;
         private Vector2 _move;
         private bool _jumpQueued;
+        private bool _flyQueued;
+        private bool _rise;
         private bool _sprint;
         private bool _crouch;
         private float _sinceSend;
@@ -51,7 +55,16 @@ namespace EarthGame.Client
         /// </summary>
         public bool Still;
 
-        /// <summary>A foot fell (M1.5c), from the ground the body covered; the client sounds it.</summary>
+        /// <summary>
+        /// A development game's (M1.5e, set by <c>-eg-dev</c>): the fly key takes the founder off the ground. The game's SOLO
+        /// server allows the flight; any other corrects it back.
+        /// </summary>
+        public bool FlightAllowed;
+
+        /// <summary>Whether the founder is flying (M1.5e).</summary>
+        public bool Flying { get; private set; }
+
+        /// <summary>A foot fell (M1.5c) on the ground the body covered, or a stroke was swum (M1.5e); the client sounds it.</summary>
         public event Action<Footfall> Stepped;
 
         /// <summary>
@@ -65,7 +78,7 @@ namespace EarthGame.Client
         /// <summary>
         /// The ground as the client holds it, for the one rule the mover does not have: a corrected body that the
         /// server holds below this ground (its tolerance allows a metre) is lifted onto it, or PhysX keeps it
-        /// under the terrain forever.
+        /// under the terrain forever. A flying body is kept over it too (M1.5e).
         /// </summary>
         public IHeightSource Ground;
 
@@ -90,6 +103,9 @@ namespace EarthGame.Client
 
         /// <summary>Where the founder's eye is as the server measures a verb's reach from it: the body's feet raised by the stance's eye height, unsmoothed.</summary>
         public Double3 Eye => new Double3(State.East, State.Up + (_config ?? MoverConfig.Default).EyeHeight(State.Stance), State.North);
+
+        /// <summary>The water's surface where the founder is, as their body knows it; NaN where there is none (M1.5e: the swim scenario holds the eye against it).</summary>
+        public double WaterSurface => _collision != null ? _collision.WaterSurfaceAt(State.East, State.North) : double.NaN;
 
         /// <summary>
         /// Whether the controls hold the view: always for a script or a windowless run, and for a person while the mouse is
@@ -179,6 +195,8 @@ namespace EarthGame.Client
             }
             _move = f.Move;
             if (f.Jump) _jumpQueued = true;
+            if (f.Fly) _flyQueued = true;
+            _rise = f.Rise;
             _sprint = f.Sprint;
             _crouch = f.Crouch;
             Working = f.Work;
@@ -196,6 +214,7 @@ namespace EarthGame.Client
             _seen.HandStep += f.HandStep;
             _seen.Menu |= f.Menu;
             _seen.Screenshot |= f.Screenshot;
+            _seen.Fly |= f.Fly;
         }
 
         /// <summary>
@@ -223,8 +242,20 @@ namespace EarthGame.Client
             input.Sprint = _sprint;
             input.Crouch = _crouch;
             _jumpQueued = false;
+            if (_flyQueued)
+            {
+                _flyQueued = false;
+                if (FlightAllowed)
+                {
+                    Flying = !Flying;
+                    // Come down, the founder falls from where they are.
+                    if (!Flying) State.VelEast = State.VelUp = State.VelNorth = 0.0;
+                    Debug.Log("[player] " + (Flying ? "flying" : "flying no more"));
+                }
+            }
 
-            State = Mover.Step(State, input, dt, _collision, _config);
+            State = Flying ? Flight.Step(State, _move.x, _move.y, _rise, _crouch, _sprint, YawDeg, PitchDeg, dt, Ground)
+                           : Mover.Step(State, input, dt, _collision, _config);
             if (_region != null)
             {
                 double edge = _region.HalfExtentM - EdgeMarginM;
@@ -246,9 +277,9 @@ namespace EarthGame.Client
         private void LateUpdate()
         {
             if (_camera == null) return;
-            // The stride walks the ground the body covered in this frame's game time, which is what steps the body; a
-            // frozen body covers none.
-            if (_stride.Advance(Time.deltaTime, Frozen ? 0.0 : State.HorizontalSpeed, Frozen || State.Grounded, out Footfall footfall))
+            // The stride walks the ground the body covered in this frame's game time, or swims the water, which is what
+            // steps the body; a frozen body covers none.
+            if (_stride.Advance(Time.deltaTime, Frozen ? 0.0 : State.HorizontalSpeed, Frozen || State.Grounded, !Frozen && State.Swimming, out Footfall footfall))
                 Stepped?.Invoke(footfall);
             float eye = (float)(_config ?? MoverConfig.Default).EyeHeight(State.Stance);
             float targetY = (float)State.Up + eye;
@@ -262,7 +293,8 @@ namespace EarthGame.Client
                 // Smoothed vertically only: steps and landings ease, but the feet never lag the hands sideways.
                 float k = 1f - Mathf.Exp(-EyeSmoothingPerSecond * Time.unscaledDeltaTime);
                 _eyeY = Mathf.Lerp(_eyeY, targetY, k);
-                if (Mathf.Abs(_eyeY - targetY) > 1.0f) _eyeY = targetY; // a correction or a fall: no long slide
+                // A correction or a fall: no long slide. Nor in flight, which the smoothing would trail by more than that.
+                if (Flying || Mathf.Abs(_eyeY - targetY) > 1.0f) _eyeY = targetY;
             }
             Vector3 at = new Vector3((float)State.East, _eyeY, (float)State.North);
             if (!Still)

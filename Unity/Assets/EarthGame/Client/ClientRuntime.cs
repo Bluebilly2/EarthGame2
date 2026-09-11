@@ -101,6 +101,9 @@ namespace EarthGame.Client
         /// <summary>How many feet have fallen since the view was built (M1.5c), for a run log.</summary>
         public int Footfalls { get; private set; }
 
+        /// <summary>How many strokes have been swum since the view was built (M1.5e).</summary>
+        public int Strokes { get; private set; }
+
         /// <summary>The worst frame of streaming work on the main thread since the client started, milliseconds.</summary>
         public double WorstStreamingMs => _budget != null ? _budget.WorstFrameMs : 0.0;
 
@@ -780,6 +783,8 @@ namespace EarthGame.Client
             // -eg-still: the camera without the stride's dip and sway (M1.5c), for the owner to play against the one he
             // found good in ruling 18.
             _player.Still = LaunchArgs.Has("still");
+            // -eg-dev: a development game, whose founder can fly (M1.5e); the bootstrap runs its SOLO server to allow it.
+            _player.FlightAllowed = LaunchArgs.Has("dev");
             _player.Stepped += OnStepped;
             _sounds = new Sounds(_camera.transform);
 
@@ -829,9 +834,18 @@ namespace EarthGame.Client
 
         private void OnLanded(Definition definition, Vector3 at, double joules) => _sounds?.Landing(definition, at, joules);
 
-        /// <summary>A foot fell (M1.5c): it sounds of what the server says is underfoot, and is counted for a run log.</summary>
+        /// <summary>
+        /// A foot fell (M1.5c): it sounds of what the server says is underfoot, and is counted for a run log. A stroke swum
+        /// (M1.5e) sounds of the water, and is counted apart.
+        /// </summary>
         private void OnStepped(Footfall footfall)
         {
+            if (footfall.Stroke)
+            {
+                _sounds?.Stroke(footfall);
+                Strokes++;
+                return;
+            }
             FootingSound footing = Underfoot();
             _sounds?.Step(footfall, footing);
             Footfalls++;
@@ -844,7 +858,7 @@ namespace EarthGame.Client
             if (_client?.Tiles == null || _client.Grid == null || _player == null) return FootingSound.Soil;
             MoverState s = _player.State;
             TileId id = _client.Grid.ForPosition(s.East, s.North);
-            return Footing.At(_client.Tiles.Holding(TileLayer.GroundCover, id), _client.Tiles.Holding(TileLayer.WaterDepth, id), s.East, s.North, s.Wading);
+            return Footing.At(_client.Tiles.Holding(TileLayer.GroundCover, id), _client.Tiles.Holding(TileLayer.WaterDepth, id), s.East, s.North, s.Wading || s.Swimming);
         }
 
         /// <summary>The grounds the feet have fallen on, as <c>name:count</c> in the order the sounds are listed, for a run log (M1.5c).</summary>
@@ -867,7 +881,8 @@ namespace EarthGame.Client
             _hud.SetClock(_solar.ClockText + "   day " + (_solar.DaysElapsed + 1));
             MoverState s = _player.State;
             _hud.SetDiagnostic("E " + F(s.East) + "  N " + F(s.North) + "  up " + F(s.Up) + "   " + s.HorizontalSpeed.ToString("0.0", CultureInfo.InvariantCulture) + " m/s"
-                               + (s.Grounded ? "  ground" : "  air") + (s.Wading ? "  wading" : "")
+                               + (s.Grounded ? "  ground" : "  air") + (s.Wading ? "  wading" : "") + (s.Swimming ? "  swimming" : "")
+                               + (_player.Flying ? "  flying" : "")
                                + "   rtt " + _client.LastRttMs + " ms   corrections " + _player.Corrections
                                + "   tiles " + _tileTerrains.Count + (Interactive ? "" : " (loading)") + "   others " + _client.Mirrors.Count
                                + "   things " + (_entityViews != null ? _entityViews.Count : 0)

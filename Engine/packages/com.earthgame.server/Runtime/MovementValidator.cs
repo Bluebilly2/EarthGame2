@@ -29,6 +29,13 @@ namespace EarthGame.Server
         /// corrected a legal sprint thirty-one times in forty-five seconds at 100 ms ± 20 ms before this rule.
         /// </summary>
         public double MoveCreditCapSeconds = 5.0;
+
+        /// <summary>
+        /// A development server's: a founder may fly (M1.5e, the owner's "flight i can use in dev"), so nothing but the
+        /// region's edge and finite numbers is held. A SOLO game started with <c>-eg-dev</c> runs its server so, and a host
+        /// with <c>+server.dev 1</c>; every other server corrects a flying founder back.
+        /// </summary>
+        public bool AllowFlight;
     }
 
     /// <summary>
@@ -46,6 +53,7 @@ namespace EarthGame.Server
             if (!reported.IsFinite) return "non-finite numbers in the report";
             if (Math.Abs(reported.East) > halfExtentM || Math.Abs(reported.North) > halfExtentM)
                 return "outside the region (" + F(reported.East) + ", " + F(reported.North) + " m from the centre; the edge is " + F(halfExtentM) + ")";
+            if (rules.AllowFlight) return null;
 
             if (hasLast)
             {

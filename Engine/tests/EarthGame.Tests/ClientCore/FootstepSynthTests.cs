@@ -13,8 +13,29 @@ namespace EarthGame.Tests.ClientCore
             foreach (FootingSound footing in (FootingSound[])Enum.GetValues(typeof(FootingSound)))
                 for (int v = 0; v < FootstepSynth.Variants; v++)
                     yield return FootstepSynth.Step(footing, v);
+            for (int v = 0; v < FootstepSynth.Variants; v++)
+                yield return FootstepSynth.Stroke(v);
             yield return FootstepSynth.StoneLanding();
             yield return FootstepSynth.WoodLanding();
+        }
+
+        private static double Mean(float[] s, int from, int to)
+        {
+            double sum = 0.0;
+            for (int i = from; i < to; i++) sum += Math.Abs(s[i]);
+            return sum / (to - from);
+        }
+
+        [Test]
+        public void AStrokeSwellsWhereAStepStrikes()
+        {
+            // M1.5e: water pulled builds before it lets go; a foot comes down at once.
+            float[] stroke = FootstepSynth.Stroke(0), step = FootstepSynth.Step(FootingSound.Water, 0);
+            int hundredth = FootstepSynth.SampleRate / 100;
+            Assert.That(Mean(stroke, 0, hundredth), Is.LessThan(0.25 * Mean(stroke, 10 * hundredth, 11 * hundredth)), "a stroke's first hundredth of a second is quiet");
+            Assert.That(Mean(step, 0, hundredth), Is.GreaterThan(Mean(step, 10 * hundredth, 11 * hundredth)), "a step's is its loudest");
+            Assert.That(stroke.Length, Is.GreaterThan(step.Length), "and a stroke lasts longer than a wading step's splash");
+            Assert.That(FootstepSynth.Stroke(1), Is.Not.EqualTo(stroke), "the strokes differ");
         }
 
         /// <summary>How much of a sound is in its top end: the mean step from sample to sample over the mean sample, which a dull thud keeps small.</summary>
@@ -51,7 +72,8 @@ namespace EarthGame.Tests.ClientCore
                 Assert.That(peak, Is.GreaterThan(0.05f).And.LessThanOrEqualTo(1f));
                 Assert.That(s[s.Length - 1], Is.EqualTo(0f), "faded to nothing");
             }
-            Assert.That(sounds, Is.EqualTo(Enum.GetValues(typeof(FootingSound)).Length * FootstepSynth.Variants + 2));
+            Assert.That(sounds, Is.EqualTo((Enum.GetValues(typeof(FootingSound)).Length + 1) * FootstepSynth.Variants + 2),
+                "every ground's steps, the strokes and the two landings");
         }
 
         [Test]

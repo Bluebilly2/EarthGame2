@@ -9,11 +9,13 @@ namespace EarthGame.Engine
     /// whether what the client reports was possible. Nothing here reads a clock, a random number or a frame.
     ///
     /// <para>The rules, in the order they are applied: what is under the feet decides grounded, sliding or
-    /// airborne; water over the ground decides wading; on walkable ground the wish becomes a velocity at the
-    /// speed <see cref="Locomotion"/> gives for the slope in that direction, a jump adds its take-off speed;
-    /// in the air gravity acts and the wish only eases the horizontal velocity; the motion is then swept through
-    /// the world, stepping onto low obstacles and sliding along everything else; finally grounded feet snap to
-    /// the ground beneath them or discover there is none.</para>
+    /// airborne; water over the ground decides wading, and water too deep to stand in swimming (M1.5e); on walkable
+    /// ground the wish becomes a velocity at the speed <see cref="Locomotion"/> gives for the slope in that direction,
+    /// a jump adds its take-off speed; in the water the wish is swum at the stroke's pace and the water turns the body
+    /// towards its float line; in the air gravity acts and the wish only eases the horizontal velocity; the motion is
+    /// then swept through the world, stepping onto low obstacles and sliding along everything else; finally grounded
+    /// feet snap to the ground beneath them or discover there is none, and a swimmer is held clear of taking the eye
+    /// under.</para>
     /// </summary>
     public static class Mover
     {
@@ -35,13 +37,13 @@ namespace EarthGame.Engine
             Double3 feet = s.Feet;
             Double3 vel = s.Velocity;
 
-            // 1. What is under the feet. Grounded feet look a step up and a snap down; airborne feet only count
-            //    ground they are resting on, and only while not rising (a jump must not be re-grounded on its
-            //    first centimetre).
+            // 1. What is under the feet. Grounded feet look a step up and a snap down, and so do a swimmer's, so that a
+            //    bottom rising to meet them is stood on; airborne feet only count ground they are resting on, and only
+            //    while not rising (a jump must not be re-grounded on its first centimetre).
             bool groundFound;
             double groundUp;
             Double3 groundNormal;
-            if (s.Grounded)
+            if (s.Grounded || s.Swimming)
                 groundFound = world.ProbeGround(feet, radius, cfg.StepHeight, cfg.GroundSnapDistance, out groundUp, out groundNormal);
             else if (vel.Y <= 0.0)
                 groundFound = world.ProbeGround(feet, radius, LandingTolerance, LandingTolerance, out groundUp, out groundNormal);
@@ -53,47 +55,76 @@ namespace EarthGame.Engine
             }
             bool walkable = groundFound && SlopeDeg(groundNormal) <= cfg.WalkableSlopeDeg;
 
-            // 2. Water over the ground.
+            // 2. Water over the ground: waded where the bottom is within a standing body's reach, swum where it is not
+            //    (M1.5e, CANON ruling 24). A body off the ground and under the surface swims unless there is ground between
+            //    its feet and the float line (the swimming depth under the surface) to come down on and stand in. It looks
+            //    down from the feet rather than from the surface, so that a bank beside a swimmer is not taken for ground
+            //    under them.
             double water = world.WaterSurfaceAt(feet.X, feet.Z);
-            double depth = double.IsNaN(water) ? 0.0 : water - (groundFound ? groundUp : feet.Y);
-            s.Wading = depth > cfg.WadeDepth;
+            bool wet = !double.IsNaN(water);
+            double floatLine = water - cfg.SwimDepth;
+            double depth = wet ? water - (groundFound ? groundUp : feet.Y) : 0.0;
+            bool swimming = wet && (groundFound
+                ? depth > cfg.SwimDepth
+                : feet.Y < water && !(feet.Y > floatLine && world.ProbeGround(feet, radius, 0.0, feet.Y - floatLine, out _, out _)));
+            s.Swimming = swimming;
+            s.Wading = !swimming && depth > cfg.WadeDepth;
             bool deep = depth > cfg.DeepDepth;
+            // Nor does a founder crouch where the crouched eye would be under the water: nothing is drawn from under it.
+            if (s.Stance == Stance.Crouching && (swimming || depth > cfg.CrouchEyeHeight - cfg.SwimEyeAboveWaterM))
+            {
+                s.Stance = Stance.Standing;
+                height = cfg.StandingHeight;
+            }
 
             // 3. The velocity this step.
-            Gait gait = input.Sprint && !s.Wading ? Gait.Running : Gait.Walking;
-            double wishLen = input.WishLength;
             bool jumped = false;
-            if (walkable)
+            if (swimming)
             {
-                feet = new Double3(feet.X, groundUp, feet.Z);
-                double slopeAlong = 0.0;
-                if (wishLen > Epsilon)
-                    slopeAlong = -(groundNormal.X * input.WishEast + groundNormal.Z * input.WishNorth) / (groundNormal.Y * wishLen);
-                double speed = Locomotion.SpeedMs(slopeAlong, gait, cfg.WorkCapacity);
-                if (s.Stance == Stance.Crouching) speed *= cfg.CrouchSpeedFactor;
-                if (s.Wading) speed *= deep ? cfg.DeepWadeSpeedFactor : cfg.WadeSpeedFactor;
-                vel = new Double3(input.WishEast * speed, 0.0, input.WishNorth * speed);
-                s.Grounded = true;
-                if (input.Jump && !deep)
-                {
-                    vel = new Double3(vel.X, Math.Sqrt(2.0 * cfg.Gravity * cfg.JumpHeight), vel.Z);
-                    s.Grounded = false;
-                    jumped = true;
-                }
+                // Swum at the breaststroke's pace, or the crawl's when pushed, with the water turning the body's own rise
+                // or fall towards the float line; there is no jumping out of the water.
+                s.Grounded = false;
+                double swimSpeed = Locomotion.SwimmingSpeedMs(input.Sprint, cfg.WorkCapacity);
+                double toward = (floatLine - feet.Y) * cfg.BuoyancyPerSecond;
+                double velUp = vel.Y + (toward - vel.Y) * Math.Min(1.0, cfg.WaterDragPerSecond * dt);
+                vel = new Double3(input.WishEast * swimSpeed, velUp, input.WishNorth * swimSpeed);
             }
             else
             {
-                s.Grounded = false;
-                double velUp = vel.Y - cfg.Gravity * dt;
-                if (velUp < -cfg.MaxFallSpeed) velUp = -cfg.MaxFallSpeed;
-                vel = new Double3(vel.X, velUp, vel.Z);
-                if (!groundFound)
+                Gait gait = input.Sprint && !s.Wading ? Gait.Running : Gait.Walking;
+                double wishLen = input.WishLength;
+                if (walkable)
                 {
-                    // In the air the wish only eases the horizontal velocity; on ground too steep to stand on there
-                    // is no control at all: that is a slide, and gravity decides it.
-                    double airSpeed = Locomotion.SpeedMs(0.0, gait, cfg.WorkCapacity);
-                    double k = Math.Min(1.0, cfg.AirControl * dt);
-                    vel = new Double3(vel.X + (input.WishEast * airSpeed - vel.X) * k, vel.Y, vel.Z + (input.WishNorth * airSpeed - vel.Z) * k);
+                    feet = new Double3(feet.X, groundUp, feet.Z);
+                    double slopeAlong = 0.0;
+                    if (wishLen > Epsilon)
+                        slopeAlong = -(groundNormal.X * input.WishEast + groundNormal.Z * input.WishNorth) / (groundNormal.Y * wishLen);
+                    double speed = Locomotion.SpeedMs(slopeAlong, gait, cfg.WorkCapacity);
+                    if (s.Stance == Stance.Crouching) speed *= cfg.CrouchSpeedFactor;
+                    if (s.Wading) speed *= deep ? cfg.DeepWadeSpeedFactor : cfg.WadeSpeedFactor;
+                    vel = new Double3(input.WishEast * speed, 0.0, input.WishNorth * speed);
+                    s.Grounded = true;
+                    if (input.Jump && !deep)
+                    {
+                        vel = new Double3(vel.X, Math.Sqrt(2.0 * cfg.Gravity * cfg.JumpHeight), vel.Z);
+                        s.Grounded = false;
+                        jumped = true;
+                    }
+                }
+                else
+                {
+                    s.Grounded = false;
+                    double velUp = vel.Y - cfg.Gravity * dt;
+                    if (velUp < -cfg.MaxFallSpeed) velUp = -cfg.MaxFallSpeed;
+                    vel = new Double3(vel.X, velUp, vel.Z);
+                    if (!groundFound)
+                    {
+                        // In the air the wish only eases the horizontal velocity; on ground too steep to stand on there
+                        // is no control at all: that is a slide, and gravity decides it.
+                        double airSpeed = Locomotion.SpeedMs(0.0, gait, cfg.WorkCapacity);
+                        double k = Math.Min(1.0, cfg.AirControl * dt);
+                        vel = new Double3(vel.X + (input.WishEast * airSpeed - vel.X) * k, vel.Y, vel.Z + (input.WishNorth * airSpeed - vel.Z) * k);
+                    }
                 }
             }
 
@@ -133,7 +164,8 @@ namespace EarthGame.Engine
             }
 
             // 5. Grounded feet follow the ground down a slope or over a small drop; otherwise they are falling.
-            //    Falling feet that reached the ground during the sweep land.
+            //    Falling feet that reached the ground during the sweep land. A swimmer lands on nothing, and however hard
+            //    they came down into the water it takes them before the eye goes under.
             if (s.Grounded)
             {
                 if (world.ProbeGround(feet, radius, cfg.StepHeight, cfg.GroundSnapDistance, out double below, out Double3 belowNormal)
@@ -142,7 +174,7 @@ namespace EarthGame.Engine
                 else
                     s.Grounded = false;
             }
-            else if (vel.Y <= 0.0 && !jumped)
+            else if (vel.Y <= 0.0 && !jumped && !swimming)
             {
                 if (world.ProbeGround(feet, radius, LandingTolerance, LandingTolerance, out double landing, out Double3 landingNormal)
                     && SlopeDeg(landingNormal) <= cfg.WalkableSlopeDeg)
@@ -150,6 +182,18 @@ namespace EarthGame.Engine
                     feet = new Double3(feet.X, landing, feet.Z);
                     vel = new Double3(vel.X, 0.0, vel.Z);
                     s.Grounded = true;
+                }
+            }
+            if (swimming)
+            {
+                // Nor do a swimmer's feet end a step under a bottom rising beneath them: they are left on it, and the next
+                // step stands them there.
+                double lowest = floatLine - cfg.SwimSinkM;
+                if (world.ProbeGround(feet, radius, cfg.StepHeight, 0.0, out double bottom, out _) && bottom > lowest) lowest = bottom;
+                if (feet.Y < lowest)
+                {
+                    feet = new Double3(feet.X, lowest, feet.Z);
+                    if (vel.Y < 0.0) vel = new Double3(vel.X, 0.0, vel.Z);
                 }
             }
 

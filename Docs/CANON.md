@@ -140,3 +140,10 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
 23. *Not a ruling; removed.* It was recorded on 2026-09-10 from a question the owner asked about the frames ("will
     it be like that for long?"), and removed the same day, because a question is not a decision. That the
     palette's judgement waits until things stand on the ground is noted in the M1.4d contract.
+
+### Rulings of 2026-09-11
+
+24. **The founder swims.** Told that a founder in water over their head walked its bed, and that whether a founder
+    floats, swims or is held back was his to decide (DEBTS, "water over the head"): "swimming needs implementing, and
+    when we have a player model and character, animation too." A founder swims in water too deep to stand in; when
+    the founder has a body that is drawn, the swimming is animated.

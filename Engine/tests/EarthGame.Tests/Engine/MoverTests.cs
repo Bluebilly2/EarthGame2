@@ -206,6 +206,87 @@ namespace EarthGame.Tests.Engine
             Assert.That(Run(MoverState.AtRest(0.0, -0.6, 0.0), MoverInput.None, dryHollow, 5).Wading, Is.False, "the sea rule is not asked");
         }
 
+        /// <summary>Water too deep to stand in is swum, with the eye above the surface, at the strokes' paces, and no jump out of it (M1.5e, CANON ruling 24).</summary>
+        [Test]
+        public void DeepWaterIsSwumWithTheEyeAboveTheSurface()
+        {
+            MoverConfig cfg = MoverConfig.Default;
+            IWorldCollision sea = World((e, n) => -3.0, sea: true);
+            MoverState s = Run(MoverState.AtRest(0.0, -3.0, 0.0), MoverInput.None, sea, 300);
+            Assert.That(s.Swimming, Is.True, "three metres of sea is over the head");
+            Assert.That(s.Grounded, Is.False);
+            Assert.That(s.Wading, Is.False, "swimming is not wading");
+            Assert.That(s.Up, Is.EqualTo(-cfg.SwimDepth).Within(0.01), "floating at the float line");
+            Assert.That(s.Up + cfg.EyeHeight(Stance.Standing), Is.EqualTo(cfg.SwimEyeAboveWaterM).Within(0.01), "the eye a hand's breadth above the water");
+            Assert.That(Run(s, MoverInput.Walk(1.0, 0.0), sea, 50).HorizontalSpeed, Is.EqualTo(Locomotion.SwimmingSpeedMs(false, 1.0)).Within(1e-9), "the breaststroke");
+            Assert.That(Run(s, MoverInput.Walk(1.0, 0.0, sprint: true), sea, 50).HorizontalSpeed, Is.EqualTo(Locomotion.SwimmingSpeedMs(true, 1.0)).Within(1e-9), "the crawl");
+            MoverInput jump = MoverInput.None;
+            jump.Jump = true;
+            MoverInput crouch = MoverInput.None;
+            crouch.Crouch = true;
+            Assert.That(Run(s, jump, sea, 25).Up, Is.EqualTo(s.Up).Within(0.01), "no jumping out of deep water");
+            Assert.That(Run(s, crouch, sea, 5).Stance, Is.EqualTo(Stance.Standing), "no crouching in it");
+        }
+
+        /// <summary>A swimmer reaching a shore stands where the bottom comes within reach and wades out, and never goes below the bed (M1.5e).</summary>
+        [Test]
+        public void ASwimmerStandsWhereTheBottomComesBackAndWadesOut()
+        {
+            // The bed rises from three metres under the sea in the west to dry land past east 37.5.
+            Func<double, double, double> bed = (e, n) => -3.0 + Math.Max(0.0, e) * 0.08;
+            IWorldCollision shore = World(bed, sea: true);
+            MoverState s = Run(MoverState.AtRest(0.0, -3.0, 0.0), MoverInput.None, shore, 300);
+            Assert.That(s.Swimming, Is.True);
+            bool stood = false, waded = false;
+            for (int i = 0; i < 6000 && s.East < 40.0; i++)
+            {
+                s = Mover.Step(s, MoverInput.Walk(1.0, 0.0), Dt, shore);
+                Assert.That(s.IsFinite, Is.True);
+                Assert.That(s.Up, Is.GreaterThanOrEqualTo(bed(s.East, 0.0) - 1e-6), "never below the bed, at east " + s.East);
+                if (s.Grounded && !s.Swimming) stood = true;
+                if (s.Wading) waded = true;
+            }
+            Assert.That(s.East, Is.GreaterThanOrEqualTo(40.0), "out of the water");
+            Assert.That(stood && waded, Is.True, "stood where the bottom came within reach, and waded out");
+            Assert.That(s.Swimming || s.Wading, Is.False, "on dry land");
+            Assert.That(s.Grounded, Is.True);
+        }
+
+        /// <summary>However hard a founder comes down into deep water, the water takes them before the eye goes under (M1.5e).</summary>
+        [Test]
+        public void AFallIntoDeepWaterNeverTakesTheEyeUnder()
+        {
+            MoverConfig cfg = MoverConfig.Default;
+            IWorldCollision sea = World((e, n) => -10.0, sea: true);
+            MoverState s = MoverState.AtRest(0.0, 8.0, 0.0);
+            bool swam = false;
+            for (int i = 0; i < 500; i++)
+            {
+                s = Mover.Step(s, MoverInput.None, Dt, sea);
+                Assert.That(s.IsFinite, Is.True);
+                Assert.That(s.Up + cfg.EyeHeight(s.Stance), Is.GreaterThan(0.0), "the eye under the water at step " + i);
+                swam |= s.Swimming;
+            }
+            Assert.That(swam, Is.True);
+            Assert.That(s.Up, Is.EqualTo(-cfg.SwimDepth).Within(0.01), "and settled at the float line");
+        }
+
+        /// <summary>A founder does not crouch where the crouched eye would be under the water, and does where it would not (M1.5e).</summary>
+        [Test]
+        public void NoCrouchingWhereTheCrouchedEyeWouldGoUnder()
+        {
+            MoverInput crouch = MoverInput.None;
+            crouch.Crouch = true;
+            MoverState chest = MoverState.AtRest(0.0, -1.2, 0.0);
+            chest.Grounded = true;
+            MoverState stood = Run(chest, crouch, World((e, n) => -1.2, sea: true), 5);
+            Assert.That(stood.Stance, Is.EqualTo(Stance.Standing), "1.2 m of water is over a crouched eye");
+            Assert.That(stood.Swimming, Is.False, "and a standing body is waist-deep in it, not swimming");
+            MoverState knee = MoverState.AtRest(0.0, -0.5, 0.0);
+            knee.Grounded = true;
+            Assert.That(Run(knee, crouch, World((e, n) => -0.5, sea: true), 5).Stance, Is.EqualTo(Stance.Crouching), "0.5 m is not");
+        }
+
         [Test]
         public void CrouchingIsSlowerAndSwapsTheStance()
         {

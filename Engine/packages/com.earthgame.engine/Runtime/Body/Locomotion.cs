@@ -98,6 +98,28 @@ namespace EarthGame.Engine
         /// <summary>Slowest a founder moves on ground they can stand on at all, m/s.</summary>
         public const double MinimumSpeedMs = 0.45;
 
+        // ---- Swimming (Sugiyama & Katamoto 1992) ----
+
+        /// <summary>
+        /// The breaststroke's steady pace, m/s: the fastest of the paces Sugiyama and Katamoto held six college swimmers to
+        /// in a flume for it (0.3, 0.5 and 0.7 m/s; Annals of Physiological Anthropology 11: 635–640, 1992). The stroke a
+        /// founder swims unless they push.
+        /// </summary>
+        public const double BreaststrokeMs = 0.7;
+
+        /// <summary>
+        /// The front crawl's, m/s: the fastest of theirs for the crawl (0.3 to 0.9 m/s), whose oxygen cost rose less
+        /// steeply than the breaststroke's past 0.49 m/s. The stroke a founder pushing (sprinting) swims.
+        /// </summary>
+        public const double FrontCrawlMs = 0.9;
+
+        /// <summary>How fast the founder swims, m/s: the breaststroke, or the crawl when pushed, under the body's state as walking is.</summary>
+        public static double SwimmingSpeedMs(bool crawl, double workCapacity01)
+        {
+            double capacity = 0.45 + 0.55 * SimMath.Clamp01(workCapacity01);
+            return (crawl ? FrontCrawlMs : BreaststrokeMs) * capacity;
+        }
+
         /// <summary>The fastest gait the founder can hold. A body at half capacity is not running anywhere.</summary>
         public static Gait FastestGait(double workCapacity01)
         {

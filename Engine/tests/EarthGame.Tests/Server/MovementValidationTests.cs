@@ -43,12 +43,12 @@ namespace EarthGame.Tests.Server
             public PlayerSession Session => Server.Sessions[0];
         }
 
-        private static Rig Connect(WorldState world = null)
+        private static Rig Connect(WorldState world = null, ServerConfig config = null)
         {
             InMemoryTransport.CreatePair(out IServerTransport st, out IClientTransport ct);
             Rig rig = new Rig();
             rig.ServerTransport = st;
-            rig.Server = new GameServer(new ServerConfig(), st, world ?? World());
+            rig.Server = new GameServer(config ?? new ServerConfig(), st, world ?? World());
             rig.Server.Listen(1);
             rig.Client = new GameClient(ct);
             rig.Client.Connect("memory", 1, "William", "");
@@ -62,6 +62,36 @@ namespace EarthGame.Tests.Server
             MoverState s = MoverState.AtRest(east, ground.HeightAt(east, north), north);
             s.Grounded = true;
             return s;
+        }
+
+        [Test]
+        public void AFlightStandsOnADevelopmentServerAndIsCorrectedOnAnyOther()
+        {
+            // Thirty metres over the ground at 25 m/s, as a developer's flight goes (M1.5e).
+            Heightfield ground = Ground();
+            double high = ground.HeightAt(0.0, 0.0) + 30.0;
+            foreach (bool allowed in new[] { false, true })
+            {
+                Rig rig = Connect(config: new ServerConfig { Movement = new MovementRules { AllowFlight = allowed } });
+                for (int i = 0; i <= 4; i++)
+                {
+                    MoverState flying = MoverState.AtRest(i * 1.25, high, 0.0);
+                    flying.VelEast = 25.0;
+                    rig.Client.SendMove(MoverInput.None, 90f, 0f, flying);
+                    rig.Pump(1);
+                }
+                if (!allowed)
+                {
+                    Assert.That(rig.Client.CorrectionCount, Is.GreaterThan(0), "any other server corrects it");
+                    Assert.That(rig.Client.LastCorrection.Reason, Does.Contain("speed"));
+                    continue;
+                }
+                Assert.That(rig.Client.CorrectionCount, Is.EqualTo(0), "a development server lets it stand");
+                Assert.That(rig.Session.Body.East, Is.EqualTo(5.0).Within(1e-9));
+                rig.Client.SendMove(MoverInput.None, 90f, 0f, MoverState.AtRest(25.0, high, 0.0));
+                rig.Pump(2);
+                Assert.That(rig.Client.LastCorrection.Reason, Does.Contain("outside"), "and holds the region's edge even so");
+            }
         }
 
         [Test]

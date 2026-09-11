@@ -680,6 +680,76 @@
       ],
       "owner_decides": "the feel of wading, with his hands in the water, and the wading frames"
     },
+    "M1.5e": {
+      "steps": [
+        {
+          "name": "dotnet test",
+          "cmd": [
+            "dotnet",
+            "test",
+            "Engine/EarthGame.slnx",
+            "-c",
+            "Debug",
+            "--nologo"
+          ]
+        },
+        {
+          "name": "Unity-layer compile",
+          "cmd": [
+            "dotnet",
+            "build",
+            "Engine/EarthGame.Unity.Compile.csproj",
+            "-c",
+            "Debug",
+            "--nologo",
+            "-v",
+            "minimal"
+          ]
+        },
+        {
+          "name": "Unity edit-mode tests",
+          "cmd": [
+            "python",
+            "Tools/unity/editmode.py"
+          ]
+        },
+        {
+          "name": "create the gate world",
+          "cmd": [
+            "python",
+            "Tools/world/create.py",
+            "Artefacts/worlds/gate"
+          ]
+        },
+        {
+          "name": "the controls in a development game, every action's binding pressed and the fly key flown, in a built player on the gate world",
+          "cmd": [
+            "python",
+            "Tools/world/carry.py",
+            "--build",
+            "--scenario",
+            "controls",
+            "--dev",
+            "--world",
+            "Artefacts/worlds/gate"
+          ]
+        },
+        {
+          "name": "the swimming frames, the same player stood on Lake Windermere's shore and walked in over its head",
+          "cmd": [
+            "python",
+            "Tools/world/wade.py",
+            "--swim",
+            "--player",
+            "Build/Player-Carry/EarthGame2.exe",
+            "--world",
+            "Artefacts/worlds/gate"
+          ]
+        }
+      ],
+      "verifiers": [],
+      "owner_decides": "the feel of swimming, with his hands in deep water, the strokes' sound and the swimming frames; flight is his tool, and how it flies his to say"
+    },
     "M1.6": {
       "steps": [
         {

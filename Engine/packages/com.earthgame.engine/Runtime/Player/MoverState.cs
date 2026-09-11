@@ -26,6 +26,13 @@ namespace EarthGame.Engine
         public bool Wading;
         public Stance Stance;
 
+        /// <summary>
+        /// Floating in water too deep to stand in (M1.5e, CANON ruling 24). Worked out every step from where the body is
+        /// and the water there, so the wire, the save and the digest do not carry it: a body read from any of them is
+        /// swimming again on its next step if it is where a founder swims.
+        /// </summary>
+        public bool Swimming;
+
         public Double3 Feet => new Double3(East, Up, North);
         public Double3 Velocity => new Double3(VelEast, VelUp, VelNorth);
         public double HorizontalSpeed => Math.Sqrt(VelEast * VelEast + VelNorth * VelNorth);
@@ -120,12 +127,29 @@ namespace EarthGame.Engine
         /// <summary>Water deeper than this is over the chest: slower still, and no jumping out of it.</summary>
         public double DeepDepth = 1.3;
         public double DeepWadeSpeedFactor = 0.3;
+        /// <summary>
+        /// How far above the water a swimming founder's eye rides, m (M1.5e): a person treading water holds the chin at the
+        /// surface, which puts the eyes about a hand's breadth above it.
+        /// </summary>
+        public double SwimEyeAboveWaterM = 0.12;
+        /// <summary>How fast the water brings a swimmer back to the float line, per second of the distance off it.</summary>
+        public double BuoyancyPerSecond = 3.0;
+        /// <summary>How quickly the water takes up a body's own rise or fall, per second: a fall into deep water is spent in a fraction of a second.</summary>
+        public double WaterDragPerSecond = 4.0;
+        /// <summary>How far under the float line a fall may carry a swimmer, m: less than the eye rides above it, so the eye never goes under.</summary>
+        public double SwimSinkM = 0.08;
         /// <summary>The body's work capacity fed to <see cref="Locomotion.SpeedMs"/>; physiology owns it later.</summary>
         public double WorkCapacity = 1.0;
 
         public static readonly MoverConfig Default = new MoverConfig();
 
         public double EyeHeight(Stance stance) => stance == Stance.Crouching ? CrouchEyeHeight : StandingEyeHeight;
+
+        /// <summary>
+        /// Water deeper than this is swum, m: the standing eye's height less how far above the water a swimmer's eye rides,
+        /// which is also how far under the surface a swimmer's feet hang.
+        /// </summary>
+        public double SwimDepth => StandingEyeHeight - SwimEyeAboveWaterM;
 
         /// <summary>The fastest the mover can move horizontally on any ground: the validator's ceiling.</summary>
         public double MaxHorizontalSpeed => Locomotion.SpeedMs(Locomotion.ToblerPeakSlope, Gait.Running, WorkCapacity);

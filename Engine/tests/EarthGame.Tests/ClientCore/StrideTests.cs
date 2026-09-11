@@ -102,6 +102,48 @@ namespace EarthGame.Tests.ClientCore
         }
 
         [Test]
+        public void AStrokeIsHeardForEveryStrokeSwumAndNoFootFallsInTheWater()
+        {
+            // 0.7 m/s, the breaststroke's pace, for 12 s is 8.4 m of water (M1.5e).
+            Stride stride = new Stride();
+            List<Footfall> strokes = new List<Footfall>();
+            for (int i = 0; i < 600; i++)
+                if (stride.Advance(Dt, 0.7, false, true, out Footfall f)) strokes.Add(f);
+            Assert.That(strokes.Count, Is.EqualTo((int)Math.Floor(8.4 / Stride.StrokeM)));
+            Assert.That(stride.Strokes, Is.EqualTo(strokes.Count));
+            Assert.That(stride.Count, Is.Zero, "no foot fell");
+            for (int i = 0; i < strokes.Count; i++)
+            {
+                Assert.That(strokes[i].Stroke, Is.True);
+                Assert.That(strokes[i].Landing, Is.False);
+                Assert.That(strokes[i].Pitch, Is.InRange(0.9, 1.1));
+                Assert.That(strokes[i].Loudness01, Is.EqualTo(Loudness.Stroke01(0.7)).And.GreaterThan(Loudness.Footfall01(0.7)));
+                if (i == 0) continue;
+                Assert.That(strokes[i].Left, Is.Not.EqualTo(strokes[i - 1].Left), "the arms alternate");
+                Assert.That(strokes[i].Variant, Is.Not.EqualTo(strokes[i - 1].Variant), "never the same stroke twice running");
+            }
+            Assert.That(stride.SwayNowM, Is.EqualTo(0.0), "no sway in the water");
+            int treading = 0;
+            for (int i = 0; i < 500; i++)
+                if (stride.Advance(Dt, Stride.SwimmingMs * 0.5, false, true, out _)) treading++;
+            Assert.That(treading, Is.Zero, "treading water makes no stroke");
+        }
+
+        [Test]
+        public void AFallIntoTheWaterSplashesAndWadingIntoItDoesNot()
+        {
+            Stride walked = new Stride();
+            Walk(walked, 1.5, 2.0);
+            Assert.That(walked.Advance(Dt, 0.7, false, true, out _), Is.False, "walked in off the bottom: no splash");
+            Stride fell = new Stride();
+            Walk(fell, 0.0, 0.6, grounded: false);
+            Assert.That(fell.Advance(Dt, 0.0, false, true, out Footfall splash), Is.True);
+            Assert.That(splash.Landing, Is.True);
+            Assert.That(splash.Stroke, Is.False, "a splash sounds of the water underfoot, as a landing does");
+            Assert.That(splash.Loudness01, Is.EqualTo(Loudness.FootfallCeiling01));
+        }
+
+        [Test]
         public void AFootfallIsLouderTheFasterAndNeverLoud()
         {
             Assert.That(Loudness.Footfall01(Stride.WalkingMs * 0.5), Is.Zero);

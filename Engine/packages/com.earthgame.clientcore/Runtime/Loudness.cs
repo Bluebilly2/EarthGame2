@@ -25,6 +25,13 @@ namespace EarthGame.ClientCore
         }
 
         /// <summary>
+        /// How loud a swimming stroke is, 0–1 (M1.5e): half as loud again as a footfall at the same speed, water pushed aside
+        /// being louder than a foot set down, and silent below walking pace as a footfall is. The half is chosen, for the
+        /// owner's ears to judge.
+        /// </summary>
+        public static double Stroke01(double speedMs) => Math.Min(FootfallCeiling01, 1.5 * Footfall01(speedMs));
+
+        /// <summary>
         /// How loud a landing is, from the energy it puts into the ground, 0–1: by its square root, because an ear does not
         /// hear energy in proportion, so a stone set down is heard and the same stone dropped from head height deafens
         /// nobody (v1).

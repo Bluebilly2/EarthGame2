@@ -296,7 +296,9 @@ namespace EarthGame.Bootstrap
         private void StartServer(IServerTransport transport, WorldState world, WorldSaveInfo saved, int port)
         {
             _serverTransport = transport;
-            _server = new GameServer(new ServerConfig { Password = _password }, transport, world);
+            // -eg-dev: a SOLO game for development, whose server lets a founder fly (M1.5e).
+            _server = new GameServer(new ServerConfig { Password = _password, Movement = new MovementRules { AllowFlight = LaunchArgs.Has("dev") } },
+                                     transport, world);
             if (saved != null) _server.RememberPlayers(saved.Players.Values);
             _server.SessionJoined += s => Debug.Log("[server] join  " + s.Name + " (session " + s.SessionId + ") at tick " + s.JoinedTick + (s.HasBody ? ", remembered" : ""));
             _server.SessionLeft += (s, reason) => Debug.Log("[server] leave " + s.Name + ": " + reason);
@@ -437,7 +439,7 @@ namespace EarthGame.Bootstrap
             if (!string.IsNullOrEmpty(scenario) && scenario != "true")
             {
                 if (!Recorder.IsKnown(scenario) && !ScenarioRunner.IsKnown(scenario))
-                    Debug.LogError("[bootstrap] unknown scenario '" + scenario + "' (first-frame, carry, litter, wade, controls, walk, soak, rejoin, join)");
+                    Debug.LogError("[bootstrap] unknown scenario '" + scenario + "' (first-frame, carry, litter, wade, swim, controls, walk, soak, rejoin, join)");
                 _scenario = scenario;
             }
         }

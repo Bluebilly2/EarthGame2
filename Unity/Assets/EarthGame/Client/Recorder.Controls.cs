@@ -132,6 +132,8 @@ namespace EarthGame.Client
             yield return Frames(3);
             yield return Gaits(Controls.Desk, "up", Vector2.one);
             yield return Gaits(Controls.Pad, null, new Vector2(0f, 1f));
+            // A development game's flight (M1.5e), when the run is one (-eg-dev).
+            if (_player.FlightAllowed) yield return Flies();
 
             _client.IntentAnswered -= OnAnswered;
             InputSystem.RemoveDevice(_keyboard);
@@ -169,6 +171,23 @@ namespace EarthGame.Client
             yield return Expect("the jump leaves the ground", Controls.Jump, scheme, () => !_player.State.Grounded, 0.6, Height);
             yield return Wait(1.2);
         }
+
+        /// <summary>
+        /// The fly key at the desk (M1.5e): pressed, the founder flies; the jump held, they rise; pressed again, they fly no
+        /// more and fall to the ground.
+        /// </summary>
+        private IEnumerator Flies()
+        {
+            yield return Expect("the fly key takes off", Controls.Fly, Controls.Desk, () => _player.Flying, 1.0, Flying);
+            double up = _player.State.Up;
+            string rose = null;
+            yield return Hold(Controls.Desk, 1.0, null, s => rose = s, (Controls.Jump, null, Vector2.one));
+            double risen = _player.State.Up - up;
+            Check("the jump held rises in flight", Controls.Desk, rose, false, rose != null && _player.Flying && risen > 5.0, "rose " + F2(risen) + " m");
+            yield return Expect("the fly key comes down to the ground", Controls.Fly, Controls.Desk, () => !_player.Flying && _player.State.Grounded, 8.0, Flying);
+        }
+
+        private string Flying() => (_player.Flying ? "flying, " : "not flying, ") + Height();
 
         /// <summary>
         /// An action pressed by the control the asset binds to it in a scheme, and its effect waited for. The check passes

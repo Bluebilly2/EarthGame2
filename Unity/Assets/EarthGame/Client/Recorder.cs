@@ -52,9 +52,15 @@ namespace EarthGame.Client
         /// </summary>
         public const string ControlsScenario = "controls";
 
+        /// <summary>
+        /// The swimming frames (M1.5e), run by <c>-eg-scenario swim</c> with the founder stood on a lake's shore
+        /// (<c>Tools/world/wade.py --swim</c>): the founder walked into the nearest water deep enough to swim, and swimming.
+        /// </summary>
+        public const string SwimScenario = "swim";
+
         /// <summary>Whether a scenario is one of this recorder's, which write frames, rather than the runner's.</summary>
         public static bool IsKnown(string scenario) => scenario == Scenario || scenario == CarryScenario || scenario == LitterScenario
-                                                       || scenario == WadeScenario || scenario == ControlsScenario;
+                                                       || scenario == WadeScenario || scenario == ControlsScenario || scenario == SwimScenario;
         private static readonly (int Width, int Height, string Tag)[] Sizes = { (2560, 1440, "1440p"), (1920, 1080, "1080p") };
 
         private string _dir;
@@ -114,7 +120,8 @@ namespace EarthGame.Client
             Application.logMessageReceived += OnLog;
             _running = true;
             StartCoroutine(_scenario == CarryScenario ? RunCarry() : _scenario == LitterScenario ? RunLitter()
-                : _scenario == WadeScenario ? RunWade() : _scenario == ControlsScenario ? RunControls() : Run());
+                : _scenario == WadeScenario ? RunWade() : _scenario == SwimScenario ? RunSwim()
+                : _scenario == ControlsScenario ? RunControls() : Run());
         }
 
         private double T => _clock.Elapsed.TotalSeconds;

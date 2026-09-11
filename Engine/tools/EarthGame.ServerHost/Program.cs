@@ -22,6 +22,7 @@ namespace EarthGame.ServerHost
     ///   +server.seconds 1800  (stop by itself after this long)
     ///   +server.world Saves/world-1347  (the world folder: created with its layers, wake and census when absent, continued
     ///   when present, saved at stop)
+    ///   +server.dev 1  (a development server: a founder may fly, M1.5e)
     /// Console commands: status, pause, resume, digest, stop.
     ///
     /// <para>The host is the server's clock and its instruments: it times each update for the tick statistics,
@@ -39,7 +40,9 @@ namespace EarthGame.ServerHost
                 TickRate = Int(a, "server.tickrate", 20),
                 MaxPlayers = Int(a, "server.maxplayers", 8),
                 Password = Str(a, "server.password", string.Empty),
+                Movement = new MovementRules { AllowFlight = Int(a, "server.dev", 0) != 0 },
             };
+            if (config.Movement.AllowFlight) Log("a development server: a founder may fly");
             ulong seed = ULong(a, "server.seed", 1347UL);
             string regionId = Str(a, "server.region", Region.Bherwerre.Id);
             Region region = Region.ById(regionId);

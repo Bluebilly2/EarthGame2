@@ -15,6 +15,8 @@ namespace EarthGame.Client
         public Vector2 Move;
         public Vector2 LookDeltaDeg;
         public bool Jump;
+        /// <summary>The jump held rather than pressed: a flying founder rises while it is (M1.5e).</summary>
+        public bool Rise;
         public bool Sprint;
         public bool Crouch;
         /// <summary>Left mouse held: work on what is looked at (the work verbs are M2's).</summary>
@@ -30,6 +32,8 @@ namespace EarthGame.Client
         /// <summary>Escape pressed: the controls let go of the mouse, or take it back.</summary>
         public bool Menu;
         public bool Screenshot;
+        /// <summary>The fly key pressed: a development game's founder takes off, or comes down (M1.5e, <c>-eg-dev</c>).</summary>
+        public bool Fly;
     }
 
     /// <summary>
@@ -67,6 +71,8 @@ namespace EarthGame.Client
         public const string HandPrevious = "HandPrevious";
         public const string Menu = "Menu";
         public const string Screenshot = "Screenshot";
+        /// <summary>A development game's flight (M1.5e): bound at the desk alone, since only a developer flies.</summary>
+        public const string Fly = "Fly";
 
         /// <summary>The action for a place's key: "Hand1" to "Hand9".</summary>
         public static string Hand(int place) => "Hand" + place;
@@ -92,6 +98,7 @@ namespace EarthGame.Client
                 for (int p = 1; p <= Hands.Places; p++) yield return Hand(p);
                 yield return Menu;
                 yield return Screenshot;
+                yield return Fly;
             }
         }
 
@@ -131,6 +138,7 @@ namespace EarthGame.Client
         private readonly InputAction _handPrevious;
         private readonly InputAction _menu;
         private readonly InputAction _screenshot;
+        private readonly InputAction _fly;
         private readonly InputAction[] _hand = new InputAction[Hands.Places];
 
         public InputSystemSource()
@@ -152,6 +160,7 @@ namespace EarthGame.Client
             _handPrevious = Find(map, Controls.HandPrevious);
             _menu = Find(map, Controls.Menu);
             _screenshot = Find(map, Controls.Screenshot);
+            _fly = Find(map, Controls.Fly);
             for (int p = 1; p <= Hands.Places; p++) _hand[p - 1] = Find(map, Controls.Hand(p));
             map?.Enable();
         }
@@ -170,6 +179,7 @@ namespace EarthGame.Client
                 frame.LookDeltaDeg = stick ? look * (StickDegreesPerSecond * dt) : look * MouseDegreesPerPixel;
             }
             frame.Jump = Pressed(_jump);
+            frame.Rise = Held(_jump);
             frame.Sprint = Held(_sprint);
             frame.Crouch = Held(_crouch);
             frame.Work = Held(_work);
@@ -182,6 +192,7 @@ namespace EarthGame.Client
             frame.HandStep = (scroll < 0f ? 1 : scroll > 0f ? -1 : 0) + (Pressed(_handNext) ? 1 : 0) - (Pressed(_handPrevious) ? 1 : 0);
             frame.Menu = Pressed(_menu);
             frame.Screenshot = Pressed(_screenshot);
+            frame.Fly = Pressed(_fly);
         }
 
         private static bool Pressed(InputAction action) => action != null && action.WasPressedThisFrame();
@@ -203,6 +214,8 @@ namespace EarthGame.Client
         public bool Sprint;
         public bool Crouch;
         public bool Work;
+        /// <summary>The jump held: a flying founder rises (M1.5e).</summary>
+        public bool Rise;
         public float TurnDegreesPerSecond = 120f;
         private ControlsFrame _presses;
 
@@ -215,6 +228,7 @@ namespace EarthGame.Client
         public void ToggleCarrying() => _presses.Carrying = true;
         public void Hold(int place) => _presses.HandPlace = place;
         public void StepHand(int step) => _presses.HandStep += step;
+        public void Fly() => _presses.Fly = true;
 
         public void Sample(float dt, out ControlsFrame frame)
         {
@@ -231,6 +245,7 @@ namespace EarthGame.Client
             frame.Sprint = Sprint;
             frame.Crouch = Crouch;
             frame.Work = Work;
+            frame.Rise = Rise;
         }
     }
 }

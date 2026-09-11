@@ -8,15 +8,17 @@ ground ahead aimed at and the stick put down; then a cobble is picked up and kep
 a stick of the world's own litter: looked at, taken up, gone from the ground and in the hand, put down again as an
 item; then another is taken and kept. Either way the world is saved on the way out with something carried, for
 save_check.py to read. `controls` (M1.5d, v1's K1c) drops the same six things and presses every control through a
-keyboard, a mouse and a gamepad added to the player, and prints each check the run made. Leaves the frames, run.jsonl,
-the tile cache and the player's log under Artefacts/frames/<scenario>-<stamp>/.
+keyboard, a mouse and a gamepad added to the player, and prints each check the run made. With --dev the player is a
+development game (-eg-dev, M1.5e): its founder can fly, its SOLO server lets the flight stand, and the controls
+scenario flies the fly key too. Leaves the frames, run.jsonl, the tile cache and the player's log under
+Artefacts/frames/<scenario>-<stamp>/.
 
 Claude's tool: it runs the player and reports what its end record says. It judges nothing: the frames are the owner's
 to judge, and save_check.py reads the world.
 
 Usage, from the repository root:
-    python Tools/world/carry.py [--build] [--scenario carry|litter|controls] [--player Build/Player-Carry/EarthGame2.exe]
-                                [--world Artefacts/worlds/gate]
+    python Tools/world/carry.py [--build] [--scenario carry|litter|controls] [--dev]
+                                [--player Build/Player-Carry/EarthGame2.exe] [--world Artefacts/worlds/gate]
 Exit 0 when the player exits 0 (every frame written, every verb done or every check passed, nothing logged as an
 error); 1 otherwise.
 """
@@ -52,6 +54,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build", action="store_true")
     parser.add_argument("--scenario", choices=("carry", "litter", "controls"), default="carry")
+    parser.add_argument("--dev", action="store_true",
+                        help="a development game (-eg-dev): the founder can fly, and the controls scenario checks the fly key")
     parser.add_argument("--player", default=str(PLAYER))
     parser.add_argument("--world", default="Artefacts/worlds/gate")
     args = parser.parse_args()
@@ -73,9 +77,10 @@ def main():
 
     # -batchmode without -nographics: the recorder renders its frames on the GPU into textures, with no window.
     things = ["-eg-items", "6"] if args.scenario in ("carry", "controls") else []
+    dev = ["-eg-dev"] if args.dev else []
     code = run([player, "-batchmode", "-logFile", directory / "player.log",
                 "-eg-mode", "solo", "-eg-name", "William", "-eg-world", world.name, "-eg-saves", world.parent,
-                "-eg-tiles", directory / "tiles", "-eg-record", directory, "-eg-scenario", args.scenario] + things, 600)
+                "-eg-tiles", directory / "tiles", "-eg-record", directory, "-eg-scenario", args.scenario] + things + dev, 600)
 
     log = directory / "run.jsonl"
     records = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()] if log.is_file() else []
