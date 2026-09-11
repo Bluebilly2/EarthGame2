@@ -32,18 +32,21 @@ namespace EarthGame.Server
     }
 
     /// <summary>
-    /// The region file, format <c>eg2.region</c> version 1 (ARCHITECTURE §6 and §10): one per 512 m cell
-    /// (<see cref="RegionCells"/>), holding the entities whose position lies in the cell. Little-endian: the magic
-    /// <c>EG2R</c>, u16 version, i32 cell x, i32 cell z, f64 cell size, u32 entity count, u32 layer-diff count
-    /// (zero until the diffs land), u32 CRC-32 of the records that follow, then per entity: u64 id, the key as a
-    /// u16 UTF-8 byte length and the bytes, f64 east, up and north, f32 yaw, i64 spawn tick, u8 component mask
-    /// (1 = item), and for an item u8 resting and f32 fall speed. The server writes and reads it; save_check.py
-    /// restates the layout in Python and reads it too.
+    /// The region file, format <c>eg2.region</c> version 2 (ARCHITECTURE §6 and §10): one per 512 m cell
+    /// (<see cref="RegionCells"/>), holding the entities whose position lies in the cell and, since version 2 (M1.5b),
+    /// the layer diffs of the raster cells whose centres lie in it. Little-endian: the magic <c>EG2R</c>, u16 version,
+    /// i32 cell x, i32 cell z, f64 cell size, u32 entity count, u32 layer-diff count, u32 CRC-32 of everything that
+    /// follows, then per entity: u64 id, the key as a u16 UTF-8 byte length and the bytes, f64 east, up and north, f32
+    /// yaw, i64 spawn tick, u8 component mask (1 = item), and for an item u8 resting and f32 fall speed; then per diff:
+    /// u8 the layer by its tile byte (5, the loose layer, the only one yet), u16 row and u16 column of the world's
+    /// raster, and for the loose layer u16 the sticks taken and u16 the cobbles taken, a bit for each index. Version 1
+    /// had no diffs and is still read. The server writes and reads it; save_check.py restates the layout in Python and
+    /// reads it too.
     /// </summary>
     public static class RegionFile
     {
         public const string Folder = "regions";
-        public const ushort Version = 1;
+        public const ushort Version = 2;
         public const int HeaderBytes = 4 + 2 + 4 + 4 + 8 + 4 + 4 + 4;
         private static readonly byte[] Magic = { (byte)'E', (byte)'G', (byte)'2', (byte)'R' };
 
@@ -57,9 +60,10 @@ namespace EarthGame.Server
             return parts.Length == 2 && int.TryParse(parts[0], out cellX) && int.TryParse(parts[1], out cellZ);
         }
 
-        public static byte[] Encode(int cellX, int cellZ, IReadOnlyList<SavedEntity> entities)
+        public static byte[] Encode(int cellX, int cellZ, IReadOnlyList<SavedEntity> entities, IReadOnlyList<LooseTaken.Cell> taken = null)
         {
-            PacketWriter records = new PacketWriter(64 + 64 * entities.Count);
+            int diffs = taken != null ? taken.Count : 0;
+            PacketWriter records = new PacketWriter(64 + 64 * entities.Count + 9 * diffs);
             for (int i = 0; i < entities.Count; i++)
             {
                 SavedEntity e = entities[i];
@@ -73,6 +77,17 @@ namespace EarthGame.Server
                 records.WriteByte(e.HasItem ? EntityWire.ComponentItem : (byte)0);
                 if (e.HasItem) EntityWire.WriteItem(records, e.Item);
             }
+            for (int i = 0; i < diffs; i++)
+            {
+                LooseTaken.Cell c = taken[i];
+                if (c.Row < 0 || c.Row > ushort.MaxValue || c.Col < 0 || c.Col > ushort.MaxValue)
+                    throw new ArgumentException("cell (" + c.Row + ", " + c.Col + ") does not fit a region file", nameof(taken));
+                records.WriteByte((byte)TileLayer.Loose);
+                records.WriteUInt16((ushort)c.Row);
+                records.WriteUInt16((ushort)c.Col);
+                records.WriteUInt16(c.Sticks);
+                records.WriteUInt16(c.Cobbles);
+            }
             byte[] body = records.Written.ToArray();
             PacketWriter head = new PacketWriter(HeaderBytes);
             for (int i = 0; i < Magic.Length; i++) head.WriteByte(Magic[i]);
@@ -81,7 +96,7 @@ namespace EarthGame.Server
             head.WriteInt32(cellZ);
             head.WriteDouble(RegionCells.CellM);
             head.WriteUInt32((uint)entities.Count);
-            head.WriteUInt32(0);
+            head.WriteUInt32((uint)diffs);
             head.WriteUInt32(Crc32.Compute(body));
             byte[] file = new byte[HeaderBytes + body.Length];
             head.Written.CopyTo(file);
@@ -89,22 +104,25 @@ namespace EarthGame.Server
             return file;
         }
 
-        /// <summary>Reads a region file; refuses a wrong magic, another version, a wrong CRC or a short record with the reason.</summary>
-        public static List<SavedEntity> Decode(byte[] bytes, out int cellX, out int cellZ)
+        /// <summary>
+        /// Reads a region file: its entities, and its layer diffs as the loose layer's takings; refuses a wrong magic,
+        /// another version, a wrong CRC, a diff of a layer this build does not know, or a short record, with the reason.
+        /// </summary>
+        public static List<SavedEntity> Decode(byte[] bytes, out int cellX, out int cellZ, out List<LooseTaken.Cell> taken)
         {
             if (bytes == null || bytes.Length < HeaderBytes) throw new InvalidDataException("a region file is at least " + HeaderBytes + " bytes");
             for (int i = 0; i < Magic.Length; i++)
                 if (bytes[i] != Magic[i]) throw new InvalidDataException("not a region file (magic)");
             PacketReader head = new PacketReader(bytes, 4, HeaderBytes - 4);
             ushort version = head.ReadUInt16();
-            if (version != Version) throw new InvalidDataException("region file version " + version + "; this build reads " + Version);
+            if (version != Version && version != 1) throw new InvalidDataException("region file version " + version + "; this build reads 1 and " + Version);
             cellX = head.ReadInt32();
             cellZ = head.ReadInt32();
             double cellM = head.ReadDouble();
             if (Math.Abs(cellM - RegionCells.CellM) > 1e-9) throw new InvalidDataException("region file cells are " + cellM + " m; this build keeps " + RegionCells.CellM);
             uint count = head.ReadUInt32();
             uint diffs = head.ReadUInt32();
-            if (diffs != 0) throw new InvalidDataException("region file carries " + diffs + " layer diffs; this build reads none");
+            if (version == 1 && diffs != 0) throw new InvalidDataException("a version-1 region file carries " + diffs + " layer diffs; version 1 had none");
             uint crc = head.ReadUInt32();
             uint actual = Crc32.Compute(bytes, HeaderBytes, bytes.Length - HeaderBytes);
             if (actual != crc) throw new InvalidDataException("region file CRC " + actual.ToString("x8") + " differs from the stated " + crc.ToString("x8"));
@@ -123,6 +141,18 @@ namespace EarthGame.Server
                 e.HasItem = (components & EntityWire.ComponentItem) != 0;
                 e.Item = e.HasItem ? EntityWire.ReadItem(r) : default;
                 entities.Add(e);
+            }
+            taken = new List<LooseTaken.Cell>((int)Math.Min(diffs, 4096u));
+            for (uint i = 0; i < diffs; i++)
+            {
+                byte layer = r.ReadByte();
+                if (layer != (byte)TileLayer.Loose) throw new InvalidDataException("region file carries a diff of layer " + layer + ", which this build does not know");
+                LooseTaken.Cell c;
+                c.Row = r.ReadUInt16();
+                c.Col = r.ReadUInt16();
+                c.Sticks = r.ReadUInt16();
+                c.Cobbles = r.ReadUInt16();
+                taken.Add(c);
             }
             r.ExpectEnd();
             return entities;

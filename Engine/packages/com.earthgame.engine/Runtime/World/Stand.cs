@@ -86,6 +86,10 @@ namespace EarthGame.Engine
 
         public static int CobblesOf(byte code) => code >> 4;
 
+        /// <summary>How many things of a kind lie on a cell by its code: its sticks or its cobbles, and nothing of any other kind.</summary>
+        public static int CountOf(byte code, StandLayout.Kind kind) =>
+            kind == StandLayout.Kind.Stick ? SticksOf(code) : kind == StandLayout.Kind.Cobble ? CobblesOf(code) : 0;
+
         /// <summary>The legend a loose layer's sidecar carries.</summary>
         public static string Legend() => "the low four bits are how many sticks lie on the cell and the high four how many cobbles, of the stone layer's stone, each to " + MaxEach;
 
@@ -121,6 +125,18 @@ namespace EarthGame.Engine
             yawDeg = (int)((h >> 42) % 360UL);
         }
 
+        /// <summary>
+        /// A cell's centre in local metres, by the raster's own rule (ARCHITECTURE §10): column 0 at the west edge, row 0
+        /// at the north. A thing's place is this moved by <see cref="Place"/>; a streamed tile's post for the cell stands
+        /// here too.
+        /// </summary>
+        public static void CellCentre(int row, int col, double cellM, double extentM, out double east, out double north)
+        {
+            double half = extentM * 0.5;
+            east = col * cellM - half;
+            north = half - row * cellM;
+        }
+
         /// <summary>splitmix64's finaliser: every bit of what goes in reaches every bit of what comes out.</summary>
         public static ulong Mix(ulong x)
         {
@@ -129,5 +145,31 @@ namespace EarthGame.Engine
             x = (x ^ (x >> 27)) * 0x94D049BB133111EBUL;
             return x ^ (x >> 31);
         }
+    }
+
+    /// <summary>
+    /// One thing lying in the world's loose layer, by its place (M1.5b): its cell's row and column, whether a stick or a
+    /// cobble, and which of the cell's things of that kind, counting from 0. Both ends find where it lies from this alone
+    /// (<see cref="StandLayout"/>), so a founder can take the second stick of a cell and the server knows which is meant.
+    /// </summary>
+    public readonly struct LyingThing : IEquatable<LyingThing>
+    {
+        public readonly int Row;
+        public readonly int Col;
+        public readonly StandLayout.Kind Kind;
+        public readonly int Index;
+
+        public LyingThing(int row, int col, StandLayout.Kind kind, int index)
+        {
+            Row = row;
+            Col = col;
+            Kind = kind;
+            Index = index;
+        }
+
+        public bool Equals(LyingThing other) => Row == other.Row && Col == other.Col && Kind == other.Kind && Index == other.Index;
+        public override bool Equals(object obj) => obj is LyingThing other && Equals(other);
+        public override int GetHashCode() => (int)StandLayout.Mix(((ulong)(uint)Row << 32 | (uint)Col) ^ ((ulong)Kind << 56) ^ (uint)Index);
+        public override string ToString() => Kind.ToString().ToLowerInvariant() + " " + Index + " of cell (" + Row + ", " + Col + ")";
     }
 }

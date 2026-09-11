@@ -56,8 +56,9 @@ namespace EarthGame.Server
                 Report("Reading what stands and lies on the ground");
                 RegionRaster stand = ReadCodes(worldDir, "stand");
                 RegionRaster loose = ReadCodes(worldDir, "loose");
+                RegionRaster stone = ReadCodes(worldDir, "stone");
                 Report("Restoring the world");
-                WorldState world = WorldSave.Restore(saved, terrain, region, water, cover, stand, loose);
+                WorldState world = WorldSave.Restore(saved, terrain, region, water, cover, stand, loose, stone);
                 Report("World ready");
                 return new Result { World = world, Saved = saved, Checksums = saved.Layers };
             }
@@ -72,7 +73,7 @@ namespace EarthGame.Server
             Heightfield ground = new Heightfield(RegionRaster.Load(created.Layers["heights"]));
             WorldState made = new WorldState(seed, region, region.WakeClock(), ground, 0,
                 new Double3(created.Wake.East, 0, created.Wake.North), ReadWater(worldDir), ReadCodes(worldDir, "cover"),
-                ReadCodes(worldDir, "stand"), ReadCodes(worldDir, "loose"));
+                ReadCodes(worldDir, "stand"), ReadCodes(worldDir, "loose"), ReadCodes(worldDir, "stone"));
             Report("Saving the world");
             WorldSave.Write(worldDir, made, null, nowUtc, created.Checksums);
             Report("World ready");
@@ -95,9 +96,9 @@ namespace EarthGame.Server
         }
 
         /// <summary>
-        /// A layer of codes a world folder holds for the server to stream: the ground cover since M1.4d, what stands
-        /// and what lies loose since M1.6a. Null on a world made before the layer was, whose client draws without it:
-        /// a flat ground colour, and nothing standing.
+        /// A layer of codes a world folder holds for the server: the ground cover since M1.4d, what stands and what lies
+        /// loose since M1.6a, streamed; and the stone, which a cobble taken up is made of (M1.5b). Null on a world made
+        /// before the layer was, whose client draws without it: a flat ground colour, and nothing standing.
         /// </summary>
         private static RegionRaster ReadCodes(string worldDir, string name)
         {

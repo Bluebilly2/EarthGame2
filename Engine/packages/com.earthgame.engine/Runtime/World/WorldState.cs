@@ -84,8 +84,17 @@ namespace EarthGame.Engine
         /// <summary>What lies loose on this world's ground (M1.6a), as the folder's own layer of <see cref="LooseCodes"/>; null on a world made before it.</summary>
         public RegionRaster Loose { get; }
 
+        /// <summary>
+        /// Which stone lies on each cell (M1.2's layer, `StoneType.All` index + 1, 0 none), which a cobble taken up is made
+        /// of (M1.5b); null on a world whose folder has none.
+        /// </summary>
+        public RegionRaster Stone { get; }
+
+        /// <summary>What has been taken up of what lies loose (M1.5b), kept beside the layer, which never changes.</summary>
+        public LooseTaken Taken { get; } = new LooseTaken();
+
         public WorldState(ulong seed, Region region, WorldClock clock, Heightfield terrain = null, long tick = 0, Double3? wake = null, WorldWater water = null, RegionRaster cover = null,
-                          RegionRaster stand = null, RegionRaster loose = null)
+                          RegionRaster stand = null, RegionRaster loose = null, RegionRaster stone = null)
         {
             Seed = seed;
             Region = region ?? throw new ArgumentNullException(nameof(region));
@@ -101,8 +110,10 @@ namespace EarthGame.Engine
             Cover = cover;
             if (stand != null && !stand.IsIntegral) throw new ArgumentException("the stand is " + stand.Dtype + ", not a code layer", nameof(stand));
             if (loose != null && !loose.IsIntegral) throw new ArgumentException("the loose layer is " + loose.Dtype + ", not a code layer", nameof(loose));
+            if (stone != null && !stone.IsIntegral) throw new ArgumentException("the stone layer is " + stone.Dtype + ", not a code layer", nameof(stone));
             Stand = stand;
             Loose = loose;
+            Stone = stone;
         }
 
         /// <summary>

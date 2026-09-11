@@ -120,6 +120,9 @@ namespace EarthGame.ClientCore
         /// <summary>The newest answer to an intent this client sent (M1.5a).</summary>
         public IntentResultMessage LastIntentResult { get; private set; }
 
+        /// <summary>What has been taken from the loose layer, as the server has told this client (M1.5b): every taking, whichever tiles are held.</summary>
+        public LooseTaken Taken { get; } = new LooseTaken();
+
         /// <summary>Payload bytes this connection has sent and received, or zero before it exists.</summary>
         public long BytesSent => _transport.Connection != null ? _transport.Connection.BytesSent : 0;
         public long BytesReceived => _transport.Connection != null ? _transport.Connection.BytesReceived : 0;
@@ -138,6 +141,8 @@ namespace EarthGame.ClientCore
         public event Action<IntentResultMessage> IntentAnswered;
         /// <summary>What this founder carries changed, or was told at the join (M1.5a).</summary>
         public event Action<CarryingMessage> CarryingChanged;
+        /// <summary>Something was taken from a cell of the loose layer, or the join told of it (M1.5b); the cell's takings as they now stand.</summary>
+        public event Action<LooseTaken.Cell> LooseTakenChanged;
 
         private uint _intentSequence;
 
@@ -419,6 +424,17 @@ namespace EarthGame.ClientCore
                         reader.ExpectEnd();
                         Carrying = carrying;
                         CarryingChanged?.Invoke(carrying);
+                        break;
+                    }
+                    case MessageKind.LooseTaken:
+                    {
+                        LooseTakenMessage taken = LooseTakenMessage.Read(reader);
+                        reader.ExpectEnd();
+                        foreach (LooseTaken.Cell cell in taken.Cells)
+                        {
+                            Taken.Merge(cell);
+                            if (Taken.TryGet(cell.Row, cell.Col, out LooseTaken.Cell now)) LooseTakenChanged?.Invoke(now);
+                        }
                         break;
                     }
                     case MessageKind.SnapshotEnd:

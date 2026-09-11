@@ -47,6 +47,8 @@ namespace EarthGame.Protocol
         IntentResult = 18,
         /// <summary>Server → client: what you carry in each place, and which place is the hand.</summary>
         Carrying = 19,
+        /// <summary>Server → client: what has been taken from the loose layer, cell by cell (M1.5b).</summary>
+        LooseTaken = 20,
     }
 
     /// <summary>One tile of one layer the client wants, with the checksum of the copy it already holds (zero for none).</summary>
@@ -674,18 +676,24 @@ namespace EarthGame.Protocol
     }
 
     /// <summary>
-    /// Client → server, reliable (protocol v6): a verb and its target. A pick-up names the entity (target kind 1; the
-    /// generated things of M1.5b will be another kind); a put-down names the point on the ground the founder is looking
-    /// at; a hold names the place, 0 for an empty hand. The server answers with an <see cref="IntentResultMessage"/> of
-    /// the same sequence.
+    /// Client → server, reliable (protocol v6): a verb and its target. A pick-up names an entity (target kind 1: u64 id)
+    /// or, since protocol v7 (M1.5b), a thing lying in the loose layer by its place (target kind 2: u16 row, u16 column,
+    /// u8 kind, 2 a stick or 3 a cobble, u8 index); a put-down names the point on the ground the founder is looking at;
+    /// a hold names the place, 0 for an empty hand. The server answers with an <see cref="IntentResultMessage"/> of the
+    /// same sequence.
     /// </summary>
     public struct IntentMessage
     {
         public const byte TargetEntity = 1;
+        /// <summary>A thing lying in the loose layer, named by its place (protocol v7, M1.5b).</summary>
+        public const byte TargetLying = 2;
 
         public uint Sequence;
         public Verb Verb;
+        /// <summary>What a pick-up names: <see cref="TargetEntity"/> or <see cref="TargetLying"/>.</summary>
+        public byte Target;
         public ulong EntityId;
+        public LyingThing Lying;
         public double East;
         public double Up;
         public double North;
@@ -699,8 +707,18 @@ namespace EarthGame.Protocol
             switch (Verb)
             {
                 case Verb.PickUp:
-                    w.WriteByte(TargetEntity);
-                    w.WriteUInt64(EntityId);
+                    w.WriteByte(Target);
+                    if (Target == TargetEntity) w.WriteUInt64(EntityId);
+                    else if (Target == TargetLying)
+                    {
+                        if (Lying.Row < 0 || Lying.Row > ushort.MaxValue || Lying.Col < 0 || Lying.Col > ushort.MaxValue || Lying.Index < 0 || Lying.Index > byte.MaxValue)
+                            throw new ProtocolException("the " + Lying + " does not fit the wire");
+                        w.WriteUInt16((ushort)Lying.Row);
+                        w.WriteUInt16((ushort)Lying.Col);
+                        w.WriteByte((byte)Lying.Kind);
+                        w.WriteByte((byte)Lying.Index);
+                    }
+                    else throw new ProtocolException("a pick-up names a target of kind " + Target + ", which has no layout");
                     break;
                 case Verb.PutDown:
                     w.WriteDouble(East);
@@ -723,9 +741,19 @@ namespace EarthGame.Protocol
             switch (m.Verb)
             {
                 case Verb.PickUp:
-                    byte target = r.ReadByte();
-                    if (target != TargetEntity) throw new ProtocolException("a pick-up names a target of kind " + target + ", which this build does not know");
-                    m.EntityId = r.ReadUInt64();
+                    m.Target = r.ReadByte();
+                    if (m.Target == TargetEntity) m.EntityId = r.ReadUInt64();
+                    else if (m.Target == TargetLying)
+                    {
+                        int row = r.ReadUInt16();
+                        int col = r.ReadUInt16();
+                        byte kind = r.ReadByte();
+                        int index = r.ReadByte();
+                        if (kind != (byte)StandLayout.Kind.Stick && kind != (byte)StandLayout.Kind.Cobble)
+                            throw new ProtocolException("a pick-up names a lying thing of kind " + kind + ", neither a stick nor a cobble");
+                        m.Lying = new LyingThing(row, col, (StandLayout.Kind)kind, index);
+                    }
+                    else throw new ProtocolException("a pick-up names a target of kind " + m.Target + ", which this build does not know");
                     break;
                 case Verb.PutDown:
                     m.East = r.ReadDouble();
@@ -805,6 +833,57 @@ namespace EarthGame.Protocol
                 if (!DefinitionCatalogue.TryById(definitionId, out Definition definition))
                     throw new ProtocolException("carried thing " + id + " has definition " + definitionId + ", which this build does not know");
                 m.Things[i] = new CarriedThing { Id = id, Definition = definition, Place = place };
+            }
+            return m;
+        }
+    }
+
+    /// <summary>
+    /// Server → client, reliable (protocol v7, M1.5b): what has been taken from the loose layer, cell by cell — every
+    /// cell at the join, before the snapshot's end, and a cell's takings again to every client whenever a founder takes
+    /// something from it. A client adds what it is told to what it holds: nothing taken is ever put back.
+    /// </summary>
+    public struct LooseTakenMessage
+    {
+        /// <summary>The most cells one message carries, eight bytes each: well inside <see cref="ProtocolInfo.MaxMessageBytes"/>.</summary>
+        public const int MaxCells = 2048;
+
+        public LooseTaken.Cell[] Cells;
+
+        public void Write(PacketWriter w)
+        {
+            int count = Cells != null ? Cells.Length : 0;
+            if (count > MaxCells) throw new ProtocolException(count + " cells in one message; at most " + MaxCells);
+            w.WriteByte((byte)MessageKind.LooseTaken);
+            w.WriteUInt16((ushort)count);
+            for (int i = 0; i < count; i++)
+            {
+                LooseTaken.Cell c = Cells[i];
+                if (c.Row < 0 || c.Row > ushort.MaxValue || c.Col < 0 || c.Col > ushort.MaxValue)
+                    throw new ProtocolException("cell (" + c.Row + ", " + c.Col + ") does not fit the wire");
+                w.WriteUInt16((ushort)c.Row);
+                w.WriteUInt16((ushort)c.Col);
+                w.WriteUInt16(c.Sticks);
+                w.WriteUInt16(c.Cobbles);
+            }
+        }
+
+        public static LooseTakenMessage Read(PacketReader r)
+        {
+            LooseTakenMessage m;
+            int count = r.ReadUInt16();
+            if (count > MaxCells) throw new ProtocolException(count + " cells in one message; at most " + MaxCells);
+            m.Cells = new LooseTaken.Cell[count];
+            for (int i = 0; i < count; i++)
+            {
+                LooseTaken.Cell c;
+                c.Row = r.ReadUInt16();
+                c.Col = r.ReadUInt16();
+                c.Sticks = r.ReadUInt16();
+                c.Cobbles = r.ReadUInt16();
+                if ((c.Sticks >> LooseCodes.MaxEach) != 0 || (c.Cobbles >> LooseCodes.MaxEach) != 0)
+                    throw new ProtocolException("cell (" + c.Row + ", " + c.Col + ") has a taking past the " + LooseCodes.MaxEach + " things a code counts");
+                m.Cells[i] = c;
             }
             return m;
         }

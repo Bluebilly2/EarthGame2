@@ -173,6 +173,13 @@ namespace EarthGame.Engine
             return e;
         }
 
+        /// <summary>
+        /// An id for a thing that becomes the world's to count without lying in the store (M1.5b): a stick or a cobble of
+        /// the loose layer taken straight into a founder's hands. It is never used again, and the thing enters the store
+        /// under it when it is put down (<see cref="Return"/>).
+        /// </summary>
+        public ulong AllocateId() => NextId++;
+
         /// <summary>The next id as the save recorded it; never below what the entities present already need.</summary>
         public void SetNextId(ulong next)
         {

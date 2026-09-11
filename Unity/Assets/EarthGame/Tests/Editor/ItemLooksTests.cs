@@ -30,6 +30,10 @@ namespace EarthGame.Tests.Editor
             Assert.That(cobbleScale, Is.EqualTo((float)(2.0 * DefinitionCatalogue.Cobble.RadiusM)).Within(1e-6f), "the item's own diameter");
             Assert.That(cobbleScale, Is.EqualTo(StandViews.CobbleSizeM), "which is the size the litter's cobbles are drawn at");
 
+            Assert.That(ItemLooks.TryLook(DefinitionCatalogue.CobbleOf(StoneType.Silcrete), 8, out Mesh silcrete, out float silcreteScale), Is.True);
+            Assert.That(silcrete, Is.SameAs(cobble), "a stone's cobble is the cobble's shape (M1.5b)");
+            Assert.That(silcreteScale, Is.EqualTo(cobbleScale));
+
             Assert.That(ItemLooks.TryLook(DefinitionCatalogue.Player, 1, out _, out _), Is.False, "a founder is no item");
         }
     }

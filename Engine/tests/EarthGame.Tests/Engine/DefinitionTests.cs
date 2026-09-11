@@ -21,7 +21,8 @@ namespace EarthGame.Tests.Engine
                 Assert.That(DefinitionCatalogue.ById(d.Id), Is.SameAs(d));
                 Assert.That(DefinitionCatalogue.ByKey(d.Key), Is.SameAs(d));
             }
-            Assert.That(DefinitionCatalogue.All.Count, Is.EqualTo(1 + PlantSpecies.All.Count + StoneType.All.Count + AnimalSpecies.All.Count + 2));
+            Assert.That(DefinitionCatalogue.All.Count, Is.EqualTo(1 + PlantSpecies.All.Count + StoneType.All.Count + AnimalSpecies.All.Count + 2 + StoneType.All.Count),
+                "the player, the tables, the plain cobble and the stick, and a cobble of every stone");
         }
 
         [Test]
@@ -40,7 +41,9 @@ namespace EarthGame.Tests.Engine
         [Test]
         public void OnlyTheItemsAreSpawnableYetAndTheyHaveMass()
         {
-            Assert.That(DefinitionCatalogue.Spawnable, Is.EquivalentTo(new[] { DefinitionCatalogue.Cobble, DefinitionCatalogue.Stick }));
+            List<Definition> items = new List<Definition> { DefinitionCatalogue.Cobble, DefinitionCatalogue.Stick };
+            foreach (StoneType stone in StoneType.All) items.Add(DefinitionCatalogue.CobbleOf(stone));
+            Assert.That(DefinitionCatalogue.Spawnable, Is.EquivalentTo(items));
             foreach (Definition d in DefinitionCatalogue.Spawnable)
             {
                 Assert.That(d.Kind, Is.EqualTo(DefinitionKind.Item));
@@ -50,6 +53,22 @@ namespace EarthGame.Tests.Engine
             Assert.That(DefinitionCatalogue.Cobble.MassKg, Is.EqualTo(0.6));
             Assert.That(DefinitionCatalogue.Player.Spawnable, Is.False, "the body stays a session's until the verbs land");
             Assert.That(DefinitionCatalogue.ByKey("plant/blackbutt").Spawnable, Is.False, "trees become entities in M1.6");
+        }
+
+        /// <summary>A cobble taken up is of its cell's stone (M1.5b): its own key and name, the plain cobble's shape, and the stone's own weight.</summary>
+        [Test]
+        public void ACobbleOfEachStoneWeighsByItsDensity()
+        {
+            Definition silcrete = DefinitionCatalogue.CobbleOf(StoneType.Silcrete);
+            Assert.That(silcrete.Key, Is.EqualTo("item/cobble-silcrete"));
+            Assert.That(silcrete.DisplayName, Is.EqualTo("a silcrete cobble"));
+            Assert.That(DefinitionCatalogue.CobbleOf(StoneType.Obsidian).DisplayName, Is.EqualTo("an obsidian cobble"));
+            Assert.That(silcrete.Row, Is.SameAs(StoneType.Silcrete));
+            Assert.That(silcrete.RadiusM, Is.EqualTo(DefinitionCatalogue.Cobble.RadiusM));
+            Assert.That(silcrete.MassKg, Is.EqualTo(0.6).Within(1e-12), "silcrete is the plain cobble's own density");
+            Assert.That(DefinitionCatalogue.CobbleOf(StoneType.Basalt).MassKg, Is.EqualTo(0.6 * 2900.0 / 2600.0).Within(1e-12), "basalt is heavier");
+            Assert.That(DefinitionCatalogue.CobbleOf(StoneType.Sandstone).MassKg, Is.EqualTo(0.6 * 2300.0 / 2600.0).Within(1e-12), "sandstone lighter");
+            Assert.That(DefinitionCatalogue.CobbleOf(null), Is.SameAs(DefinitionCatalogue.Cobble), "a cell with no stone named gives the plain cobble");
         }
 
         [Test]

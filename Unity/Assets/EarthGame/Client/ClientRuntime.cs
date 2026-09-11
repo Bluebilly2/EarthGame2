@@ -67,6 +67,8 @@ namespace EarthGame.Client
         private StandViews _stand;
         private VerbController _verbs;
         private HandView _hand;
+        /// <summary>How many times something has been taken from each tile's cells (M1.5b), so the stand knows to place it again.</summary>
+        private readonly Dictionary<TileId, int> _takenVersions = new Dictionary<TileId, int>();
         private Light _sun;
         private WorldClock _clock;
         private SolarClock _solar;
@@ -147,6 +149,7 @@ namespace EarthGame.Client
             _client.TileFailed += OnTileFailed;
             _client.TileDropped += OnTileDropped;
             _client.PlayerLeft += OnPlayerLeft;
+            _client.LooseTakenChanged += OnLooseTaken;
             Interactive = false;
             if (_player != null) _player.Frozen = true;
             Joins++;
@@ -178,6 +181,7 @@ namespace EarthGame.Client
                 _client.TileFailed -= OnTileFailed;
                 _client.TileDropped -= OnTileDropped;
                 _client.PlayerLeft -= OnPlayerLeft;
+                _client.LooseTakenChanged -= OnLooseTaken;
             }
             _transport?.Dispose();
             Connect();
@@ -378,11 +382,33 @@ namespace EarthGame.Client
             return held > 0;
         }
 
-        /// <summary>What stands and lies on a tile (M1.6a) is placed once its stand and its ground are held; any of its layers arriving asks.</summary>
+        /// <summary>
+        /// What stands and lies on a tile (M1.6a) is placed once its stand and its ground are held, less what has been taken
+        /// from it (M1.5b); any of its layers arriving asks, and so does a taking.
+        /// </summary>
         private void WantStand(TileId id)
         {
             if (_stand == null || _client?.Tiles == null) return;
-            _stand.Want(_client.Tiles.Holding(TileLayer.Stand, id), _client.Tiles.Holding(TileLayer.Loose, id), _client.Tiles.Holding(TileLayer.Ground, id));
+            ReceivedTile loose = _client.Tiles.Holding(TileLayer.Loose, id);
+            _takenVersions.TryGetValue(id, out int version);
+            _stand.Want(_client.Tiles.Holding(TileLayer.Stand, id), loose, _client.Tiles.Holding(TileLayer.Ground, id),
+                        StandPreparation.TakenIn(_client.Taken, loose, _client.Grid), version);
+        }
+
+        /// <summary>
+        /// Something was taken from a cell of the loose layer (M1.5b): every tile held whose posts stand for the cell is placed
+        /// again less it. A tile shares its edge posts with the next, so a cell on an edge is two tiles'.
+        /// </summary>
+        private void OnLooseTaken(LooseTaken.Cell cell)
+        {
+            if (_client?.Tiles == null || _client.Grid == null) return;
+            foreach (TileId id in new List<TileId>(_client.Tiles.Held.Keys))
+            {
+                ReceivedTile loose = _client.Tiles.Holding(TileLayer.Loose, id);
+                if (loose == null || !StandPreparation.Covers(loose, _client.Grid, cell.Row, cell.Col)) continue;
+                _takenVersions[id] = (_takenVersions.TryGetValue(id, out int version) ? version : 0) + 1;
+                WantStand(id);
+            }
         }
 
         private void OnTileReady(ReceivedTile tile)

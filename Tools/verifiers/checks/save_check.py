@@ -7,16 +7,20 @@ world's name as the server wrote it), players/*.egp (eg2.player version 2 or 3: 
 as a u16 UTF-8 byte length and the bytes, f64 east, up, north, f32 yaw, f32 pitch, u8 flags with 1 grounded,
 2 wading, 4 crouching, i64 saved tick; version 3 (M1.5a) then the hand's place as a u8 and what is carried as a u8
 count and, per thing, u8 place, u64 id, the key as a u16 UTF-8 byte length and the bytes, and i64 spawn tick; then
-u32 CRC-32 of everything before it) and any players/*.json left from version 1, and regions/r.X.Y.egr
-(eg2.region version 1: magic EG2R, u16 version, i32 cell x, i32 cell z, f64 cell size, u32 entity count, u32
-layer-diff count, u32 CRC-32 of the records, then per entity u64 id, the key as a u16 UTF-8 byte length and the
-bytes, f64 east, up, north, f32 yaw, i64 spawn tick, u8 component mask with 1 = item, and for an item u8 resting
-and f32 fall speed). Then it rebuilds the world's name from the lines WorldDigest states — clock <nanohours>,
-tick <n>, one line per body sorted by name (<name> <micrometres east> <up> <north> g|a w|d c|s), then for each
-founder by name who carries something or has chosen a hand, hands <name> <place> and one line per thing by place
-(carried <name> <place> <id> <key>), one line per entity in id order (entity <id> <key> <micrometres east> <up>
-<north> <microdegrees yaw>[ item r|f <micrometres per second>]), next_entity <n> — hashed with FNV-1a 64, every
-number a whole count of its resolution rounded half to even, and prints it beside the server's.
+u32 CRC-32 of everything before it) and any players/*.json left from version 1, regions/r.X.Y.egr (eg2.region
+version 1 or 2: magic EG2R, u16 version, i32 cell x, i32 cell z, f64 cell size, u32 entity count, u32 layer-diff
+count, none in version 1, u32 CRC-32 of the records, then per entity u64 id, the key as a u16 UTF-8 byte length and
+the bytes, f64 east, up, north, f32 yaw, i64 spawn tick, u8 component mask with 1 = item, and for an item u8
+resting and f32 fall speed; then per diff u8 layer, 5 for the loose layer, u16 row, u16 col, u16 sticks taken and
+u16 cobbles taken, a bit for each index), and layers/loose.json with its raw bytes (a u8 per cell of the world's
+raster, row 0 north: the low four bits the sticks lying on the cell, the high four its cobbles). Then it rebuilds
+the world's name from the lines WorldDigest states — clock <nanohours>, tick <n>, one line per body sorted by name
+(<name> <micrometres east> <up> <north> g|a w|d c|s), then for each founder by name who carries something or has
+chosen a hand, hands <name> <place> and one line per thing by place (carried <name> <place> <id> <key>), one line
+per entity in id order (entity <id> <key> <micrometres east> <up> <north> <microdegrees yaw>[ item r|f <micrometres
+per second>]), one line per cell something was taken from, by row and then column (taken <row> <col> <sticks mask>
+<cobbles mask>), next_entity <n> — hashed with FNV-1a 64, every number a whole count of its resolution rounded half
+to even, and prints it beside the server's.
 
 Rows, each with both numbers:
   1. every region file's CRC matches its records;
@@ -25,7 +29,9 @@ Rows, each with both numbers:
   3. every player file's CRC matches, and no name has both a version-1 and a binary file;
   4. every carried thing is out of the world: its id lies in no region file, is below next_entity_id, and is
      carried by one founder only;
-  5. the recomputed digest equals digest.txt.
+  5. every taking names only things its cell of the loose layer held, and is kept in the region file of the 512 m
+     cell its raster cell's centre falls in;
+  6. the recomputed digest equals digest.txt.
 Independent of the tool by implementation: the server's C# writer and digest are never imported; the layouts
 and the lines are restated here from the architecture, so a writer that drifts from its stated format is caught
 by a reader that did not drift with it.
@@ -50,6 +56,7 @@ HOUR = 1e-9
 DEGREE = 1e-6
 REGION_HEADER = struct.Struct("<4sHiidIII")
 COMPONENT_ITEM = 1
+LAYER_LOOSE = 5
 
 
 def fixed(value, resolution):
@@ -85,8 +92,10 @@ def read_region(path):
     magic, version, cx, cz, cell, count, diffs, crc = REGION_HEADER.unpack_from(data, 0)
     if magic != b"EG2R":
         raise ValueError("%s: not a region file" % path)
-    if version != 1:
+    if version not in (1, 2):
         raise ValueError("%s: version %d" % (path, version))
+    if version == 1 and diffs != 0:
+        raise ValueError("%s: a version-1 region file with %d layer diffs" % (path, diffs))
     records = data[REGION_HEADER.size:]
     actual = zlib.crc32(records) & 0xFFFFFFFF
     entities = []
@@ -103,9 +112,30 @@ def read_region(path):
             at += 5
             item = (resting != 0, fall)
         entities.append({"id": eid, "key": key, "east": east, "up": up, "north": north, "yaw": yaw, "spawn_tick": spawn_tick, "item": item})
+    taken = []
+    for _ in range(diffs):
+        layer, row, col, sticks, cobbles = struct.unpack_from("<BHHHH", records, at)
+        at += 9
+        if layer != LAYER_LOOSE:
+            raise ValueError("%s: a diff of layer %d" % (path, layer))
+        taken.append({"row": row, "col": col, "sticks": sticks, "cobbles": cobbles, "file_cell": (cx, cz)})
     if at != len(records):
-        raise ValueError("%s: %d bytes left over after %d records" % (path, len(records) - at, count))
-    return {"cell": (cx, cz), "cell_m": cell, "diffs": diffs, "crc_stated": crc, "crc_actual": actual, "entities": entities}
+        raise ValueError("%s: %d bytes left over after %d records and %d diffs" % (path, len(records) - at, count, diffs))
+    return {"cell": (cx, cz), "cell_m": cell, "diffs": diffs, "crc_stated": crc, "crc_actual": actual, "entities": entities, "taken": taken}
+
+
+def read_codes_layer(world_dir, name):
+    """A u8 layer of the world folder by its sidecar: its width, height, cell and extent, and its raw bytes; None when absent."""
+    sidecar = os.path.join(world_dir, "layers", name + ".json")
+    if not os.path.isfile(sidecar):
+        return None
+    doc = json.load(open(sidecar, encoding="utf-8"))
+    if doc.get("dtype") != "u8":
+        raise ValueError("%s: dtype %s, not u8" % (sidecar, doc.get("dtype")))
+    raw = open(os.path.join(os.path.dirname(sidecar), doc["raw"]), "rb").read()
+    if len(raw) != int(doc["width"]) * int(doc["height"]):
+        raise ValueError("%s: %d bytes for %s by %s cells" % (sidecar, len(raw), doc["width"], doc["height"]))
+    return {"width": int(doc["width"]), "height": int(doc["height"]), "cell_m": float(doc["cell_m"]), "extent_m": float(doc["extent_m"]), "raw": raw}
 
 
 def read_player_binary(path):
@@ -162,6 +192,7 @@ def main(argv):
     # 1 and 2: the region files.
     regions = sorted(glob.glob(os.path.join(full, "regions", "r.*.egr")))
     entities = []
+    taken_all = []
     crc_bad, misplaced, named_wrong = [], [], []
     for path in regions:
         name = os.path.basename(path)
@@ -175,6 +206,7 @@ def main(argv):
             if extent > 0 and (cell_index(e["east"], extent), cell_index(e["north"], extent)) != region["cell"]:
                 misplaced.append("entity %d at (%.1f, %.1f) in %s" % (e["id"], e["east"], e["north"], name))
         entities.extend(region["entities"])
+        taken_all.extend(region["taken"])
     expect("every region file's CRC matches", not crc_bad, "%d files, %d entities; %s" % (len(regions), len(entities), "; ".join(crc_bad) or "all match"))
     expect("every entity lies in the cell its file names", not misplaced and not named_wrong,
            "; ".join(misplaced + named_wrong) or "%d entities in %d cells of %.0f m" % (len(entities), len(regions), CELL_M))
@@ -213,7 +245,29 @@ def main(argv):
     expect("every carried thing is out of the world", not wrong,
            "; ".join(wrong) or "%d carried by %d founders, %d lying, next id %d" % (len(carried_by), sum(1 for p in players.values() if p["carried"]), len(lying), next_id))
 
-    # 5: the digest, rebuilt from the stated lines.
+    # 5: what was taken from the loose layer lay there to take, and is kept in the file of its cell.
+    loose = read_codes_layer(full, "loose")
+    wrong_taken, things_taken = [], 0
+    for t in taken_all:
+        things_taken += bin(t["sticks"]).count("1") + bin(t["cobbles"]).count("1")
+        if loose is None:
+            wrong_taken.append("cell (%d, %d) taken from a world with no loose layer" % (t["row"], t["col"]))
+            continue
+        if not (0 <= t["row"] < loose["height"] and 0 <= t["col"] < loose["width"]):
+            wrong_taken.append("cell (%d, %d) lies outside the loose layer" % (t["row"], t["col"]))
+            continue
+        code = loose["raw"][t["row"] * loose["width"] + t["col"]]
+        sticks, cobbles = code & 0x0F, code >> 4
+        if (t["sticks"] >> sticks) or (t["cobbles"] >> cobbles):
+            wrong_taken.append("cell (%d, %d) took sticks %d and cobbles %d of a cell holding %d and %d" % (t["row"], t["col"], t["sticks"], t["cobbles"], sticks, cobbles))
+        east = t["col"] * loose["cell_m"] - loose["extent_m"] / 2.0
+        north = loose["extent_m"] / 2.0 - t["row"] * loose["cell_m"]
+        if extent > 0 and (cell_index(east, extent), cell_index(north, extent)) != t["file_cell"]:
+            wrong_taken.append("cell (%d, %d) at (%.0f, %.0f) is kept in the file of cell %s" % (t["row"], t["col"], east, north, t["file_cell"]))
+    expect("every taken thing lay there to take", not wrong_taken,
+           "; ".join(wrong_taken) or "%d things taken from %d cells, each inside its cell's count and in its own region file" % (things_taken, len(taken_all)))
+
+    # 6: the digest, rebuilt from the stated lines.
     lines = ["clock %s" % fixed(float(doc["clock"]["total_hours"]), HOUR), "tick %d" % int(doc["tick"])]
     for name in sorted(players):
         p = players[name]
@@ -231,6 +285,8 @@ def main(argv):
         if e["item"] is not None:
             line += " item %s %s" % ("r" if e["item"][0] else "f", fixed(e["item"][1], METRE))
         lines.append(line)
+    for t in sorted(taken_all, key=lambda t: (t["row"], t["col"])):
+        lines.append("taken %d %d %d %d" % (t["row"], t["col"], t["sticks"], t["cobbles"]))
     lines.append("next_entity %d" % int(doc.get("next_entity_id", 1)))
     recomputed = fnv1a64("\n".join(lines) + "\n")
     written = open(digest_path, encoding="utf-8").read().strip()

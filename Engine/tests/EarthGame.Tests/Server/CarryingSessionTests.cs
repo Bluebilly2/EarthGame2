@@ -91,7 +91,7 @@ namespace EarthGame.Tests.Server
             return null;
         }
 
-        private static IntentMessage PickUp(ulong id) => new IntentMessage { Verb = Verb.PickUp, EntityId = id };
+        private static IntentMessage PickUp(ulong id) => new IntentMessage { Verb = Verb.PickUp, Target = IntentMessage.TargetEntity, EntityId = id };
         private static IntentMessage PutDown(Double3 at) => new IntentMessage { Verb = Verb.PutDown, East = at.X, Up = at.Y, North = at.Z };
         private static IntentMessage Hold(byte place) => new IntentMessage { Verb = Verb.Hold, Place = place };
 

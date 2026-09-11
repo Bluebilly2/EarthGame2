@@ -162,6 +162,7 @@ namespace EarthGame.Tests.Server
                 ("a body's grounded", null, p => { p.Body.Grounded = false; return p; }),
                 ("a body's position", null, p => { p.Body.East += 0.001; return p; }),
                 ("a carried thing", null, p => { p.Carried = new[] { new CarriedThing { Id = 9, Definition = DefinitionCatalogue.Stick, Place = 1 } }; p.Hand = 1; return p; }),
+                ("a thing taken from the ground", w => w.Taken.Take(new LyingThing(1, 1, StandLayout.Kind.Stick, 0)), null),
                 ("the hand", null, p => { p.Hand = 3; return p; }),
             };
             foreach ((string name, Action<WorldState> mutate, Func<SavedPlayer, SavedPlayer> mutatePlayer) in sabotage)
@@ -181,12 +182,12 @@ namespace EarthGame.Tests.Server
             WorldSave.Write(_dir, w, new SavedPlayer[0], Now);
             string path = Path.Combine(_dir, "regions", "r.2.2.egr");
             byte[] bytes = File.ReadAllBytes(path);
-            List<SavedEntity> ok = RegionFile.Decode(bytes, out int cx, out int cz);
+            List<SavedEntity> ok = RegionFile.Decode(bytes, out int cx, out int cz, out _);
             Assert.That((cx, cz), Is.EqualTo((2, 2)));
             Assert.That(ok.Count, Is.EqualTo(2));
             byte[] corrupt = (byte[])bytes.Clone();
             corrupt[RegionFile.HeaderBytes + 20] ^= 0xFF;
-            Assert.Throws<InvalidDataException>(() => RegionFile.Decode(corrupt, out _, out _), "a flipped byte fails the CRC");
+            Assert.Throws<InvalidDataException>(() => RegionFile.Decode(corrupt, out _, out _, out _), "a flipped byte fails the CRC");
             File.Move(path, Path.Combine(_dir, "regions", "r.1.1.egr"));
             Assert.Throws<InvalidDataException>(() => WorldSave.Read(_dir), "a file named for another cell");
         }
@@ -261,6 +262,61 @@ namespace EarthGame.Tests.Server
             WorldSave.Write(Path.Combine(_dir, "ahead"), w, new[] { p }, Now);
             Assert.That(() => WorldSave.Read(Path.Combine(_dir, "ahead")), Throws.TypeOf<InvalidDataException>().With.Message.Contains("entity 40"),
                 "an id the world has not allocated");
+        }
+
+        /// <summary>The made coast's loose layer, with the same things on every cell.</summary>
+        private static RegionRaster Loose(int sticks, int cobbles) =>
+            TestRasters.FromCodes(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "made_loose", "loose", (row, col) => LooseCodes.Pack(sticks, cobbles), null);
+
+        /// <summary>What is taken from the ground rides the region files as layer diffs and is named by the digest (M1.5b promise 3).</summary>
+        [Test]
+        public void TakingsRideTheRegionFilesAndEnterTheDigest()
+        {
+            RegionRaster loose = Loose(3, 2);
+            WorldState w = new WorldState(1347UL, Fixture, Fixture.WakeClock(), _terrain, 0, null, null, null, null, loose);
+            w.SpawnItem(DefinitionCatalogue.Cobble, -500, -500);
+            string before = Digest(w, new SavedPlayer[0]);
+            Assert.That(w.Taken.Take(new LyingThing(110, 110, StandLayout.Kind.Stick, 2)), Is.True);
+            Assert.That(w.Taken.Take(new LyingThing(3, 150, StandLayout.Kind.Cobble, 1)), Is.True);
+            string expected = Digest(w, new SavedPlayer[0]);
+            Assert.That(expected, Is.Not.EqualTo(before), "a taking enters the digest");
+            WorldSave.Write(_dir, w, new SavedPlayer[0], Now);
+            Assert.That(File.Exists(Path.Combine(_dir, "regions", "r.2.3.egr")), Is.True, "the cell (700, 770) lies in, a file of takings alone");
+            Assert.That(File.Exists(Path.Combine(_dir, "regions", "r.2.0.egr")), Is.True, "and (300, -300)'s");
+
+            WorldSaveInfo info = WorldSave.Read(_dir);
+            Assert.That(info.Digest, Is.EqualTo(expected));
+            Assert.That(info.Taken.Count, Is.EqualTo(2));
+            WorldState back = WorldSave.Restore(info, _terrain, Fixture, null, null, null, loose);
+            Assert.That(Digest(back, new SavedPlayer[0]), Is.EqualTo(expected), "the same name after the round trip");
+            Assert.That(back.Taken.IsTaken(new LyingThing(110, 110, StandLayout.Kind.Stick, 2)), Is.True);
+            Assert.That(LyingThings.TryFind(back, new LyingThing(110, 110, StandLayout.Kind.Stick, 1), out _), Is.True, "the stick beside it is still there");
+        }
+
+        [Test]
+        public void AVersionOneRegionFileIsStillReadAndATakingNoCellHeldIsRefused()
+        {
+            // Version 1, as M1.3 wrote it: the same header and records, and no diffs.
+            byte[] v1 = RegionFile.Encode(1, 2, new[] { SavedEntity.Of(Make().Entities.All[0]) });
+            v1[4] = 1;
+            v1[5] = 0;
+            List<SavedEntity> read = RegionFile.Decode(v1, out int cx, out int cz, out List<LooseTaken.Cell> taken);
+            Assert.That((cx, cz), Is.EqualTo((1, 2)));
+            Assert.That(read.Count, Is.EqualTo(1));
+            Assert.That(taken, Is.Empty);
+            byte[] withDiff = RegionFile.Encode(1, 2, new SavedEntity[0], new[] { new LooseTaken.Cell { Row = 1, Col = 1, Sticks = 1 } });
+            withDiff[4] = 1;
+            Assert.Throws<InvalidDataException>(() => RegionFile.Decode(withDiff, out _, out _, out _), "version 1 had no diffs");
+
+            // A taking of a stick its cell never held: a folder this world's server did not write.
+            WorldState w = new WorldState(1347UL, Fixture, Fixture.WakeClock(), _terrain, 0, null, null, null, null, Loose(1, 0));
+            w.Taken.Take(new LyingThing(110, 110, StandLayout.Kind.Stick, 0));
+            WorldSave.Write(_dir, w, new SavedPlayer[0], Now);
+            WorldSaveInfo info = WorldSave.Read(_dir);
+            Assert.That(() => WorldSave.Restore(info, _terrain, Fixture, null, null, null, Loose(0, 0)),
+                Throws.TypeOf<InvalidDataException>().With.Message.Contains("held 0 sticks"));
+            Assert.That(() => WorldSave.Restore(info, _terrain, Fixture), Throws.TypeOf<InvalidDataException>().With.Message.Contains("does not have"),
+                "nor from a world with no loose layer at all");
         }
 
         /// <summary>A player file's body with its CRC appended, as <see cref="PlayerFile"/> lays it out.</summary>

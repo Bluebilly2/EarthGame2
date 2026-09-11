@@ -33,8 +33,14 @@ namespace EarthGame.Client
         /// </summary>
         public const string CarryScenario = "carry";
 
+        /// <summary>
+        /// The litter frames (M1.5b), run by <c>-eg-scenario litter</c>: a stick of the world's own litter within reach
+        /// looked at, taken up, gone from the ground and in the hand, and put down again as an item.
+        /// </summary>
+        public const string LitterScenario = "litter";
+
         /// <summary>Whether a scenario is one of this recorder's, which write frames, rather than the runner's.</summary>
-        public static bool IsKnown(string scenario) => scenario == Scenario || scenario == CarryScenario;
+        public static bool IsKnown(string scenario) => scenario == Scenario || scenario == CarryScenario || scenario == LitterScenario;
         private static readonly (int Width, int Height, string Tag)[] Sizes = { (2560, 1440, "1440p"), (1920, 1080, "1080p") };
 
         private string _dir;
@@ -93,7 +99,7 @@ namespace EarthGame.Client
             _log = RunLog.Open(Path.Combine(dir, "run.jsonl"), header.With("scenario", _scenario));
             Application.logMessageReceived += OnLog;
             _running = true;
-            StartCoroutine(_scenario == CarryScenario ? RunCarry() : Run());
+            StartCoroutine(_scenario == CarryScenario ? RunCarry() : _scenario == LitterScenario ? RunLitter() : Run());
         }
 
         private double T => _clock.Elapsed.TotalSeconds;
@@ -217,6 +223,115 @@ namespace EarthGame.Client
                 .With("east", _player.State.East).With("up", _player.State.Up).With("north", _player.State.North));
             _running = false;
             Finish(_errors == 0 && picked && put && kept && _frames == 5 * Sizes.Length ? 0 : 1);
+        }
+
+        /// <summary>
+        /// The litter frames (M1.5b promise 7): a stick of the world's own litter within reach looked at ("litter-look"),
+        /// taken up, gone from the ground and in the hand ("litter-held"), and put down on the ground ahead as an item
+        /// ("litter-put"); then another is taken and kept, so the world saved on the way out has takings and something
+        /// carried for save_check to read. The exit is 0 when every frame was written, every verb was done and nothing was
+        /// logged as an error.
+        /// </summary>
+        private IEnumerator RunLitter()
+        {
+            if (_client == null || _verbs == null)
+            {
+                _errors++;
+                _log.Record(T, Tick, "error", new JsonObject().With("message", "the litter scenario has no client or no verbs to drive"));
+                _running = false;
+                Finish(1);
+                yield break;
+            }
+            _client.IntentAnswered += OnAnswered;
+            double from = T;
+            while (_ready != null && !_ready() && T < from + ReadyTimeoutSeconds) yield return null;
+            LyingNearby? found = null;
+            double until = T + 20.0;
+            while ((found = NearestLying(StandLayout.Kind.Stick, default)) == null && T < until) yield return null;
+            if (found == null)
+            {
+                _errors++;
+                _log.Record(T, Tick, "error", new JsonObject().With("message", "no stick of the litter lay within reach"));
+                _running = false;
+                Finish(1);
+                yield break;
+            }
+            LyingThing first = found.Value.Thing;
+            Face(At(found.Value));
+            until = T + 4.0;
+            while (T < until && !(_verbs.TargetLying.HasValue && _verbs.TargetLying.Value.Equals(first))) yield return null;
+            yield return Wait(0.4);
+            yield return Capture("litter-look");
+            _script.Use();
+            until = T + 4.0;
+            while (T < until && !(_client.Taken.IsTaken(first) && InHand() != 0)) yield return null;
+            ulong item = InHand();
+            bool picked = _client.Taken.IsTaken(first) && item != 0;
+            // The tile is placed again, less the stick, on a worker; a moment lets it be swapped in.
+            yield return Wait(1.0);
+            yield return Capture("litter-held");
+            _script.PitchTargetDeg = 36f;
+            until = T + 4.0;
+            while (T < until && !_verbs.Ground.HasValue) yield return null;
+            yield return Wait(0.6);
+            _script.Use();
+            until = T + 6.0;
+            bool put = false;
+            while (T < until && !(put = item != 0 && Lies(item))) yield return null;
+            yield return Wait(0.8);
+            yield return Capture("litter-put");
+            bool kept = false;
+            LyingNearby? second = NearestLying(StandLayout.Kind.Stick, first);
+            if (second != null)
+            {
+                LyingThing thing = second.Value.Thing;
+                Face(At(second.Value));
+                until = T + 4.0;
+                while (T < until && !(_verbs.TargetLying.HasValue && _verbs.TargetLying.Value.Equals(thing))) yield return null;
+                _script.Use();
+                until = T + 4.0;
+                while (T < until && !(kept = _client.Taken.IsTaken(thing) && InHand() != 0)) yield return null;
+            }
+            _client.IntentAnswered -= OnAnswered;
+            _log.Record(T, Tick, "end", new JsonObject().With("frames", _frames).With("errors", _errors)
+                .With("picked_up", picked).With("put_down", put).With("kept_carried", kept).With("answers", string.Join(",", _answers))
+                .With("corrections", _player.Corrections).With("moves_sent", (int)_player.MovesSent)
+                .With("east", _player.State.East).With("up", _player.State.Up).With("north", _player.State.North));
+            _running = false;
+            Finish(_errors == 0 && picked && put && kept && _frames == 3 * Sizes.Length ? 0 : 1);
+        }
+
+        private readonly List<LyingNearby> _near = new List<LyingNearby>();
+
+        /// <summary>The nearest thing of a kind lying in the litter well within reach of the founder's eye, other than one, or null.</summary>
+        private LyingNearby? NearestLying(StandLayout.Kind kind, LyingThing except)
+        {
+            Double3 eye = _player.Eye;
+            _near.Clear();
+            LyingNear.Find(eye.X, eye.Z, Hands.ReachM, _client.Tiles, _client.Grid, _client.Taken, _near);
+            LyingNearby? best = null;
+            double bestM = Hands.ReachM - 0.5;
+            foreach (LyingNearby n in _near)
+            {
+                if (n.Thing.Kind != kind || n.Thing.Equals(except)) continue;
+                double d = Double3.Distance(eye, At(n));
+                if (d > bestM) continue;
+                bestM = d;
+                best = n;
+            }
+            return best;
+        }
+
+        private static Double3 At(LyingNearby n) => new Double3(n.Instance.East, n.Instance.Up, n.Instance.North);
+
+        /// <summary>The id of the thing in the hand, 0 when the hand is empty.</summary>
+        private ulong InHand()
+        {
+            CarryingMessage carrying = _client.Carrying;
+            if (carrying.Things != null && carrying.Hand != 0)
+                foreach (CarriedThing t in carrying.Things)
+                    if (t.Place == carrying.Hand) return t.Id;
+            return 0;
         }
 
         private void OnAnswered(IntentResultMessage result) => _answers.Add(result.Outcome.ToString());

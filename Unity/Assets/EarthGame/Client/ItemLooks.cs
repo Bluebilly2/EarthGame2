@@ -23,7 +23,8 @@ namespace EarthGame.Client
                 scale = 1f;
                 return true;
             }
-            if (ReferenceEquals(definition, DefinitionCatalogue.Cobble))
+            // The plain cobble and every stone's cobble (M1.5b) are one shape; a cobble's stone is in what it is, not how it looks yet.
+            if (ReferenceEquals(definition, DefinitionCatalogue.Cobble) || (definition != null && definition.Kind == DefinitionKind.Item && definition.Row is StoneType))
             {
                 mesh = StandMeshes.Cobble(variant);
                 scale = StandViews.CobbleSizeM;
@@ -32,6 +33,21 @@ namespace EarthGame.Client
             mesh = null;
             scale = 1f;
             return false;
+        }
+
+        /// <summary>The mesh a thing lying in the litter is drawn by, in the variant its cell gives it, and the scale it is drawn at (M1.5b): the stand's own.</summary>
+        public static void LyingLook(StandLayout.Kind kind, int variant, out Mesh mesh, out float scale)
+        {
+            if (kind == StandLayout.Kind.Cobble)
+            {
+                mesh = StandMeshes.Cobble(variant);
+                scale = StandViews.CobbleSizeM;
+            }
+            else
+            {
+                mesh = StandMeshes.Stick(variant);
+                scale = 1f;
+            }
         }
 
         /// <summary>Every spawnable definition without a look, one line each; empty when every one has one.</summary>

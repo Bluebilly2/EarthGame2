@@ -121,6 +121,24 @@ namespace EarthGame.Engine
             return VerbOutcome.Done;
         }
 
+        /// <summary>
+        /// Takes a thing lying in the loose layer within reach of the eye into the first free place (M1.5b): the world keeps
+        /// it as taken, and it becomes an item under an id of its own — a stick a stick, and a cobble one of the stone the
+        /// stone layer names on its cell.
+        /// </summary>
+        public VerbOutcome PickUpLying(WorldState world, LyingThing thing, Double3 eye)
+        {
+            if (!LyingThings.TryFind(world, thing, out Double3 at)) return VerbOutcome.NotThere;
+            Definition definition = LyingThings.DefinitionOf(world, thing);
+            if (Double3.Distance(eye, at) > ReachM + definition.RadiusM) return VerbOutcome.OutOfReach;
+            byte place = FreePlace();
+            if (place == 0) return VerbOutcome.HandsFull;
+            world.Taken.Take(thing);
+            Insert(new CarriedThing { Id = world.Entities.AllocateId(), Definition = definition, SpawnTick = world.Tick, Place = place });
+            if (!TryAt(Hand, out _)) Hand = place;
+            return VerbOutcome.Done;
+        }
+
         /// <summary>Puts the thing in hand down at a point within reach of the eye; it is let go above the ground there and falls.</summary>
         public VerbOutcome PutDown(WorldState world, Double3 at, Double3 eye, float yawDeg)
         {

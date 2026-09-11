@@ -32,7 +32,7 @@ namespace EarthGame.Tests.Protocol
         public void EachVerbCarriesItsTargetAndNothingElse()
         {
             PacketWriter w = new PacketWriter(64);
-            IntentMessage pick = new IntentMessage { Sequence = 7, Verb = Verb.PickUp, EntityId = 123456789012UL, East = 99 };
+            IntentMessage pick = new IntentMessage { Sequence = 7, Verb = Verb.PickUp, Target = IntentMessage.TargetEntity, EntityId = 123456789012UL, East = 99 };
             pick.Write(w);
             Assert.That(w.Written.Length, Is.EqualTo(1 + 4 + 1 + 1 + 8));
             Assert.That(MessageHeader.PeekKind(w.Written.ToArray(), 0, w.Written.Length), Is.EqualTo(MessageKind.Intent));
@@ -81,9 +81,74 @@ namespace EarthGame.Tests.Protocol
             w.WriteByte((byte)MessageKind.Intent);
             w.WriteUInt32(1);
             w.WriteByte((byte)Verb.PickUp);
-            w.WriteByte(2);
+            w.WriteByte(3);
             w.WriteUInt64(1);
-            Assert.Throws<ProtocolException>(() => IntentMessage.Read(Reader(w)), "a target of kind 2");
+            Assert.Throws<ProtocolException>(() => IntentMessage.Read(Reader(w)), "a target of kind 3");
+        }
+
+        /// <summary>A pick-up of a thing lying names it by its place (protocol v7, M1.5b).</summary>
+        [Test]
+        public void APickUpNamesAThingLyingByItsPlace()
+        {
+            PacketWriter w = new PacketWriter(32);
+            IntentMessage pick = new IntentMessage { Sequence = 3, Verb = Verb.PickUp, Target = IntentMessage.TargetLying, Lying = new LyingThing(1999, 42, StandLayout.Kind.Cobble, 14) };
+            pick.Write(w);
+            Assert.That(w.Written.Length, Is.EqualTo(1 + 4 + 1 + 1 + 2 + 2 + 1 + 1));
+            PacketReader r = Reader(w);
+            IntentMessage back = IntentMessage.Read(r);
+            r.ExpectEnd();
+            Assert.That(back.Target, Is.EqualTo(IntentMessage.TargetLying));
+            Assert.That(back.Lying, Is.EqualTo(new LyingThing(1999, 42, StandLayout.Kind.Cobble, 14)));
+            Assert.That(back.EntityId, Is.EqualTo(0UL), "a thing lying is no entity yet");
+
+            w.Reset();
+            w.WriteByte((byte)MessageKind.Intent);
+            w.WriteUInt32(1);
+            w.WriteByte((byte)Verb.PickUp);
+            w.WriteByte(IntentMessage.TargetLying);
+            w.WriteUInt16(1);
+            w.WriteUInt16(1);
+            w.WriteByte((byte)StandLayout.Kind.Trunk);
+            w.WriteByte(0);
+            Assert.Throws<ProtocolException>(() => IntentMessage.Read(Reader(w)), "a trunk is not a thing lying");
+            Assert.Throws<ProtocolException>(() => new IntentMessage { Verb = Verb.PickUp }.Write(new PacketWriter(16)), "a pick-up names what it picks up");
+        }
+
+        /// <summary>The takings travel by the cell, and what no code counts is refused (protocol v7, M1.5b).</summary>
+        [Test]
+        public void TheTakingsTravelByCellAndWhatNoCodeCountsIsARefusal()
+        {
+            LooseTakenMessage m;
+            m.Cells = new[]
+            {
+                new LooseTaken.Cell { Row = 1234, Col = 567, Sticks = 5, Cobbles = 0 },
+                new LooseTaken.Cell { Row = 0, Col = 2000, Sticks = 0, Cobbles = 0x4000 },
+            };
+            PacketWriter w = new PacketWriter(64);
+            m.Write(w);
+            Assert.That(w.Written.Length, Is.EqualTo(1 + 2 + 2 * 8));
+            Assert.That((byte)MessageKind.LooseTaken, Is.EqualTo((byte)20));
+            PacketReader r = Reader(w);
+            LooseTakenMessage back = LooseTakenMessage.Read(r);
+            r.ExpectEnd();
+            Assert.That(back.Cells.Length, Is.EqualTo(2));
+            Assert.That(back.Cells[0].Row, Is.EqualTo(1234));
+            Assert.That(back.Cells[0].Sticks, Is.EqualTo((ushort)5));
+            Assert.That(back.Cells[1].Col, Is.EqualTo(2000));
+            Assert.That(back.Cells[1].Cobbles, Is.EqualTo((ushort)0x4000));
+
+            w.Reset();
+            w.WriteByte((byte)MessageKind.LooseTaken);
+            w.WriteUInt16(1);
+            w.WriteUInt16(1);
+            w.WriteUInt16(1);
+            w.WriteUInt16(0x8000);
+            w.WriteUInt16(0);
+            Assert.Throws<ProtocolException>(() => LooseTakenMessage.Read(Reader(w)), "a sixteenth stick");
+            w.Reset();
+            w.WriteByte((byte)MessageKind.LooseTaken);
+            w.WriteUInt16((ushort)(LooseTakenMessage.MaxCells + 1));
+            Assert.Throws<ProtocolException>(() => LooseTakenMessage.Read(Reader(w)), "more cells than one message carries");
         }
 
         [Test]

@@ -437,7 +437,7 @@ namespace EarthGame.Bootstrap
             if (!string.IsNullOrEmpty(scenario) && scenario != "true")
             {
                 if (!Recorder.IsKnown(scenario) && !ScenarioRunner.IsKnown(scenario))
-                    Debug.LogError("[bootstrap] unknown scenario '" + scenario + "' (first-frame, carry, walk, soak, rejoin, join)");
+                    Debug.LogError("[bootstrap] unknown scenario '" + scenario + "' (first-frame, carry, litter, walk, soak, rejoin, join)");
                 _scenario = scenario;
             }
         }

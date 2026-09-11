@@ -409,8 +409,10 @@ namespace EarthGame.Server
                     joiner.Connection.Send(_writer.Written, Delivery.Reliable);
                     joiner.Interest[_near[i].Id.Value] = World.Tick;
                 }
-                // What the joiner carries, before the end: interactive means the hands are known too.
+                // What the joiner carries and what has been taken from the ground, before the end: interactive means
+                // both are known too.
                 SendCarrying(joiner);
+                SendTaken(joiner);
                 SnapshotEndMessage end;
                 end.ServerTick = World.Tick;
                 _writer.Reset();
@@ -704,7 +706,12 @@ namespace EarthGame.Server
                 switch (intent.Verb)
                 {
                     case Verb.PickUp:
-                        outcome = session.Hands.PickUp(World, intent.EntityId, eye);
+                        if (intent.Target == IntentMessage.TargetLying)
+                        {
+                            outcome = session.Hands.PickUpLying(World, intent.Lying, eye);
+                            if (outcome == VerbOutcome.Done) BroadcastTaken(intent.Lying.Row, intent.Lying.Col);
+                        }
+                        else outcome = session.Hands.PickUp(World, intent.EntityId, eye);
                         break;
                     case Verb.PutDown:
                         outcome = session.Hands.PutDown(World, new Double3(intent.East, intent.Up, intent.North), eye, session.YawDeg);
@@ -739,6 +746,36 @@ namespace EarthGame.Server
             _writer.Reset();
             m.Write(_writer);
             session.Connection.Send(_writer.Written, Delivery.Reliable);
+        }
+
+        /// <summary>
+        /// A cell's takings, to every founder whose snapshot is sent (M1.5b): each client holds every taking, so a stick
+        /// taken is gone for whoever holds that tile now and whoever comes to it later. A joiner still waiting for its
+        /// snapshot is sent every taking with it.
+        /// </summary>
+        private void BroadcastTaken(int row, int col)
+        {
+            if (!World.Taken.TryGet(row, col, out LooseTaken.Cell cell)) return;
+            LooseTakenMessage m;
+            m.Cells = new[] { cell };
+            _writer.Reset();
+            m.Write(_writer);
+            for (int i = 0; i < _sessions.Count; i++)
+                if (!_sessions[i].SnapshotPending) _sessions[i].Connection.Send(_writer.Written, Delivery.Reliable);
+        }
+
+        /// <summary>Everything taken from the loose layer so far, to a joiner, in messages of at most <see cref="LooseTakenMessage.MaxCells"/> cells.</summary>
+        private void SendTaken(PlayerSession joiner)
+        {
+            List<LooseTaken.Cell> cells = World.Taken.Cells();
+            for (int start = 0; start < cells.Count; start += LooseTakenMessage.MaxCells)
+            {
+                LooseTakenMessage m;
+                m.Cells = cells.GetRange(start, Math.Min(LooseTakenMessage.MaxCells, cells.Count - start)).ToArray();
+                _writer.Reset();
+                m.Write(_writer);
+                joiner.Connection.Send(_writer.Written, Delivery.Reliable);
+            }
         }
 
         private void Refuse(IConnection connection, string reason)

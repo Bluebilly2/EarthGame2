@@ -130,20 +130,29 @@ namespace EarthGame.Client
             distanceM = withinM;
             foreach (Drawn d in _drawn.Values)
             {
-                if (d.Transform == null) continue;
-                Matrix4x4 toLocal = d.Transform.worldToLocalMatrix;
-                Vector3 direction = toLocal.MultiplyVector(ray.direction);
-                float perMetre = direction.magnitude;
-                if (perMetre < 1e-6f) continue;
-                Bounds box = d.Local;
-                box.Expand(2f * PickMarginM * perMetre);
-                if (!box.IntersectRay(new Ray(toLocal.MultiplyPoint3x4(ray.origin), direction / perMetre), out float local)) continue;
-                float metres = Mathf.Max(0f, local) / perMetre;
-                if (metres > distanceM) continue;
+                if (d.Transform == null || !Meets(ray, d.Local, d.Transform.worldToLocalMatrix, out float metres) || metres > distanceM) continue;
                 distanceM = metres;
                 view = d.View;
             }
             return view != null;
+        }
+
+        /// <summary>
+        /// Whether a ray meets a mesh's bounds, widened by <see cref="PickMarginM"/>, where a matrix takes the world into the
+        /// mesh's own frame, and how far along the ray, m: how the crosshair meets a thing, whether it lies as an entity or
+        /// in the litter (M1.5b).
+        /// </summary>
+        public static bool Meets(Ray ray, Bounds local, Matrix4x4 toLocal, out float metres)
+        {
+            metres = 0f;
+            Vector3 direction = toLocal.MultiplyVector(ray.direction);
+            float perMetre = direction.magnitude;
+            if (perMetre < 1e-6f) return false;
+            Bounds box = local;
+            box.Expand(2f * PickMarginM * perMetre);
+            if (!box.IntersectRay(new Ray(toLocal.MultiplyPoint3x4(ray.origin), direction / perMetre), out float along)) return false;
+            metres = Mathf.Max(0f, along) / perMetre;
+            return true;
         }
     }
 }

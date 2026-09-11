@@ -26,9 +26,9 @@ namespace EarthGame.Engine
 
         /// <summary>
         /// The world: its clock, its tick, every remembered body by player name, what each founder carries (M1.5a),
-        /// every entity in id order, and the id the next spawn takes (M1.3). An entity killed or taken up in a tick
-        /// not yet ended is left out, as the save leaves it out of the region files. The lines, in this order, are what
-        /// save_check.py rebuilds from the world folder by hand.
+        /// every entity in id order, what has been taken from the loose layer by cell (M1.5b), and the id the next spawn
+        /// takes (M1.3). An entity killed or taken up in a tick not yet ended is left out, as the save leaves it out of
+        /// the region files. The lines, in this order, are what save_check.py rebuilds from the world folder by hand.
         /// </summary>
         public static string World(WorldState world, IEnumerable<KeyValuePair<string, MoverState>> bodiesByName, IEnumerable<CarrierRecord> carriers = null)
         {
@@ -48,6 +48,9 @@ namespace EarthGame.Engine
             IReadOnlyList<Entity> entities = world.Entities.All;
             for (int i = 0; i < entities.Count; i++)
                 if (!entities[i].Killed) AppendEntity(sb, entities[i].Record());
+            foreach (LooseTaken.Cell cell in world.Taken.Cells())
+                sb.Append("taken ").Append(cell.Row.ToString(CultureInfo.InvariantCulture)).Append(' ').Append(cell.Col.ToString(CultureInfo.InvariantCulture))
+                  .Append(' ').Append(cell.Sticks.ToString(CultureInfo.InvariantCulture)).Append(' ').Append(cell.Cobbles.ToString(CultureInfo.InvariantCulture)).Append('\n');
             sb.Append("next_entity ").Append(world.Entities.NextId.ToString(CultureInfo.InvariantCulture)).Append('\n');
             return Hex(Fnv1a64(sb.ToString()));
         }

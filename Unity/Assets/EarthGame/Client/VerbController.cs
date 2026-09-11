@@ -27,6 +27,11 @@ namespace EarthGame.Client
         /// <summary>How far past the reach the crosshair looks, m, so a thing a little beyond it hides the ground behind it rather than offering it.</summary>
         private const float LookBeyondM = 1f;
 
+        /// <summary>How much farther than the reach the litter is searched, m: a thing lies up to half a 4 m cell's diagonal off its cell's centre.</summary>
+        private const float LitterMarginM = 3f;
+
+        private readonly List<LyingNearby> _near = new List<LyingNearby>();
+
         private readonly PlayerController _player;
         private readonly Camera _camera;
         private readonly HudController _hud;
@@ -39,6 +44,9 @@ namespace EarthGame.Client
 
         /// <summary>The thing under the crosshair within reach, or null.</summary>
         public EntityView Target { get; private set; }
+
+        /// <summary>The thing of the litter under the crosshair within reach (M1.5b), when no entity is nearer, or null.</summary>
+        public LyingThing? TargetLying { get; private set; }
 
         /// <summary>Where the crosshair meets the ground within reach, when it does and no thing is in front of it.</summary>
         public Vector3? Ground { get; private set; }
@@ -116,6 +124,7 @@ namespace EarthGame.Client
                     Cursor.visible = false;
                 }
                 Target = null;
+                TargetLying = null;
                 Ground = null;
                 Line = string.Empty;
                 _hud?.SetVerb(Line);
@@ -129,7 +138,8 @@ namespace EarthGame.Client
             Aim();
             if (presses.Use)
             {
-                if (Target != null) _client.SendIntent(new IntentMessage { Verb = Verb.PickUp, EntityId = Target.Id.Value });
+                if (Target != null) _client.SendIntent(new IntentMessage { Verb = Verb.PickUp, Target = IntentMessage.TargetEntity, EntityId = Target.Id.Value });
+                else if (TargetLying.HasValue) _client.SendIntent(new IntentMessage { Verb = Verb.PickUp, Target = IntentMessage.TargetLying, Lying = TargetLying.Value });
                 else if (Ground.HasValue && TryInHand(carrying, out _))
                 {
                     Vector3 at = Ground.Value;
@@ -140,31 +150,75 @@ namespace EarthGame.Client
             _hud?.SetVerb(Line);
         }
 
-        /// <summary>What the crosshair is on within reach: the nearest thing lying, or else the ground.</summary>
+        /// <summary>
+        /// What the crosshair is on within reach: the nearest thing, an entity or one of the litter (M1.5b), or else the
+        /// ground. A thing in front of the ground hides it, whether or not the thing is in reach.
+        /// </summary>
         private void Aim()
         {
             Target = null;
+            TargetLying = null;
             Ground = null;
             Transform eye = _camera.transform;
             Ray ray = new Ray(eye.position, eye.forward);
             float within = (float)Hands.ReachM + LookBeyondM;
             bool onGround = Physics.Raycast(ray, out RaycastHit hit, within, Layers.Mask(Layers.Terrain), QueryTriggerInteraction.Ignore);
-            float groundAtM = onGround ? hit.distance : within;
+            float nearestM = onGround ? hit.distance : within;
             Double3 body = _player.Eye;
-            if (_entities != null && _entities.Pick(ray, groundAtM, out EntityView thing, out _))
+            EntityView entity = null;
+            if (_entities != null && _entities.Pick(ray, nearestM, out EntityView picked, out float pickedM))
             {
-                // A thing in front of the ground hides it, whether or not the thing is in reach.
-                if (Double3.Distance(body, thing.Position) <= Hands.ReachM + thing.Definition.RadiusM) Target = thing;
+                entity = picked;
+                nearestM = pickedM;
+            }
+            if (PickLying(ray, body, ref nearestM, out LyingNearby lying))
+            {
+                Definition kind = lying.Thing.Kind == StandLayout.Kind.Stick ? DefinitionCatalogue.Stick : DefinitionCatalogue.Cobble;
+                Double3 at = new Double3(lying.Instance.East, lying.Instance.Up, lying.Instance.North);
+                if (Double3.Distance(body, at) <= Hands.ReachM + kind.RadiusM) TargetLying = lying.Thing;
+                return;
+            }
+            if (entity != null)
+            {
+                if (Double3.Distance(body, entity.Position) <= Hands.ReachM + entity.Definition.RadiusM) Target = entity;
                 return;
             }
             if (onGround && Double3.Distance(body, new Double3(hit.point.x, hit.point.y, hit.point.z)) <= Hands.ReachM) Ground = hit.point;
         }
 
+        /// <summary>
+        /// The nearest thing of the litter the ray meets before a distance, by its mesh's bounds where it is drawn (M1.5b);
+        /// the distance becomes where it was met.
+        /// </summary>
+        private bool PickLying(Ray ray, Double3 body, ref float nearestM, out LyingNearby best)
+        {
+            best = default;
+            _near.Clear();
+            LyingNear.Find(body.X, body.Z, Hands.ReachM + LitterMarginM, _client.Tiles, _client.Grid, _client.Taken, _near);
+            bool found = false;
+            foreach (LyingNearby n in _near)
+            {
+                ItemLooks.LyingLook(n.Thing.Kind, n.Instance.Variant, out Mesh mesh, out float scale);
+                Matrix4x4 toLocal = Matrix4x4.TRS(new Vector3(n.Instance.East, n.Instance.Up, n.Instance.North), Quaternion.Euler(0f, n.Instance.YawDeg, 0f),
+                                                  Vector3.one * scale).inverse;
+                if (!EntityViews.Meets(ray, mesh.bounds, toLocal, out float metres) || metres > nearestM) continue;
+                nearestM = metres;
+                best = n;
+                found = true;
+            }
+            return found;
+        }
+
         /// <summary>What the right mouse would do now, in words.</summary>
         private string Offer(CarryingMessage carrying)
         {
-            if (Target != null)
-                return Target.Definition.DisplayName + " — " + (carrying.Things != null && carrying.Things.Length >= Hands.Places ? "your hands are full" : "pick up");
+            bool full = carrying.Things != null && carrying.Things.Length >= Hands.Places;
+            if (Target != null) return Target.Definition.DisplayName + " — " + (full ? "your hands are full" : "pick up");
+            if (TargetLying.HasValue)
+            {
+                Definition kind = TargetLying.Value.Kind == StandLayout.Kind.Stick ? DefinitionCatalogue.Stick : DefinitionCatalogue.Cobble;
+                return kind.DisplayName + " — " + (full ? "your hands are full" : "pick up");
+            }
             if (Ground.HasValue && TryInHand(carrying, out CarriedThing held))
                 return "put down " + The(held.Definition.DisplayName);
             return string.Empty;

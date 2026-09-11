@@ -21,6 +21,14 @@ namespace EarthGame.Server
         public byte Hand;
     }
 
+    /// <summary>A cell's takings from the loose layer as a region file recorded them (M1.5b), with the 512 m cell of the file that held them.</summary>
+    public struct SavedTaking
+    {
+        public int RegionX;
+        public int RegionZ;
+        public LooseTaken.Cell Cell;
+    }
+
     /// <summary>What a world folder says about itself, read back without building the world yet.</summary>
     public sealed class WorldSaveInfo
     {
@@ -38,6 +46,8 @@ namespace EarthGame.Server
         public readonly Dictionary<string, string> Layers = new Dictionary<string, string>(StringComparer.Ordinal);
         /// <summary>The entities of every region file, in id order (M1.3).</summary>
         public readonly List<SavedEntity> Entities = new List<SavedEntity>();
+        /// <summary>What was taken from the loose layer, from every region file's layer diffs (M1.5b).</summary>
+        public readonly List<SavedTaking> Taken = new List<SavedTaking>();
         /// <summary>The id the next spawn takes; 1 for a world saved before it had entities.</summary>
         public ulong NextEntityId = 1;
         /// <summary>The digest the server wrote beside the world, or null for a world saved before it wrote one.</summary>
@@ -49,7 +59,8 @@ namespace EarthGame.Server
     /// clock's two numbers, the tick, the wake, the layers' checksums and, since M1.3, <c>next_entity_id</c>),
     /// <c>players/&lt;name&gt;.egp</c> (each player's resting place and, since M1.5a, what they carry; version 1's JSON
     /// is still read and replaced),
-    /// <c>regions/r.X.Y.egr</c> (the entities by 512 m cell) and <c>digest.txt</c> (the world's name, for a test or
+    /// <c>regions/r.X.Y.egr</c> (the entities by 512 m cell and, since M1.5b, what has been taken from the loose layer)
+    /// and <c>digest.txt</c> (the world's name, for a test or
     /// a verifier to compare). The server is the only writer; every file is written to a <c>.part</c> and moved
     /// into place so a crash mid-write leaves the previous save intact. Dates are the host's: the server reads no
     /// clock.
@@ -135,13 +146,17 @@ namespace EarthGame.Server
             }
         }
 
-        /// <summary>The entities by cell; a cell's file is removed when it holds nothing, so the folder says exactly what exists.</summary>
+        /// <summary>
+        /// The entities by cell, and the takings from the loose layer by the cell their raster cell's centre lies in
+        /// (M1.5b); a cell's file is removed when it holds neither, so the folder says exactly what exists.
+        /// </summary>
         private static void WriteRegions(string dir, WorldState world)
         {
             string regionsDir = Path.Combine(dir, RegionFile.Folder);
             Directory.CreateDirectory(regionsDir);
             double extent = world.Region.ExtentM;
             Dictionary<long, List<SavedEntity>> byCell = new Dictionary<long, List<SavedEntity>>();
+            Dictionary<long, List<LooseTaken.Cell>> takenByCell = new Dictionary<long, List<LooseTaken.Cell>>();
             IReadOnlyList<Entity> all = world.Entities.All;
             for (int i = 0; i < all.Count; i++)
             {
@@ -152,12 +167,25 @@ namespace EarthGame.Server
                 if (!byCell.TryGetValue(key, out List<SavedEntity> list)) byCell[key] = list = new List<SavedEntity>();
                 list.Add(SavedEntity.Of(e));
             }
+            RegionRaster loose = world.Loose;
+            if (loose != null)
+                foreach (LooseTaken.Cell cell in world.Taken.Cells())
+                {
+                    StandLayout.CellCentre(cell.Row, cell.Col, loose.CellM, loose.ExtentM, out double east, out double north);
+                    long key = ((long)RegionCells.IndexOf(east, extent) << 32) | (uint)RegionCells.IndexOf(north, extent);
+                    if (!takenByCell.TryGetValue(key, out List<LooseTaken.Cell> list)) takenByCell[key] = list = new List<LooseTaken.Cell>();
+                    list.Add(cell);
+                }
+            HashSet<long> keys = new HashSet<long>(byCell.Keys);
+            keys.UnionWith(takenByCell.Keys);
             HashSet<string> written = new HashSet<string>(StringComparer.Ordinal);
-            foreach (KeyValuePair<long, List<SavedEntity>> pair in byCell)
+            foreach (long key in keys)
             {
-                int cx = (int)(pair.Key >> 32), cz = (int)(pair.Key & 0xFFFFFFFF);
+                int cx = (int)(key >> 32), cz = (int)(key & 0xFFFFFFFF);
                 string name = RegionFile.NameFor(cx, cz);
-                WriteAtomic(Path.Combine(regionsDir, name), RegionFile.Encode(cx, cz, pair.Value));
+                byCell.TryGetValue(key, out List<SavedEntity> entities);
+                takenByCell.TryGetValue(key, out List<LooseTaken.Cell> taken);
+                WriteAtomic(Path.Combine(regionsDir, name), RegionFile.Encode(cx, cz, (IReadOnlyList<SavedEntity>)entities ?? Array.Empty<SavedEntity>(), taken));
                 written.Add(name);
             }
             foreach (string file in Directory.GetFiles(regionsDir, "r.*.egr"))
@@ -262,8 +290,9 @@ namespace EarthGame.Server
             {
                 string name = Path.GetFileName(file);
                 if (!RegionFile.TryParseName(name, out int namedX, out int namedZ)) continue;
-                List<SavedEntity> entities = RegionFile.Decode(File.ReadAllBytes(file), out int cx, out int cz);
+                List<SavedEntity> entities = RegionFile.Decode(File.ReadAllBytes(file), out int cx, out int cz, out List<LooseTaken.Cell> taken);
                 if (cx != namedX || cz != namedZ) throw new InvalidDataException(name + " says it is cell (" + cx + ", " + cz + ")");
+                foreach (LooseTaken.Cell cell in taken) info.Taken.Add(new SavedTaking { RegionX = cx, RegionZ = cz, Cell = cell });
                 if (extentM > 0.0)
                     foreach (SavedEntity e in entities)
                         if (RegionCells.IndexOf(e.Position.X, extentM) != cx || RegionCells.IndexOf(e.Position.Z, extentM) != cz)
@@ -276,11 +305,12 @@ namespace EarthGame.Server
         /// <summary>The world as it was, with the terrain the host loaded for it and every entity restored. The region must still be known to this build.</summary>
         /// <param name="region">The region the host runs, when it is not one <see cref="Region.ById"/> knows (a test's fixture); else looked up by the save's id.</param>
         public static WorldState Restore(WorldSaveInfo info, Heightfield terrain, Region region = null, WorldWater water = null, RegionRaster cover = null,
-                                         RegionRaster stand = null, RegionRaster loose = null)
+                                         RegionRaster stand = null, RegionRaster loose = null, RegionRaster stone = null)
         {
             if (region == null) region = Region.ById(info.RegionId);
             if (region == null) throw new InvalidDataException("the save is set in region '" + info.RegionId + "', which this build does not know");
-            WorldState world = new WorldState(info.Seed, region, WorldClock.Restore(info.TotalHours, info.StartedAtHours), terrain, info.Tick, info.Wake, water, cover, stand, loose);
+            WorldState world = new WorldState(info.Seed, region, WorldClock.Restore(info.TotalHours, info.StartedAtHours), terrain, info.Tick, info.Wake, water, cover, stand, loose, stone);
+            foreach (SavedTaking taking in info.Taken) world.Taken.Merge(CheckTaking(world, taking));
             foreach (SavedEntity s in info.Entities)
             {
                 if (!DefinitionCatalogue.TryByKey(s.Key, out Definition definition))
@@ -290,6 +320,30 @@ namespace EarthGame.Server
             }
             world.Entities.SetNextId(Math.Max(info.NextEntityId, world.Entities.NextId));
             return world;
+        }
+
+        /// <summary>
+        /// A taking read from a save, held against the world it is restored into (M1.5b): it names only things its cell's
+        /// code counts, in a cell whose centre lies in the region file that recorded it. A folder that says otherwise was
+        /// not written by this world's server, and is refused rather than drawn as a gap in the litter where nothing lay.
+        /// </summary>
+        private static LooseTaken.Cell CheckTaking(WorldState world, SavedTaking taking)
+        {
+            LooseTaken.Cell c = taking.Cell;
+            RegionRaster loose = world.Loose;
+            if (loose == null) throw new InvalidDataException("the save took things from cell (" + c.Row + ", " + c.Col + ") of a loose layer this world does not have");
+            if (c.Row < 0 || c.Col < 0 || c.Row >= loose.Height || c.Col >= loose.Width)
+                throw new InvalidDataException("the save took things from cell (" + c.Row + ", " + c.Col + "), outside the loose layer's " + loose.Width + " by " + loose.Height);
+            byte code = (byte)loose.Code(c.Row, c.Col);
+            int sticks = LooseCodes.SticksOf(code), cobbles = LooseCodes.CobblesOf(code);
+            if ((c.Sticks >> sticks) != 0 || (c.Cobbles >> cobbles) != 0)
+                throw new InvalidDataException("the save took from cell (" + c.Row + ", " + c.Col + ") sticks " + c.Sticks + " and cobbles " + c.Cobbles
+                                               + " of a cell that held " + sticks + " sticks and " + cobbles + " cobbles");
+            StandLayout.CellCentre(c.Row, c.Col, loose.CellM, loose.ExtentM, out double east, out double north);
+            double extent = world.Region.ExtentM;
+            if (RegionCells.IndexOf(east, extent) != taking.RegionX || RegionCells.IndexOf(north, extent) != taking.RegionZ)
+                throw new InvalidDataException(RegionFile.NameFor(taking.RegionX, taking.RegionZ) + " holds the takings of cell (" + c.Row + ", " + c.Col + "), which lies in another");
+            return c;
         }
 
         /// <summary>A player's name as a file name: letters, digits and a few marks; everything else becomes an underscore.</summary>

@@ -57,7 +57,8 @@ namespace EarthGame.ClientCore
         /// <summary>How many shapes each form, and the sticks and the cobbles, are drawn in; a thing's cell picks one.</summary>
         public const int Variants = 6;
 
-        public static PreparedStand Prepare(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, TileGrid grid)
+        /// <param name="taken">What has been taken from the tile's cells (M1.5b), a copy the worker alone reads (<see cref="TakenIn"/>); those things are not placed.</param>
+        public static PreparedStand Prepare(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, TileGrid grid, LooseTaken taken = null)
         {
             if (stand == null) throw new ArgumentNullException(nameof(stand));
             if (ground == null) throw new ArgumentNullException(nameof(ground));
@@ -105,10 +106,13 @@ namespace EarthGame.ClientCore
                     }
                     if (loose == null) continue;
                     byte things = loose.Codes[z, x];
+                    if (things == 0) continue;
+                    LooseTaken.Cell gone = default;
+                    taken?.TryGet(row, col, out gone);
                     for (int k = 0; k < LooseCodes.SticksOf(things); k++)
-                        sticks.Add(Lying(StandLayout.Kind.Stick, row, col, k, cellCm, postEast, postNorth, ground));
+                        if ((gone.Sticks & (1 << k)) == 0) sticks.Add(Lying(StandLayout.Kind.Stick, row, col, k, cellCm, postEast, postNorth, ground));
                     for (int k = 0; k < LooseCodes.CobblesOf(things); k++)
-                        cobbles.Add(Lying(StandLayout.Kind.Cobble, row, col, k, cellCm, postEast, postNorth, ground));
+                        if ((gone.Cobbles & (1 << k)) == 0) cobbles.Add(Lying(StandLayout.Kind.Cobble, row, col, k, cellCm, postEast, postNorth, ground));
                 }
             return new PreparedStand
             {
@@ -120,6 +124,38 @@ namespace EarthGame.ClientCore
                 Sticks = sticks.ToArray(),
                 Cobbles = cobbles.ToArray(),
             };
+        }
+
+        /// <summary>
+        /// A thing lying, placed as it is drawn (M1.5b): its cell's centre moved by the layout, on the ground the tile
+        /// carries. A streamed tile's post for a cell stands at the cell's centre, so this is where the drawing put it.
+        /// </summary>
+        public static LooseInstance Lying(LyingThing thing, ReceivedTile ground, double cellM, double extentM)
+        {
+            StandLayout.CellCentre(thing.Row, thing.Col, cellM, extentM, out double east, out double north);
+            return Lying(thing.Kind, thing.Row, thing.Col, thing.Index, (int)Math.Round(cellM * 100.0), east, north, ground);
+        }
+
+        /// <summary>
+        /// The takings on a tile's cells, copied (M1.5b): what a worker preparing the tile reads, while the main thread goes
+        /// on adding to the client's own as the server tells of more.
+        /// </summary>
+        public static LooseTaken TakenIn(LooseTaken taken, ReceivedTile tile, TileGrid grid)
+        {
+            LooseTaken copy = new LooseTaken();
+            if (taken == null || taken.Count == 0 || tile == null || grid == null) return copy;
+            foreach (LooseTaken.Cell cell in taken.Cells())
+                if (Covers(tile, grid, cell.Row, cell.Col)) copy.Merge(cell);
+            return copy;
+        }
+
+        /// <summary>Whether one of a tile's posts stands for a cell of the world's raster; a cell on a tile's edge is two tiles'.</summary>
+        public static bool Covers(ReceivedTile tile, TileGrid grid, int row, int col)
+        {
+            // The tile's first post is its south-west corner: the southernmost row and the westernmost column it holds.
+            TileCodec.CellOf(grid.ExtentM, tile.CellM, tile.OriginEast, tile.OriginNorth, out int southRow, out int westCol);
+            int span = tile.Posts - 1;
+            return col >= westCol && col <= westCol + span && row <= southRow && row >= southRow - span;
         }
 
         private static LooseInstance Lying(StandLayout.Kind kind, int row, int col, int index, int cellCm, double postEast, double postNorth, ReceivedTile ground)

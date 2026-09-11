@@ -95,6 +95,37 @@ namespace EarthGame.Tests.World
             Assert.That(again.Sticks[2].East, Is.EqualTo(prepared.Sticks[2].East), "the same every time");
         }
 
+        /// <summary>What has been taken is not drawn, and the rest keep their places (M1.5b promise 4).</summary>
+        [Test]
+        public void WhatHasBeenTakenIsNotDrawnAndTheRestKeepTheirPlaces()
+        {
+            TileId id = new TileId(2, 2);
+            ReceivedTile stand = Tile(id, TileLayer.Stand, (z, x) => 0);
+            ReceivedTile loose = Tile(id, TileLayer.Loose, (z, x) => z == 5 && x == 6 ? LooseCodes.Pack(3, 2) : (byte)0);
+            TileCodec.CellOf(Grid.ExtentM, Cell, stand.OriginEast + 6 * Cell, stand.OriginNorth + 5 * Cell, out int row, out int col);
+            LooseTaken taken = new LooseTaken();
+            taken.Take(new LyingThing(row, col, StandLayout.Kind.Stick, 1));
+            taken.Take(new LyingThing(row, col, StandLayout.Kind.Cobble, 0));
+            taken.Take(new LyingThing(row + 400, col, StandLayout.Kind.Stick, 0));
+            LooseTaken here = StandPreparation.TakenIn(taken, loose, Grid);
+            Assert.That(here.Count, Is.EqualTo(1), "the tile's own cells only");
+
+            PreparedStand whole = StandPreparation.Prepare(stand, loose, Ground(id), Grid);
+            PreparedStand prepared = StandPreparation.Prepare(stand, loose, Ground(id), Grid, here);
+            Assert.That(prepared.Sticks.Length, Is.EqualTo(2));
+            Assert.That(prepared.Cobbles.Length, Is.EqualTo(1));
+            Assert.That(prepared.Sticks[0].East, Is.EqualTo(whole.Sticks[0].East), "the first stick where it always was");
+            Assert.That(prepared.Sticks[1].East, Is.EqualTo(whole.Sticks[2].East), "the third keeps its place: nothing moves up");
+            Assert.That(prepared.Cobbles[0].East, Is.EqualTo(whole.Cobbles[1].East));
+
+            LooseInstance named = StandPreparation.Lying(new LyingThing(row, col, StandLayout.Kind.Stick, 2), Ground(id), Cell, Grid.ExtentM);
+            Assert.That(named.East, Is.EqualTo(whole.Sticks[2].East), "a thing found by its name is where it is drawn");
+            Assert.That(named.North, Is.EqualTo(whole.Sticks[2].North));
+            Assert.That(named.Up, Is.EqualTo(whole.Sticks[2].Up));
+            Assert.That(named.YawDeg, Is.EqualTo(whole.Sticks[2].YawDeg));
+            Assert.That(named.Variant, Is.EqualTo(whole.Sticks[2].Variant));
+        }
+
         [Test]
         public void EveryTallPlantHasAFormAndNothingElseDoes()
         {
