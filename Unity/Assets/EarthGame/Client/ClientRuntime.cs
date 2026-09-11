@@ -65,6 +65,8 @@ namespace EarthGame.Client
         private Material _seaMaterial;
         private EntityViews _entityViews;
         private StandViews _stand;
+        private VerbController _verbs;
+        private HandView _hand;
         private Light _sun;
         private WorldClock _clock;
         private SolarClock _solar;
@@ -204,21 +206,27 @@ namespace EarthGame.Client
                 }
                 DrainPreparations();
                 if (_stand != null && _camera != null) _stand.Draw(_camera, _sun);
+                // Things are drawn where they were a stated delay ago, between the positions the server stated, as the
+                // other bodies are (M1.5a).
+                _entityViews?.Draw(_client.EstimatedServerTick(nowMs) - _client.MirrorDelayTicks);
                 CheckInteractive();
                 DrawMirrors(nowMs);
+                ControlsFrame presses = _player.TakePresses();
+                if (presses.Screenshot && !Application.isBatchMode) Screenshot();
+                _verbs?.Tick(presses, Time.realtimeSinceStartup);
                 UpdateHud(dt);
             }
-            if (ViewBuilt && !Application.isBatchMode && UnityEngine.InputSystem.Keyboard.current != null
-                && UnityEngine.InputSystem.Keyboard.current.f12Key.wasPressedThisFrame)
-            {
-                // What the screen shows, saved for a look by someone who was not in the room.
-                string dir = System.IO.Path.Combine(RegionDataLocator.SavesDir(), "screenshots");
-                System.IO.Directory.CreateDirectory(dir);
-                string file = System.IO.Path.Combine(dir, DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + ".png");
-                ScreenCapture.CaptureScreenshot(file);
-                Debug.Log("[client] screenshot " + file);
-                _hud?.SetVerb("screenshot saved");
-            }
+        }
+
+        /// <summary>What the screen shows, saved for a look by someone who was not in the room.</summary>
+        private void Screenshot()
+        {
+            string dir = System.IO.Path.Combine(RegionDataLocator.SavesDir(), "screenshots");
+            System.IO.Directory.CreateDirectory(dir);
+            string file = System.IO.Path.Combine(dir, DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + ".png");
+            ScreenCapture.CaptureScreenshot(file);
+            Debug.Log("[client] screenshot " + file);
+            _verbs?.Note("screenshot saved");
         }
 
         private void OnWelcomed(WelcomeMessage welcome)
@@ -239,6 +247,11 @@ namespace EarthGame.Client
                 // The clock and the sky keep running on the client's own copy: replacing them here would leave the
                 // sun on a clock nothing advances. The body starts again where the server remembered it.
                 _player.Rebind(_client, new Double3(welcome.SpawnEast, welcome.SpawnUp + SpawnDropM, welcome.SpawnNorth));
+                // Each connection has its own mirror: the things are drawn from the new one and the verbs ask the new
+                // client (until 2026-09-11 a rejoin went on drawing the first connection's things and none of its own).
+                _entityViews?.Dispose();
+                _entityViews = new EntityViews(_client.Entities, _stand?.LooseMaterial);
+                _verbs?.Rebind(_client, _entityViews);
             }
             Welcomed?.Invoke(welcome, rejoin);
         }
@@ -595,13 +608,6 @@ namespace EarthGame.Client
             _mirrorMaterial.SetColor("_BaseColor", new Color(0.75f, 0.55f, 0.4f));
             _mirrorMaterial.SetFloat("_Smoothness", 0.3f);
 
-            // The entities the server shows this client, as the registry's prefabs (M1.3); rebuilt with every
-            // connection, since each connection has its own mirror.
-            _entityViews?.Dispose();
-            PrefabRegistry registry = Resources.Load<PrefabRegistry>(PrefabRegistry.ResourcePath);
-            if (registry == null) Debug.LogError("[client] no prefab registry under Resources/" + PrefabRegistry.ResourcePath + "; entities will be cubes");
-            _entityViews = new EntityViews(_client.Entities, registry);
-
             // What stands and lies on the ground (M1.6a), drawn from the stand and loose tiles the server streams. The
             // material is an asset so that the build keeps its shader's instanced variants (ProjectSetup). A player
             // with no graphics device (-nographics, as the shaped join runs) cannot draw instanced and makes no view:
@@ -610,6 +616,11 @@ namespace EarthGame.Client
             if (!SystemInfo.supportsInstancing) Debug.Log("[client] this device draws nothing instanced; what stands on the ground is streamed and not drawn");
             else if (standMaterial == null) Debug.LogError("[client] no stand material under Resources/EarthGame/StandLit; nothing will stand on the ground");
             else if (_client.Grid != null && _stand == null) _stand = new StandViews(standMaterial, _client.Grid);
+
+            // The entities the server shows this client (M1.3), drawn from the stand's own meshes in the material its
+            // loose sticks and cobbles are drawn in (M1.5a), so a stick put down is drawn as the ones lying in the litter.
+            _entityViews?.Dispose();
+            _entityViews = new EntityViews(_client.Entities, _stand?.LooseMaterial);
 
             if (_bakedRegion != null)
             {
@@ -721,6 +732,10 @@ namespace EarthGame.Client
             _player.Ground = _ground;
             _player.Frozen = true;
 
+            // The verbs (M1.5a): what the crosshair is on, the verb line, the carrying window and the thing in hand.
+            if (_stand != null) _hand = new HandView(_camera, _stand.LooseMaterial);
+            _verbs = new VerbController(_client, _entityViews, _player, _camera, _hud, _hand);
+
             if (script == null && !Application.isBatchMode)
             {
                 Cursor.lockState = CursorLockMode.Locked;
@@ -734,9 +749,9 @@ namespace EarthGame.Client
 
             ViewBuilt = true;
 
-            // The first-frame scenario is the recorder's own; every other scenario is the runner's, which was
-            // attached before the connection began so its clock starts at Connect.
-            if (script != null && (_scenario == null || _scenario == Recorder.Scenario))
+            // The scenarios that write frames (first-frame, carry) are the recorder's own; every other scenario is the
+            // runner's, which was attached before the connection began so its clock starts at Connect.
+            if (script != null && (_scenario == null || Recorder.IsKnown(_scenario)))
             {
                 JsonObject header = new JsonObject()
                     .With("region", _region.Id).With("seed", welcome.Seed).With("session", welcome.SessionId)
@@ -747,7 +762,8 @@ namespace EarthGame.Client
                     .With("terrain", _bakedRegion != null);
                 Recorder recorder = gameObject.AddComponent<Recorder>();
                 recorder.Begin(_recordDir, _camera, _player, script, _hud, () => _client.LastServerTick, header, StandSettled,
-                               () => _stand != null ? _stand.TreeCount : -1, () => _stand != null ? _stand.LastDrawMs : 0.0);
+                               () => _stand != null ? _stand.TreeCount : -1, () => _stand != null ? _stand.LastDrawMs : 0.0,
+                               _scenario ?? Recorder.Scenario, _client, _verbs);
                 TileBuilt += recorder.RecordBuild;
             }
         }
@@ -795,6 +811,8 @@ namespace EarthGame.Client
 
         private void OnDestroy()
         {
+            _verbs?.Dispose();
+            _hand?.Dispose();
             _entityViews?.Dispose();
             _stand?.Dispose();
             _client?.Disconnect("client destroyed");

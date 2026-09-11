@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using EarthGame.ClientCore;
 using EarthGame.Engine;
+using EarthGame.Protocol;
 using EarthGame.Shared;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -25,6 +26,15 @@ namespace EarthGame.Client
     public sealed class Recorder : MonoBehaviour
     {
         public const string Scenario = "first-frame";
+
+        /// <summary>
+        /// The carrying frames (M1.5a), run by <c>-eg-scenario carry</c> with <c>-eg-items</c>: a stick lying within reach
+        /// looked at, picked up and held, the carrying window open, the ground ahead aimed at, and the stick put down.
+        /// </summary>
+        public const string CarryScenario = "carry";
+
+        /// <summary>Whether a scenario is one of this recorder's, which write frames, rather than the runner's.</summary>
+        public static bool IsKnown(string scenario) => scenario == Scenario || scenario == CarryScenario;
         private static readonly (int Width, int Height, string Tag)[] Sizes = { (2560, 1440, "1440p"), (1920, 1080, "1080p") };
 
         private string _dir;
@@ -38,6 +48,10 @@ namespace EarthGame.Client
         private int _frames;
         private int _errors;
         private bool _running;
+        private string _scenario = Scenario;
+        private GameClient _client;
+        private VerbController _verbs;
+        private readonly List<string> _answers = new List<string>();
 
         /// <summary>What one tile cost to make ready to draw (M1.4e); the runtime reports each one as it lands.</summary>
         public void RecordBuild(ClientRuntime.TileBuildReport report)
@@ -59,8 +73,12 @@ namespace EarthGame.Client
         private Func<int> _trees;
         private Func<double> _standCpu;
 
-        public void Begin(string dir, Camera camera, PlayerController player, ScriptedInputSource script, HudController hud, Func<long> serverTick, JsonObject header, Func<bool> ready = null, Func<int> trees = null, Func<double> standCpu = null)
+        public void Begin(string dir, Camera camera, PlayerController player, ScriptedInputSource script, HudController hud, Func<long> serverTick, JsonObject header, Func<bool> ready = null, Func<int> trees = null, Func<double> standCpu = null,
+                          string scenario = Scenario, GameClient client = null, VerbController verbs = null)
         {
+            _scenario = IsKnown(scenario) ? scenario : Scenario;
+            _client = client;
+            _verbs = verbs;
             _ready = ready;
             _trees = trees;
             _standCpu = standCpu;
@@ -72,10 +90,10 @@ namespace EarthGame.Client
             _tick = serverTick;
             _clock = Stopwatch.StartNew();
             Directory.CreateDirectory(Path.Combine(dir, "frames"));
-            _log = RunLog.Open(Path.Combine(dir, "run.jsonl"), header.With("scenario", Scenario));
+            _log = RunLog.Open(Path.Combine(dir, "run.jsonl"), header.With("scenario", _scenario));
             Application.logMessageReceived += OnLog;
             _running = true;
-            StartCoroutine(Run());
+            StartCoroutine(_scenario == CarryScenario ? RunCarry() : Run());
         }
 
         private double T => _clock.Elapsed.TotalSeconds;
@@ -90,9 +108,9 @@ namespace EarthGame.Client
 
         private IEnumerator Run()
         {
-            // The founder wakes facing the morning sun (north-east), looks at the ground ahead, then walks.
+            // The founder wakes facing the morning sun (north-east), looking a little above the horizon, then walks.
             _script.YawTargetDeg = 60f;
-            _script.PitchTargetDeg = 4f;
+            _script.PitchTargetDeg = -4f;
             // The frames are of the country, so the first waits until what stands on it is placed (M1.6a).
             double from = T;
             while (_ready != null && !_ready() && T < from + ReadyTimeoutSeconds) yield return null;
@@ -106,7 +124,7 @@ namespace EarthGame.Client
             yield return Capture("walk");
             _script.Move = Vector2.zero;
             _script.YawTargetDeg = 200f;
-            _script.PitchTargetDeg = -2f;
+            _script.PitchTargetDeg = 2f;
             yield return Wait(2.5);
             yield return Capture("turn");
             string hold = LaunchArgs.Get("hold", null);
@@ -118,6 +136,127 @@ namespace EarthGame.Client
             _running = false;
             Finish(_errors == 0 && _frames == 3 * Sizes.Length ? 0 : 1);
         }
+
+        /// <summary>
+        /// The carrying frames (M1.5a promise 9): a stick of <c>-eg-items</c> lying within reach looked at ("look"), picked
+        /// up and held ("held"), the carrying window opened ("tab"), the ground a couple of metres ahead aimed at ("aim"),
+        /// and the stick put down there, fallen and at rest ("put"); then a cobble is picked up and kept, so the world saved
+        /// on the way out has something carried for save_check to read. The end record says whether each verb was done
+        /// and every answer the server gave; the exit is 0 when every frame was written, every verb was done and nothing
+        /// was logged as an error.
+        /// </summary>
+        private IEnumerator RunCarry()
+        {
+            if (_client == null || _verbs == null)
+            {
+                _errors++;
+                _log.Record(T, Tick, "error", new JsonObject().With("message", "the carry scenario has no client or no verbs to drive"));
+                _running = false;
+                Finish(1);
+                yield break;
+            }
+            _client.IntentAnswered += OnAnswered;
+            double from = T;
+            while (_ready != null && !_ready() && T < from + ReadyTimeoutSeconds) yield return null;
+            EntityView stick = null;
+            double until = T + 20.0;
+            while ((stick = Nearest(DefinitionCatalogue.Stick)) == null && T < until) yield return null;
+            if (stick == null)
+            {
+                _errors++;
+                _log.Record(T, Tick, "error", new JsonObject().With("message", "no stick of -eg-items lay within reach"));
+                _running = false;
+                Finish(1);
+                yield break;
+            }
+            ulong id = stick.Id.Value;
+            Face(stick.Position);
+            until = T + 4.0;
+            while (T < until && (_verbs.Target == null || _verbs.Target.Id.Value != id)) yield return null;
+            yield return Wait(0.4);
+            yield return Capture("look");
+            _script.Use();
+            until = T + 4.0;
+            while (T < until && !Carries(id)) yield return null;
+            bool picked = Carries(id);
+            yield return Wait(0.6);
+            yield return Capture("held");
+            _script.ToggleCarrying();
+            yield return Wait(0.4);
+            yield return Capture("tab");
+            _script.ToggleCarrying();
+            // The ground a couple of metres ahead: well within reach of a standing founder's eye.
+            _script.PitchTargetDeg = 36f;
+            until = T + 4.0;
+            while (T < until && !_verbs.Ground.HasValue) yield return null;
+            yield return Wait(0.6);
+            yield return Capture("aim");
+            _script.Use();
+            until = T + 6.0;
+            bool put = false;
+            while (T < until && !(put = Lies(id))) yield return null;
+            // What is drawn is the mirrors' delay behind the server: the rest is seen a moment after it is told.
+            yield return Wait(0.6);
+            yield return Capture("put");
+            bool kept = false;
+            EntityView cobble = Nearest(DefinitionCatalogue.Cobble);
+            if (cobble != null)
+            {
+                ulong stone = cobble.Id.Value;
+                Face(cobble.Position);
+                until = T + 4.0;
+                while (T < until && (_verbs.Target == null || _verbs.Target.Id.Value != stone)) yield return null;
+                _script.Use();
+                until = T + 4.0;
+                while (T < until && !(kept = Carries(stone))) yield return null;
+            }
+            _client.IntentAnswered -= OnAnswered;
+            _log.Record(T, Tick, "end", new JsonObject().With("frames", _frames).With("errors", _errors)
+                .With("picked_up", picked).With("put_down", put).With("kept_carried", kept).With("answers", string.Join(",", _answers))
+                .With("corrections", _player.Corrections).With("moves_sent", (int)_player.MovesSent)
+                .With("east", _player.State.East).With("up", _player.State.Up).With("north", _player.State.North));
+            _running = false;
+            Finish(_errors == 0 && picked && put && kept && _frames == 5 * Sizes.Length ? 0 : 1);
+        }
+
+        private void OnAnswered(IntentResultMessage result) => _answers.Add(result.Outcome.ToString());
+
+        /// <summary>The nearest thing of a kind lying at rest well within reach of the founder's eye, or null.</summary>
+        private EntityView Nearest(Definition kind)
+        {
+            Double3 eye = _player.Eye;
+            EntityView best = null;
+            double bestM = Hands.ReachM - 0.25;
+            foreach (EntityView v in _client.Entities.Views.Values)
+            {
+                if (!ReferenceEquals(v.Definition, kind) || !v.Item.Resting) continue;
+                double d = Double3.Distance(eye, v.Position);
+                if (d > bestM) continue;
+                bestM = d;
+                best = v;
+            }
+            return best;
+        }
+
+        /// <summary>Turns the scripted founder to look at a point: yaw clockwise from north, pitch positive down, as the camera takes them.</summary>
+        private void Face(Double3 at)
+        {
+            Double3 eye = _player.Eye;
+            double dx = at.X - eye.X, dz = at.Z - eye.Z;
+            _script.YawTargetDeg = (float)(Math.Atan2(dx, dz) * 180.0 / Math.PI);
+            _script.PitchTargetDeg = (float)(Math.Atan2(eye.Y - at.Y, Math.Sqrt(dx * dx + dz * dz)) * 180.0 / Math.PI);
+        }
+
+        private bool Carries(ulong id)
+        {
+            CarriedThing[] things = _client.Carrying.Things;
+            if (things != null)
+                foreach (CarriedThing t in things)
+                    if (t.Id == id) return true;
+            return false;
+        }
+
+        private bool Lies(ulong id) => _client.Entities.Views.TryGetValue(id, out EntityView v) && v.Item.Resting;
 
         /// <summary>
         /// What a frame costs, measured without a window (M1.6a): the founder turns a full circle over the given seconds,

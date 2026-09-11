@@ -413,6 +413,71 @@
       ],
       "owner_decides": "the ground's colour, from the frames of M1.4d; the water is data here and is drawn by M1.4c"
     },
+    "M1.5a": {
+      "steps": [
+        {
+          "name": "dotnet test",
+          "cmd": [
+            "dotnet",
+            "test",
+            "Engine/EarthGame.slnx",
+            "-c",
+            "Debug",
+            "--nologo"
+          ]
+        },
+        {
+          "name": "Unity-layer compile",
+          "cmd": [
+            "dotnet",
+            "build",
+            "Engine/EarthGame.Unity.Compile.csproj",
+            "-c",
+            "Debug",
+            "--nologo",
+            "-v",
+            "minimal"
+          ]
+        },
+        {
+          "name": "Unity edit-mode tests",
+          "cmd": [
+            "python",
+            "Tools/unity/editmode.py"
+          ]
+        },
+        {
+          "name": "create the gate world",
+          "cmd": [
+            "python",
+            "Tools/world/create.py",
+            "Artefacts/worlds/gate"
+          ]
+        },
+        {
+          "name": "the carrying frames, built player on the gate world",
+          "cmd": [
+            "python",
+            "Tools/world/carry.py",
+            "--build",
+            "--world",
+            "Artefacts/worlds/gate"
+          ]
+        },
+        {
+          "name": "save_check on the gate world, saved with a cobble carried",
+          "cmd": [
+            "python",
+            "Tools/verifiers/checks/save_check.py",
+            "Artefacts/worlds/gate"
+          ]
+        }
+      ],
+      "verifiers": [
+        "save_check"
+      ],
+      "owner_decides": "the controls under his hands (CANON's verb rule) and the frames of M1.5a: a stick looked at, picked up, held, the carrying window, and the stick put down again"
+    },
     "M1.6": {
       "steps": [
         {

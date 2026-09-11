@@ -12,13 +12,12 @@ namespace EarthGame.Client
     /// over <see cref="PhysxCollision"/>, mouse look sampled every render frame, the camera at eye height with
     /// its vertical motion smoothed and nothing else (plan §4.8), and the body reported to the server at its
     /// tick rate. A Correction from the server is adopted at once and counted; on a legal walk every one is a
-    /// false positive the N2 budget charges.
+    /// false positive the N2 budget charges. The eye's height is the engine's (<see cref="MoverConfig.EyeHeight"/>)
+    /// since M1.5a, because the server measures a verb's reach from it.
     /// </summary>
     public sealed class PlayerController : MonoBehaviour
     {
         private const float SendIntervalSeconds = 0.05f;
-        private const float StandingEyeM = 1.65f;
-        private const float CrouchEyeM = 1.1f;
         private const float EyeSmoothingPerSecond = 14f;
         private const float MaxPitchDeg = 89f;
         /// <summary>The soft boundary: the mover is held this far inside the region's edge until the vignette exists.</summary>
@@ -37,6 +36,7 @@ namespace EarthGame.Client
         private float _sinceSend;
         private float _eyeY;
         private bool _eyeInitialised;
+        private ControlsFrame _presses;
 
         public MoverState State;
         public float YawDeg;
@@ -71,6 +71,29 @@ namespace EarthGame.Client
         {
             get => _input;
             set => _input = value;
+        }
+
+        /// <summary>Whether the left mouse is held this frame (work, which M2's verbs will give something to do).</summary>
+        public bool Working { get; private set; }
+
+        /// <summary>Where the founder's eye is as the server measures a verb's reach from it: the body's feet raised by the stance's eye height, unsmoothed.</summary>
+        public Double3 Eye => new Double3(State.East, State.Up + (_config ?? MoverConfig.Default).EyeHeight(State.Stance), State.North);
+
+        /// <summary>
+        /// Whether the controls hold the view: always for a script or a windowless run, and for a person while the mouse is
+        /// captured. Escape lets the mouse go (M1.5a), and a look at another window then turns nothing.
+        /// </summary>
+        public bool HoldsView => _input is ScriptedInputSource || Application.isBatchMode || Cursor.lockState == CursorLockMode.Locked;
+
+        /// <summary>The presses since the last take and the buttons held now, taken once a frame by whoever acts on them.</summary>
+        public ControlsFrame TakePresses()
+        {
+            ControlsFrame taken = _presses;
+            _presses = default;
+            taken.Work = Working;
+            taken.Sprint = _sprint;
+            taken.Crouch = _crouch;
+            return taken;
         }
 
         public void Attach(GameClient client, IWorldCollision collision, MoverConfig config, Region region, Camera camera,
@@ -136,13 +159,24 @@ namespace EarthGame.Client
         private void Update()
         {
             if (_input == null) return;
-            _input.Sample(Time.unscaledDeltaTime, out Vector2 move, out Vector2 look, out bool jump, out bool sprint, out bool crouch);
-            YawDeg = Mathf.Repeat(YawDeg + look.x, 360f);
-            PitchDeg = Mathf.Clamp(PitchDeg - look.y, -MaxPitchDeg, MaxPitchDeg);
-            _move = move;
-            if (jump) _jumpQueued = true;
-            _sprint = sprint;
-            _crouch = crouch;
+            _input.Sample(Time.unscaledDeltaTime, out ControlsFrame f);
+            if (HoldsView)
+            {
+                YawDeg = Mathf.Repeat(YawDeg + f.LookDeltaDeg.x, 360f);
+                PitchDeg = Mathf.Clamp(PitchDeg - f.LookDeltaDeg.y, -MaxPitchDeg, MaxPitchDeg);
+            }
+            _move = f.Move;
+            if (f.Jump) _jumpQueued = true;
+            _sprint = f.Sprint;
+            _crouch = f.Crouch;
+            Working = f.Work;
+            // Presses wait here until taken, so none is lost to the order Unity updates components in.
+            _presses.Use |= f.Use;
+            _presses.Carrying |= f.Carrying;
+            if (f.HandPlace != 0) _presses.HandPlace = f.HandPlace;
+            _presses.HandStep += f.HandStep;
+            _presses.Menu |= f.Menu;
+            _presses.Screenshot |= f.Screenshot;
         }
 
         private void FixedUpdate()
@@ -182,7 +216,7 @@ namespace EarthGame.Client
         private void LateUpdate()
         {
             if (_camera == null) return;
-            float eye = State.Stance == Stance.Crouching ? CrouchEyeM : StandingEyeM;
+            float eye = (float)(_config ?? MoverConfig.Default).EyeHeight(State.Stance);
             float targetY = (float)State.Up + eye;
             if (!_eyeInitialised)
             {

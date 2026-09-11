@@ -67,7 +67,7 @@ namespace EarthGame.Tests.Server
 
         private SavedPlayer At(string name, double east, double north)
         {
-            SavedPlayer p;
+            SavedPlayer p = default;
             p.Name = name;
             p.Body = MoverState.AtRest(east, _ground.HeightAt(east, north), north);
             p.Body.Grounded = true;

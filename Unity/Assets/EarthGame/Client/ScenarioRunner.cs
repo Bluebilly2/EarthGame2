@@ -161,7 +161,7 @@ namespace EarthGame.Client
                 if (_route.Advance(_player.State.East, _player.State.North, Time.unscaledDeltaTime, out double yaw, out bool sprint))
                 {
                     _script.YawTargetDeg = (float)yaw;
-                    _script.PitchTargetDeg = 2f;
+                    _script.PitchTargetDeg = -2f;
                     _script.Move = new Vector2(0f, 1f);
                     _script.Sprint = sprint;
                 }

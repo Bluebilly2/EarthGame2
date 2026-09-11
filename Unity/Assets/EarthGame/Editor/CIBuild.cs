@@ -1,7 +1,10 @@
+using System.Collections.Generic;
 using System.IO;
+using EarthGame.Client;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace EarthGame.Editor
 {
@@ -22,6 +25,15 @@ namespace EarthGame.Editor
             string[] args = System.Environment.GetCommandLineArgs();
             for (int i = 0; i + 1 < args.Length; i++)
                 if (args[i] == "-buildOut") outDir = Path.GetFullPath(args[i + 1]);
+            // Every binding lives in the controls asset (M1.5a); a player whose project-wide actions lacked one would leave
+            // that control dead under the owner's hands, so the build is refused here instead.
+            List<string> missing = Controls.Missing(InputSystem.actions);
+            if (missing.Count > 0)
+            {
+                Debug.LogError("[build] the project-wide controls lack " + string.Join(", ", missing) + "; every binding lives in Assets/InputSystem_Actions.inputactions");
+                if (Application.isBatchMode) EditorApplication.Exit(1);
+                return;
+            }
             Directory.CreateDirectory(outDir);
             BuildPlayerOptions options = new BuildPlayerOptions
             {

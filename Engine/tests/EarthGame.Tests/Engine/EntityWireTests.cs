@@ -16,9 +16,9 @@ namespace EarthGame.Tests.Engine
         }
 
         [Test]
-        public void TheProtocolIsVersionFiveAndItsKindsKeepTheirNumbers()
+        public void TheProtocolIsVersionSixAndItsKindsKeepTheirNumbers()
         {
-            Assert.That(ProtocolInfo.Version, Is.EqualTo((ushort)5), "4 carried the entities, 5 the layer on each tile message");
+            Assert.That(ProtocolInfo.Version, Is.EqualTo((ushort)6), "4 carried the entities, 5 the layer on each tile message, 6 the verbs");
             Assert.That((byte)MessageKind.EntitySpawn, Is.EqualTo((byte)14));
             Assert.That((byte)MessageKind.EntityState, Is.EqualTo((byte)15));
             Assert.That((byte)MessageKind.EntityGone, Is.EqualTo((byte)16));

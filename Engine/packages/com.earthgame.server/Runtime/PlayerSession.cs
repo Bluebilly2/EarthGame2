@@ -42,5 +42,7 @@ namespace EarthGame.Server
         public int Corrections;
         /// <summary>The entities this session has been shown and not told are gone, each with the tick of the newest state sent for it.</summary>
         public readonly Dictionary<ulong, long> Interest = new Dictionary<ulong, long>();
+        /// <summary>What this founder carries and which place is the hand (M1.5a), taken over from the saved player at the join.</summary>
+        public readonly Hands Hands = new Hands();
     }
 }

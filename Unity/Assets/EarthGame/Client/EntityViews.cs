@@ -1,33 +1,50 @@
 using System.Collections.Generic;
 using EarthGame.ClientCore;
+using EarthGame.Engine;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace EarthGame.Client
 {
     /// <summary>
-    /// The entities the client is shown, as objects in the scene (M1.3 promise 7): the registry's prefab for the
-    /// definition, placed where the server says and raised by the definition's radius so the mesh rests on the
-    /// ground rather than in it, moved on every state, destroyed when told the entity is gone. A definition the
-    /// registry does not bind is drawn as a small magenta cube and logged once: a hole in the registry is meant
-    /// to be seen, and the edit-mode test is meant to catch it first.
+    /// The entities the client is shown, drawn (M1.3; since M1.5a from the stand's own meshes, <see cref="ItemLooks"/>,
+    /// in the material the loose sticks and cobbles are drawn in). Each is placed where the server said it was a stated
+    /// delay ago, between the positions it stated, so a thing let fall is drawn falling as a remote body is drawn walking
+    /// rather than stepping twenty times a second, and each is destroyed when the entity is gone. A definition with no
+    /// look is drawn as a small magenta cube and logged once: a hole in the table is meant to be seen, and the edit-mode
+    /// test is meant to catch it first.
+    ///
+    /// <para>The crosshair asks what a ray meets (<see cref="Pick"/>) of each thing's own bounds rather than of a
+    /// collider: nothing lying is a collider, so a founder never stumbles on a stick the server's ground does not
+    /// have.</para>
     /// </summary>
     public sealed class EntityViews
     {
+        /// <summary>How far the crosshair's catch round a thing is widened, m a side, so a stick two centimetres thick can be looked at.</summary>
+        public const float PickMarginM = 0.04f;
+
+        private sealed class Drawn
+        {
+            public EntityView View;
+            public Transform Transform;
+            public Bounds Local;
+            public float Scale;
+        }
+
         private readonly EntityMirror _mirror;
-        private readonly PrefabRegistry _registry;
-        private readonly Dictionary<ulong, Transform> _objects = new Dictionary<ulong, Transform>();
-        private readonly Dictionary<ulong, Quaternion> _rest = new Dictionary<ulong, Quaternion>();
+        private readonly Material _material;
+        private readonly Dictionary<ulong, Drawn> _drawn = new Dictionary<ulong, Drawn>();
         private readonly HashSet<string> _unbound = new HashSet<string>();
         private Material _unboundMaterial;
 
-        public int Count => _objects.Count;
+        public int Count => _drawn.Count;
 
-        public EntityViews(EntityMirror mirror, PrefabRegistry registry)
+        /// <param name="material">The stand's loose material; without one (a device that draws nothing instanced) the things are placed and picked but not drawn.</param>
+        public EntityViews(EntityMirror mirror, Material material)
         {
             _mirror = mirror;
-            _registry = registry;
+            _material = material;
             _mirror.Spawned += OnSpawned;
-            _mirror.Updated += OnUpdated;
             _mirror.Gone += OnGone;
             foreach (EntityView view in _mirror.Views.Values) OnSpawned(view);
         }
@@ -35,24 +52,37 @@ namespace EarthGame.Client
         public void Dispose()
         {
             _mirror.Spawned -= OnSpawned;
-            _mirror.Updated -= OnUpdated;
             _mirror.Gone -= OnGone;
-            foreach (Transform t in _objects.Values)
-                if (t != null) Object.Destroy(t.gameObject);
-            _objects.Clear();
-            _rest.Clear();
+            foreach (Drawn d in _drawn.Values)
+                if (d.Transform != null) Object.Destroy(d.Transform.gameObject);
+            _drawn.Clear();
+            if (_unboundMaterial != null) Object.Destroy(_unboundMaterial);
         }
 
         private void OnSpawned(EntityView view)
         {
-            if (_objects.TryGetValue(view.Id.Value, out Transform old) && old != null) Object.Destroy(old.gameObject);
-            GameObject prefab = _registry != null ? _registry.PrefabFor(view.Definition.Key) : null;
+            if (_drawn.TryGetValue(view.Id.Value, out Drawn old) && old.Transform != null) Object.Destroy(old.Transform.gameObject);
+            Drawn d = new Drawn { View = view };
             GameObject go;
-            if (prefab != null) go = Object.Instantiate(prefab);
+            if (ItemLooks.TryLook(view.Definition, view.Id.Value, out Mesh mesh, out float scale))
+            {
+                go = new GameObject();
+                d.Local = mesh.bounds;
+                d.Scale = scale;
+                if (_material != null)
+                {
+                    go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                    MeshRenderer renderer = go.AddComponent<MeshRenderer>();
+                    renderer.sharedMaterial = _material;
+                    // As the loose sticks and cobbles are drawn: no shadow, no probe.
+                    renderer.shadowCastingMode = ShadowCastingMode.Off;
+                    renderer.lightProbeUsage = LightProbeUsage.Off;
+                    renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
+                }
+            }
             else
             {
                 go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                go.transform.localScale = Vector3.one * 0.2f;
                 Collider collider = go.GetComponent<Collider>();
                 if (collider != null) Object.Destroy(collider);
                 if (_unboundMaterial == null)
@@ -61,28 +91,59 @@ namespace EarthGame.Client
                     _unboundMaterial.SetColor("_BaseColor", Color.magenta);
                 }
                 go.GetComponent<Renderer>().sharedMaterial = _unboundMaterial;
-                if (_unbound.Add(view.Definition.Key)) Debug.LogWarning("[client] no prefab bound for " + view.Definition.Key + "; drawing a cube");
+                d.Local = new Bounds(Vector3.zero, Vector3.one);
+                d.Scale = 0.2f;
+                if (_unbound.Add(view.Definition.Key)) Debug.LogWarning("[client] no look for " + view.Definition.Key + "; drawing a cube");
             }
             go.name = view.Definition.Key + " " + view.Id;
-            _objects[view.Id.Value] = go.transform;
-            _rest[view.Id.Value] = prefab != null ? prefab.transform.rotation : Quaternion.identity;
-            Place(view);
+            go.transform.localScale = Vector3.one * d.Scale;
+            d.Transform = go.transform;
+            _drawn[view.Id.Value] = d;
+            Place(d, view.Position);
         }
-
-        private void OnUpdated(EntityView view) => Place(view);
 
         private void OnGone(EntityView view, byte reason)
         {
-            if (_objects.TryGetValue(view.Id.Value, out Transform t) && t != null) Object.Destroy(t.gameObject);
-            _objects.Remove(view.Id.Value);
-            _rest.Remove(view.Id.Value);
+            if (_drawn.TryGetValue(view.Id.Value, out Drawn d) && d.Transform != null) Object.Destroy(d.Transform.gameObject);
+            _drawn.Remove(view.Id.Value);
         }
 
-        private void Place(EntityView view)
+        /// <summary>Places every thing where it was at a server tick: the estimated tick less the mirrors' delay, as the other bodies are sampled.</summary>
+        public void Draw(double tick)
         {
-            if (!_objects.TryGetValue(view.Id.Value, out Transform t) || t == null) return;
-            t.position = new Vector3((float)view.Position.X, (float)(view.Position.Y + view.Definition.RadiusM), (float)view.Position.Z);
-            t.rotation = Quaternion.Euler(0f, view.YawDeg, 0f) * _rest[view.Id.Value];
+            foreach (Drawn d in _drawn.Values) Place(d, d.View.PositionAt(tick));
+        }
+
+        private static void Place(Drawn d, Double3 at)
+        {
+            if (d.Transform == null) return;
+            d.Transform.SetPositionAndRotation(new Vector3((float)at.X, (float)at.Y, (float)at.Z), Quaternion.Euler(0f, d.View.YawDeg, 0f));
+        }
+
+        /// <summary>
+        /// The nearest thing a ray meets within a distance, by the bounds of its own mesh where it is drawn, widened by
+        /// <see cref="PickMarginM"/>: the thing, and how far along the ray it was met, m.
+        /// </summary>
+        public bool Pick(Ray ray, float withinM, out EntityView view, out float distanceM)
+        {
+            view = null;
+            distanceM = withinM;
+            foreach (Drawn d in _drawn.Values)
+            {
+                if (d.Transform == null) continue;
+                Matrix4x4 toLocal = d.Transform.worldToLocalMatrix;
+                Vector3 direction = toLocal.MultiplyVector(ray.direction);
+                float perMetre = direction.magnitude;
+                if (perMetre < 1e-6f) continue;
+                Bounds box = d.Local;
+                box.Expand(2f * PickMarginM * perMetre);
+                if (!box.IntersectRay(new Ray(toLocal.MultiplyPoint3x4(ray.origin), direction / perMetre), out float local)) continue;
+                float metres = Mathf.Max(0f, local) / perMetre;
+                if (metres > distanceM) continue;
+                distanceM = metres;
+                view = d.View;
+            }
+            return view != null;
         }
     }
 }

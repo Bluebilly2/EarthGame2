@@ -6,6 +6,7 @@
         "EarthGame.Shared",
         "EarthGame.Client",
         "EarthGame.Bootstrap",
+        "Unity.InputSystem",
         "Unity.RenderPipelines.Universal.Runtime",
         "Unity.RenderPipelines.Core.Runtime",
         "Unity.RenderPipelines.GPUDriven.Runtime",

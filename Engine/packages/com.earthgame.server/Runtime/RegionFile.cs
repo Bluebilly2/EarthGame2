@@ -130,21 +130,24 @@ namespace EarthGame.Server
     }
 
     /// <summary>
-    /// A player's resting place, format <c>eg2.player</c> version 2 (binary; version 1 was JSON and is still read):
-    /// the magic <c>EG2P</c>, u16 version, the name as a u16 UTF-8 byte length and the bytes, f64 east, up and
-    /// north, f32 yaw, f32 pitch, u8 flags (1 grounded, 2 wading, 4 crouching, as <see cref="BodyWire"/> packs
-    /// them), i64 saved tick, then u32 CRC-32 of everything before it. Version 1 dropped wading and stance, which
-    /// the round trip's digest needs; that is why the format moved.
+    /// A player's resting place, format <c>eg2.player</c> version 3 (binary; version 2 is still read, and version 1,
+    /// JSON, too): the magic <c>EG2P</c>, u16 version, the name as a u16 UTF-8 byte length and the bytes, f64 east, up
+    /// and north, f32 yaw, f32 pitch, u8 flags (1 grounded, 2 wading, 4 crouching, as <see cref="BodyWire"/> packs
+    /// them), i64 saved tick; since version 3 (M1.5a) the hand's place as a u8, and what is carried as a u8 count and,
+    /// per thing, u8 place, u64 id, the key as a u16 UTF-8 byte length and the bytes, and i64 spawn tick; then u32
+    /// CRC-32 of everything before it. Version 1 dropped wading and stance, which the round trip's digest needs;
+    /// version 2 had no hands.
     /// </summary>
     public static class PlayerFile
     {
-        public const ushort Version = 2;
+        public const ushort Version = 3;
         public const string Extension = ".egp";
         private static readonly byte[] Magic = { (byte)'E', (byte)'G', (byte)'2', (byte)'P' };
 
         public static byte[] Encode(in SavedPlayer p)
         {
-            PacketWriter w = new PacketWriter(64 + p.Name.Length * 4);
+            int count = p.Carried != null ? p.Carried.Length : 0;
+            PacketWriter w = new PacketWriter(64 + p.Name.Length * 4 + count * 64);
             for (int i = 0; i < Magic.Length; i++) w.WriteByte(Magic[i]);
             w.WriteUInt16(Version);
             w.WriteString(p.Name);
@@ -155,6 +158,16 @@ namespace EarthGame.Server
             w.WriteSingle(p.PitchDeg);
             w.WriteByte(BodyWire.FlagsOf(p.Body));
             w.WriteInt64(p.SavedTick);
+            w.WriteByte(p.Hand);
+            w.WriteByte((byte)count);
+            for (int i = 0; i < count; i++)
+            {
+                CarriedThing t = p.Carried[i];
+                w.WriteByte(t.Place);
+                w.WriteUInt64(t.Id);
+                w.WriteString(t.Definition.Key);
+                w.WriteInt64(t.SpawnTick);
+            }
             byte[] body = w.Written.ToArray();
             byte[] file = new byte[body.Length + 4];
             Buffer.BlockCopy(body, 0, file, 0, body.Length);
@@ -177,14 +190,36 @@ namespace EarthGame.Server
             if (stated != actual) throw new InvalidDataException("player file CRC " + actual.ToString("x8") + " differs from the stated " + stated.ToString("x8"));
             PacketReader r = new PacketReader(bytes, 4, bodyLength - 4);
             ushort version = r.ReadUInt16();
-            if (version != Version) throw new InvalidDataException("player file version " + version + "; this build reads " + Version);
-            SavedPlayer p;
+            if (version != Version && version != 2) throw new InvalidDataException("player file version " + version + "; this build reads 2 and " + Version);
+            SavedPlayer p = default;
             p.Name = r.ReadString();
             p.Body = MoverState.AtRest(r.ReadDouble(), r.ReadDouble(), r.ReadDouble());
             p.YawDeg = r.ReadSingle();
             p.PitchDeg = r.ReadSingle();
             BodyWire.ApplyFlags(r.ReadByte(), ref p.Body);
             p.SavedTick = r.ReadInt64();
+            if (version >= 3)
+            {
+                p.Hand = r.ReadByte();
+                int count = r.ReadByte();
+                if (p.Hand > Hands.Places || count > Hands.Places)
+                    throw new InvalidDataException("player " + p.Name + " carries " + count + " things with the hand at place " + p.Hand + "; the hands have " + Hands.Places + " places");
+                p.Carried = new CarriedThing[count];
+                bool[] filled = new bool[Hands.Places + 1];
+                for (int i = 0; i < count; i++)
+                {
+                    byte place = r.ReadByte();
+                    ulong id = r.ReadUInt64();
+                    string key = r.ReadString();
+                    long spawnTick = r.ReadInt64();
+                    if (place < 1 || place > Hands.Places || filled[place])
+                        throw new InvalidDataException("player " + p.Name + " carries a thing in place " + place + ", which is no place or holds another");
+                    filled[place] = true;
+                    if (!DefinitionCatalogue.TryByKey(key, out Definition definition))
+                        throw new InvalidDataException("player " + p.Name + " carries a '" + key + "', which this build does not know");
+                    p.Carried[i] = new CarriedThing { Id = id, Definition = definition, SpawnTick = spawnTick, Place = place };
+                }
+            }
             r.ExpectEnd();
             return p;
         }

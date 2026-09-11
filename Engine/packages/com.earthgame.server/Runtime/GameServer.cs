@@ -117,12 +117,17 @@ namespace EarthGame.Server
             return new List<SavedPlayer>(all.Values);
         }
 
-        /// <summary>The world's name: clock, tick and every body by player name (ARCHITECTURE §6).</summary>
+        /// <summary>The world's name: clock, tick, every body by player name and what each carries (ARCHITECTURE §6).</summary>
         public string Digest()
         {
             List<KeyValuePair<string, MoverState>> bodies = new List<KeyValuePair<string, MoverState>>();
-            foreach (SavedPlayer p in PlayersToSave()) bodies.Add(new KeyValuePair<string, MoverState>(p.Name, p.Body));
-            return WorldDigest.World(World, bodies);
+            List<CarrierRecord> carriers = new List<CarrierRecord>();
+            foreach (SavedPlayer p in PlayersToSave())
+            {
+                bodies.Add(new KeyValuePair<string, MoverState>(p.Name, p.Body));
+                carriers.Add(new CarrierRecord { Name = p.Name, Hand = p.Hand, Things = p.Carried ?? Array.Empty<CarriedThing>() });
+            }
+            return WorldDigest.World(World, bodies, carriers);
         }
 
         /// <summary>The name of one session's accepted body, as a client's mirror of it would compute it.</summary>
@@ -220,6 +225,9 @@ namespace EarthGame.Server
             p.YawDeg = s.YawDeg;
             p.PitchDeg = s.PitchDeg;
             p.SavedTick = World.Tick;
+            p.Carried = new CarriedThing[s.Hands.Things.Count];
+            for (int i = 0; i < p.Carried.Length; i++) p.Carried[i] = s.Hands.Things[i];
+            p.Hand = s.Hands.Hand;
             return p;
         }
 
@@ -276,6 +284,13 @@ namespace EarthGame.Server
                         TileRequestMessage request = TileRequestMessage.Read(reader);
                         reader.ExpectEnd();
                         _tiles.Serve(connection, request);
+                        break;
+                    }
+                    case MessageKind.Intent:
+                    {
+                        IntentMessage intent = IntentMessage.Read(reader);
+                        reader.ExpectEnd();
+                        HandleIntent(session, intent);
                         break;
                     }
                     default:
@@ -339,6 +354,7 @@ namespace EarthGame.Server
                 session.PitchDeg = saved.PitchDeg;
                 session.LastMoveTick = World.Tick;
                 session.HasBody = true;
+                session.Hands.Restore(saved.Carried, saved.Hand);
             }
             WelcomeMessage welcome;
             welcome.SessionId = session.SessionId;
@@ -393,6 +409,8 @@ namespace EarthGame.Server
                     joiner.Connection.Send(_writer.Written, Delivery.Reliable);
                     joiner.Interest[_near[i].Id.Value] = World.Tick;
                 }
+                // What the joiner carries, before the end: interactive means the hands are known too.
+                SendCarrying(joiner);
                 SnapshotEndMessage end;
                 end.ServerTick = World.Tick;
                 _writer.Reset();
@@ -515,6 +533,12 @@ namespace EarthGame.Server
             p.Body = MoverState.AtRest(east, World.GroundAt(east, north), north);
             p.Body.Grounded = true;
             p.SavedTick = World.Tick;
+            // Standing a founder somewhere else does not empty their hands.
+            if (_savedPlayers.TryGetValue(name, out SavedPlayer before))
+            {
+                p.Carried = before.Carried;
+                p.Hand = before.Hand;
+            }
             _savedPlayers[name] = p;
             return p;
         }
@@ -619,7 +643,7 @@ namespace EarthGame.Server
                 for (int i = 0; i < _retired.Count; i++)
                     if (session.Interest.Remove(_retired[i].Id.Value))
                     {
-                        WriteGone(_retired[i].Id.Value, EntityGoneMessage.Died);
+                        WriteGone(_retired[i].Id.Value, _retired[i].Taken ? EntityGoneMessage.TakenUp : EntityGoneMessage.Died);
                         session.Connection.Send(_writer.Written, Delivery.Reliable);
                     }
                 Viewpoint(session, out double east, out double north);
@@ -663,6 +687,58 @@ namespace EarthGame.Server
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// A verb, committed on the world the server holds (M1.5a): the founder's hands do it or say why not, the answer
+        /// goes back under the intent's sequence, and a change to the hands is sent to their owner. While the world is
+        /// held, or before the founder has a body and their snapshot, nothing is done.
+        /// </summary>
+        private void HandleIntent(PlayerSession session, IntentMessage intent)
+        {
+            VerbOutcome outcome;
+            if (Paused || !session.HasBody || session.SnapshotPending) outcome = VerbOutcome.NotNow;
+            else
+            {
+                Double3 eye = Eye(session);
+                switch (intent.Verb)
+                {
+                    case Verb.PickUp:
+                        outcome = session.Hands.PickUp(World, intent.EntityId, eye);
+                        break;
+                    case Verb.PutDown:
+                        outcome = session.Hands.PutDown(World, new Double3(intent.East, intent.Up, intent.North), eye, session.YawDeg);
+                        break;
+                    case Verb.Hold:
+                        outcome = session.Hands.Hold(intent.Place);
+                        break;
+                    default:
+                        outcome = VerbOutcome.NotNow;
+                        break;
+                }
+            }
+            IntentResultMessage result;
+            result.Sequence = intent.Sequence;
+            result.Outcome = outcome;
+            _writer.Reset();
+            result.Write(_writer);
+            session.Connection.Send(_writer.Written, Delivery.Reliable);
+            if (outcome == VerbOutcome.Done) SendCarrying(session);
+        }
+
+        /// <summary>Where a founder's eye is, as the server holds their body: a verb's reach is measured from here.</summary>
+        private Double3 Eye(PlayerSession s) => new Double3(s.Body.East, s.Body.Up + _config.Mover.EyeHeight(s.Body.Stance), s.Body.North);
+
+        /// <summary>What a founder carries, sent to them alone.</summary>
+        private void SendCarrying(PlayerSession session)
+        {
+            CarryingMessage m;
+            m.Hand = session.Hands.Hand;
+            m.Things = new CarriedThing[session.Hands.Things.Count];
+            for (int i = 0; i < m.Things.Length; i++) m.Things[i] = session.Hands.Things[i];
+            _writer.Reset();
+            m.Write(_writer);
+            session.Connection.Send(_writer.Written, Delivery.Reliable);
         }
 
         private void Refuse(IConnection connection, string reason)

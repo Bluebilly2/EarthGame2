@@ -7,7 +7,7 @@ using EarthGame.Protocol;
 
 namespace EarthGame.Server
 {
-    /// <summary>Where a player was when the world was last written: the spawn for their next join.</summary>
+    /// <summary>Where a player was when the world was last written, and what they carried: the spawn for their next join.</summary>
     public struct SavedPlayer
     {
         public string Name;
@@ -15,6 +15,10 @@ namespace EarthGame.Server
         public float YawDeg;
         public float PitchDeg;
         public long SavedTick;
+        /// <summary>What they carried, by place (M1.5a); null for nothing.</summary>
+        public CarriedThing[] Carried;
+        /// <summary>The place that was their hand; 0 for none.</summary>
+        public byte Hand;
     }
 
     /// <summary>What a world folder says about itself, read back without building the world yet.</summary>
@@ -43,7 +47,8 @@ namespace EarthGame.Server
     /// <summary>
     /// The world folder (ARCHITECTURE §6): <c>world.json</c> (format <c>eg2.world</c>, version 1: identity, the
     /// clock's two numbers, the tick, the wake, the layers' checksums and, since M1.3, <c>next_entity_id</c>),
-    /// <c>players/&lt;name&gt;.egp</c> (each player's resting place; version 1's JSON is still read and replaced),
+    /// <c>players/&lt;name&gt;.egp</c> (each player's resting place and, since M1.5a, what they carry; version 1's JSON
+    /// is still read and replaced),
     /// <c>regions/r.X.Y.egr</c> (the entities by 512 m cell) and <c>digest.txt</c> (the world's name, for a test or
     /// a verifier to compare). The server is the only writer; every file is written to a <c>.part</c> and moved
     /// into place so a crash mid-write leaves the previous save intact. Dates are the host's: the server reads no
@@ -104,10 +109,15 @@ namespace EarthGame.Server
             WriteRegions(dir, world);
 
             List<KeyValuePair<string, MoverState>> bodies = new List<KeyValuePair<string, MoverState>>();
+            List<CarrierRecord> carriers = new List<CarrierRecord>();
             if (players != null)
                 foreach (SavedPlayer p in players)
-                    if (!string.IsNullOrEmpty(p.Name)) bodies.Add(new KeyValuePair<string, MoverState>(p.Name, p.Body));
-            WriteAtomic(Path.Combine(dir, DigestFile), Encoding.UTF8.GetBytes(WorldDigest.World(world, bodies) + "\n"));
+                {
+                    if (string.IsNullOrEmpty(p.Name)) continue;
+                    bodies.Add(new KeyValuePair<string, MoverState>(p.Name, p.Body));
+                    carriers.Add(new CarrierRecord { Name = p.Name, Hand = p.Hand, Things = p.Carried ?? Array.Empty<CarriedThing>() });
+                }
+            WriteAtomic(Path.Combine(dir, DigestFile), Encoding.UTF8.GetBytes(WorldDigest.World(world, bodies, carriers) + "\n"));
         }
 
         private static void WritePlayers(string dir, IReadOnlyList<SavedPlayer> players)
@@ -120,7 +130,7 @@ namespace EarthGame.Server
                 if (string.IsNullOrEmpty(s.Name)) continue;
                 string stem = Path.Combine(playersDir, FileNameFor(s.Name));
                 WriteAtomic(stem + PlayerFile.Extension, PlayerFile.Encode(s));
-                // A version-1 JSON file for the same name is superseded by the version-2 file, never left to disagree with it.
+                // A version-1 JSON file for the same name is superseded by the binary file, never left to disagree with it.
                 if (File.Exists(stem + ".json")) File.Delete(stem + ".json");
             }
         }
@@ -184,6 +194,7 @@ namespace EarthGame.Server
 
             ReadPlayers(dir, info);
             ReadRegions(dir, info, doc.NumberOr("extent_m", 0.0));
+            CheckCarried(info);
             string digestPath = Path.Combine(dir, DigestFile);
             if (File.Exists(digestPath)) info.Digest = File.ReadAllText(digestPath, Encoding.UTF8).Trim();
             return info;
@@ -197,7 +208,7 @@ namespace EarthGame.Server
             foreach (string file in Directory.GetFiles(playersDir, "*.json"))
             {
                 JsonObject p = Json.ParseObject(File.ReadAllText(file, Encoding.UTF8));
-                SavedPlayer sp;
+                SavedPlayer sp = default;
                 sp.Name = p.String("name");
                 sp.Body = MoverState.AtRest(p.Number("east"), p.Number("up"), p.Number("north"));
                 sp.Body.Grounded = p.Contains("grounded") && p.Bool("grounded");
@@ -206,11 +217,37 @@ namespace EarthGame.Server
                 sp.SavedTick = (long)p.NumberOr("saved_tick", 0.0);
                 info.Players[sp.Name] = sp;
             }
-            // Version 2 wins over a version-1 file of the same name that a crash left behind.
+            // The binary file wins over a version-1 file of the same name that a crash left behind.
             foreach (string file in Directory.GetFiles(playersDir, "*" + PlayerFile.Extension))
             {
                 SavedPlayer sp = PlayerFile.Decode(File.ReadAllBytes(file));
                 info.Players[sp.Name] = sp;
+            }
+        }
+
+        /// <summary>
+        /// A thing is in the world or in someone's hands, never both, and never under an id the world has not allocated
+        /// (M1.5a): a folder that says otherwise was not written by a server, and is refused before a put-down could
+        /// meet the same id twice.
+        /// </summary>
+        private static void CheckCarried(WorldSaveInfo info)
+        {
+            HashSet<ulong> lying = new HashSet<ulong>();
+            foreach (SavedEntity e in info.Entities) lying.Add(e.Id);
+            Dictionary<ulong, string> carriedBy = new Dictionary<ulong, string>();
+            foreach (SavedPlayer p in info.Players.Values)
+            {
+                if (p.Carried == null) continue;
+                foreach (CarriedThing t in p.Carried)
+                {
+                    if (t.Id == 0 || t.Id >= info.NextEntityId)
+                        throw new InvalidDataException(p.Name + " carries entity " + t.Id + ", an id this world has not allocated (the next is " + info.NextEntityId + ")");
+                    if (lying.Contains(t.Id))
+                        throw new InvalidDataException(p.Name + " carries entity " + t.Id + ", which also lies in a region file");
+                    if (carriedBy.TryGetValue(t.Id, out string other))
+                        throw new InvalidDataException(p.Name + " and " + other + " both carry entity " + t.Id);
+                    carriedBy[t.Id] = p.Name;
+                }
             }
         }
 

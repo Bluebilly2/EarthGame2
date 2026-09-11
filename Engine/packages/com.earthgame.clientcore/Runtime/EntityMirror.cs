@@ -17,6 +17,52 @@ namespace EarthGame.ClientCore
         public bool HasItem;
         public ItemComponent Item;
 
+        private const int Kept = 8;
+        private readonly Double3[] _stated = new Double3[Kept];
+        private readonly long[] _statedTicks = new long[Kept];
+        private int _statedCount;
+
+        /// <summary>
+        /// Where the entity was at a server tick (M1.5a): between the two stated positions around it, as a remote body is
+        /// drawn, so a thing let fall is drawn falling rather than stepping at the tick rate. Before the first position
+        /// held it is where it was first said to be; past the newest, where it is now.
+        /// </summary>
+        public Double3 PositionAt(double tick)
+        {
+            if (_statedCount == 0) return Position;
+            if (tick <= _statedTicks[0]) return _stated[0];
+            int last = _statedCount - 1;
+            if (tick >= _statedTicks[last]) return _stated[last];
+            for (int i = 1; i <= last; i++)
+            {
+                if (_statedTicks[i] < tick) continue;
+                double span = _statedTicks[i] - _statedTicks[i - 1];
+                double t = span > 0 ? (tick - _statedTicks[i - 1]) / span : 1.0;
+                Double3 a = _stated[i - 1], b = _stated[i];
+                return new Double3(a.X + (b.X - a.X) * t, a.Y + (b.Y - a.Y) * t, a.Z + (b.Z - a.Z) * t);
+            }
+            return _stated[last];
+        }
+
+        /// <summary>A position the server stated at a tick; a repeat tick replaces the last, and past the few kept the oldest is let go.</summary>
+        internal void Stated(Double3 position, long tick)
+        {
+            if (_statedCount > 0 && tick <= _statedTicks[_statedCount - 1])
+            {
+                if (tick == _statedTicks[_statedCount - 1]) _stated[_statedCount - 1] = position;
+                return;
+            }
+            if (_statedCount == Kept)
+            {
+                Array.Copy(_stated, 1, _stated, 0, Kept - 1);
+                Array.Copy(_statedTicks, 1, _statedTicks, 0, Kept - 1);
+                _statedCount--;
+            }
+            _stated[_statedCount] = position;
+            _statedTicks[_statedCount] = tick;
+            _statedCount++;
+        }
+
         public EntityRecord Record()
         {
             EntityRecord r;
@@ -32,7 +78,8 @@ namespace EarthGame.ClientCore
 
     /// <summary>
     /// The entities the server has shown this client (M1.3, ARCHITECTURE §7): spawned in full, updated by the
-    /// fields that changed, dropped when told they are gone. A state older than the one held is ignored, since
+    /// fields that changed, dropped when told they are gone, each keeping the last few positions it was stated at so
+    /// it can be drawn between them (M1.5a). A state older than the one held is ignored, since
     /// states travel unreliably and can cross. The digest is computed the same way as the server's for the
     /// session's interest set, so a harness compares two strings.
     /// </summary>
@@ -47,7 +94,7 @@ namespace EarthGame.ClientCore
 
         public event Action<EntityView> Spawned;
         public event Action<EntityView> Updated;
-        /// <summary>The view that is gone and why: <see cref="EntityGoneMessage.Died"/> or <see cref="EntityGoneMessage.Left"/>.</summary>
+        /// <summary>The view that is gone and why: <see cref="EntityGoneMessage.Died"/>, <see cref="EntityGoneMessage.Left"/> or <see cref="EntityGoneMessage.TakenUp"/>.</summary>
         public event Action<EntityView, byte> Gone;
 
         /// <summary>A spawn for an id already held replaces it (the server may re-show an entity that left and returned).</summary>
@@ -65,6 +112,7 @@ namespace EarthGame.ClientCore
                 HasItem = m.HasItem,
                 Item = m.Item,
             };
+            view.Stated(view.Position, m.ServerTick);
             _views[m.Id] = view;
             Spawned?.Invoke(view);
         }
@@ -74,7 +122,11 @@ namespace EarthGame.ClientCore
         {
             if (!_views.TryGetValue(m.Id, out EntityView view)) return;
             if (m.ServerTick < view.Tick) return;
-            if ((m.Fields & EntityFields.Position) != 0) view.Position = new Double3(m.East, m.Up, m.North);
+            if ((m.Fields & EntityFields.Position) != 0)
+            {
+                view.Position = new Double3(m.East, m.Up, m.North);
+                view.Stated(view.Position, m.ServerTick);
+            }
             if ((m.Fields & EntityFields.Yaw) != 0) view.YawDeg = m.YawDeg;
             if ((m.Fields & EntityFields.Item) != 0)
             {

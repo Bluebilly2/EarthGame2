@@ -39,8 +39,14 @@ namespace EarthGame.Protocol
         EntitySpawn = 14,
         /// <summary>Server → client: the fields of an entity in your interest that changed.</summary>
         EntityState = 15,
-        /// <summary>Server → client: an entity you were shown died or left your interest.</summary>
+        /// <summary>Server → client: an entity you were shown died, left your interest, or was taken up.</summary>
         EntityGone = 16,
+        /// <summary>Client → server: do this verb (M1.5a): pick a thing up, put the thing in hand down, or hold a place.</summary>
+        Intent = 17,
+        /// <summary>Server → client: what came of an intent, by its sequence.</summary>
+        IntentResult = 18,
+        /// <summary>Server → client: what you carry in each place, and which place is the hand.</summary>
+        Carrying = 19,
     }
 
     /// <summary>One tile of one layer the client wants, with the checksum of the copy it already holds (zero for none).</summary>
@@ -638,11 +644,15 @@ namespace EarthGame.Protocol
         }
     }
 
-    /// <summary>Server → client, reliable (protocol v4): an entity you were shown is gone, because it died or left your interest.</summary>
+    /// <summary>
+    /// Server → client, reliable (protocol v4): an entity you were shown is gone, because it died, left your interest,
+    /// or a founder took it up (protocol v6).
+    /// </summary>
     public struct EntityGoneMessage
     {
         public const byte Died = 1;
         public const byte Left = 2;
+        public const byte TakenUp = 3;
 
         public ulong Id;
         public byte Reason;
@@ -659,6 +669,143 @@ namespace EarthGame.Protocol
             EntityGoneMessage m;
             m.Id = r.ReadUInt64();
             m.Reason = r.ReadByte();
+            return m;
+        }
+    }
+
+    /// <summary>
+    /// Client → server, reliable (protocol v6): a verb and its target. A pick-up names the entity (target kind 1; the
+    /// generated things of M1.5b will be another kind); a put-down names the point on the ground the founder is looking
+    /// at; a hold names the place, 0 for an empty hand. The server answers with an <see cref="IntentResultMessage"/> of
+    /// the same sequence.
+    /// </summary>
+    public struct IntentMessage
+    {
+        public const byte TargetEntity = 1;
+
+        public uint Sequence;
+        public Verb Verb;
+        public ulong EntityId;
+        public double East;
+        public double Up;
+        public double North;
+        public byte Place;
+
+        public void Write(PacketWriter w)
+        {
+            w.WriteByte((byte)MessageKind.Intent);
+            w.WriteUInt32(Sequence);
+            w.WriteByte((byte)Verb);
+            switch (Verb)
+            {
+                case Verb.PickUp:
+                    w.WriteByte(TargetEntity);
+                    w.WriteUInt64(EntityId);
+                    break;
+                case Verb.PutDown:
+                    w.WriteDouble(East);
+                    w.WriteDouble(Up);
+                    w.WriteDouble(North);
+                    break;
+                case Verb.Hold:
+                    w.WriteByte(Place);
+                    break;
+                default:
+                    throw new ProtocolException("verb " + (byte)Verb + " has no layout");
+            }
+        }
+
+        public static IntentMessage Read(PacketReader r)
+        {
+            IntentMessage m = default;
+            m.Sequence = r.ReadUInt32();
+            m.Verb = (Verb)r.ReadByte();
+            switch (m.Verb)
+            {
+                case Verb.PickUp:
+                    byte target = r.ReadByte();
+                    if (target != TargetEntity) throw new ProtocolException("a pick-up names a target of kind " + target + ", which this build does not know");
+                    m.EntityId = r.ReadUInt64();
+                    break;
+                case Verb.PutDown:
+                    m.East = r.ReadDouble();
+                    m.Up = r.ReadDouble();
+                    m.North = r.ReadDouble();
+                    break;
+                case Verb.Hold:
+                    m.Place = r.ReadByte();
+                    break;
+                default:
+                    throw new ProtocolException("verb " + (byte)m.Verb + " is not one this build knows");
+            }
+            return m;
+        }
+    }
+
+    /// <summary>Server → client, reliable (protocol v6): what came of the intent with this sequence.</summary>
+    public struct IntentResultMessage
+    {
+        public uint Sequence;
+        public VerbOutcome Outcome;
+
+        public void Write(PacketWriter w)
+        {
+            w.WriteByte((byte)MessageKind.IntentResult);
+            w.WriteUInt32(Sequence);
+            w.WriteByte((byte)Outcome);
+        }
+
+        public static IntentResultMessage Read(PacketReader r)
+        {
+            IntentResultMessage m;
+            m.Sequence = r.ReadUInt32();
+            m.Outcome = (VerbOutcome)r.ReadByte();
+            if ((byte)m.Outcome > (byte)VerbOutcome.NotNow) throw new ProtocolException("intent outcome " + (byte)m.Outcome + " is not one this build knows");
+            return m;
+        }
+    }
+
+    /// <summary>
+    /// Server → client, reliable (protocol v6): what you carry, place by place, and which place is the hand; sent at the
+    /// join, before the snapshot's end, and after every verb that changed it. A thing's spawn tick stays with the server.
+    /// </summary>
+    public struct CarryingMessage
+    {
+        public byte Hand;
+        public CarriedThing[] Things;
+
+        public void Write(PacketWriter w)
+        {
+            w.WriteByte((byte)MessageKind.Carrying);
+            w.WriteByte(Hand);
+            int count = Things != null ? Things.Length : 0;
+            w.WriteByte((byte)count);
+            for (int i = 0; i < count; i++)
+            {
+                w.WriteByte(Things[i].Place);
+                w.WriteUInt64(Things[i].Id);
+                w.WriteUInt32(Things[i].Definition.Id.Value);
+            }
+        }
+
+        public static CarryingMessage Read(PacketReader r)
+        {
+            CarryingMessage m;
+            m.Hand = r.ReadByte();
+            int count = r.ReadByte();
+            if (count > Hands.Places || m.Hand > Hands.Places)
+                throw new ProtocolException("carrying " + count + " things with the hand at place " + m.Hand + "; the hands have " + Hands.Places + " places");
+            m.Things = new CarriedThing[count];
+            for (int i = 0; i < count; i++)
+            {
+                byte place = r.ReadByte();
+                if (place < 1 || place > Hands.Places) throw new ProtocolException("a carried thing in place " + place + "; the places are 1 to " + Hands.Places);
+                ulong id = r.ReadUInt64();
+                DefinitionId definitionId = new DefinitionId(r.ReadUInt32());
+                if (!DefinitionCatalogue.TryById(definitionId, out Definition definition))
+                    throw new ProtocolException("carried thing " + id + " has definition " + definitionId + ", which this build does not know");
+                m.Things[i] = new CarriedThing { Id = id, Definition = definition, Place = place };
+            }
             return m;
         }
     }

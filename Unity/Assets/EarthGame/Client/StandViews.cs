@@ -49,8 +49,11 @@ namespace EarthGame.Client
         /// <summary>How far off sticks and cobbles are drawn, m.</summary>
         public const float LooseDrawM = 60f;
 
-        /// <summary>A cobble's size, m: a stone to fit the hand.</summary>
-        public const float CobbleSizeM = 0.12f;
+        /// <summary>
+        /// A cobble's size, m: the item's own diameter (<see cref="DefinitionCatalogue.Cobble"/>), so a cobble lying in the
+        /// litter and one put down are one size (M1.5a; until then the litter's were drawn at 0.12 m and the item's at 0.1).
+        /// </summary>
+        public static readonly float CobbleSizeM = (float)(2.0 * DefinitionCatalogue.Cobble.RadiusM);
 
         /// <summary>How far a trunk's foot is set into the ground, m, so a slope drawn by the terrain's own triangles shows no gap under it.</summary>
         public const float SinkM = 0.15f;
@@ -117,6 +120,9 @@ namespace EarthGame.Client
 
         /// <summary>Whether the near trees cast shadows; <c>-eg-hide shadows</c> turns them off, so what the shadows cost can be measured apart from the trees.</summary>
         public bool DrawShadows { get; set; } = true;
+
+        /// <summary>The material the sticks and cobbles are drawn in, near only; an item's view and the thing in hand are drawn in it too (M1.5a).</summary>
+        public Material LooseMaterial => _looseMaterial;
 
         private sealed class Block
         {

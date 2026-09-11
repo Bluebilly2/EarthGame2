@@ -131,6 +131,39 @@ namespace EarthGame.Tests.Source
             Assert.That(offences, Is.Empty, "a saved world is opened by WorldPreparation.Load alone:\n" + string.Join("\n", offences));
         }
 
+        /// <summary>
+        /// Every binding lives in the controls asset (M1.5a): game code names actions, never keys or buttons, so the asset
+        /// is the one place a key is chosen and M1.9's rebinding has one thing to change. Until 2026-09-11 the input source
+        /// bound keys of its own when the asset was incomplete, and the screenshot read F12 straight off the keyboard.
+        /// </summary>
+        [Test]
+        public void GameCodeNamesActionsAndTheControlsAssetBindsThem()
+        {
+            string root = Path.Combine(Root, "Unity", "Assets", "EarthGame");
+            string[] banned =
+            {
+                "Keyboard.current", "Mouse.current", "Gamepad.current", "Joystick.current", "\"<Keyboard>", "\"<Mouse>", "\"<Gamepad>", "\"<Pointer>",
+                "AddBinding(", "AddCompositeBinding(", "Input.GetKey", "Input.GetMouseButton",
+            };
+            int scanned = 0;
+            List<string> offences = new List<string>();
+            foreach (string file in Directory.GetFiles(root, "*.cs", SearchOption.AllDirectories))
+            {
+                // A test may name a binding to check the asset holds it.
+                if (file.Replace('\\', '/').Contains("/Tests/")) continue;
+                scanned++;
+                string[] lines = File.ReadAllLines(file);
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    string code = StripComment(lines[i]);
+                    foreach (string b in banned)
+                        if (code.Contains(b)) offences.Add(Rel(file) + ":" + (i + 1) + " " + b);
+                }
+            }
+            Assert.That(scanned, Is.GreaterThan(10), "the scan found almost nothing; is Unity/Assets/EarthGame where this test thinks it is?");
+            Assert.That(offences, Is.Empty, "every binding lives in Assets/InputSystem_Actions.inputactions:\n" + string.Join("\n", offences));
+        }
+
         private static string StripComment(string line)
         {
             int idx = line.IndexOf("//", StringComparison.Ordinal);

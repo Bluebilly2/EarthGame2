@@ -8,7 +8,8 @@
         "EarthGame.Shared",
         "EarthGame.Engine",
         "EarthGame.ClientCore",
-        "EarthGame.Client"
+        "EarthGame.Client",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [
         "Editor"

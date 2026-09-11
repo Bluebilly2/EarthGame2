@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using EarthGame.Engine;
+using EarthGame.Protocol;
 using EarthGame.Server;
 using NUnit.Framework;
 
@@ -43,7 +44,7 @@ namespace EarthGame.Tests.Server
 
         private SavedPlayer Player(string name, double east, double north, bool wading = false, Stance stance = Stance.Standing)
         {
-            SavedPlayer p;
+            SavedPlayer p = default;
             p.Name = name;
             p.Body = MoverState.AtRest(east, _terrain.HeightAt(east, north), north);
             p.Body.Grounded = true;
@@ -58,8 +59,13 @@ namespace EarthGame.Tests.Server
         private static string Digest(WorldState w, IReadOnlyList<SavedPlayer> players)
         {
             List<KeyValuePair<string, MoverState>> bodies = new List<KeyValuePair<string, MoverState>>();
-            foreach (SavedPlayer p in players) bodies.Add(new KeyValuePair<string, MoverState>(p.Name, p.Body));
-            return WorldDigest.World(w, bodies);
+            List<CarrierRecord> carriers = new List<CarrierRecord>();
+            foreach (SavedPlayer p in players)
+            {
+                bodies.Add(new KeyValuePair<string, MoverState>(p.Name, p.Body));
+                carriers.Add(new CarrierRecord { Name = p.Name, Hand = p.Hand, Things = p.Carried });
+            }
+            return WorldDigest.World(w, bodies, carriers);
         }
 
         [Test]
@@ -155,6 +161,8 @@ namespace EarthGame.Tests.Server
                 ("a body's stance", null, p => { p.Body.Stance = Stance.Crouching; return p; }),
                 ("a body's grounded", null, p => { p.Body.Grounded = false; return p; }),
                 ("a body's position", null, p => { p.Body.East += 0.001; return p; }),
+                ("a carried thing", null, p => { p.Carried = new[] { new CarriedThing { Id = 9, Definition = DefinitionCatalogue.Stick, Place = 1 } }; p.Hand = 1; return p; }),
+                ("the hand", null, p => { p.Hand = 3; return p; }),
             };
             foreach ((string name, Action<WorldState> mutate, Func<SavedPlayer, SavedPlayer> mutatePlayer) in sabotage)
             {
@@ -195,6 +203,95 @@ namespace EarthGame.Tests.Server
             Assert.That(back.SavedTick, Is.EqualTo(5L));
             bytes[10] ^= 1;
             Assert.Throws<InvalidDataException>(() => PlayerFile.Decode(bytes));
+        }
+
+        [Test]
+        public void WhatIsCarriedRoundTripsAndAVersionTwoFileIsStillRead()
+        {
+            SavedPlayer p = Player("William", 300, -300);
+            p.Hand = 4;
+            p.Carried = new[]
+            {
+                new CarriedThing { Id = 3, Definition = DefinitionCatalogue.Cobble, SpawnTick = 50, Place = 1 },
+                new CarriedThing { Id = 11, Definition = DefinitionCatalogue.Stick, SpawnTick = 60, Place = 4 },
+            };
+            SavedPlayer back = PlayerFile.Decode(PlayerFile.Encode(p));
+            Assert.That(back.Hand, Is.EqualTo((byte)4));
+            Assert.That(back.Carried.Length, Is.EqualTo(2));
+            Assert.That(back.Carried[1].Id, Is.EqualTo(11UL));
+            Assert.That(back.Carried[1].Definition, Is.SameAs(DefinitionCatalogue.Stick));
+            Assert.That(back.Carried[1].SpawnTick, Is.EqualTo(60L), "the file keeps what the wire does not");
+            Assert.That(back.Carried[1].Place, Is.EqualTo((byte)4));
+
+            // Version 2, as M1.3 wrote it: no hands.
+            PacketWriter w = new PacketWriter(64);
+            foreach (char c in "EG2P") w.WriteByte((byte)c);
+            w.WriteUInt16(2);
+            w.WriteString("Old");
+            w.WriteDouble(300.0);
+            w.WriteDouble(12.0);
+            w.WriteDouble(-300.0);
+            w.WriteSingle(90f);
+            w.WriteSingle(-3f);
+            w.WriteByte(1 | 4);
+            w.WriteInt64(9);
+            SavedPlayer old = PlayerFile.Decode(WithCrc(w.Written.ToArray()));
+            Assert.That(old.Name, Is.EqualTo("Old"));
+            Assert.That(old.Body.Stance, Is.EqualTo(Stance.Crouching));
+            Assert.That(old.SavedTick, Is.EqualTo(9L));
+            Assert.That(old.Carried, Is.Null, "version 2 carried nothing");
+            Assert.That(old.Hand, Is.EqualTo((byte)0));
+        }
+
+        [Test]
+        public void AFolderThatCarriesWhatNoWorldCouldIsRefused()
+        {
+            SavedPlayer p = Player("William", 300, -300);
+            p.Hand = 1;
+            p.Carried = new[] { new CarriedThing { Id = 3, Definition = DefinitionCatalogue.Stick, SpawnTick = 50, Place = 1 } };
+            byte[] unknown = Rekeyed(PlayerFile.Encode(p), "item/stick", "item/stock");
+            Assert.That(() => PlayerFile.Decode(unknown), Throws.TypeOf<InvalidDataException>().With.Message.Contains("item/stock"));
+
+            WorldState w = Make();
+            p.Carried[0].Id = 2;
+            WorldSave.Write(Path.Combine(_dir, "both"), w, new[] { p }, Now);
+            Assert.That(() => WorldSave.Read(Path.Combine(_dir, "both")), Throws.TypeOf<InvalidDataException>().With.Message.Contains("entity 2"),
+                "a thing lying in the world and in the hands at once");
+            p.Carried[0].Id = 40;
+            WorldSave.Write(Path.Combine(_dir, "ahead"), w, new[] { p }, Now);
+            Assert.That(() => WorldSave.Read(Path.Combine(_dir, "ahead")), Throws.TypeOf<InvalidDataException>().With.Message.Contains("entity 40"),
+                "an id the world has not allocated");
+        }
+
+        /// <summary>A player file's body with its CRC appended, as <see cref="PlayerFile"/> lays it out.</summary>
+        private static byte[] WithCrc(byte[] body)
+        {
+            uint crc = Crc32.Compute(body);
+            byte[] file = new byte[body.Length + 4];
+            Buffer.BlockCopy(body, 0, file, 0, body.Length);
+            file[body.Length] = (byte)crc;
+            file[body.Length + 1] = (byte)(crc >> 8);
+            file[body.Length + 2] = (byte)(crc >> 16);
+            file[body.Length + 3] = (byte)(crc >> 24);
+            return file;
+        }
+
+        /// <summary>A player file with one key's bytes swapped for another's of the same length, and its CRC made good again.</summary>
+        private static byte[] Rekeyed(byte[] file, string from, string to)
+        {
+            byte[] body = new byte[file.Length - 4];
+            Buffer.BlockCopy(file, 0, body, 0, body.Length);
+            byte[] a = Encoding.UTF8.GetBytes(from), b = Encoding.UTF8.GetBytes(to);
+            Assert.That(b.Length, Is.EqualTo(a.Length));
+            for (int i = 0; i + a.Length <= body.Length; i++)
+            {
+                bool match = true;
+                for (int j = 0; j < a.Length && match; j++) match = body[i + j] == a[j];
+                if (!match) continue;
+                Buffer.BlockCopy(b, 0, body, i, b.Length);
+                return WithCrc(body);
+            }
+            throw new AssertionException("'" + from + "' is not in the file");
         }
     }
 }

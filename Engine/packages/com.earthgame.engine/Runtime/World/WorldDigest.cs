@@ -25,11 +25,12 @@ namespace EarthGame.Engine
         public const double DegreeResolution = 1e-6;
 
         /// <summary>
-        /// The world: its clock, its tick, every remembered body by player name, every entity in id order, and the
-        /// id the next spawn takes (M1.3). The lines, in this order, are what save_check.py rebuilds from the
-        /// world folder by hand.
+        /// The world: its clock, its tick, every remembered body by player name, what each founder carries (M1.5a),
+        /// every entity in id order, and the id the next spawn takes (M1.3). An entity killed or taken up in a tick
+        /// not yet ended is left out, as the save leaves it out of the region files. The lines, in this order, are what
+        /// save_check.py rebuilds from the world folder by hand.
         /// </summary>
-        public static string World(WorldState world, IEnumerable<KeyValuePair<string, MoverState>> bodiesByName)
+        public static string World(WorldState world, IEnumerable<KeyValuePair<string, MoverState>> bodiesByName, IEnumerable<CarrierRecord> carriers = null)
         {
             StringBuilder sb = new StringBuilder();
             sb.Append("clock ").Append(Fixed(world.Clock.TotalHours, HourResolution)).Append('\n');
@@ -38,8 +39,15 @@ namespace EarthGame.Engine
             sorted.Sort((a, b) => string.CompareOrdinal(a.Key, b.Key));
             foreach (KeyValuePair<string, MoverState> pair in sorted)
                 AppendBody(sb, pair.Key, pair.Value);
+            if (carriers != null)
+            {
+                List<CarrierRecord> hands = new List<CarrierRecord>(carriers);
+                hands.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
+                foreach (CarrierRecord c in hands) AppendHands(sb, c);
+            }
             IReadOnlyList<Entity> entities = world.Entities.All;
-            for (int i = 0; i < entities.Count; i++) AppendEntity(sb, entities[i].Record());
+            for (int i = 0; i < entities.Count; i++)
+                if (!entities[i].Killed) AppendEntity(sb, entities[i].Record());
             sb.Append("next_entity ").Append(world.Entities.NextId.ToString(CultureInfo.InvariantCulture)).Append('\n');
             return Hex(Fnv1a64(sb.ToString()));
         }
@@ -62,6 +70,21 @@ namespace EarthGame.Engine
               .Append(' ').Append(Fixed(r.YawDeg, DegreeResolution));
             if (r.HasItem) sb.Append(" item ").Append(r.Item.Resting ? 'r' : 'f').Append(' ').Append(Fixed(r.Item.FallSpeed, MetreResolution));
             sb.Append('\n');
+        }
+
+        /// <summary>
+        /// What a founder carries: the hand, then each thing by place, as its id and key. A founder with nothing carried
+        /// and no hand chosen has no lines, so a world saved before there was carrying keeps its name.
+        /// </summary>
+        private static void AppendHands(StringBuilder sb, in CarrierRecord c)
+        {
+            List<CarriedThing> things = c.Things != null ? new List<CarriedThing>(c.Things) : new List<CarriedThing>();
+            if (things.Count == 0 && c.Hand == 0) return;
+            sb.Append("hands ").Append(c.Name).Append(' ').Append(c.Hand.ToString(CultureInfo.InvariantCulture)).Append('\n');
+            things.Sort((a, b) => a.Place.CompareTo(b.Place));
+            foreach (CarriedThing t in things)
+                sb.Append("carried ").Append(c.Name).Append(' ').Append(t.Place.ToString(CultureInfo.InvariantCulture)).Append(' ')
+                  .Append(t.Id.ToString(CultureInfo.InvariantCulture)).Append(' ').Append(t.Definition.Key).Append('\n');
         }
 
         /// <summary>A set of bodies by session id, as a client's mirror and the server's record both hold them.</summary>

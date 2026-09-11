@@ -324,7 +324,7 @@ namespace EarthGame.Bootstrap
             _clientRuntime = gameObject.AddComponent<ClientRuntime>();
             _clientRuntime.BecameInteractive += _ => { _loadingRecorder?.Ready(); CloseLoading(); };
             _clientRuntime.Dropped += reason => _loading?.ShowFailure(reason, false);
-            if (_recordDir != null && _scenario != null && _scenario != Recorder.Scenario)
+            if (_recordDir != null && _scenario != null && !Recorder.IsKnown(_scenario))
             {
                 // The runner's clock must start before the connection does: its first record is N1's number.
                 JsonObject header = new JsonObject()
@@ -436,8 +436,8 @@ namespace EarthGame.Bootstrap
             string scenario = LaunchArgs.Get("scenario", null);
             if (!string.IsNullOrEmpty(scenario) && scenario != "true")
             {
-                if (scenario != Recorder.Scenario && !ScenarioRunner.IsKnown(scenario))
-                    Debug.LogError("[bootstrap] unknown scenario '" + scenario + "' (first-frame, walk, soak, rejoin, join)");
+                if (!Recorder.IsKnown(scenario) && !ScenarioRunner.IsKnown(scenario))
+                    Debug.LogError("[bootstrap] unknown scenario '" + scenario + "' (first-frame, carry, walk, soak, rejoin, join)");
                 _scenario = scenario;
             }
         }

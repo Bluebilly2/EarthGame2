@@ -13,9 +13,10 @@ namespace EarthGame.Protocol
         /// 2 — M1.A movement (Welcome carries the spawn point; PlayerMove, PlayerState, Correction);
         /// 3 — M1.B streaming, the snapshot and leaving (TileRequest, TileHeader, TileChunk, SnapshotEnd, PlayerLeft);
         /// 4 — M1.3 entities inside the interest radius (EntitySpawn, EntityState, EntityGone);
-        /// 5 — M1.4b a layer on each tile message, so the water travels beside the ground.
+        /// 5 — M1.4b a layer on each tile message, so the water travels beside the ground;
+        /// 6 — M1.5a verbs and carrying (Intent, IntentResult, Carrying; an entity taken up is gone for a reason of its own).
         /// </summary>
-        public const ushort Version = 5;
+        public const ushort Version = 6;
 
         /// <summary>Bytes of tile data per TileChunk; well under <see cref="MaxMessageBytes"/> with the header.</summary>
         public const int TileChunkBytes = 16 * 1024;

@@ -73,6 +73,8 @@ namespace EarthGame.Engine
         public bool Initialised { get; internal set; }
         /// <summary>True from <see cref="EntityStore.Kill"/> until the end of the tick removes it.</summary>
         public bool Killed { get; internal set; }
+        /// <summary>True when a founder took it up rather than it dying (<see cref="EntityStore.Take"/>): its viewers are told so (M1.5a).</summary>
+        public bool Taken { get; internal set; }
 
         internal Entity(EntityId id, Definition definition, Double3 position, float yawDeg, long spawnTick)
         {
@@ -188,6 +190,33 @@ namespace EarthGame.Engine
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));
             entity.Killed = true;
+        }
+
+        /// <summary>Takes an entity up into a founder's hands (M1.5a): it leaves at the end of the tick as a killed one does, and its viewers are told it was taken.</summary>
+        public void Take(Entity entity)
+        {
+            Kill(entity);
+            entity.Taken = true;
+        }
+
+        /// <summary>
+        /// Returns a thing a founder carried to the world with the id it always had (M1.5a): it takes its place in id
+        /// order, its fields stamped with this tick, and is initialised at the end of the tick as a spawn is. An id this
+        /// store never allocated, or one still in it, is refused: a return is never a new thing.
+        /// </summary>
+        public Entity Return(ulong id, Definition definition, Double3 position, float yawDeg, long spawnTick, long tick)
+        {
+            if (definition == null) throw new ArgumentNullException(nameof(definition));
+            if (id == 0 || id >= NextId) throw new ArgumentException("entity " + id + " was never allocated here; the next id is " + NextId, nameof(id));
+            if (_byId.ContainsKey(id)) throw new ArgumentException("entity " + id + " is already in the store", nameof(id));
+            Entity e = new Entity(new EntityId(id), definition, position, yawDeg, spawnTick);
+            e.Move(position, tick);
+            e.Turn(yawDeg, tick);
+            int at = _entities.Count;
+            while (at > 0 && _entities[at - 1].Id.Value > id) at--;
+            _entities.Insert(at, e);
+            _byId[id] = e;
+            return e;
         }
 
         /// <summary>The end of a tick: the killed leave (kept for <see cref="DrainRetired"/>), the rest are initialised.</summary>

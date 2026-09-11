@@ -95,6 +95,12 @@ namespace EarthGame.Engine
         public double CapsuleRadius = 0.35;
         public double StandingHeight = 1.8;
         public double CrouchHeight = 1.2;
+        /// <summary>
+        /// The eye's height above the feet, standing and crouching: where the camera sits and where a verb's reach is
+        /// measured from, one number for both (M1.5a; the client's camera held them until then).
+        /// </summary>
+        public double StandingEyeHeight = 1.65;
+        public double CrouchEyeHeight = 1.1;
         /// <summary>A rise this high in one stride is stepped onto rather than walked into.</summary>
         public double StepHeight = 0.4;
         /// <summary>Ground steeper than this cannot be stood on: the founder slides.</summary>
@@ -118,6 +124,8 @@ namespace EarthGame.Engine
         public double WorkCapacity = 1.0;
 
         public static readonly MoverConfig Default = new MoverConfig();
+
+        public double EyeHeight(Stance stance) => stance == Stance.Crouching ? CrouchEyeHeight : StandingEyeHeight;
 
         /// <summary>The fastest the mover can move horizontally on any ground: the validator's ceiling.</summary>
         public double MaxHorizontalSpeed => Locomotion.SpeedMs(Locomotion.ToblerPeakSlope, Gait.Running, WorkCapacity);

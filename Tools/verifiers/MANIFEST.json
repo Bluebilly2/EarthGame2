@@ -109,9 +109,10 @@
       "path": "Tools/verifiers/checks/save_check.py",
       "author": "Claude",
       "gates": [
-        "M1.3"
+        "M1.3",
+        "M1.5a"
       ],
-      "checks": "A world folder holds what the server says: every region file's CRC and cell, every player file's CRC, and the world digest rebuilt by hand from the files equals digest.txt.",
+      "checks": "A world folder holds what the server says: every region file's CRC and cell, every player file's CRC (versions 2 and 3), what is carried out of the world (no carried id lying in a region file, beyond next_entity_id, or carried twice), and the world digest rebuilt by hand from the files, the hands' lines among them, equals digest.txt.",
       "independent_of_the_tool_by": "reading world.json, players/*.egp, regions/*.egr and digest.txt with Python alone by the layouts ARCHITECTURE section 10 states, rebuilding the digest's lines and FNV-1a 64 from them; never imports the engine or the server, so a writer that drifts from its stated format is caught by a reader that did not"
     },
     {

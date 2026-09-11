@@ -114,6 +114,12 @@ namespace EarthGame.ClientCore
         /// <summary>The entities the server has shown this client (M1.3).</summary>
         public EntityMirror Entities { get; } = new EntityMirror();
 
+        /// <summary>What this founder carries, place by place, and which place is the hand, as the server last said (M1.5a); its things are null until then.</summary>
+        public CarryingMessage Carrying { get; private set; }
+
+        /// <summary>The newest answer to an intent this client sent (M1.5a).</summary>
+        public IntentResultMessage LastIntentResult { get; private set; }
+
         /// <summary>Payload bytes this connection has sent and received, or zero before it exists.</summary>
         public long BytesSent => _transport.Connection != null ? _transport.Connection.BytesSent : 0;
         public long BytesReceived => _transport.Connection != null ? _transport.Connection.BytesReceived : 0;
@@ -128,6 +134,23 @@ namespace EarthGame.ClientCore
         /// <summary>A tile the client let go to stay inside its bound (M1.4b); the view drops what it drew of it.</summary>
         public event Action<TileLayer, TileId> TileDropped;
         public event Action SnapshotEnded;
+        /// <summary>The answer to an intent this client sent (M1.5a).</summary>
+        public event Action<IntentResultMessage> IntentAnswered;
+        /// <summary>What this founder carries changed, or was told at the join (M1.5a).</summary>
+        public event Action<CarryingMessage> CarryingChanged;
+
+        private uint _intentSequence;
+
+        /// <summary>Asks the server to do a verb (M1.5a), reliably; the sequence returned is the one its answer names, 0 when not connected.</summary>
+        public uint SendIntent(IntentMessage intent)
+        {
+            if (State != ClientState.Connected) return 0;
+            intent.Sequence = ++_intentSequence;
+            _writer.Reset();
+            intent.Write(_writer);
+            _transport.Connection.Send(_writer.Written, Delivery.Reliable);
+            return intent.Sequence;
+        }
 
         /// <summary>Opens the connection; the Hello is sent when the transport reports Connected.</summary>
         public void Connect(string address, int port, string playerName, string password)
@@ -380,6 +403,22 @@ namespace EarthGame.ClientCore
                         EntityGoneMessage gone = EntityGoneMessage.Read(reader);
                         reader.ExpectEnd();
                         Entities.Apply(gone);
+                        break;
+                    }
+                    case MessageKind.IntentResult:
+                    {
+                        IntentResultMessage result = IntentResultMessage.Read(reader);
+                        reader.ExpectEnd();
+                        LastIntentResult = result;
+                        IntentAnswered?.Invoke(result);
+                        break;
+                    }
+                    case MessageKind.Carrying:
+                    {
+                        CarryingMessage carrying = CarryingMessage.Read(reader);
+                        reader.ExpectEnd();
+                        Carrying = carrying;
+                        CarryingChanged?.Invoke(carrying);
                         break;
                     }
                     case MessageKind.SnapshotEnd:
