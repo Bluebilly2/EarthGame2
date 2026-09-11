@@ -471,7 +471,8 @@ with its feet at a float line, the swimming depth (the standing eye's height les
 swims it at the breaststroke's pace or the crawl's, and stands it where the bottom comes back within reach; whether a
 body swims is worked out every step from where it is and the water there, so no message, save or digest carries it.
 A development game (`-eg-dev`) can fly (`Flight`, v1's): the fly key takes the body out of the mover's hands into the
-flight's, which keeps it over the ground and nothing else, and the game's server lets the flight stand under
+flight's, which holds it to nothing at all — it passes through the ground as through the air (CANON ruling 25), and the
+founder is set on the ground when a flight ends under it — and the game's server lets the flight stand under
 `MovementRules.AllowFlight`, which a host sets with `+server.dev 1` (§12). **Named
 defect class:** the two disagree most at cliff edges, rock platforms and the water's edge (`DEBTS.md`); the walk
 scenario carries that segment and N2 carries its budget. The mover-feel decision is the owner's, hands on the
@@ -595,3 +596,4 @@ mandatory in every file from the first write.
 | 2026-09-12 | Whether a founder swims is worked out every step, from where the body is and the water there, and no message, save or digest carries it | It follows from the water as wading follows from the depth; a flag on the wire or in the save would be a second owner of the fact, free to disagree with the water the next step finds, and would have changed the protocol, the player file and the digest for nothing any reader needs |
 | 2026-09-12 | The eye is kept above the water: a swimmer floats with it a hand's breadth over the surface, a fall into deep water is taken before it goes under, and a founder does not crouch where the crouched eye would be under | Nothing is drawn from under the water, whose surface is drawn from above alone; diving, and a view from under the water, belong to the contract that draws one |
 | 2026-09-12 | A developer's flight is the client's alone, and a server lets it stand only by its rules (`MovementRules.AllowFlight`: a SOLO game's under `-eg-dev`, a host's under `+server.dev 1`) | The server validates movement and never runs the mover (§7, §9), so a flight is one more report the validator is asked about, and a switch in its rules is the whole of the server's part; any server not started so corrects a flying founder back, as it would a cheat |
+| 2026-09-12 | A flight that ends under the ground sets the founder on it | Noclip (CANON ruling 25) can leave a body under the terrain, where the mover finds no ground to land on and a development server, holding no ground rule, never corrects it: the body would fall for ever. The client already lifts a corrected body out of the ground it holds, and this is that rule at that place |

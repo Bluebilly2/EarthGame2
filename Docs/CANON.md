@@ -147,3 +147,9 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     floats, swims or is held back was his to decide (DEBTS, "water over the head"): "swimming needs implementing, and
     when we have a player model and character, animation too." A founder swims in water too deep to stand in; when
     the founder has a body that is drawn, the swimming is animated.
+
+### Rulings of 2026-09-12
+
+25. **A developer's flight goes through the ground.** Told that the flight built for him was held five centimetres over
+    the ground: "dev flight should be toggleable noclip." The fly key turns on a flight that passes through the ground
+    as through the air, and turns it off again.

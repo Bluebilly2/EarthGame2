@@ -16,7 +16,7 @@ namespace EarthGame.Client
     /// since M1.5a, because the server measures a verb's reach from it. Since M1.5c the stride (<see cref="Stride"/>)
     /// is laid on top of the smoothed eye, a footfall's dip and a sway across, unless <see cref="Still"/>; in the water
     /// since M1.5e, a stroke's. A development game's founder can fly (M1.5e, <see cref="Flight"/>): the fly key takes the
-    /// body out of the mover's hands, and gives it back.
+    /// body out of the mover's hands, through the ground and all (CANON ruling 25), and gives it back.
     /// </summary>
     public sealed class PlayerController : MonoBehaviour
     {
@@ -78,7 +78,7 @@ namespace EarthGame.Client
         /// <summary>
         /// The ground as the client holds it, for the one rule the mover does not have: a corrected body that the
         /// server holds below this ground (its tolerance allows a metre) is lifted onto it, or PhysX keeps it
-        /// under the terrain forever. A flying body is kept over it too (M1.5e).
+        /// under the terrain forever. A flight that ends under it sets the founder on it too (M1.5e, ruling 25).
         /// </summary>
         public IHeightSource Ground;
 
@@ -248,13 +248,23 @@ namespace EarthGame.Client
                 if (FlightAllowed)
                 {
                     Flying = !Flying;
-                    // Come down, the founder falls from where they are.
-                    if (!Flying) State.VelEast = State.VelUp = State.VelNorth = 0.0;
+                    if (!Flying)
+                    {
+                        // Come down: the founder falls from where they are, and is set on the ground when the flight left
+                        // them under it (ruling 25's noclip), which nothing else would lift them out of.
+                        State.VelEast = State.VelUp = State.VelNorth = 0.0;
+                        double below = Ground != null ? Ground.HeightAt(State.East, State.North) : double.NaN;
+                        if (!double.IsNaN(below) && State.Up < below)
+                        {
+                            State.Up = below + 0.01;
+                            State.Grounded = false;
+                        }
+                    }
                     Debug.Log("[player] " + (Flying ? "flying" : "flying no more"));
                 }
             }
 
-            State = Flying ? Flight.Step(State, _move.x, _move.y, _rise, _crouch, _sprint, YawDeg, PitchDeg, dt, Ground)
+            State = Flying ? Flight.Step(State, _move.x, _move.y, _rise, _crouch, _sprint, YawDeg, PitchDeg, dt)
                            : Mover.Step(State, input, dt, _collision, _config);
             if (_region != null)
             {

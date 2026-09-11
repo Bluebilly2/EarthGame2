@@ -173,8 +173,8 @@ namespace EarthGame.Client
         }
 
         /// <summary>
-        /// The fly key at the desk (M1.5e): pressed, the founder flies; the jump held, they rise; pressed again, they fly no
-        /// more and fall to the ground.
+        /// The fly key at the desk (M1.5e): pressed, the founder flies; the jump held, they rise; the crouch held, they sink
+        /// through the ground (CANON ruling 25); pressed again, they fly no more and are back on the ground.
         /// </summary>
         private IEnumerator Flies()
         {
@@ -184,10 +184,24 @@ namespace EarthGame.Client
             yield return Hold(Controls.Desk, 1.0, null, s => rose = s, (Controls.Jump, null, Vector2.one));
             double risen = _player.State.Up - up;
             Check("the jump held rises in flight", Controls.Desk, rose, false, rose != null && _player.Flying && risen > 5.0, "rose " + F2(risen) + " m");
-            yield return Expect("the fly key comes down to the ground", Controls.Fly, Controls.Desk, () => !_player.Flying && _player.State.Grounded, 8.0, Flying);
+            bool under = Under();
+            string sank = null;
+            yield return Hold(Controls.Desk, 3.0, Under, s => sank = s, (Controls.Crouch, null, Vector2.one));
+            Check("the crouch held sinks through the ground in flight", Controls.Desk, sank, under, sank != null && _heldEffect, Flying());
+            yield return Expect("the fly key sets the founder back on the ground", Controls.Fly, Controls.Desk,
+                                () => !_player.Flying && _player.State.Grounded, 8.0, Flying);
         }
 
-        private string Flying() => (_player.Flying ? "flying, " : "not flying, ") + Height();
+        /// <summary>Whether the founder is under the ground the client holds, by half a metre (M1.5e's noclip).</summary>
+        private bool Under()
+        {
+            double ground = GroundHere();
+            return !double.IsNaN(ground) && _player.State.Up < ground - 0.5;
+        }
+
+        private double GroundHere() => _player.Ground != null ? _player.Ground.HeightAt(_player.State.East, _player.State.North) : double.NaN;
+
+        private string Flying() => (_player.Flying ? "flying, " : "not flying, ") + Height() + ", the ground at " + F2(GroundHere());
 
         /// <summary>
         /// An action pressed by the control the asset binds to it in a scheme, and its effect waited for. The check passes
