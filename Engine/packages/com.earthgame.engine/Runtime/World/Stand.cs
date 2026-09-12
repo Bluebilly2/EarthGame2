@@ -109,6 +109,8 @@ namespace EarthGame.Engine
             Trunk = 1,
             Stick = 2,
             Cobble = 3,
+            /// <summary>A tuft of the understorey (M1.6c): drawn by the client from the cover, never taken, and no taking names one.</summary>
+            Tuft = 4,
         }
 
         /// <summary>

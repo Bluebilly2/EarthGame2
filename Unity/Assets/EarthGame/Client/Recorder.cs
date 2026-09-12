@@ -165,9 +165,9 @@ namespace EarthGame.Client
             string hold = LaunchArgs.Get("hold", null);
             if (!string.IsNullOrEmpty(hold) && double.TryParse(hold, NumberStyles.Float, CultureInfo.InvariantCulture, out double seconds) && seconds > 0.0)
                 yield return Hold(seconds);
-            _log.Record(T, Tick, "end", WithFeet(new JsonObject().With("frames", _frames).With("errors", _errors)
+            _log.Record(T, Tick, "end", WithUnderstorey(WithFeet(new JsonObject().With("frames", _frames).With("errors", _errors)
                 .With("corrections", _player.Corrections).With("moves_sent", (int)_player.MovesSent)
-                .With("east", _player.State.East).With("up", _player.State.Up).With("north", _player.State.North)));
+                .With("east", _player.State.East).With("up", _player.State.Up).With("north", _player.State.North))));
             _running = false;
             Finish(_errors == 0 && _frames == 3 * Sizes.Length ? 0 : 1);
         }
@@ -370,6 +370,28 @@ namespace EarthGame.Client
         {
             ClientRuntime runtime = GetComponent<ClientRuntime>();
             return runtime == null ? end : end.With("footfalls", runtime.Footfalls).With("underfoot", runtime.HeardUnderfoot());
+        }
+
+        /// <summary>
+        /// The census probe (M1.6c): how many tufts of each shape the client placed round the founder, and how many cells
+        /// of each cover the layer puts there, so that what is drawn can be set beside what the world says grows.
+        /// </summary>
+        private JsonObject WithUnderstorey(JsonObject end)
+        {
+            ClientRuntime runtime = GetComponent<ClientRuntime>();
+            if (runtime?.Understorey == null || _client?.Grid == null || _player == null) return end;
+            int[] tufts = new int[Understorey.Shapes];
+            runtime.Understorey.Census(tufts);
+            int[] cells = new int[GroundCovers.All.Length];
+            Understorey.CoverCensus(_player.State.East, _player.State.North, UnderstoreyViews.DrawM, _client.Tiles, _client.Grid, cells);
+            List<string> drawn = new List<string>();
+            for (int s = 0; s < tufts.Length; s++)
+                if (tufts[s] > 0) drawn.Add(((TuftShape)s).ToString().ToLowerInvariant() + ":" + tufts[s]);
+            List<string> cover = new List<string>();
+            foreach (GroundCover c in GroundCovers.All)
+                if ((int)c < cells.Length && cells[(int)c] > 0) cover.Add(GroundCovers.NameOf(c).ToLowerInvariant().Replace(' ', '-') + ":" + cells[(int)c]);
+            return end.With("understorey", string.Join(",", drawn)).With("cover", string.Join(",", cover))
+                .With("understorey_ms", runtime.Understorey.LastPlaceMs);
         }
 
         /// <summary>The nearest thing of a kind lying at rest well within reach of the founder's eye, or null.</summary>

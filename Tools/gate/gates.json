@@ -892,6 +892,61 @@
         "join_check"
       ],
       "owner_decides": "the feel of a forest that no longer lets him through, and the trunk frames"
+    },
+    "M1.6c": {
+      "steps": [
+        {
+          "name": "dotnet test",
+          "cmd": [
+            "dotnet",
+            "test",
+            "Engine/EarthGame.slnx",
+            "-c",
+            "Debug",
+            "--nologo"
+          ]
+        },
+        {
+          "name": "Unity-layer compile",
+          "cmd": [
+            "dotnet",
+            "build",
+            "Engine/EarthGame.Unity.Compile.csproj",
+            "-c",
+            "Debug",
+            "--nologo",
+            "-v",
+            "minimal"
+          ]
+        },
+        {
+          "name": "Unity edit-mode tests",
+          "cmd": [
+            "python",
+            "Tools/unity/editmode.py"
+          ]
+        },
+        {
+          "name": "create the gate world",
+          "cmd": [
+            "python",
+            "Tools/world/create.py",
+            "Artefacts/worlds/gate"
+          ]
+        },
+        {
+          "name": "the frames at the four vantages in a built player, with the understorey's census beside the cover's",
+          "cmd": [
+            "python",
+            "Tools/world/vantages.py",
+            "--build",
+            "--world",
+            "Artefacts/worlds/gate"
+          ]
+        }
+      ],
+      "verifiers": [],
+      "owner_decides": "whether the ground reads as this country's heath, sedge, bracken and grass, in the frames at the four vantages"
     }
   }
 }

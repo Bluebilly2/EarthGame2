@@ -67,6 +67,7 @@ namespace EarthGame.Client
         private Material _seaMaterial;
         private EntityViews _entityViews;
         private StandViews _stand;
+        private UnderstoreyViews _understorey;
         private VerbController _verbs;
         private HandView _hand;
         private Sounds _sounds;
@@ -91,6 +92,8 @@ namespace EarthGame.Client
         public PlayerController Player => _player;
         public TileHeightfield Ground => _ground;
         public bool ViewBuilt { get; private set; }
+        /// <summary>What grows underfoot (M1.6c), for a run to count and a scenario to hide.</summary>
+        public UnderstoreyViews Understorey => _understorey;
         /// <summary>True from the moment N1's three conditions held for the current connection.</summary>
         public bool Interactive { get; private set; }
         /// <summary>How many times this runtime has connected; two or more means a rejoin happened.</summary>
@@ -223,7 +226,9 @@ namespace EarthGame.Client
                 DrainPreparations();
                 // The trunks round the body are given their capsules before the mover's next step walks into them (M1.6b).
                 _trunks?.Follow(_player.State.East, _player.State.North, _client.Tiles, _client.Grid);
+                _understorey?.Follow(_player.State.East, _player.State.North, _client.Tiles, _client.Grid);
                 if (_stand != null && _camera != null) _stand.Draw(_camera, _sun);
+                if (_camera != null) _understorey?.Draw(_camera);
                 // Things are drawn where they were a stated delay ago, between the positions the server stated, as the
                 // other bodies are (M1.5a).
                 _entityViews?.Draw(_client.EstimatedServerTick(nowMs) - _client.MirrorDelayTicks);
@@ -664,7 +669,12 @@ namespace EarthGame.Client
             Material standMaterial = Resources.Load<Material>("EarthGame/StandLit");
             if (!SystemInfo.supportsInstancing) Debug.Log("[client] this device draws nothing instanced; what stands on the ground is streamed and not drawn");
             else if (standMaterial == null) Debug.LogError("[client] no stand material under Resources/EarthGame/StandLit; nothing will stand on the ground");
-            else if (_client.Grid != null && _stand == null) _stand = new StandViews(standMaterial, _client.Grid);
+            else if (_client.Grid != null && _stand == null)
+            {
+                _stand = new StandViews(standMaterial, _client.Grid);
+                // What grows underfoot (M1.6c), from the cover tiles this client already holds.
+                _understorey = new UnderstoreyViews(standMaterial);
+            }
 
             // The entities the server shows this client (M1.3), drawn from the stand's own meshes in the material its
             // loose sticks and cobbles are drawn in (M1.5a), so a stick put down is drawn as the ones lying in the litter.
@@ -722,14 +732,21 @@ namespace EarthGame.Client
             }
 
             // -eg-hide a,b,c: objects by name switched off after the view is built, to bisect what is drawn. "trees"
-            // ("near" and "far" for one band of them, "shadows" for the near trees' shadows alone) and "loose" switch off
-            // what stands and what lies on the ground, which is drawn without objects (M1.6a).
+            // ("near" and "far" for one band of them, "shadows" for the near trees' shadows alone), "loose" and
+            // "understorey" switch off what stands, lies and grows on the ground, which is drawn without objects
+            // (M1.6a, M1.6c).
             string hide = LaunchArgs.Get("hide", null);
             if (!string.IsNullOrEmpty(hide))
             {
                 foreach (string listed in hide.Split(','))
                 {
                     string name = listed.Trim();
+                    if (name == "understorey" && _understorey != null)
+                    {
+                        _understorey.Drawn = false;
+                        Debug.Log("[client] -eg-hide understorey: hidden");
+                        continue;
+                    }
                     if (_stand != null && (name == "trees" || name == "near" || name == "far" || name == "loose" || name == "shadows"))
                     {
                         if (name == "trees" || name == "near") _stand.DrawNear = false;
@@ -922,6 +939,7 @@ namespace EarthGame.Client
             _verbs?.Dispose();
             _hand?.Dispose();
             _trunks?.Dispose();
+            _understorey?.Dispose();
             _sounds?.Dispose();
             if (_player != null) _player.Stepped -= OnStepped;
             _entityViews?.Dispose();

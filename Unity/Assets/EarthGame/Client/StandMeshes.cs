@@ -51,6 +51,7 @@ namespace EarthGame.Client
         private static readonly Dictionary<int, Mesh> FarTrees = new Dictionary<int, Mesh>();
         private static readonly Dictionary<int, Mesh> Sticks = new Dictionary<int, Mesh>();
         private static readonly Dictionary<int, Mesh> Cobbles = new Dictionary<int, Mesh>();
+        private static readonly Dictionary<int, Mesh> Tufts = new Dictionary<int, Mesh>();
 
         /// <summary>
         /// A near tree of a tall plant (<c>StandCodes.Tall</c> index) in one of its variants, built on first use and kept,
@@ -144,6 +145,133 @@ namespace EarthGame.Client
             mesh = data.ToMesh("Cobble " + v);
             Cobbles[v] = mesh;
             return mesh;
+        }
+
+        // ------------------------------------------------------------------ the understorey (M1.6c)
+
+        /// <summary>
+        /// One tuft of the understorey, of unit height and unit width, which the client scales to what the cover grows
+        /// there: blades for a tussock, arching straps for a sedge clump, fronds for bracken, and a low bush of woody
+        /// stems under two or three small crowns for heath. Every blade and leaf is drawn on both sides, because a tuft is
+        /// walked round and there is no thickness in a blade of grass.
+        /// </summary>
+        public static Mesh Tuft(TuftShape shape, int variant)
+        {
+            int v = Wrap(variant);
+            int key = (int)shape * StandPreparation.Variants + v;
+            if (Tufts.TryGetValue(key, out Mesh mesh)) return mesh;
+            System.Random rand = new System.Random(key * 977 + 11);
+            MeshData data = new MeshData();
+            Color low = ToColor(StandForms.TuftLow(shape)), high = ToColor(StandForms.TuftHigh(shape));
+            switch (shape)
+            {
+                case TuftShape.Tussock:
+                    Blades(data, rand, 7, 0.055f, 0.42f, 0.62f, low, high);
+                    break;
+                case TuftShape.Clump:
+                    Blades(data, rand, 9, 0.075f, 0.62f, 0.80f, low, high);
+                    break;
+                case TuftShape.Frond:
+                    Fronds(data, rand, 4, low, high);
+                    break;
+                default:
+                    Bush(data, rand, low, high);
+                    break;
+            }
+            mesh = data.ToMesh(shape + " " + v);
+            Tufts[key] = mesh;
+            return mesh;
+        }
+
+        /// <summary>
+        /// A fan of blades from one root: each leans out by <paramref name="lean"/> of the width and reaches
+        /// <paramref name="reach"/> of the height, the taller ones standing straighter, so a tuft has a shape rather than
+        /// being a star.
+        /// </summary>
+        private static void Blades(MeshData data, System.Random rand, int count, float halfWidth, float lean, float reach, Color low, Color high)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                float yaw = (i + Range(rand, -0.35f, 0.35f)) * Mathf.PI * 2f / count;
+                float tall = reach * Range(rand, 0.6f, 1.4f);
+                float out1 = lean * Range(rand, 0.35f, 1.0f);
+                Vector3 along = new Vector3(Mathf.Sin(yaw), 0f, Mathf.Cos(yaw));
+                Vector3 across = new Vector3(along.z, 0f, -along.x) * halfWidth * Range(rand, 0.7f, 1.3f);
+                Vector3 root = along * Range(rand, 0f, 0.06f);
+                Vector3 middle = root + along * (out1 * 0.45f) + Vector3.up * (tall * 0.55f);
+                Vector3 tip = root + along * out1 + Vector3.up * tall;
+                Color mid = Color.Lerp(low, high, 0.55f);
+                Blade(data, root - across, root + across, middle + across * 0.55f, middle - across * 0.55f, low, mid);
+                Blade(data, middle - across * 0.55f, middle + across * 0.55f, tip, tip, mid, high);
+            }
+        }
+
+        /// <summary>Bracken: a few fronds, each a bare stalk with a blade off its top, leaning further out than grass does.</summary>
+        private static void Fronds(MeshData data, System.Random rand, int count, Color low, Color high)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                float yaw = (i + Range(rand, -0.3f, 0.3f)) * Mathf.PI * 2f / count;
+                float tall = Range(rand, 0.55f, 1.0f);
+                float out1 = Range(rand, 0.25f, 0.55f);
+                Vector3 along = new Vector3(Mathf.Sin(yaw), 0f, Mathf.Cos(yaw));
+                Vector3 across = new Vector3(along.z, 0f, -along.x);
+                Vector3 root = along * Range(rand, 0f, 0.05f);
+                Vector3 fork = root + along * (out1 * 0.4f) + Vector3.up * (tall * 0.45f);
+                Vector3 tip = root + along * out1 + Vector3.up * tall;
+                Blade(data, root - across * 0.02f, root + across * 0.02f, fork + across * 0.02f, fork - across * 0.02f, low, low);
+                // The blade: a leaf a third of the tuft wide, hanging a little under the frond's line.
+                Vector3 wide = across * Range(rand, 0.16f, 0.26f);
+                Blade(data, fork - wide, fork + wide, tip + wide * 0.35f, tip - wide * 0.35f, Color.Lerp(low, high, 0.4f), high);
+            }
+        }
+
+        /// <summary>Heath: two or three low crowns on short woody stems, the whole of it under a founder's waist.</summary>
+        private static void Bush(MeshData data, System.Random rand, Color low, Color high)
+        {
+            int crowns = rand.Next(2, 4);
+            for (int i = 0; i < crowns; i++)
+            {
+                float yaw = (i + Range(rand, -0.3f, 0.3f)) * Mathf.PI * 2f / crowns;
+                Vector3 along = new Vector3(Mathf.Sin(yaw), 0f, Mathf.Cos(yaw));
+                float lean = Range(rand, 0.12f, 0.3f);
+                float tall = Range(rand, 0.45f, 0.8f);
+                Vector3 top = along * lean + Vector3.up * tall;
+                Vector3 across = new Vector3(along.z, 0f, -along.x) * 0.03f;
+                Blade(data, -across, across, top + across, top - across, low, low);
+                Crown(data, top, Range(rand, 0.2f, 0.34f), Color.Lerp(low, high, Range(rand, 0.3f, 1f)), i * 31 + 5);
+            }
+        }
+
+        /// <summary>A quad drawn on both sides, since a leaf has no thickness: a and b at the foot, c and d at the head.</summary>
+        private static void Blade(MeshData data, Vector3 a, Vector3 b, Vector3 c, Vector3 d, Color foot, Color head)
+        {
+            Vector3 middle = (a + b + c + d) * 0.25f;
+            Vector3 normal = Vector3.Cross(b - a, c - a);
+            if (normal.sqrMagnitude < 1e-12f) return;
+            normal = normal.normalized * 0.5f;
+            // Twice, wound from either side, so the blade is lit and seen whichever side the founder walks round.
+            data.AddFace(a, b, c, middle - normal, foot, foot, head);
+            data.AddFace(a, c, d, middle - normal, foot, head, head);
+            data.AddFace(a, b, c, middle + normal, foot, foot, head);
+            data.AddFace(a, c, d, middle + normal, foot, head, head);
+        }
+
+        /// <summary>A little crown of leaves: the cobble's solid, squashed and coloured as foliage.</summary>
+        private static void Crown(MeshData data, Vector3 centre, float radius, Color colour, int seed)
+        {
+            Vector3[] verts = new Vector3[IcoVerts.Length];
+            for (int i = 0; i < verts.Length; i++)
+            {
+                Vector3 p = IcoVerts[i] * (radius * (0.75f + 0.5f * Hash01(seed, i)));
+                p.y *= 0.72f;
+                verts[i] = centre + p;
+            }
+            for (int f = 0; f < IcoFaces.Length; f += 3)
+            {
+                Color c = Scale(colour, Jitter(seed, f / 3, StoneJitter));
+                data.AddFace(verts[IcoFaces[f]], verts[IcoFaces[f + 1]], verts[IcoFaces[f + 2]], centre, c, c, c);
+            }
         }
 
         private static int Wrap(int variant) => ((variant % StandPreparation.Variants) + StandPreparation.Variants) % StandPreparation.Variants;
