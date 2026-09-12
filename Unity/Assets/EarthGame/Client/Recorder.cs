@@ -58,9 +58,16 @@ namespace EarthGame.Client
         /// </summary>
         public const string SwimScenario = "swim";
 
+        /// <summary>
+        /// The trunk frames (M1.6b), run by <c>-eg-scenario trunk</c>: the founder walks at a tree the client holds and is
+        /// stopped at its bark.
+        /// </summary>
+        public const string TrunkScenario = "trunk";
+
         /// <summary>Whether a scenario is one of this recorder's, which write frames, rather than the runner's.</summary>
         public static bool IsKnown(string scenario) => scenario == Scenario || scenario == CarryScenario || scenario == LitterScenario
-                                                       || scenario == WadeScenario || scenario == ControlsScenario || scenario == SwimScenario;
+                                                       || scenario == WadeScenario || scenario == ControlsScenario || scenario == SwimScenario
+                                                       || scenario == TrunkScenario;
         private static readonly (int Width, int Height, string Tag)[] Sizes = { (2560, 1440, "1440p"), (1920, 1080, "1080p") };
 
         private string _dir;
@@ -121,7 +128,7 @@ namespace EarthGame.Client
             _running = true;
             StartCoroutine(_scenario == CarryScenario ? RunCarry() : _scenario == LitterScenario ? RunLitter()
                 : _scenario == WadeScenario ? RunWade() : _scenario == SwimScenario ? RunSwim()
-                : _scenario == ControlsScenario ? RunControls() : Run());
+                : _scenario == TrunkScenario ? RunTrunk() : _scenario == ControlsScenario ? RunControls() : Run());
         }
 
         private double T => _clock.Elapsed.TotalSeconds;

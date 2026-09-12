@@ -32,7 +32,6 @@ namespace EarthGame.Client
         private const int TrunkSides = 5;
         private const int FarTrunkSides = 3;
         private const int TrunkSegments = 5;
-        private const float TrunkTipRadiusShare = 0.35f;
         private const float BendMinDeg = 3f;
         private const float BendMaxDeg = 9f;
         private const int LimbSegments = 3;
@@ -180,7 +179,8 @@ namespace EarthGame.Client
                 direction = TiltToward(direction, Range(rand, 0f, 360f), Range(rand, BendMinDeg, BendMaxDeg));
             }
             for (int i = 0; i <= TrunkSegments; i++)
-                radii[i] = form.TrunkRadius * Mathf.Lerp(1f, TrunkTipRadiusShare, i / (float)TrunkSegments);
+                // The taper is StandForms' since M1.6b, so the trunk a founder is stopped by is the trunk that is drawn.
+                radii[i] = form.TrunkRadius * Mathf.Lerp(1f, (float)StandForms.TrunkTipRadiusShare, i / (float)TrunkSegments);
 
             Vector3[] ringDirs = new Vector3[TrunkSegments + 1];
             ringDirs[0] = Vector3.up;

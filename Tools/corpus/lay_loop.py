@@ -15,6 +15,11 @@ The search, over the world's own layers:
     edge, dry, and no steeper than 12 degrees;
   - legs between points up to 96 m apart, sampled every 2 m: never across a stream, a lake, a swamp or the sea;
     across a creek only at a 250 m penalty, so only where there is no dry way, and then labelled a creek leg;
+  - no waypoint inside a tree: trunks stop a founder since M1.6b, so a point within a trunk's bark and the body's
+    own radius is not a candidate. The legs themselves are not laid clear of the trunks, because at this region's
+    stand — 155 trees a hectare, and 22 per cent of its ground within a body's reach of a trunk — no straight leg of
+    any length is clear of them: the first run of this tool with such a rule kept 0 shore, bank, cliff and platform
+    legs out of 18,195. A walker goes round a tree instead (`RouteFollower`, M1.6b);
   - a shore leg: 100 to 230 m between points no more than 12 m from the sea, every sample no more than 16 m from
     it, on ground no higher than 2.5 m and no steeper than 10 degrees;
   - a bank leg: 30 to 100 m between points with six or more 22-28 degree cells within 32 m, a fifth or more of its
@@ -89,6 +94,15 @@ WADE_DEPTH_M = (0.5, 0.9)
 WADE_MAX_DEPTH_M = 1.0
 WADE_LENGTH_M = (8.0, 40.0)
 WADE_STEP_M = 4.0
+# Trunks (M1.6b). The founder's capsule is MoverConfig.CapsuleRadius and the stoutest butt radius any tree is drawn
+# with is StandForms' old-man banksia, as a share of its height; both are restated here, and a corridor laid with them
+# is wide enough for any tree, since every other form is slenderer.
+BODY_RADIUS_M = 0.35
+STOUTEST_TRUNK_SHARE = 0.060
+TRUNK_MARGIN_M = 0.25
+BLOCK_CELL_M = 2.0
+# The stand code's five low bits count steps of this (StandCodes.HeightStepM), restated.
+HEIGHT_MASK, HEIGHT_STEP_M = 0x1F, 1.25
 BASE_LAP_M = (700.0, 2300.0)
 LAP_MAX_M = 3000.0
 LAP_AIM_M = 1400.0
@@ -104,6 +118,24 @@ def layer(world, name):
     sidecar = json.load(open(path, encoding="utf-8"))
     raw = os.path.join(os.path.dirname(path), sidecar["raw"])
     return sidecar, np.fromfile(raw, dtype=NP_DTYPES[sidecar["dtype"]]).reshape(sidecar["height"], sidecar["width"])
+
+
+def mix64(x):
+    """splitmix64's finaliser, as StandLayout.Mix runs it: the same bits from the same cell in Python and in C#."""
+    x = x + np.uint64(0x9E3779B97F4A7C15)
+    x = (x ^ (x >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9)
+    x = (x ^ (x >> np.uint64(27))) * np.uint64(0x94D049BB133111EB)
+    return x ^ (x >> np.uint64(31))
+
+
+def trunk_offsets(rows, cols, cell_cm):
+    """Where the trunks of those cells stand inside them, whole centimetres east and north: StandLayout.Place for a
+    trunk (kind 1, index 0), restated, so a route is laid round the trees the client draws."""
+    h = mix64((rows.astype(np.uint64) << np.uint64(32)) | cols.astype(np.uint64))
+    h = mix64(h ^ (np.uint64(1) << np.uint64(56)))
+    east = (h % np.uint64(cell_cm)).astype(np.int64) - cell_cm // 2
+    north = ((h >> np.uint64(21)) % np.uint64(cell_cm)).astype(np.int64) - cell_cm // 2
+    return east, north
 
 
 def around(mask, cells):
@@ -140,7 +172,53 @@ class Ground:
         walkable = ~self.face & ~self.barred & (self.slope <= EDGE_MAX_DEG)
         self.edge = below & walkable
         self.edge_near = around(self.edge, 1) & walkable
+        self.blocked = self.block_trunks(world)
         self.cache = {}
+
+    def block_trunks(self, world):
+        """The ground a founder cannot walk through (M1.6b): within a trunk's drawn radius, the body's own and a little
+        room to spare, of every tree the stand layer stands, marked on a two-metre grid. None where the world has no
+        stand layer (a world made before M1.6a)."""
+        if not os.path.exists(os.path.join(ROOT, world, "layers", "stand.json")):
+            return None
+        _, stand = layer(world, "stand")
+        codes = stand.astype(np.int64)
+        rows, cols = np.nonzero(codes)
+        n = int(round(2.0 * self.half / BLOCK_CELL_M)) + 1
+        blocked = np.zeros((n, n), dtype=bool)
+        if not len(rows):
+            return blocked
+        heights = (codes[rows, cols] & HEIGHT_MASK) * HEIGHT_STEP_M
+        east_cm, north_cm = trunk_offsets(rows, cols, int(round(self.cell * 100.0)))
+        east = cols * self.cell - self.half + east_cm / 100.0
+        north = self.half - rows * self.cell + north_cm / 100.0
+        # Half a cell over the bark, so that what is marked covers the whole of every trunk's room.
+        radius = STOUTEST_TRUNK_SHARE * heights + BODY_RADIUS_M + TRUNK_MARGIN_M + BLOCK_CELL_M / 2.0
+        r0 = np.rint((self.half - north) / BLOCK_CELL_M).astype(np.int64)
+        c0 = np.rint((east + self.half) / BLOCK_CELL_M).astype(np.int64)
+        reach = int(math.ceil(float(radius.max()) / BLOCK_CELL_M))
+        for dr in range(-reach, reach + 1):
+            for dc in range(-reach, reach + 1):
+                rr, cc = r0 + dr, c0 + dc
+                de = (cc * BLOCK_CELL_M - self.half) - east
+                dn = (self.half - rr * BLOCK_CELL_M) - north
+                hit = (de * de + dn * dn <= radius * radius) & (rr >= 0) & (rr < n) & (cc >= 0) & (cc < n)
+                blocked[rr[hit], cc[hit]] = True
+        return blocked
+
+    def in_a_trunk(self, east, north):
+        """Whether a founder standing there would be inside a tree."""
+        if self.blocked is None:
+            return False
+        n = self.blocked.shape[0]
+        r = min(max(int(round((self.half - north) / BLOCK_CELL_M)), 0), n - 1)
+        c = min(max(int(round((east + self.half) / BLOCK_CELL_M)), 0), n - 1)
+        return bool(self.blocked[r, c])
+
+    def trunks_blocked_share(self):
+        """How much of the region lies within a body's reach of a trunk: what a route laid to miss every one would
+        have to thread."""
+        return 0.0 if self.blocked is None else float(self.blocked.mean())
 
     def rc(self, east, north):
         return int(round((self.half - north) / self.cell)), int(round((east + self.half) / self.cell))
@@ -241,7 +319,7 @@ def candidate_points(g, wake):
         if p in seen or math.hypot(e - wake[0], n - wake[1]) > RADIUS_M:
             return
         r, c = g.rc(e, n)
-        if g.barred[r, c] or g.creek[r, c] or g.slope[r, c] > FLAT_MAX_DEG:
+        if g.barred[r, c] or g.creek[r, c] or g.slope[r, c] > FLAT_MAX_DEG or g.in_a_trunk(e, n):
             return
         seen.add(p)
         pts.append(p)
@@ -568,6 +646,8 @@ def report(g, wake, way):
         else:
             plains = max(plains, s["steepest"])
     print("  the flat legs and the approach: steepest %.1f degrees" % plains)
+    print("  the trees: %.0f %% of the region lies within a body's reach of a trunk, which the legs cross and a walker goes round"
+          % (100 * g.trunks_blocked_share()))
     print("  the lap %.0f m; the approach from the wake %.0f m" % (lap, math.hypot(way[0][0][0] - wake[0], way[0][0][1] - wake[1])))
     for line in wet:
         print("  WET: " + line)

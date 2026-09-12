@@ -87,5 +87,36 @@ namespace EarthGame.Tests.ClientCore
             Assert.That(follower.Finished, Is.True);
             Assert.That(follower.Advance(50.0, 0.5, 0.05, out _, out _), Is.False);
         }
+
+        /// <summary>A trunk between the founder and the waypoint shows as no ground gained; they try round it (M1.6b).</summary>
+        [Test]
+        public void AFounderWhoGainsNoGroundTriesRoundWhatIsInTheWay()
+        {
+            Waypoint[] route = { new Waypoint(0.0, 100.0, "north leg", false) };
+            RouteFollower follower = new RouteFollower(route, loop: false, reachM: 1.0, stuckSeconds: 30.0);
+            follower.Advance(0.0, 0.0, 0.05, out double yaw, out _);
+            Assert.That(yaw, Is.EqualTo(0.0).Within(1e-9), "straight at it while the way is clear");
+            Assert.That(follower.Rounding, Is.False);
+
+            // Standing still against something: after RoundAfterSeconds the founder steers off the line.
+            for (int i = 0; i < 12; i++) follower.Advance(0.0, 0.0, 0.05, out yaw, out _);
+            Assert.That(follower.Rounding, Is.True);
+            double off = yaw > 180.0 ? 360.0 - yaw : yaw;
+            Assert.That(off, Is.EqualTo(RouteFollower.RoundDeg).Within(1e-9), "off the straight line");
+            double first = yaw;
+
+            // Still nothing gained: that try ends and the next goes the other way.
+            for (int i = 0; i < 40; i++) follower.Advance(0.0, 0.0, 0.05, out yaw, out _);
+            Assert.That(follower.Rounding, Is.True);
+            Assert.That(yaw, Is.Not.EqualTo(first).Within(1e-9), "the other side of it next");
+            off = yaw > 180.0 ? 360.0 - yaw : yaw;
+            Assert.That(off, Is.EqualTo(RouteFollower.RoundDeg).Within(1e-9));
+
+            // Ground gained: straight at the waypoint again.
+            follower.Advance(0.0, 5.0, 0.05, out yaw, out _);
+            Assert.That(follower.Rounding, Is.False);
+            Assert.That(yaw, Is.EqualTo(0.0).Within(1e-9));
+            Assert.That(follower.Skipped, Is.Zero, "and the waypoint was never given up");
+        }
     }
 }

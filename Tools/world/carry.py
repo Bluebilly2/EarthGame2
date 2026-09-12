@@ -10,14 +10,15 @@ item; then another is taken and kept. Either way the world is saved on the way o
 save_check.py to read. `controls` (M1.5d, v1's K1c) drops the same six things and presses every control through a
 keyboard, a mouse and a gamepad added to the player, and prints each check the run made. With --dev the player is a
 development game (-eg-dev, M1.5e): its founder can fly, its SOLO server lets the flight stand, and the controls
-scenario flies the fly key too. Leaves the frames, run.jsonl, the tile cache and the player's log under
+scenario flies the fly key too. `trunk` (M1.6b) walks the founder at the nearest tree with a clear walk to it and
+reports how near its middle they were stopped. Leaves the frames, run.jsonl, the tile cache and the player's log under
 Artefacts/frames/<scenario>-<stamp>/.
 
 Claude's tool: it runs the player and reports what its end record says. It judges nothing: the frames are the owner's
 to judge, and save_check.py reads the world.
 
 Usage, from the repository root:
-    python Tools/world/carry.py [--build] [--scenario carry|litter|controls] [--dev]
+    python Tools/world/carry.py [--build] [--scenario carry|litter|controls|trunk] [--dev]
                                 [--player Build/Player-Carry/EarthGame2.exe] [--world Artefacts/worlds/gate]
 Exit 0 when the player exits 0 (every frame written, every verb done or every check passed, nothing logged as an
 error); 1 otherwise.
@@ -53,7 +54,7 @@ def run(args, timeout):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build", action="store_true")
-    parser.add_argument("--scenario", choices=("carry", "litter", "controls"), default="carry")
+    parser.add_argument("--scenario", choices=("carry", "litter", "controls", "trunk"), default="carry")
     parser.add_argument("--dev", action="store_true",
                         help="a development game (-eg-dev): the founder can fly, and the controls scenario checks the fly key")
     parser.add_argument("--player", default=str(PLAYER))
@@ -87,7 +88,13 @@ def main():
     end = next((r for r in reversed(records) if r.get("kind") == "end"), {})
     frames = sorted(p.name for p in (directory / "frames").glob("*.png")) if (directory / "frames").is_dir() else []
     print("player exit %d: %d frame(s): %s" % (code, len(frames), ", ".join(frames)))
-    if args.scenario == "controls":
+    if args.scenario == "trunk":
+        print("stopped %s, at the bark %s: %.2f m from the trunk's middle against the bark's %.2f m (a trunk drawn %.2f m"
+              " thick on a tree %.1f m tall; %s trunks within reach); %s error(s), %s correction(s)"
+              % (end.get("stopped"), end.get("at_the_bark"), float(end.get("gap_m", float("nan"))), float(end.get("bark_m", float("nan"))),
+                 2.0 * float(end.get("trunk_radius_m", float("nan"))), float(end.get("tree_height_m", float("nan"))),
+                 end.get("trunks_near"), end.get("errors"), end.get("corrections")))
+    elif args.scenario == "controls":
         for r in records:
             if r.get("kind") == "control":
                 print("  %s %s (%s): %s" % ("ok    " if r.get("ok") else "FAILED", r.get("name"), r.get("control"), r.get("saw")))

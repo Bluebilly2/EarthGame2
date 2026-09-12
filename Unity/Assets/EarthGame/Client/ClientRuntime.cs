@@ -70,6 +70,7 @@ namespace EarthGame.Client
         private VerbController _verbs;
         private HandView _hand;
         private Sounds _sounds;
+        private TrunkBodies _trunks;
         /// <summary>How many feet have fallen on each ground (M1.5c), for a run log.</summary>
         private readonly Dictionary<FootingSound, int> _heard = new Dictionary<FootingSound, int>();
         /// <summary>How many times something has been taken from each tile's cells (M1.5b), so the stand knows to place it again.</summary>
@@ -220,6 +221,8 @@ namespace EarthGame.Client
                     _client.RequestTilesAround(_player.State.East, _player.State.North);
                 }
                 DrainPreparations();
+                // The trunks round the body are given their capsules before the mover's next step walks into them (M1.6b).
+                _trunks?.Follow(_player.State.East, _player.State.North, _client.Tiles, _client.Grid);
                 if (_stand != null && _camera != null) _stand.Draw(_camera, _sun);
                 // Things are drawn where they were a stated delay ago, between the positions the server stated, as the
                 // other bodies are (M1.5a).
@@ -786,6 +789,8 @@ namespace EarthGame.Client
             // -eg-dev: a development game, whose founder can fly (M1.5e); the bootstrap runs its SOLO server to allow it.
             _player.FlightAllowed = LaunchArgs.Has("dev");
             _player.Stepped += OnStepped;
+            // The trunks a founder can walk into (M1.6b): the client's, since the server never runs the mover.
+            _trunks = new TrunkBodies(transform);
             _sounds = new Sounds(_camera.transform);
 
             // The verbs (M1.5a): what the crosshair is on, the verb line, the carrying window and the thing in hand.
@@ -916,6 +921,7 @@ namespace EarthGame.Client
         {
             _verbs?.Dispose();
             _hand?.Dispose();
+            _trunks?.Dispose();
             _sounds?.Dispose();
             if (_player != null) _player.Stepped -= OnStepped;
             _entityViews?.Dispose();

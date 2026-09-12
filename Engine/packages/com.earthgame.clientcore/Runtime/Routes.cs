@@ -35,7 +35,6 @@ namespace EarthGame.ClientCore
                 new Waypoint(-1568.0, 3028.0, "shore", false),
                 new Waypoint(-1588.0, 3020.0, "wade", false),
                 new Waypoint(-1568.0, 3028.0, "wade", false),
-                new Waypoint(-1552.0, 3012.0, "plain", true),
                 new Waypoint(-1520.0, 3012.0, "platform", false),
                 new Waypoint(-1504.0, 3012.0, "plain", true),
                 new Waypoint(-1456.0, 2996.0, "plain", true),

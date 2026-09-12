@@ -146,6 +146,25 @@ namespace EarthGame.ClientCore
         /// <summary>A cobble's grey; which stone it is waits for the stone to travel with it.</summary>
         public static readonly Rgb Cobble = new Rgb(0.56f, 0.53f, 0.48f);
 
+        /// <summary>
+        /// How much of its butt radius a trunk keeps where its crown begins: the taper a tree is drawn with. The mesh owned
+        /// this number alone until M1.6b, when the bodies that stop a founder began taking their radius from the same line.
+        /// </summary>
+        public const double TrunkTipRadiusShare = 0.35;
+
+        /// <summary>
+        /// A trunk's radius at a height above its foot, m (M1.6b): the butt radius — the form's share of the tree's whole
+        /// height — tapering straight to <see cref="TrunkTipRadiusShare"/> of itself where the trunk ends, and no narrower
+        /// above that. What stops a founder is the wood that is drawn.
+        /// </summary>
+        public static double TrunkRadiusAt(TreeForm form, double heightM, double upM)
+        {
+            if (form == null || !(heightM > 0.0)) return 0.0;
+            double trunk = form.TrunkLength * heightM;
+            double up = trunk > 0.0 ? SimMath.Clamp01(upM / trunk) : 1.0;
+            return form.TrunkRadius * heightM * (1.0 + (TrunkTipRadiusShare - 1.0) * up);
+        }
+
         private static readonly TreeForm[] Forms = { Blackbutt, Bangalay, OldManBanksia, CoastBanksia, SwampPaperbark };
 
         /// <summary>The form of a tall plant, or null for a plant that does not stand as a tree.</summary>
