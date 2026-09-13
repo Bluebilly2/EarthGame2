@@ -222,5 +222,5 @@ ceiling that `AnimalCapacity` scales down by forage, water and slope. The source
 | Superb fairy-wren, *Malurus cyaneus* | insects off the heath and the forest edge | by day; sings before first light | family parties of four | 250 / km² | territories of one to two hectares holding two to five birds (colour-banded studies); the top of that band |
 
 What the list leaves out, and why: the swamp wallaby, the echidna, the bandicoot and the possums of the
-peninsula's record wait on M1.7's second contract; the megafauna are absent because the peninsula has no
+peninsula's record wait for the biosphere after the beta arc (`BIOSPHERE.md`, CANON ruling 27); the megafauna are absent because the peninsula has no
 fossil record of them the canon has them (2026-08-25), and this list names only what the peninsula's own record supports.

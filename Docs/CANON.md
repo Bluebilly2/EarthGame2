@@ -160,3 +160,9 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     to do, tell it how to get started, making its own sovereign decisions in the projects favour." GPT is told how
     to get started, not what to do: what it works on, and how, is its own decision in the project's favour, and the
     house rules and this file bind it as they bind every agent.
+
+27. **A fully functioning biosphere comes after the beta, under world generation.** "once we get past the beta arc,
+    one of the things we will do is design a fully functioning biosphere (earth). this is one thing that will come
+    under the world generation," and "make sure this idea of a full functioning biosphere is written down for later
+    development." After the beta arc, a biosphere for the whole Earth is designed as part of world generation. The
+    idea is written down in `BIOSPHERE.md`.

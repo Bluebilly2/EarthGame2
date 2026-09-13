@@ -86,3 +86,6 @@ CANON ruling 5 (one real region first) stands until he says otherwise. What the 
   river's size depends on everything upstream: a worldwide river dataset would be needed.
 - Generating the world as it is visited means fetching data while playing, which is a download and a licence question,
   and so William's.
+- After the beta arc a fully functioning biosphere of the Earth is designed as part of world generation (CANON ruling
+  27, 2026-09-13). William's idea, and how a generated world's biosphere starts, are written down in
+  `Docs/BIOSPHERE.md`.
