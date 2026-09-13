@@ -164,6 +164,8 @@ namespace EarthGame.ClientCore
             int dropped = 0;
             foreach (TileLayer layer in TileLayers.All)
             {
+                // The far layers are the whole region's, and are kept wherever the founder walks (M1.6d).
+                if (TileLayers.IsFar(layer)) continue;
                 List<TileId> ids = new List<TileId>();
                 foreach (var pair in _held) if (pair.Key.Layer == layer) ids.Add(pair.Key.Id);
                 if (ids.Count <= MaxTilesPerLayer) continue;

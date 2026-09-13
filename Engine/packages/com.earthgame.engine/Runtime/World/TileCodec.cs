@@ -23,12 +23,35 @@ namespace EarthGame.Engine
         Stand = 4,
         /// <summary>Each post's <see cref="LooseCodes"/> code: how many sticks and cobbles lie on its cell (M1.6a).</summary>
         Loose = 5,
+        /// <summary>
+        /// Each far post's <see cref="StandCodes"/> code for the square of stand cells round it: the tall plant most of its
+        /// trees are, at their mean height (M1.6d). Posts <see cref="TileLayers.FarCellM"/> apart.
+        /// </summary>
+        FarStand = 6,
+        /// <summary>How many trees stand in the square of stand cells round each far post, to a byte (M1.6d).</summary>
+        FarCount = 7,
     }
 
     /// <summary>Every layer a tile can carry. Both ends walk this, so neither has to be told the set.</summary>
     public static class TileLayers
     {
-        public static readonly TileLayer[] All = { TileLayer.Ground, TileLayer.WaterDepth, TileLayer.WaterClass, TileLayer.GroundCover, TileLayer.Stand, TileLayer.Loose };
+        public static readonly TileLayer[] All =
+        {
+            TileLayer.Ground, TileLayer.WaterDepth, TileLayer.WaterClass, TileLayer.GroundCover, TileLayer.Stand, TileLayer.Loose,
+            TileLayer.FarStand, TileLayer.FarCount,
+        };
+
+        /// <summary>
+        /// The side of a far layer's square, m (M1.6d): ten of the world's 4 m cells, so a kilometre tile holds twenty-five
+        /// squares and every far post stands on a stand cell's centre.
+        /// </summary>
+        public const double FarCellM = 40.0;
+
+        /// <summary>
+        /// Whether a layer is a far layer (M1.6d): asked for over the region's whole grid once, at the join, and never let
+        /// go, where every other layer is asked for round the founder and trimmed to the nearest tiles.
+        /// </summary>
+        public static bool IsFar(TileLayer layer) => layer == TileLayer.FarStand || layer == TileLayer.FarCount;
 
         /// <summary>
         /// Whether a layer travels as codes — raw bytes through deflate — rather than as metres. One owner: the
@@ -42,7 +65,9 @@ namespace EarthGame.Engine
                 case TileLayer.WaterClass:
                 case TileLayer.GroundCover:
                 case TileLayer.Stand:
-                case TileLayer.Loose: return true;
+                case TileLayer.Loose:
+                case TileLayer.FarStand:
+                case TileLayer.FarCount: return true;
                 default: return false;
             }
         }
@@ -68,6 +93,8 @@ namespace EarthGame.Engine
                 case TileLayer.GroundCover: return "ground-cover";
                 case TileLayer.Stand: return "stand";
                 case TileLayer.Loose: return "loose";
+                case TileLayer.FarStand: return "far-stand";
+                case TileLayer.FarCount: return "far-count";
                 default: throw new ArgumentOutOfRangeException(nameof(layer), "no such layer: " + layer);
             }
         }
@@ -188,6 +215,89 @@ namespace EarthGame.Engine
             };
             tile.Crc32 = Crc32.Compute(tile.Bytes);
             return tile;
+        }
+
+        /// <summary>
+        /// A far layer's tile (M1.6d): for each post <see cref="TileLayers.FarCellM"/> apart, what the square of stand cells
+        /// round it holds (<see cref="FarSquare"/>) — how many trees, for the far count, and for the far stand the tall
+        /// plant most of them are at their mean height. Worked out from the world's stand when a tile is first asked for.
+        /// </summary>
+        public static EncodedTile EncodeFar(RegionRaster stand, TileLayer which, TileGrid grid, TileId id)
+        {
+            if (stand == null) throw new ArgumentNullException(nameof(stand));
+            if (!stand.IsIntegral) throw new ArgumentException("the stand is " + stand.Dtype + ", not a code layer", nameof(stand));
+            if (!TileLayers.IsFar(which)) throw new ArgumentException(which + " is not a far layer", nameof(which));
+            int span = FarSpan(stand);
+            if (span == 0)
+                throw new ArgumentException("a far square of " + TileLayers.FarCellM + " m is not a whole number of the stand's " + stand.CellM + " m cells", nameof(stand));
+            float[,] read = Sampled(grid, id, TileLayers.FarCellM, out int posts, out double originEast, out double originNorth, (east, north) =>
+            {
+                CellAt(stand, east, north, out int row, out int col);
+                return FarSquare(stand, row, col, span, which);
+            });
+            byte[,] codes = new byte[posts, posts];
+            for (int z = 0; z < posts; z++)
+                for (int x = 0; x < posts; x++) codes[z, x] = (byte)read[z, x];
+            EncodedTile tile = new EncodedTile
+            {
+                Id = id,
+                Layer = which,
+                Posts = posts,
+                CellM = TileLayers.FarCellM,
+                OriginEast = originEast,
+                OriginNorth = originNorth,
+                Bytes = PackCodes(codes, posts),
+            };
+            tile.Crc32 = Crc32.Compute(tile.Bytes);
+            return tile;
+        }
+
+        /// <summary>
+        /// How many of the stand's cells make a far square's side (M1.6d), or zero when they do not make it whole: a far
+        /// post takes whole cells, so that no tree is counted by two, and a stand of cells that cannot is served no far layer.
+        /// </summary>
+        public static int FarSpan(RegionRaster stand)
+        {
+            if (stand == null || !(stand.CellM > 0.0)) return 0;
+            int span = (int)Math.Round(TileLayers.FarCellM / stand.CellM);
+            return span >= 1 && Math.Abs(span * stand.CellM - TileLayers.FarCellM) <= 1e-6 ? span : 0;
+        }
+
+        /// <summary>
+        /// What the square of stand cells round a cell holds (M1.6d): the span of cells from half a span before it to just
+        /// short of half a span after, in rows and in columns, so that two neighbouring far posts never count one tree
+        /// twice. For the far count, how many trees stand in it, to a byte; for the far stand, the tall plant most of them
+        /// are — the first in <see cref="StandCodes.Tall"/>'s order on a tie — packed by <see cref="StandCodes.Pack"/> at
+        /// those trees' mean height, or zero where no tree stands.
+        /// </summary>
+        public static uint FarSquare(RegionRaster stand, int row, int col, int span, TileLayer which)
+        {
+            if (stand == null) throw new ArgumentNullException(nameof(stand));
+            int tall = StandCodes.Tall.Count;
+            int[] trees = new int[tall + 1];
+            double[] metres = new double[tall + 1];
+            int count = 0;
+            int before = span / 2;
+            for (int r = row - before; r < row - before + span; r++)
+            {
+                if (r < 0 || r >= stand.Height) continue;
+                for (int c = col - before; c < col - before + span; c++)
+                {
+                    if (c < 0 || c >= stand.Width) continue;
+                    uint code = stand.Code(r, c);
+                    int index = (int)(code >> StandCodes.SpeciesShift);
+                    if (code == 0 || index < 1 || index > tall) continue;
+                    count++;
+                    trees[index]++;
+                    metres[index] += StandCodes.HeightOf((byte)code);
+                }
+            }
+            if (which == TileLayer.FarCount) return (uint)Math.Min(count, byte.MaxValue);
+            if (count == 0) return 0u;
+            int most = 1;
+            for (int i = 2; i <= tall; i++)
+                if (trees[i] > trees[most]) most = i;
+            return StandCodes.Pack(StandCodes.Tall[most - 1], metres[most] / trees[most]);
         }
 
         /// <summary>Walks a tile's posts, north-then-east as the packing does, and collects what a reader returns.</summary>

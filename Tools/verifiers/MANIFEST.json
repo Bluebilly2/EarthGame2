@@ -133,10 +133,11 @@
       "author": "Claude",
       "gates": [
         "M1.4-streaming",
-        "M1.6"
+        "M1.6",
+        "M1.6d"
       ],
-      "checks": "Every tile in a client's disk cache agrees with the world folder's own layer: the ground to half a centimetre, the surface put back from ground plus depth to two, the water's class, the ground's cover, what stands and what lies loose post for post, and the cache inside the residency bound.",
-      "independent_of_the_tool_by": "inflating the cached bytes with zlib and reading them by the layouts ARCHITECTURE sections 7 and 10 state, including the tile grid's geometry and the cell a post sits on, restated in Python; never imports TileCodec, TileGrid or any game code, so a writer that drifts from its stated format is caught by a reader that did not"
+      "checks": "Every tile in a client's disk cache agrees with the world folder's own layer: the ground to half a centimetre, the surface put back from ground plus depth to two, the water's class, the ground's cover, what stands and what lies loose post for post; the far stand and the far count post for post against the stand's own squares, and the far layers holding the whole region with their counts adding up to the stand's trees; and the other layers inside the residency bound.",
+      "independent_of_the_tool_by": "inflating the cached bytes with zlib and reading them by the layouts ARCHITECTURE sections 7 and 10 state, including the tile grid's geometry and the cell a post sits on, restated in Python; never imports TileCodec, TileGrid or any game code, so a writer that drifts from its stated format is caught by a reader that did not; the far squares are counted over the whole raster at once in numpy, every cell into the one square it falls in, where the game works out each post's square on its own"
     },
     {
       "name": "cover_check",

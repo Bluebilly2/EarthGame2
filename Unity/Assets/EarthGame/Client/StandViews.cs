@@ -40,6 +40,11 @@ namespace EarthGame.Client
     /// <para>The bands' materials copy the project's stand material rather than being made from the shader, because a
     /// build keeps a shader's instanced variants only when a material asset asks for them (ProjectSetup,
     /// 2026-09-11).</para>
+    ///
+    /// <para>Beyond the stand tiles a client holds stands the far forest (M1.6d): for every tile of the region, placed
+    /// from its two far layers into quarter-tile blocks of far trees, one a far square, and drawn in the far band only
+    /// where that tile's own stand is not held, so the forest reaches the region's edge and gives way to the real trees
+    /// as the founder walks among them.</para>
     /// </summary>
     public sealed class StandViews
     {
@@ -74,6 +79,9 @@ namespace EarthGame.Client
         private const float ViewAspect = 2.4f;
 
         private const float BlockM = 64f;
+
+        /// <summary>The side of a block of the far forest, m: a quarter of a tile, since its trees stand a far square apart and are only ever seen from a kilometre off.</summary>
+        private const float RingBlockM = 250f;
         private const int Chunk = 1023;
         private static readonly float BlockReach = BlockM * 0.7072f;
         private static readonly int EyeId = Shader.PropertyToID("_Eye");
@@ -81,6 +89,7 @@ namespace EarthGame.Client
         private readonly TileGrid _grid;
         private readonly int _tall;
         private readonly int _blocksPerSide;
+        private readonly int _ringBlocksPerSide;
         private readonly Mesh[] _near;
         private readonly float[] _widths;
         private readonly Mesh[] _far;
@@ -93,6 +102,8 @@ namespace EarthGame.Client
         private readonly Dictionary<TileId, Task<TileStand>> _building = new Dictionary<TileId, Task<TileStand>>();
         private readonly Dictionary<TileId, (ReceivedTile Stand, ReceivedTile Loose, ReceivedTile Ground, LooseTaken Taken, int TakenVersion)> _wanted =
             new Dictionary<TileId, (ReceivedTile, ReceivedTile, ReceivedTile, LooseTaken, int)>();
+        private readonly Dictionary<TileId, TileStand> _ring = new Dictionary<TileId, TileStand>();
+        private readonly Dictionary<TileId, Task<TileStand>> _ringBuilding = new Dictionary<TileId, Task<TileStand>>();
         private readonly List<Matrix4x4>[] _nearGather;
         private readonly List<Matrix4x4>[] _shadowGather;
         private readonly List<Matrix4x4>[] _plainGather;
@@ -114,6 +125,12 @@ namespace EarthGame.Client
 
         /// <summary>Whether the far band is drawn; <c>-eg-hide far</c> (or <c>trees</c>) turns it off.</summary>
         public bool DrawFar { get; set; } = true;
+
+        /// <summary>Whether the far forest is drawn (M1.6d); <c>-eg-hide ring</c> turns it off, so what it costs can be measured.</summary>
+        public bool DrawRing { get; set; } = true;
+
+        /// <summary>How many far trees are placed over the whole region, each tile's drawn while its stand is not held, for a run's record.</summary>
+        public int RingTrees { get; private set; }
 
         /// <summary>Whether the sticks and cobbles are drawn; <c>-eg-hide loose</c> turns them off.</summary>
         public bool DrawLoose { get; set; } = true;
@@ -174,6 +191,7 @@ namespace EarthGame.Client
             _grid = grid ?? throw new ArgumentNullException(nameof(grid));
             _tall = StandCodes.Tall.Count;
             _blocksPerSide = (int)Math.Ceiling(grid.TileSizeM / BlockM);
+            _ringBlocksPerSide = (int)Math.Ceiling(grid.TileSizeM / RingBlockM);
             int groups = _tall * StandPreparation.Variants;
             _near = new Mesh[groups];
             _widths = new float[groups];
@@ -231,7 +249,7 @@ namespace EarthGame.Client
                 found = true;
                 break;
             }
-            if (!found) return false;
+            if (!found) return TakeOneRing();
             Task<TileStand> task = _building[done];
             _building.Remove(done);
             if (task.IsFaulted)
@@ -243,6 +261,70 @@ namespace EarthGame.Client
             _held[done] = task.Result;
             if (!IsBuiltFrom(done, want.Stand, want.Loose, want.Ground, want.TakenVersion)) Start(done);
             return true;
+        }
+
+        /// <summary>
+        /// Asks for a tile's far forest to be placed (M1.6d), from its far stand and far count, on the ground the client
+        /// draws beyond its stand tiles. A tile is placed once: the far layers are the whole region's and are kept.
+        /// </summary>
+        public void WantRing(ReceivedTile farStand, ReceivedTile farCount, IHeightSource ground)
+        {
+            if (farStand?.Codes == null || farCount?.Codes == null || ground == null) return;
+            TileId id = farStand.Id;
+            if (_ring.ContainsKey(id) || _ringBuilding.ContainsKey(id)) return;
+            _ringBuilding[id] = Task.Run(() => BuildRing(farStand, farCount, ground));
+        }
+
+        /// <summary>Swaps in one finished far forest; false when none has finished.</summary>
+        private bool TakeOneRing()
+        {
+            foreach (KeyValuePair<TileId, Task<TileStand>> pair in _ringBuilding)
+            {
+                if (!pair.Value.IsCompleted) continue;
+                TileId id = pair.Key;
+                Task<TileStand> task = pair.Value;
+                _ringBuilding.Remove(id);
+                if (task.IsFaulted) Debug.LogWarning("[client] the far forest of tile " + id + " could not be placed: " + task.Exception?.GetBaseException().Message);
+                else
+                {
+                    _ring[id] = task.Result;
+                    RingTrees += task.Result.Trees;
+                }
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>On a worker: a tile's far forest placed, and the matrices its far trees are drawn by, sorted into quarter-tile blocks.</summary>
+        private TileStand BuildRing(ReceivedTile farStand, ReceivedTile farCount, IHeightSource ground)
+        {
+            List<FarTree> trees = new List<FarTree>();
+            FarForest.Place(farStand, farCount, ground, _grid, trees);
+            _grid.Origin(farStand.Id, out double originEast, out double originNorth);
+            TileStand tile = new TileStand { Blocks = new Block[_ringBlocksPerSide * _ringBlocksPerSide], Trees = trees.Count };
+            foreach (FarTree t in trees)
+            {
+                if (t.Tall < 0 || t.Tall >= _tall) continue;
+                int bx = Mathf.Clamp((int)Math.Floor((t.East - originEast) / RingBlockM), 0, _ringBlocksPerSide - 1);
+                int bz = Mathf.Clamp((int)Math.Floor((t.North - originNorth) / RingBlockM), 0, _ringBlocksPerSide - 1);
+                int i = bz * _ringBlocksPerSide + bx;
+                Block block = tile.Blocks[i] ?? (tile.Blocks[i] = new Block
+                {
+                    Centre = new Vector3((float)(originEast + (bx + 0.5) * RingBlockM), 0f, (float)(originNorth + (bz + 0.5) * RingBlockM)),
+                });
+                if (block.Far == null) block.Far = new List<Matrix4x4>[_tall];
+                (block.Far[t.Tall] ?? (block.Far[t.Tall] = new List<Matrix4x4>())).Add(Trs(t.East, t.Up - SinkM, t.North, t.YawDeg, t.CrownM, t.HeightM, t.CrownM));
+                block.Grow(new Vector3(t.East - t.CrownM, t.Up - SinkM, t.North - t.CrownM), new Vector3(t.East + t.CrownM, t.Up + t.HeightM, t.North + t.CrownM));
+            }
+            foreach (Block block in tile.Blocks) block?.Settle();
+            foreach (Block block in tile.Blocks)
+            {
+                if (block?.Far == null) continue;
+                if (!tile.HasTrees) tile.Bounds = block.Bounds;
+                else tile.Bounds.Encapsulate(block.Bounds);
+                tile.HasTrees = true;
+            }
+            return tile;
         }
 
         /// <summary>Whether a tile's things are placed and drawn, and not being placed again.</summary>
@@ -315,6 +397,16 @@ namespace EarthGame.Client
                     }
                 }
             }
+            // The far forest (M1.6d): every tile of the region whose own stand is not drawn, in the view, in the far band.
+            if (DrawRing && DrawFar)
+                foreach (KeyValuePair<TileId, TileStand> pair in _ring)
+                {
+                    if (_held.ContainsKey(pair.Key)) continue;
+                    TileStand tile = pair.Value;
+                    if (!tile.HasTrees || !GeometryUtility.TestPlanesAABB(_view, tile.Bounds)) continue;
+                    foreach (Block block in tile.Blocks)
+                        if (block?.Far != null && GeometryUtility.TestPlanesAABB(_view, block.Bounds)) Gather(block.Far, _farGather);
+                }
             TreeCount = trees;
             Bounds near = new Bounds(eye, new Vector3(2f * (SplitM + BlockM), 2000f, 2f * (SplitM + BlockM)));
             for (int g = 0; g < _near.Length; g++)
@@ -338,6 +430,8 @@ namespace EarthGame.Client
         {
             _held.Clear();
             _wanted.Clear();
+            _ring.Clear();
+            _ringBuilding.Clear();
             UnityEngine.Object.Destroy(_nearMaterial);
             UnityEngine.Object.Destroy(_farMaterial);
             UnityEngine.Object.Destroy(_looseMaterial);

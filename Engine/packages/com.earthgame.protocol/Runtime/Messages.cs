@@ -63,13 +63,16 @@ namespace EarthGame.Protocol
     /// <summary>Client → server, reliable: the tiles around the player, sent once the Welcome says where that is.</summary>
     public struct TileRequestMessage
     {
+        /// <summary>The most tiles one request names; the whole region's far layers go in as many requests as they need (M1.6d).</summary>
+        public const int MostTiles = 64;
+
         public TileWant[] Wants;
 
         public void Write(PacketWriter w)
         {
             w.WriteByte((byte)MessageKind.TileRequest);
             int count = Wants == null ? 0 : Wants.Length;
-            if (count > 64) throw new ProtocolException("a tile request names at most 64 tiles, not " + count);
+            if (count > MostTiles) throw new ProtocolException("a tile request names at most " + MostTiles + " tiles, not " + count);
             w.WriteByte((byte)count);
             for (int i = 0; i < count; i++)
             {

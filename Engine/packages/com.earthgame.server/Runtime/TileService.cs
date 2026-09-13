@@ -45,6 +45,8 @@ namespace EarthGame.Server
                 case TileLayer.GroundCover: return _cover != null;
                 case TileLayer.Stand: return _stand != null;
                 case TileLayer.Loose: return _loose != null;
+                case TileLayer.FarStand:
+                case TileLayer.FarCount: return TileCodec.FarSpan(_stand) > 0;
                 default: return _water != null;
             }
         }
@@ -90,6 +92,8 @@ namespace EarthGame.Server
                     case TileLayer.GroundCover: tile = TileCodec.EncodeCodes(_cover, TileLayer.GroundCover, _grid, id); break;
                     case TileLayer.Stand: tile = TileCodec.EncodeCodes(_stand, TileLayer.Stand, _grid, id); break;
                     case TileLayer.Loose: tile = TileCodec.EncodeCodes(_loose, TileLayer.Loose, _grid, id); break;
+                    case TileLayer.FarStand:
+                    case TileLayer.FarCount: tile = TileCodec.EncodeFar(_stand, layer, _grid, id); break;
                     default: throw new ArgumentOutOfRangeException(nameof(layer), "no such layer: " + layer);
                 }
                 _encoded[(layer, id)] = tile;

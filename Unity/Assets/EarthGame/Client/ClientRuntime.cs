@@ -94,6 +94,8 @@ namespace EarthGame.Client
         public bool ViewBuilt { get; private set; }
         /// <summary>What grows underfoot (M1.6c), for a run to count and a scenario to hide.</summary>
         public UnderstoreyViews Understorey => _understorey;
+        /// <summary>How many far trees are placed over the whole region (M1.6d), each tile's drawn while its stand is not held, for a run's record.</summary>
+        public int FarTrees => _stand != null ? _stand.RingTrees : 0;
         /// <summary>True from the moment N1's three conditions held for the current connection.</summary>
         public bool Interactive { get; private set; }
         /// <summary>How many times this runtime has connected; two or more means a rejoin happened.</summary>
@@ -433,8 +435,31 @@ namespace EarthGame.Client
             }
         }
 
+        /// <summary>
+        /// The far forest of a tile (M1.6d), once both its far layers are held, placed on the region's baked ground, which is
+        /// what the ring beyond the stand tiles is drawn from.
+        /// </summary>
+        private void WantRing(TileId id)
+        {
+            if (_stand == null || _bakedRegion == null || _client?.Tiles == null) return;
+            _stand.WantRing(_client.Tiles.Holding(TileLayer.FarStand, id), _client.Tiles.Holding(TileLayer.FarCount, id), _bakedRegion);
+        }
+
+        /// <summary>The far forest of every tile whose far layers arrived before there was a stand view to draw it.</summary>
+        private void WantRings()
+        {
+            if (_client?.Grid == null) return;
+            for (int iz = 0; iz < _client.Grid.TilesPerSide; iz++)
+                for (int ix = 0; ix < _client.Grid.TilesPerSide; ix++) WantRing(new TileId(ix, iz));
+        }
+
         private void OnTileReady(ReceivedTile tile)
         {
+            if (TileLayers.IsFar(tile.Layer))
+            {
+                WantRing(tile.Id);
+                return;
+            }
             if (tile.Layer == TileLayer.Stand || tile.Layer == TileLayer.Loose || tile.Layer == TileLayer.Ground) WantStand(tile.Id);
             // The water a tile carries is drawn as its own mesh (M1.4c); the ground is what a Terrain is built
             // from. Either can arrive first, so both paths ask for the pair.
@@ -674,6 +699,7 @@ namespace EarthGame.Client
                 _stand = new StandViews(standMaterial, _client.Grid);
                 // What grows underfoot (M1.6c), from the cover tiles this client already holds.
                 _understorey = new UnderstoreyViews(standMaterial);
+                WantRings();
             }
 
             // The entities the server shows this client (M1.3), drawn from the stand's own meshes in the material its
@@ -741,6 +767,12 @@ namespace EarthGame.Client
                 foreach (string listed in hide.Split(','))
                 {
                     string name = listed.Trim();
+                    if (name == "ring" && _stand != null)
+                    {
+                        _stand.DrawRing = false;
+                        Debug.Log("[client] -eg-hide ring: hidden");
+                        continue;
+                    }
                     if (name == "understorey" && _understorey != null)
                     {
                         _understorey.Drawn = false;

@@ -6,13 +6,15 @@ Stands the founder at each vantage by the host (its console's `stand` and `save`
 scenario there — wake, walk and turn at 1440p and 1080p — and with `--hold <seconds>` measures what a frame costs over
 a full turn, as M1.6a's rounds did. Prints, for each vantage, what the run's end record says: the frames written, the
 errors, the median frame, and (M1.6c) how many tufts of each shape the client placed round the founder beside what the
-cover layer says grows there.
+cover layer says grows there. With `--lookout <metres>` (M1.6d) each run is a development game whose founder, after the
+turn, flies up that far and takes four more frames, one to each point of the compass, so the country is seen to the
+region's edge, which from the ground inside the forest the trees hide.
 
 Claude's tool: it runs the player and reports what the run reported. The frames are the owner's to judge.
 
 Usage, from the repository root:
     python Tools/world/vantages.py [--build] [--player Build/Player-Vantages/EarthGame2.exe]
-                                   [--world Artefacts/worlds/gate] [--hold 20] [--hide understorey]
+                                   [--world Artefacts/worlds/gate] [--hold 20] [--hide understorey] [--lookout 150]
                                    [--only wake,shore,windermere,new-wake] [--out Artefacts/frames/vantages-<stamp>]
 Exit 0 when every vantage's player exited 0; 1 otherwise.
 """
@@ -65,6 +67,7 @@ def main():
     parser.add_argument("--world", default="Artefacts/worlds/gate")
     parser.add_argument("--hold", type=float, default=0.0, help="seconds of a full turn to measure a frame's cost over")
     parser.add_argument("--hide", default=None, help="what the player draws nothing of (-eg-hide), to part what it costs")
+    parser.add_argument("--lookout", type=float, default=0.0, help="metres to fly the founder up for four frames to the compass points")
     parser.add_argument("--only", default=None, help="a comma-separated subset of " + ",".join(VANTAGES))
     parser.add_argument("--out", default=None)
     args = parser.parse_args()
@@ -111,6 +114,8 @@ def main():
             command += ["-eg-hold", str(args.hold)]
         if args.hide:
             command += ["-eg-hide", args.hide]
+        if args.lookout > 0.0:
+            command += ["-eg-dev", "-eg-lookout", str(args.lookout)]
         code = run(command, 900)
         failed += 1 if code != 0 else 0
 
@@ -126,6 +131,8 @@ def main():
         if end.get("understorey") is not None:
             print("  the understorey placed %s (%.2f ms), where the cover says %s"
                   % (end.get("understorey") or "nothing", number(end.get("understorey_ms")), end.get("cover") or "nothing"))
+        if end.get("far_trees") is not None:
+            print("  the far forest: %s far trees placed over the whole region, drawn wherever a tile's stand is not held" % end.get("far_trees"))
         for r in records:
             if r.get("kind") in ("error", "exception"):
                 print("  %s: %s" % (r["kind"], r.get("message", "")[:300]))

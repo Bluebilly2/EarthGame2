@@ -15,9 +15,10 @@ namespace EarthGame.Protocol
         /// 4 — M1.3 entities inside the interest radius (EntitySpawn, EntityState, EntityGone);
         /// 5 — M1.4b a layer on each tile message, so the water travels beside the ground;
         /// 6 — M1.5a verbs and carrying (Intent, IntentResult, Carrying; an entity taken up is gone for a reason of its own);
-        /// 7 — M1.5b taking what lies (a pick-up names a thing of the loose layer by its cell, kind and index; LooseTaken).
+        /// 7 — M1.5b taking what lies (a pick-up names a thing of the loose layer by its cell, kind and index; LooseTaken);
+        /// 8 — M1.6d the far forest (tile layers 6 and 7, the far stand and the far count, over the region's whole grid).
         /// </summary>
-        public const ushort Version = 7;
+        public const ushort Version = 8;
 
         /// <summary>Bytes of tile data per TileChunk; well under <see cref="MaxMessageBytes"/> with the header.</summary>
         public const int TileChunkBytes = 16 * 1024;

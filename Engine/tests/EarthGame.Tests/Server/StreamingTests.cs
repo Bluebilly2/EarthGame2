@@ -264,7 +264,12 @@ namespace EarthGame.Tests.Server
             Rig rig = Start(new WorldState(7, Region.Bherwerre, Region.Bherwerre.WakeClock()));
             rig.A = rig.Join("William");
             rig.Pump(5);
-            Assert.That(rig.A.Tiles.RefusedCount, Is.EqualTo(9 * TileLayers.All.Length), "the nine tiles around the wake, every layer refused");
+            // The far layers are asked for over the region's whole grid (M1.6d), every other layer over the nine tiles.
+            int far = 0, near = 0;
+            foreach (TileLayer layer in TileLayers.All)
+                if (TileLayers.IsFar(layer)) far++; else near++;
+            int tiles = rig.A.Grid.TilesPerSide * rig.A.Grid.TilesPerSide;
+            Assert.That(rig.A.Tiles.RefusedCount, Is.EqualTo(9 * near + tiles * far), "the nine tiles around the wake of every near layer, and the whole region of every far one, refused");
             Assert.That(rig.A.Tiles.Held.Count, Is.EqualTo(0));
             Assert.That(rig.A.IsInteractive, Is.True, "refused is answered; the client does not wait");
         }

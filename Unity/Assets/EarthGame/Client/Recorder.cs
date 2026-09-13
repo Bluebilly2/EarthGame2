@@ -165,11 +165,73 @@ namespace EarthGame.Client
             string hold = LaunchArgs.Get("hold", null);
             if (!string.IsNullOrEmpty(hold) && double.TryParse(hold, NumberStyles.Float, CultureInfo.InvariantCulture, out double seconds) && seconds > 0.0)
                 yield return Hold(seconds);
+            string lookout = LaunchArgs.Get("lookout", null);
+            int shots = 3;
+            if (!string.IsNullOrEmpty(lookout) && double.TryParse(lookout, NumberStyles.Float, CultureInfo.InvariantCulture, out double metres) && metres > 0.0)
+            {
+                yield return Lookout(metres);
+                shots += LookoutShots.Length;
+            }
             _log.Record(T, Tick, "end", WithUnderstorey(WithFeet(new JsonObject().With("frames", _frames).With("errors", _errors)
                 .With("corrections", _player.Corrections).With("moves_sent", (int)_player.MovesSent)
                 .With("east", _player.State.East).With("up", _player.State.Up).With("north", _player.State.North))));
             _running = false;
-            Finish(_errors == 0 && _frames == 3 * Sizes.Length ? 0 : 1);
+            Finish(_errors == 0 && _frames == shots * Sizes.Length ? 0 : 1);
+        }
+
+        /// <summary>The points of the compass a lookout's frames face (M1.6d), yaw clockwise from north.</summary>
+        private static readonly (string Name, float YawDeg)[] LookoutShots =
+        {
+            ("lookout-north", 0f), ("lookout-east", 90f), ("lookout-south", 180f), ("lookout-west", 270f),
+        };
+
+        /// <summary>How far below the horizon a lookout looks, degrees, so the region's edge stands in the frame's upper half.</summary>
+        private const float LookoutPitchDeg = 8f;
+
+        /// <summary>The longest a lookout waits for the founder to take off and climb, s.</summary>
+        private const double LookoutTimeoutSeconds = 30.0;
+
+        /// <summary>
+        /// The lookout (M1.6d): run as a development game (<c>-eg-dev</c>) with <c>-eg-lookout &lt;metres&gt;</c>, the founder
+        /// flies up that far above the ground where the turn left them and looks out to each point of the compass a little
+        /// below the horizon, so the frames see the country to the region's edge. From the ground inside the forest the
+        /// trees round the founder hide everything a kilometre off, and the first frames of the far forest showed none of it
+        /// (2026-09-13).
+        /// </summary>
+        private IEnumerator Lookout(double metres)
+        {
+            double ground = _player.Ground != null ? _player.Ground.HeightAt(_player.State.East, _player.State.North) : double.NaN;
+            if (!_player.FlightAllowed || double.IsNaN(ground))
+            {
+                _errors++;
+                _log.Record(T, Tick, "error", new JsonObject().With("message", "a lookout needs a development game (-eg-dev) and the ground under the founder"));
+                yield break;
+            }
+            double until = T + LookoutTimeoutSeconds;
+            _script.Move = Vector2.zero;
+            _script.Fly();
+            while (!_player.Flying && T < until) yield return null;
+            _script.Rise = true;
+            while (_player.Flying && _player.State.Up < ground + metres && T < until) yield return null;
+            _script.Rise = false;
+            // A flight's velocity eases out rather than stopping, so the climb settles before the first frame.
+            yield return Wait(2.0);
+            if (!_player.Flying || _player.State.Up < ground + metres)
+            {
+                _errors++;
+                _log.Record(T, Tick, "error", new JsonObject().With("message", "the lookout climbed to "
+                    + _player.State.Up.ToString("0.0", CultureInfo.InvariantCulture) + " m over ground at "
+                    + ground.ToString("0.0", CultureInfo.InvariantCulture) + " m, short of " + metres.ToString("0.0", CultureInfo.InvariantCulture) + " m"));
+                yield break;
+            }
+            foreach ((string name, float yawDeg) in LookoutShots)
+            {
+                _script.YawTargetDeg = yawDeg;
+                _script.PitchTargetDeg = LookoutPitchDeg;
+                // A quarter turn takes the script under a second at its rate; the rest lets the view settle.
+                yield return Wait(2.0);
+                yield return Capture(name);
+            }
         }
 
         /// <summary>
@@ -390,8 +452,9 @@ namespace EarthGame.Client
             List<string> cover = new List<string>();
             foreach (GroundCover c in GroundCovers.All)
                 if ((int)c < cells.Length && cells[(int)c] > 0) cover.Add(GroundCovers.NameOf(c).ToLowerInvariant().Replace(' ', '-') + ":" + cells[(int)c]);
+            // The far forest's trees ride along (M1.6d): the far trees placed over the region, beside what grows round the founder.
             return end.With("understorey", string.Join(",", drawn)).With("cover", string.Join(",", cover))
-                .With("understorey_ms", runtime.Understorey.LastPlaceMs);
+                .With("understorey_ms", runtime.Understorey.LastPlaceMs).With("far_trees", runtime.FarTrees);
         }
 
         /// <summary>The nearest thing of a kind lying at rest well within reach of the founder's eye, or null.</summary>

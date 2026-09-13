@@ -213,21 +213,40 @@ namespace EarthGame.ClientCore
                 // A layer this world has none of answers every tile with a refusal; asking once is how the client
                 // finds that out, and asking again for every tile it walks onto is how it would waste the wire.
                 if (_unserved.Contains(layer)) continue;
-                List<TileId> fresh = new List<TileId>(around.Count);
-                for (int i = 0; i < around.Count; i++)
-                    if (_requested.Add((layer, around[i]))) fresh.Add(around[i]);
-                if (fresh.Count == 0) continue;
-                TileRequestMessage request;
-                request.Wants = Tiles.WantsFor(layer, fresh);
-                PacketWriter w = new PacketWriter(16 + fresh.Count * 16);
-                request.Write(w);
-                _transport.Connection.Send(w.Written, Delivery.Reliable);
-                for (int i = 0; i < fresh.Count; i++) _outstanding.Add((layer, fresh[i]));
+                // A far layer is the whole region's, asked for once and kept (M1.6d); every other is the tiles round the
+                // founder. The far layers come last in the set, so the ground the founder stands on is sent first.
+                IReadOnlyList<TileId> wanted = TileLayers.IsFar(layer) ? WholeGrid() : around;
+                List<TileId> fresh = new List<TileId>(wanted.Count);
+                for (int i = 0; i < wanted.Count; i++)
+                    if (_requested.Add((layer, wanted[i]))) fresh.Add(wanted[i]);
+                for (int start = 0; start < fresh.Count; start += TileRequestMessage.MostTiles)
+                {
+                    List<TileId> part = fresh.GetRange(start, Math.Min(TileRequestMessage.MostTiles, fresh.Count - start));
+                    TileRequestMessage request;
+                    request.Wants = Tiles.WantsFor(layer, part);
+                    PacketWriter w = new PacketWriter(16 + part.Count * 16);
+                    request.Write(w);
+                    _transport.Connection.Send(w.Written, Delivery.Reliable);
+                    for (int i = 0; i < part.Count; i++) _outstanding.Add((layer, part[i]));
+                }
                 if (layer == TileLayer.Ground) asked = fresh.Count;
             }
             TilesRequested = true;
             return asked;
         }
+
+        /// <summary>Every tile of the region's grid, in rows from the south-west: what a far layer is asked for over (M1.6d).</summary>
+        private IReadOnlyList<TileId> WholeGrid()
+        {
+            int side = Grid.TilesPerSide;
+            if (_wholeGrid != null && _wholeGrid.Count == side * side) return _wholeGrid;
+            _wholeGrid = new List<TileId>(side * side);
+            for (int iz = 0; iz < side; iz++)
+                for (int ix = 0; ix < side; ix++) _wholeGrid.Add(new TileId(ix, iz));
+            return _wholeGrid;
+        }
+
+        private List<TileId> _wholeGrid;
 
         /// <summary>The server's tick now, as this client estimates it from the newest tick seen and the time since.</summary>
         public double EstimatedServerTick(long clientTimeMs)
@@ -475,6 +494,7 @@ namespace EarthGame.ClientCore
         private void BeginStreaming()
         {
             Grid = Welcome.ExtentM > 0.0 ? new TileGrid(Welcome.ExtentM) : null;
+            _wholeGrid = null;
             Tiles = new TileReceiver(Welcome.RegionId, _tileCache);
             Tiles.TileReady += tile =>
             {
