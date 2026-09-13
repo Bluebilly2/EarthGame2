@@ -367,6 +367,7 @@ namespace EarthGame.Server
             welcome.SpawnEast = spawn.X;
             welcome.SpawnUp = spawn.Y;
             welcome.SpawnNorth = spawn.Z;
+            welcome.InterestRadiusM = _config.InterestRadiusM;
             _writer.Reset();
             welcome.Write(_writer);
             connection.Send(_writer.Written, Delivery.Reliable);
@@ -597,6 +598,8 @@ namespace EarthGame.Server
             m.YawDeg = e.YawDeg;
             m.HasItem = e.HasItem;
             m.Item = e.Item;
+            m.HasAnimal = e.HasAnimal;
+            m.Animal = e.Animal;
             _writer.Reset();
             m.Write(_writer);
         }
@@ -612,6 +615,7 @@ namespace EarthGame.Server
             m.North = e.Position.Z;
             m.YawDeg = e.YawDeg;
             m.Item = e.Item;
+            m.Animal = e.Animal;
             _writer.Reset();
             m.Write(_writer);
         }
@@ -645,7 +649,9 @@ namespace EarthGame.Server
                 for (int i = 0; i < _retired.Count; i++)
                     if (session.Interest.Remove(_retired[i].Id.Value))
                     {
-                        WriteGone(_retired[i].Id.Value, _retired[i].Taken ? EntityGoneMessage.TakenUp : EntityGoneMessage.Died);
+                        // An animal taken away left the founders' reach; it did not die (M1.7a).
+                        WriteGone(_retired[i].Id.Value, _retired[i].IsTransient ? EntityGoneMessage.Left
+                                                        : _retired[i].Taken ? EntityGoneMessage.TakenUp : EntityGoneMessage.Died);
                         session.Connection.Send(_writer.Written, Delivery.Reliable);
                     }
                 Viewpoint(session, out double east, out double north);

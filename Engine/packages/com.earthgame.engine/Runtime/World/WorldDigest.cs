@@ -26,9 +26,11 @@ namespace EarthGame.Engine
 
         /// <summary>
         /// The world: its clock, its tick, every remembered body by player name, what each founder carries (M1.5a),
-        /// every entity in id order, what has been taken from the loose layer by cell (M1.5b), and the id the next spawn
-        /// takes (M1.3). An entity killed or taken up in a tick not yet ended is left out, as the save leaves it out of
-        /// the region files. The lines, in this order, are what save_check.py rebuilds from the world folder by hand.
+        /// every one of the world's own entities in id order, what has been taken from the loose layer by cell (M1.5b),
+        /// and the id the next spawn takes (M1.3). An entity killed or taken up in a tick not yet ended is left out, as the
+        /// save leaves it out of the region files, and an animal stood up from presence is never named, being presence
+        /// rather than the world's state (M1.7a). The lines, in this order, are what save_check.py rebuilds from the world
+        /// folder by hand.
         /// </summary>
         public static string World(WorldState world, IEnumerable<KeyValuePair<string, MoverState>> bodiesByName, IEnumerable<CarrierRecord> carriers = null)
         {
@@ -65,13 +67,14 @@ namespace EarthGame.Engine
             return Hex(Fnv1a64(sb.ToString()));
         }
 
-        /// <summary>The entity's id, key, position, yaw and, for an item, whether it rests and its fall speed.</summary>
+        /// <summary>The entity's id, key, position, yaw, for an item whether it rests and its fall speed, and for an animal its pose (M1.7a).</summary>
         private static void AppendEntity(StringBuilder sb, in EntityRecord r)
         {
             sb.Append("entity ").Append(r.Id.Value.ToString(CultureInfo.InvariantCulture)).Append(' ').Append(r.Key).Append(' ')
               .Append(Fixed(r.Position.X, MetreResolution)).Append(' ').Append(Fixed(r.Position.Y, MetreResolution)).Append(' ').Append(Fixed(r.Position.Z, MetreResolution))
               .Append(' ').Append(Fixed(r.YawDeg, DegreeResolution));
             if (r.HasItem) sb.Append(" item ").Append(r.Item.Resting ? 'r' : 'f').Append(' ').Append(Fixed(r.Item.FallSpeed, MetreResolution));
+            if (r.HasAnimal) sb.Append(" animal ").Append(r.Animal.Pose.ToString(CultureInfo.InvariantCulture));
             sb.Append('\n');
         }
 

@@ -57,7 +57,7 @@ namespace EarthGame.Tests.Engine
             item.Resting = false;
             item.FallSpeed = 0f;
             e.SetItem(item, 10);
-            Assert.That(e.ChangedSince(10), Is.EqualTo(EntityFields.All), "a spawn stamps every field");
+            Assert.That(e.ChangedSince(10), Is.EqualTo(EntityFields.Position | EntityFields.Yaw | EntityFields.Item), "a spawn stamps every field a cobble has");
             Assert.That(e.ChangedSince(11), Is.EqualTo(EntityFields.None));
             e.Move(new Double3(0, 4, 0), 12);
             Assert.That(e.ChangedSince(11), Is.EqualTo(EntityFields.Position));
@@ -67,7 +67,7 @@ namespace EarthGame.Tests.Engine
             item.Resting = true;
             e.SetItem(item, 14);
             Assert.That(e.ChangedSince(13), Is.EqualTo(EntityFields.Yaw | EntityFields.Item));
-            Assert.That(e.ChangedSince(0), Is.EqualTo(EntityFields.All));
+            Assert.That(e.ChangedSince(0), Is.EqualTo(EntityFields.Position | EntityFields.Yaw | EntityFields.Item), "and never a pose, which a cobble has not");
             EntityRecord r = e.Record();
             Assert.That(r.Key, Is.EqualTo("item/cobble"));
             Assert.That(r.Item.Resting, Is.True);

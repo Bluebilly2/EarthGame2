@@ -16,9 +16,9 @@ namespace EarthGame.Tests.Engine
         }
 
         [Test]
-        public void TheProtocolIsVersionEightAndItsKindsKeepTheirNumbers()
+        public void TheProtocolIsVersionNineAndItsKindsKeepTheirNumbers()
         {
-            Assert.That(ProtocolInfo.Version, Is.EqualTo((ushort)8), "4 carried the entities, 5 the layer on each tile message, 6 the verbs, 7 the taking of what lies, 8 the far forest's layers");
+            Assert.That(ProtocolInfo.Version, Is.EqualTo((ushort)9), "4 carried the entities, 5 the layer on each tile message, 6 the verbs, 7 the taking of what lies, 8 the far forest's layers, 9 an animal's pose and the interest radius");
             Assert.That((byte)MessageKind.EntitySpawn, Is.EqualTo((byte)14));
             Assert.That((byte)MessageKind.EntityState, Is.EqualTo((byte)15));
             Assert.That((byte)MessageKind.EntityGone, Is.EqualTo((byte)16));
@@ -37,6 +37,8 @@ namespace EarthGame.Tests.Engine
             m.YawDeg = 33.5f;
             m.HasItem = true;
             m.Item = new ItemComponent { Resting = false, FallSpeed = 2.5f };
+            m.HasAnimal = false;
+            m.Animal = default;
             PacketWriter w = new PacketWriter(64);
             m.Write(w);
             Assert.That(MessageHeader.PeekKind(w.Written.ToArray(), 0, w.Written.Length), Is.EqualTo(MessageKind.EntitySpawn));
@@ -94,6 +96,53 @@ namespace EarthGame.Tests.Engine
             w.WriteInt64(1);
             w.WriteByte(0x80);
             Assert.Throws<ProtocolException>(() => EntityStateMessage.Read(Reader(w)), "a field this build does not know is a refusal");
+        }
+
+        [Test]
+        public void AnAnimalsSpawnCarriesItsPoseAndAStateItsChangedPose()
+        {
+            EntitySpawnMessage m = default;
+            m.Id = EntityId.TransientBit | 77UL;
+            m.DefinitionId = DefinitionCatalogue.ByKey("animal/eastern-grey-kangaroo").Id.Value;
+            m.ServerTick = 400;
+            m.East = 12.5;
+            m.YawDeg = 270f;
+            m.HasAnimal = true;
+            m.Animal = new AnimalComponent { Pose = AnimalPose.Grazing };
+            PacketWriter w = new PacketWriter(64);
+            m.Write(w);
+            Assert.That(w.Written.Length, Is.EqualTo(1 + 8 + 4 + 8 + 24 + 4 + 1 + 1), "an animal's spawn is an entity's and a byte of pose");
+            PacketReader r = Reader(w);
+            EntitySpawnMessage back = EntitySpawnMessage.Read(r);
+            r.ExpectEnd();
+            Assert.That(back.HasItem, Is.False);
+            Assert.That(back.HasAnimal, Is.True);
+            Assert.That(back.Animal.Pose, Is.EqualTo(AnimalPose.Grazing));
+            Assert.That(back.Id, Is.EqualTo(EntityId.TransientBit | 77UL));
+
+            EntityStateMessage s = default;
+            s.Id = back.Id;
+            s.ServerTick = 420;
+            s.Fields = EntityFields.Pose;
+            s.Animal = new AnimalComponent { Pose = AnimalPose.Resting };
+            w.Reset();
+            s.Write(w);
+            Assert.That(w.Written.Length, Is.EqualTo(1 + 8 + 8 + 1 + 1), "a changed pose alone is a byte");
+            PacketReader sr = Reader(w);
+            EntityStateMessage sback = EntityStateMessage.Read(sr);
+            sr.ExpectEnd();
+            Assert.That(sback.Fields, Is.EqualTo(EntityFields.Pose));
+            Assert.That(sback.Animal.Pose, Is.EqualTo(AnimalPose.Resting));
+
+            w.Reset();
+            w.WriteByte((byte)MessageKind.EntitySpawn);
+            w.WriteUInt64(1);
+            w.WriteUInt32(DefinitionCatalogue.Cobble.Id.Value);
+            w.WriteInt64(0);
+            w.WriteDouble(0); w.WriteDouble(0); w.WriteDouble(0);
+            w.WriteSingle(0f);
+            w.WriteByte(0x80);
+            Assert.Throws<ProtocolException>(() => EntitySpawnMessage.Read(Reader(w)), "a component this build does not know is a refusal, not bytes read as something else");
         }
 
         [Test]

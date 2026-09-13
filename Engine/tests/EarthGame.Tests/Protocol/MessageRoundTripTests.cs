@@ -44,6 +44,7 @@ namespace EarthGame.Tests.Protocol
             m.SpawnEast = -2410.5;
             m.SpawnUp = 3.25;
             m.SpawnNorth = -2113.75;
+            m.InterestRadiusM = 1500.0;
             PacketWriter w = new PacketWriter();
             m.Write(w);
             WelcomeMessage back = WelcomeMessage.Read(ReaderOver(w));
@@ -57,6 +58,7 @@ namespace EarthGame.Tests.Protocol
             Assert.That(back.TotalHours, Is.EqualTo(m.TotalHours));
             Assert.That(back.Tick, Is.EqualTo(long.MaxValue));
             Assert.That(back.TickRate, Is.EqualTo(20));
+            Assert.That(back.InterestRadiusM, Is.EqualTo(1500.0), "protocol 9: the radius a client counts what it shares by");
         }
 
         [Test]
@@ -96,7 +98,7 @@ namespace EarthGame.Tests.Protocol
         {
             WelcomeMessage m;
             m.SessionId = 1; m.Seed = 2; m.RegionId = "bherwerre"; m.ExtentM = 8000; m.TotalHours = 3; m.Tick = 4; m.TickRate = 20;
-            m.SpawnEast = 0; m.SpawnUp = 0; m.SpawnNorth = 0;
+            m.SpawnEast = 0; m.SpawnUp = 0; m.SpawnNorth = 0; m.InterestRadiusM = 0;
             PacketWriter w = new PacketWriter();
             m.Write(w);
             byte[] bytes = w.ToArray();

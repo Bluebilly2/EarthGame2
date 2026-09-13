@@ -266,7 +266,7 @@ namespace EarthGame.Engine
         }
 
         /// <summary>
-        /// The groups within <paramref name="radiusM"/> of a point, at this hour.
+        /// The groups within <paramref name="radiusM"/> of a point, at this hour, where every square feeds the same.
         ///
         /// <para>Pure: the same arguments give the same animals standing in the same places, in any
         /// order, on any machine. Nothing here is remembered between calls.</para>
@@ -276,19 +276,32 @@ namespace EarthGame.Engine
                                          double hourOfDay, double daylightHours,
                                          double dayOfYear = 0.0)
         {
+            if (!(capacityPerKm2 > 0.0)) return new List<AnimalSighting>();
+            return Near(species, (cellX, cellZ) => capacityPerKm2, eastM, northM, radiusM, hourOfDay, daylightHours, dayOfYear);
+        }
+
+        /// <summary>
+        /// The groups within <paramref name="radiusM"/> of a point, at this hour, each square drawn at the capacity
+        /// <paramref name="capacityPerKm2OfSquare"/> gives it by its indices (M1.7a): a world's capacity differs square by
+        /// square, and a square that feeds nothing holds nothing without moving its neighbours' groups.
+        ///
+        /// <para>Each square keeps its own seeded stream, so its group is the same whoever asks and whatever the other
+        /// squares feed.</para>
+        /// </summary>
+        public List<AnimalSighting> Near(AnimalSpecies species, Func<int, int, double> capacityPerKm2OfSquare,
+                                         double eastM, double northM, double radiusM,
+                                         double hourOfDay, double daylightHours,
+                                         double dayOfYear = 0.0)
+        {
             var found = new List<AnimalSighting>();
-            if (species == null || capacityPerKm2 <= 0.0 || radiusM <= 0.0) return found;
+            if (species == null || capacityPerKm2OfSquare == null || radiusM <= 0.0) return found;
 
             double activity = Activity01(species, hourOfDay, daylightHours);
 
             // Groups rather than individuals: a mob of eight is one thing standing on the flat,
             // not eight independent draws that happen to land together.
             int groupSize = Math.Max(1, species.TypicalGroupSize);
-            double groupsPerKm2 = capacityPerKm2 / groupSize;
-
             double cellAreaKm2 = CellSizeM * CellSizeM / 1e6;
-            double chancePerCell = SimMath.Clamp(groupsPerKm2 * cellAreaKm2, 0.0, 1.0);
-            if (chancePerCell <= 0.0) return found;
 
             // Continuous time, so a group's wander is smooth rather than stepping between hours.
             double hours = dayOfYear * 24.0 + hourOfDay;
@@ -301,6 +314,10 @@ namespace EarthGame.Engine
             for (int cx = minX; cx <= maxX; cx++)
             for (int cz = minZ; cz <= maxZ; cz++)
             {
+                // The chance a square holds a group is its own capacity's, in groups, over its area.
+                double chancePerCell = SimMath.Clamp(capacityPerKm2OfSquare(cx, cz) / groupSize * cellAreaKm2, 0.0, 1.0);
+                if (!(chancePerCell > 0.0)) continue;
+
                 var rng = new SimRandom(CellSeed(species, cx, cz));
 
                 if (rng.NextDouble() >= chancePerCell) continue;

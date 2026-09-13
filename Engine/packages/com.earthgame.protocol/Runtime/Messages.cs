@@ -252,6 +252,11 @@ namespace EarthGame.Protocol
         public double SpawnEast;
         public double SpawnUp;
         public double SpawnNorth;
+        /// <summary>
+        /// How far from its founder the server sends a client the other players and the entities, metres (protocol 9): a
+        /// client counts what it and another player both hold by it.
+        /// </summary>
+        public double InterestRadiusM;
 
         public void Write(PacketWriter w)
         {
@@ -266,6 +271,7 @@ namespace EarthGame.Protocol
             w.WriteDouble(SpawnEast);
             w.WriteDouble(SpawnUp);
             w.WriteDouble(SpawnNorth);
+            w.WriteDouble(InterestRadiusM);
         }
 
         public static WelcomeMessage Read(PacketReader r)
@@ -281,6 +287,7 @@ namespace EarthGame.Protocol
             m.SpawnEast = r.ReadDouble();
             m.SpawnUp = r.ReadDouble();
             m.SpawnNorth = r.ReadDouble();
+            m.InterestRadiusM = r.ReadDouble();
             return m;
         }
     }
@@ -534,11 +541,29 @@ namespace EarthGame.Protocol
         }
     }
 
-    /// <summary>An item's component on the wire: whether it rests, and its fall speed while it does not.</summary>
+    /// <summary>The components of an entity on the wire: an item's rest and fall, and (protocol 9) an animal's pose.</summary>
     public static class EntityWire
     {
-        /// <summary>The component mask's one bit so far; the mask is a byte so seven more can follow without a version.</summary>
+        /// <summary>The component mask's item bit.</summary>
         public const byte ComponentItem = 1;
+
+        /// <summary>The component mask's animal bit (M1.7a, protocol 9). A bit this build does not know is refused, never skipped, since its bytes would be read as something else.</summary>
+        public const byte ComponentAnimal = 2;
+
+        /// <summary>Every component bit this build reads.</summary>
+        public const byte ComponentsKnown = ComponentItem | ComponentAnimal;
+
+        public static void WriteAnimal(PacketWriter w, in AnimalComponent animal)
+        {
+            w.WriteByte(animal.Pose);
+        }
+
+        public static AnimalComponent ReadAnimal(PacketReader r)
+        {
+            AnimalComponent animal;
+            animal.Pose = r.ReadByte();
+            return animal;
+        }
 
         public static void WriteItem(PacketWriter w, in ItemComponent item)
         {
@@ -567,6 +592,9 @@ namespace EarthGame.Protocol
         public float YawDeg;
         public bool HasItem;
         public ItemComponent Item;
+        /// <summary>Whether it is an animal, and its pose (protocol 9).</summary>
+        public bool HasAnimal;
+        public AnimalComponent Animal;
 
         public void Write(PacketWriter w)
         {
@@ -578,8 +606,9 @@ namespace EarthGame.Protocol
             w.WriteDouble(Up);
             w.WriteDouble(North);
             w.WriteSingle(YawDeg);
-            w.WriteByte(HasItem ? EntityWire.ComponentItem : (byte)0);
+            w.WriteByte((byte)((HasItem ? EntityWire.ComponentItem : 0) | (HasAnimal ? EntityWire.ComponentAnimal : 0)));
             if (HasItem) EntityWire.WriteItem(w, Item);
+            if (HasAnimal) EntityWire.WriteAnimal(w, Animal);
         }
 
         public static EntitySpawnMessage Read(PacketReader r)
@@ -593,8 +622,11 @@ namespace EarthGame.Protocol
             m.North = r.ReadDouble();
             m.YawDeg = r.ReadSingle();
             byte components = r.ReadByte();
+            if ((components & ~EntityWire.ComponentsKnown) != 0) throw new ProtocolException("entity spawn names components this build does not know: " + components);
             m.HasItem = (components & EntityWire.ComponentItem) != 0;
             m.Item = m.HasItem ? EntityWire.ReadItem(r) : default;
+            m.HasAnimal = (components & EntityWire.ComponentAnimal) != 0;
+            m.Animal = m.HasAnimal ? EntityWire.ReadAnimal(r) : default;
             return m;
         }
     }
@@ -613,6 +645,7 @@ namespace EarthGame.Protocol
         public double North;
         public float YawDeg;
         public ItemComponent Item;
+        public AnimalComponent Animal;
 
         public void Write(PacketWriter w)
         {
@@ -628,6 +661,7 @@ namespace EarthGame.Protocol
             }
             if ((Fields & EntityFields.Yaw) != 0) w.WriteSingle(YawDeg);
             if ((Fields & EntityFields.Item) != 0) EntityWire.WriteItem(w, Item);
+            if ((Fields & EntityFields.Pose) != 0) EntityWire.WriteAnimal(w, Animal);
         }
 
         public static EntityStateMessage Read(PacketReader r)
@@ -645,6 +679,7 @@ namespace EarthGame.Protocol
             }
             if ((m.Fields & EntityFields.Yaw) != 0) m.YawDeg = r.ReadSingle();
             if ((m.Fields & EntityFields.Item) != 0) m.Item = EntityWire.ReadItem(r);
+            if ((m.Fields & EntityFields.Pose) != 0) m.Animal = EntityWire.ReadAnimal(r);
             return m;
         }
     }

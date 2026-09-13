@@ -16,6 +16,9 @@ namespace EarthGame.ClientCore
         public long Tick;
         public bool HasItem;
         public ItemComponent Item;
+        /// <summary>Whether it is an animal, and its pose (M1.7a).</summary>
+        public bool HasAnimal;
+        public AnimalComponent Animal;
 
         private const int Kept = 8;
         private readonly Double3[] _stated = new Double3[Kept];
@@ -72,6 +75,8 @@ namespace EarthGame.ClientCore
             r.YawDeg = YawDeg;
             r.HasItem = HasItem;
             r.Item = Item;
+            r.HasAnimal = HasAnimal;
+            r.Animal = Animal;
             return r;
         }
     }
@@ -111,6 +116,8 @@ namespace EarthGame.ClientCore
                 Tick = m.ServerTick,
                 HasItem = m.HasItem,
                 Item = m.Item,
+                HasAnimal = m.HasAnimal,
+                Animal = m.Animal,
             };
             view.Stated(view.Position, m.ServerTick);
             _views[m.Id] = view;
@@ -132,6 +139,11 @@ namespace EarthGame.ClientCore
             {
                 view.HasItem = true;
                 view.Item = m.Item;
+            }
+            if ((m.Fields & EntityFields.Pose) != 0)
+            {
+                view.HasAnimal = true;
+                view.Animal = m.Animal;
             }
             view.Tick = m.ServerTick;
             Updated?.Invoke(view);
