@@ -131,7 +131,12 @@ namespace EarthGame.Engine
     public static class TileCodec
     {
         public const int Version = 2;
-        /// <summary>The largest height a tile can carry, metres; the region raster is well inside it.</summary>
+        /// <summary>
+        /// The largest height a tile can carry, metres either side of the datum. A height beyond it, and a step between
+        /// neighbouring posts too long for a signed 16-bit number of centimetres, are refused at encode, as ARCHITECTURE
+        /// §10 states; until 2026-09-13 the height was clamped and the step wrapped without a word, which would have cut a
+        /// mountain's summit off and turned a cliff's foot into its top.
+        /// </summary>
         public const double MaxHeightM = 327.0;
 
         /// <summary>Samples a tile of ground from the heightfield at the raster's own cell pitch and encodes it.</summary>
@@ -359,7 +364,10 @@ namespace EarthGame.Engine
                         for (int x = 0; x < posts; x++)
                         {
                             int cm = ToCentimetres(heights[z, x]);
-                            w.Write((short)(x == 0 ? cm : cm - previous));
+                            int step = x == 0 ? cm : cm - previous;
+                            if (step < short.MinValue || step > short.MaxValue)
+                                throw new InvalidDataException("a step of " + step / 100.0 + " m between neighbouring posts is longer than a tile can carry");
+                            w.Write((short)step);
                             previous = cm;
                         }
                     }
@@ -442,8 +450,9 @@ namespace EarthGame.Engine
         private static int ToCentimetres(float metres)
         {
             if (float.IsNaN(metres)) throw new InvalidDataException("a NaN height cannot be encoded");
-            double clamped = SimMath.Clamp(metres, -MaxHeightM, MaxHeightM);
-            return (int)Math.Round(clamped * 100.0);
+            if (Math.Abs(metres) > MaxHeightM)
+                throw new InvalidDataException("a height of " + metres + " m is beyond the " + MaxHeightM + " m either side of the datum that a tile can carry");
+            return (int)Math.Round(metres * 100.0);
         }
     }
 }

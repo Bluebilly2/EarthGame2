@@ -54,6 +54,20 @@ namespace EarthGame.Tests.Engine
         }
 
         [Test]
+        public void AHeightOrAStepBeyondWhatATileCarriesIsRefusedNotClamped()
+        {
+            float[,] ends = { { 327f, 327f }, { -327f, -327f } };
+            float[,] back = TileCodec.Unpack(TileCodec.Pack(ends, 2), 2);
+            Assert.That(back[0, 0], Is.EqualTo(327f).Within(0.005f), "the range's top is carried");
+            Assert.That(back[1, 0], Is.EqualTo(-327f).Within(0.005f), "and its bottom");
+            Assert.That(() => TileCodec.Pack(new float[,] { { 327.5f, 327.5f }, { 0f, 0f } }, 2), Throws.TypeOf<InvalidDataException>(), "a height past the top");
+            Assert.That(() => TileCodec.Pack(new float[,] { { 0f, 0f }, { -400f, -400f } }, 2), Throws.TypeOf<InvalidDataException>(), "a depth past the bottom");
+            Assert.That(() => TileCodec.Pack(new float[,] { { 200f, -200f }, { 0f, 0f } }, 2), Throws.TypeOf<InvalidDataException>(),
+                        "a step between neighbours that no 16-bit number of centimetres holds, though both heights are in range");
+            Assert.That(() => TileCodec.Pack(new float[,] { { float.NaN, 0f }, { 0f, 0f } }, 2), Throws.TypeOf<InvalidDataException>());
+        }
+
+        [Test]
         public void EncodeSamplesTheRasterAtItsOwnCells()
         {
             // A 40 m region of 10 m cells, tiles of 20 m: tile (1, 0) starts at east 0, north -20 and has 3 posts.
