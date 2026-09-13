@@ -242,6 +242,16 @@ what was written aside. `Exists` counts a folder holding the record as a world, 
 each file was moved in on its own, the old one deleted first: a crash could lose `world.json`, and the folder became a
 place to make a new world in, or leave a thing both carried and lying, and the whole folder was refused.
 
+Landed 2026-09-13 (M1.3c): the game writes its autosaves behind its main thread. `WorldSave.Prepare` makes a save from
+the world and the players as they stand, every file's bytes and the names of the files it removes, and
+`PreparedSave.Commit` writes it as above, once; nothing done to the world after the making reaches it. `Bootstrap` makes
+each autosave between two frames and writes it on a worker, one at a time: an autosave that comes round while the last
+is still being written is left for the next, and closing the game waits up to half a minute for the one being written,
+then writes its own on the main thread. A file operation of a save or a recovery that another program holds up is tried
+again, each wait longer than the last, before the save fails naming the file, for the next load to finish. The dedicated
+host saves in place on its own thread, which draws no frames. Until then the whole save, its flushing among it, stood
+between two of the game's frames.
+
 ## 7. Networking
 
 - **Rule 1 — there is no single player.** SOLO = server + client in one process over `InMemoryTransport`; every
@@ -663,3 +673,5 @@ mandatory in every file from the first write.
 | 2026-09-13 | M1.8a: the weather reads the world's continuous local time, and its tests hold the climate over many world seeds | v1 read its index at the day of the year, so its weather jumped to another front at each new year's midnight and repeated every year; and one world's August rain runs from a quarter of the month's mean to twice it, so a bound held on eight seeds holds their luck |
 | 2026-09-13 | M1.8a: each side works the weather out from the world's seed, its region and its clock; none of it is sent or saved | It is a function of those three alone, which every Welcome already carries, and a copy sent beside them is a second owner of one fact |
 | 2026-09-13 | M1.3b: a save writes its files aside and flushed, places one record of what it will put in place, and only then puts them in place; reading a world recovers its folder first | A save is many files and was written one at a time, each moved in by deleting the old first, so a crash could lose `world.json`, and a new world would be made over the old, or mix old files and new, and the folder was refused. One record placed in one move is the moment a save counts, and its CRCs tell a file already put in place from one never put there. It stays in the folder the world already has, rather than a folder for each save, so the layers and every tool that reads `world.json` stay where they are |
+| 2026-09-13 | M1.3c: the game makes an autosave on its main thread and writes it on a worker, one save at a time; closing the game waits for the save being written, then writes its own in place | The making reads the world and the players, which the main thread steps, and once warm it takes about a millisecond; the writing touches only the bytes made and the disk, and since M1.3b's flushing it is most of a save's time. Made on a worker, the world would have to be copied or locked for it, and a copy is what the making already is. Two saves written at once would write aside over each other's files. The host saves in place, since it draws no frames |
+| 2026-09-13 | M1.3c: a file operation of a save or a recovery is tried again while another program holds the file, each wait longer than the last, and then fails naming the file | On 2026-09-13 the built game's closing save could not replace a region file its autosave had written fifteen seconds before. Nothing in the game holds its files open, the same run repeated closed cleanly, and on Windows a virus scanner or the search indexer reading a file just written is the usual holder. M1.3b's record already made the failed save one the next load finishes; trying again lets the game finish it itself, and the file's name in a failure says where to look |

@@ -108,6 +108,13 @@ namespace EarthGame.Server
         public void Save(string dir, string nowUtcText, IReadOnlyDictionary<string, string> layerChecksums = null)
             => WorldSave.Write(dir, World, PlayersToSave(), nowUtcText, layerChecksums);
 
+        /// <summary>
+        /// The world folder's next save, made now from the world and the players as they stand, for
+        /// <see cref="PreparedSave.Commit"/> to write on another thread while the server steps on (M1.3c).
+        /// </summary>
+        public PreparedSave PrepareSave(string dir, string nowUtcText, IReadOnlyDictionary<string, string> layerChecksums = null)
+            => WorldSave.Prepare(dir, World, PlayersToSave(), nowUtcText, layerChecksums);
+
         /// <summary>Every body the server knows by name: the remembered ones, overlaid by the live sessions'.</summary>
         public IReadOnlyList<SavedPlayer> PlayersToSave()
         {

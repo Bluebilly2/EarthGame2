@@ -35,12 +35,15 @@ namespace EarthGame.Bootstrap
     /// <c>-eg-cycles N</c>, and for the client's own socket <c>-eg-latency</c>, <c>-eg-jitter</c>, <c>-eg-loss</c>,
     /// <c>-eg-sendcap</c>) it starts at once; without one it shows the shell (new world, continue, quit). It
     /// builds the transports and objects for the mode, pumps the server every frame with real elapsed time (the
-    /// server's own accumulator turns that into fixed ticks), autosaves the world folder every half minute and at
-    /// quit, and is the only caller of the server's Save. The world exists before the first player does.
+    /// server's own accumulator turns that into fixed ticks), autosaves the world folder every half minute, writing the
+    /// files behind the main thread, and at quit, and is the only caller of the server's saves. The world exists before the
+    /// first player does.
     /// </summary>
     public sealed class Bootstrap : MonoBehaviour
     {
         private const float AutosaveIntervalSeconds = 30f;
+        /// <summary>How long closing the game waits for a save still being written before it writes its own (M1.3c).</summary>
+        private const int ClosingWaitSeconds = 30;
 
         [SerializeField] private LaunchMode _mode = LaunchMode.Solo;
         [SerializeField] private string _address = "127.0.0.1";
@@ -70,6 +73,8 @@ namespace EarthGame.Bootstrap
         private double _loadingStarted;
         private int _loadingUpdates;
         private bool _quitting;
+        /// <summary>The autosave being written behind the main thread, one at a time (M1.3c); null before the first.</summary>
+        private Task _saving;
 
         public LaunchMode Mode => _mode;
         public GameServer Server => _server;
@@ -364,12 +369,59 @@ namespace EarthGame.Bootstrap
             }
         }
 
+        /// <summary>
+        /// An autosave (M1.3c): its bytes made here, between two frames, from the world as it stands, and its files written on a
+        /// worker while the game goes on drawing. An autosave that comes round while the last is still being written is left for
+        /// the next. Both halves' times go to the log.
+        /// </summary>
         private void Save()
         {
             if (_server == null || _worldDir == null) return;
+            if (_saving != null && !_saving.IsCompleted) return;
+            System.Diagnostics.Stopwatch making = System.Diagnostics.Stopwatch.StartNew();
+            PreparedSave save;
+            try
+            {
+                save = _server.PrepareSave(_worldDir, DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture), _layerChecksums);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("[bootstrap] save failed: " + ex.Message);
+                return;
+            }
+            double madeMs = making.Elapsed.TotalMilliseconds;
+            _saving = Task.Run(() =>
+            {
+                System.Diagnostics.Stopwatch writing = System.Diagnostics.Stopwatch.StartNew();
+                try
+                {
+                    save.Commit();
+                    Debug.Log("[bootstrap] autosaved: made in " + Ms(madeMs) + " on the main thread, written in " + Ms(writing.Elapsed.TotalMilliseconds) + " behind it");
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError("[bootstrap] save failed: " + ex.Message);
+                }
+            });
+        }
+
+        /// <summary>
+        /// The save the game closes on, written here before the process ends once a save still being written has finished; one
+        /// that does not finish in time is not written over, and the folder keeps it or the save before it (M1.3b, M1.3c).
+        /// </summary>
+        private void SaveOnClosing()
+        {
+            if (_server == null || _worldDir == null) return;
+            if (_saving != null && !_saving.Wait(TimeSpan.FromSeconds(ClosingWaitSeconds)))
+            {
+                Debug.LogError("[bootstrap] the autosave being written did not finish in " + ClosingWaitSeconds + " s; the game closes without writing its own");
+                return;
+            }
+            System.Diagnostics.Stopwatch saving = System.Diagnostics.Stopwatch.StartNew();
             try
             {
                 _server.Save(_worldDir, DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture), _layerChecksums);
+                Debug.Log("[bootstrap] saved on closing in " + Ms(saving.Elapsed.TotalMilliseconds));
             }
             catch (Exception ex)
             {
@@ -377,11 +429,13 @@ namespace EarthGame.Bootstrap
             }
         }
 
+        private static string Ms(double ms) => ms.ToString("0.0", CultureInfo.InvariantCulture) + " ms";
+
         private void OnApplicationQuit()
         {
             _quitting = true;
             _preparationCancellation?.Cancel();
-            Save();
+            SaveOnClosing();
         }
 
         private void OnDestroy()

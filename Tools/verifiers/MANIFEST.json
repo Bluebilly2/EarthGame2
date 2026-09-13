@@ -128,6 +128,7 @@
       "author": "Claude",
       "gates": [
         "M1.3",
+        "M1.3b",
         "M1.5a",
         "M1.5b"
       ],

@@ -82,19 +82,25 @@ namespace EarthGame.Server
         private const string PartSuffix = ".part";
 
         /// <summary>
-        /// Writes the world's save (M1.3b): every file it changes beside its target as <c>.part</c>, each flushed to the disk;
-        /// then the record of what it will put in place and remove, <see cref="CommitFile"/>, beside itself, flushed and moved in
-        /// whole; then the files put in place and the files of cells that emptied removed; then the record removed. A crash
-        /// before the record is placed leaves the previous save untouched, and one after it a save <see cref="Recover"/>
-        /// finishes. <paramref name="afterEachStep"/> is told each step once it is done, in order: a test throws from it where a
-        /// crash would stop the save.
+        /// Writes the world's save at once, on this thread: <see cref="Prepare"/>, then <see cref="PreparedSave.Commit"/>.
+        /// <paramref name="afterEachStep"/> is told each step of the writing once it is done, in order: a test throws from it
+        /// where a crash would stop the save.
         /// </summary>
         public static void Write(string dir, WorldState world, IReadOnlyList<SavedPlayer> players, string nowUtcText,
                                  IReadOnlyDictionary<string, string> layerChecksums = null, Action<string> afterEachStep = null)
+            => Prepare(dir, world, players, nowUtcText, layerChecksums).Commit(afterEachStep);
+
+        /// <summary>
+        /// Makes the world's save from the world and the players as they stand, and hands it back to be written (M1.3c): on this
+        /// thread, or on a worker while the game steps on, since nothing done to the world afterwards reaches it. The folder is
+        /// recovered first. A folder's next save is made only once its last one is written.
+        /// </summary>
+        public static PreparedSave Prepare(string dir, WorldState world, IReadOnlyList<SavedPlayer> players, string nowUtcText,
+                                           IReadOnlyDictionary<string, string> layerChecksums = null)
         {
             if (world == null) throw new ArgumentNullException(nameof(world));
             Directory.CreateDirectory(dir);
-            // A save a crash stopped is finished or cleared before this one begins, so that nothing of it is taken for this one's.
+            // A save a crash stopped is finished or cleared before this one is made, so that nothing of it is taken for this one's.
             Recover(dir);
             List<KeyValuePair<string, byte[]>> place = new List<KeyValuePair<string, byte[]>>();
             List<string> remove = new List<string>();
@@ -148,7 +154,7 @@ namespace EarthGame.Server
                     carriers.Add(new CarrierRecord { Name = p.Name, Hand = p.Hand, Things = p.Carried ?? Array.Empty<CarriedThing>() });
                 }
             place.Add(new KeyValuePair<string, byte[]>(DigestFile, Encoding.UTF8.GetBytes(WorldDigest.World(world, bodies, carriers) + "\n")));
-            Commit(dir, place, remove, afterEachStep);
+            return new PreparedSave(dir, place, remove);
         }
 
         private static void PlayerFiles(string dir, IReadOnlyList<SavedPlayer> players, List<KeyValuePair<string, byte[]>> place, List<string> remove)
@@ -409,11 +415,11 @@ namespace EarthGame.Server
             foreach (string folder in new[] { dir, Path.Combine(dir, PlayersFolder), Path.Combine(dir, RegionFile.Folder) })
                 if (Directory.Exists(folder))
                     foreach (string part in Directory.GetFiles(folder, "*" + PartSuffix))
-                        File.Delete(part);
+                        Retried(() => File.Delete(part), "clear away " + part);
         }
 
         /// <summary>Writes the files aside, then places the record, then finishes: the two halves of a save, either side of the moment it counts.</summary>
-        private static void Commit(string dir, List<KeyValuePair<string, byte[]>> place, List<string> remove, Action<string> afterEachStep)
+        internal static void Commit(string dir, List<KeyValuePair<string, byte[]>> place, List<string> remove, Action<string> afterEachStep)
         {
             List<object> placed = new List<object>();
             foreach (KeyValuePair<string, byte[]> file in place)
@@ -427,7 +433,7 @@ namespace EarthGame.Server
             JsonObject record = new JsonObject().With("format", CommitFormat).With("version", CommitVersion).With("place", placed).With("remove", removed);
             string recordPath = Path.Combine(dir, CommitFile);
             WriteFlushed(recordPath + PartSuffix, Encoding.UTF8.GetBytes(Json.Write(record, indent: true)));
-            File.Move(recordPath + PartSuffix, recordPath);
+            Retried(() => File.Move(recordPath + PartSuffix, recordPath), "place " + CommitFile);
             afterEachStep?.Invoke("placed " + CommitFile);
             Finish(dir, record, afterEachStep, checkBytes: false);
         }
@@ -450,8 +456,11 @@ namespace EarthGame.Server
                 {
                     if (checkBytes && Crc32.Compute(File.ReadAllBytes(part)) != crc)
                         throw new InvalidDataException(name + PartSuffix + " is not the file this world's last save recorded, so the save cannot be finished");
-                    if (File.Exists(target)) File.Replace(part, target, null);
-                    else File.Move(part, target);
+                    Retried(() =>
+                    {
+                        if (File.Exists(target)) File.Replace(part, target, null);
+                        else File.Move(part, target);
+                    }, "put " + name + " in place");
                     afterEachStep?.Invoke("put " + name + " in place");
                 }
                 else if (!File.Exists(target) || Crc32.Compute(File.ReadAllBytes(target)) != crc)
@@ -462,11 +471,41 @@ namespace EarthGame.Server
                 string name = entry as string ?? throw new InvalidDataException(CommitFile + " lists something to remove that is not a file's name");
                 string path = Full(dir, name);
                 if (!File.Exists(path)) continue;
-                File.Delete(path);
+                Retried(() => File.Delete(path), "remove " + name);
                 afterEachStep?.Invoke("removed " + name);
             }
-            File.Delete(Path.Combine(dir, CommitFile));
+            Retried(() => File.Delete(Path.Combine(dir, CommitFile)), "remove " + CommitFile);
             afterEachStep?.Invoke("removed " + CommitFile);
+        }
+
+        /// <summary>How many times a file operation is tried while another program holds the file, and the step by which the wait between tries grows, ms.</summary>
+        private const int FileAttempts = 10;
+        private const int FileRetryStepMs = 20;
+
+        /// <summary>
+        /// A file operation of a save or a recovery, tried again while another program holds the file for a moment (M1.3c). On
+        /// 2026-09-13 the built game's closing save could not replace a region file its autosave had written fifteen seconds
+        /// before, though nothing in the game keeps its files open, and the same run repeated closed cleanly: a virus scanner or
+        /// the search indexer reading a file just written is the usual holder on Windows. Each wait is longer than the last, up
+        /// to <see cref="FileAttempts"/> tries; then the save fails naming the file, and its record, once placed, lets the next
+        /// load finish it.
+        /// </summary>
+        private static void Retried(Action operation, string what)
+        {
+            for (int attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    operation();
+                    return;
+                }
+                catch (Exception ex) when ((ex is IOException && !(ex is FileNotFoundException) && !(ex is DirectoryNotFoundException))
+                                           || ex is UnauthorizedAccessException)
+                {
+                    if (attempt >= FileAttempts) throw new IOException("could not " + what + ": " + ex.Message, ex);
+                    System.Threading.Thread.Sleep(attempt * FileRetryStepMs);
+                }
+            }
         }
 
         private static void WriteFlushed(string path, byte[] bytes)
@@ -481,5 +520,42 @@ namespace EarthGame.Server
 
         /// <summary>A file of the world folder by its name in the record, which uses forward slashes on every platform.</summary>
         private static string Full(string dir, string name) => Path.Combine(dir, name.Replace('/', Path.DirectorySeparatorChar));
+    }
+
+    /// <summary>
+    /// A world's save made and not yet written (M1.3c): the bytes of every file it puts in place and the names of those it
+    /// removes, taken from the world when it was made, so it can be written on a worker while the game steps on. A folder's
+    /// saves are written one at a time, in the order they were made: two writers at once would write aside over each other.
+    /// </summary>
+    public sealed class PreparedSave
+    {
+        private readonly string _dir;
+        private readonly List<KeyValuePair<string, byte[]>> _place;
+        private readonly List<string> _remove;
+        private bool _written;
+
+        internal PreparedSave(string dir, List<KeyValuePair<string, byte[]>> place, List<string> remove)
+        {
+            _dir = dir;
+            _place = place;
+            _remove = remove;
+        }
+
+        /// <summary>The world folder the save is written to.</summary>
+        public string Dir => _dir;
+
+        /// <summary>
+        /// Writes the save (M1.3b): every file beside its target as <c>.part</c>, each flushed to the disk; then the record of
+        /// what it puts in place and removes, <see cref="WorldSave.CommitFile"/>, beside itself, flushed and moved in whole; then
+        /// the files put in place and the files of cells that emptied removed; then the record removed. A crash before the
+        /// record is placed leaves the previous save untouched, and one after it a save <see cref="WorldSave.Recover"/> finishes.
+        /// A save is written once.
+        /// </summary>
+        public void Commit(Action<string> afterEachStep = null)
+        {
+            if (_written) throw new InvalidOperationException("this save of " + _dir + " is already written");
+            _written = true;
+            WorldSave.Commit(_dir, _place, _remove, afterEachStep);
+        }
     }
 }

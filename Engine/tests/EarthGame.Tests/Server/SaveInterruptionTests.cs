@@ -10,8 +10,10 @@ namespace EarthGame.Tests.Server
     /// <summary>
     /// A save survives its interruption (M1.3b promises 1 to 5): stopped after any one of its steps, the folder reads as the
     /// save before it or the save being made, whole, with nothing left over; a replacement cut short before the record is
-    /// placed leaves the save before; a record that names a damaged file is refused with the file's name; and a world whose
-    /// first save a crash stopped after its record is still a world.
+    /// placed leaves the save before; a record that names a damaged file is refused with the file's name; a world whose first
+    /// save a crash stopped after its record is still a world; a save made on the main thread and written behind it (M1.3c) is
+    /// the world as it stood when it was made, byte for byte the save written in place; and a file another program holds for a
+    /// moment is put in place once it is let go, where one held for good fails the save naming it, for the next load to finish.
     /// </summary>
     public sealed class SaveInterruptionTests
     {
@@ -167,6 +169,88 @@ namespace EarthGame.Tests.Server
             Assert.That(File.Exists(Path.Combine(folder, WorldSave.WorldFile)), Is.False, "the world file was never put in place");
             Assert.That(WorldSave.Exists(folder), Is.True, "and the folder is still a world, not one to make a new world over");
             Assert.That(ReadBack(folder), Is.EqualTo(Digest(w, players)), "which reads as the save that was being made");
+        }
+
+        [Test]
+        public void ASaveMadeBeforeTheWorldMovesOnIsTheWorldAsItStoodWhenItWasMade()
+        {
+            string then = Path.Combine(_dir, "then");
+            Story story = Tell(then);
+            string folder = Copy(then, "made");
+            PreparedSave save = WorldSave.Prepare(folder, story.World, story.Now, After);
+            story.World.SpawnItem(DefinitionCatalogue.Cobble, -100, 100);
+            story.World.Step(0.05);
+            Assert.That(Digest(story.World, story.Now), Is.Not.EqualTo(story.DigestNow), "the world moves on after the save is made");
+            save.Commit();
+            Assert.That(ReadBack(folder), Is.EqualTo(story.DigestNow), "and the save written after holds the world as it stood when it was made");
+        }
+
+        [Test]
+        public void ASaveWrittenBehindOnAWorkerIsTheSaveWrittenInPlace()
+        {
+            string then = Path.Combine(_dir, "then");
+            Story story = Tell(then);
+            string behind = Copy(then, "behind"), inPlace = Copy(then, "in-place");
+            PreparedSave save = WorldSave.Prepare(behind, story.World, story.Now, After);
+            System.Threading.Tasks.Task.Run(() => save.Commit()).Wait();
+            WorldSave.Write(inPlace, story.World, story.Now, After);
+
+            string[] files = Directory.GetFiles(inPlace, "*", SearchOption.AllDirectories);
+            Assert.That(Directory.GetFiles(behind, "*", SearchOption.AllDirectories).Length, Is.EqualTo(files.Length), "the same files");
+            foreach (string file in files)
+                Assert.That(File.ReadAllBytes(Path.Combine(behind, file.Substring(inPlace.Length + 1))), Is.EqualTo(File.ReadAllBytes(file)),
+                    "the same bytes: " + file.Substring(inPlace.Length + 1));
+            Assert.That(() => save.Commit(), Throws.TypeOf<InvalidOperationException>(), "and a save is written once");
+        }
+
+        [Test, Platform("Win", Reason = "Windows refuses to replace a file another program holds without leave to delete it")]
+        public void AFileHeldForAMomentIsPutInPlaceOnceItIsLetGo()
+        {
+            string then = Path.Combine(_dir, "then");
+            Story story = Tell(then);
+            string folder = Copy(then, "held");
+            System.Threading.ManualResetEventSlim recordPlaced = new System.Threading.ManualResetEventSlim();
+            System.Threading.Tasks.Task saving;
+            using (new FileStream(Full(folder, HeldCell), FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                saving = System.Threading.Tasks.Task.Run(() => WorldSave.Write(folder, story.World, story.Now, After, null, step =>
+                {
+                    if (step == "placed " + WorldSave.CommitFile) recordPlaced.Set();
+                }));
+                System.Threading.SpinWait.SpinUntil(() => recordPlaced.IsSet || saving.IsCompleted, TimeSpan.FromSeconds(30));
+                Assert.That(recordPlaced.IsSet, Is.True, "the save reaches the putting in place " + saving.Exception);
+                System.Threading.Thread.Sleep(100);
+                Assert.That(saving.IsCompleted, Is.False, "and waits while another program holds a file it replaces " + saving.Exception);
+            }
+            saving.Wait();
+            Assert.That(ReadBack(folder), Is.EqualTo(story.DigestNow), "and puts it in place once it is let go");
+            Assert.That(LeftOver(folder), Is.Empty);
+        }
+
+        [Test, Platform("Win", Reason = "Windows refuses to replace a file another program holds without leave to delete it")]
+        public void AFileHeldForGoodFailsTheSaveNamingItAndTheNextLoadFinishesIt()
+        {
+            string then = Path.Combine(_dir, "then");
+            Story story = Tell(then);
+            string folder = Copy(then, "held-for-good");
+            using (new FileStream(Full(folder, HeldCell), FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                Assert.That(() => WorldSave.Write(folder, story.World, story.Now, After),
+                    Throws.InstanceOf<IOException>().With.Message.Contains(HeldCell), "the save fails, naming the file it could not put in place");
+                Assert.That(File.Exists(Path.Combine(folder, WorldSave.CommitFile)), Is.True, "with its record placed");
+            }
+            Assert.That(ReadBack(folder), Is.EqualTo(story.DigestNow), "and once the file is let go the next load finishes the save");
+            Assert.That(LeftOver(folder), Is.Empty);
+        }
+
+        /// <summary>The file of the cell the cobble set down at (310, 305) lies in, which the story's save rewrites once the stick has left it.</summary>
+        private static string HeldCell => RegionFile.Folder + "/" + RegionFile.NameFor(RegionCells.IndexOf(310, Fixture.ExtentM), RegionCells.IndexOf(305, Fixture.ExtentM));
+
+        private static string Full(string folder, string name)
+        {
+            string path = Path.Combine(folder, name.Replace('/', Path.DirectorySeparatorChar));
+            Assert.That(File.Exists(path), Is.True, name + " is a file the save replaces");
+            return path;
         }
 
         private string ReadBack(string folder)
