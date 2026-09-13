@@ -633,8 +633,8 @@ namespace EarthGame.Server
         /// After every step: each session is told which of its entities died or left its interest (leaving takes
         /// InterestMarginM more than entering), then shown the ones that entered and the changes to those it holds,
         /// within its byte budget (ARCHITECTURE §7 rule 5); the stamps on the entity say what it has not seen, so
-        /// what the budget defers is sent later, not lost. A state that carries the item's rest goes reliably, since
-        /// nothing follows it.
+        /// what the budget defers is sent later, not lost. A state that carries an item's rest or an animal's pose goes
+        /// reliably, since nothing follows either to put a loss right (M1.7a).
         /// </summary>
         private void ReplicateEntities()
         {
@@ -680,7 +680,7 @@ namespace EarthGame.Server
                         WriteEntityState(e, fields);
                         if (_writer.Written.Length > budget) break;
                         budget -= _writer.Written.Length;
-                        session.Connection.Send(_writer.Written, (fields & EntityFields.Item) != 0 ? Delivery.Reliable : Delivery.Unreliable);
+                        session.Connection.Send(_writer.Written, (fields & (EntityFields.Item | EntityFields.Pose)) != 0 ? Delivery.Reliable : Delivery.Unreliable);
                         session.Interest[e.Id.Value] = World.Tick;
                     }
                     else

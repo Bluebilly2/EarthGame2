@@ -167,8 +167,11 @@ namespace EarthGame.Engine
                 Double3 at = new Double3(east, world.GroundAt(east, north), north);
                 if (world.Entities.TryGet(id, out Entity member))
                 {
-                    if (!member.Position.Equals(at)) member.Move(at, world.Tick);
-                    if (member.YawDeg != yaw) member.Turn(yaw, world.Tick);
+                    // Moved and turned every second even to where it already stands, so a move its viewers lost is put
+                    // right a second later instead of lasting while the animal stands still (a member held at its group's
+                    // own place by the water does); its pose is stamped only when it changes, and goes reliably.
+                    member.Move(at, world.Tick);
+                    member.Turn(yaw, world.Tick);
                     if (member.Animal.Pose != animal.Pose) member.SetAnimal(animal, world.Tick);
                 }
                 else world.Entities.StandUp(id, definition, at, yaw, animal, world.Tick);

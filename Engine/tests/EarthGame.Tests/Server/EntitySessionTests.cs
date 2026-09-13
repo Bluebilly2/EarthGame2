@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using EarthGame.ClientCore;
 using EarthGame.Engine;
@@ -54,12 +55,13 @@ namespace EarthGame.Tests.Server
             }
         }
 
-        private Rig Start(ServerConfig config, CapacitySquares capacity = null)
+        /// <param name="wrap">What the server is handed in place of the in-memory transport, which the clients still join.</param>
+        private Rig Start(ServerConfig config, CapacitySquares capacity = null, Func<IServerTransport, IServerTransport> wrap = null)
         {
             WorldState world = new WorldState(1347UL, Fixture, Fixture.WakeClock(), _ground, capacity: capacity);
             InMemoryTransport.CreatePair(out IServerTransport st, out IClientTransport ct);
             Rig rig = new Rig { ServerTransport = st };
-            rig.Server = new GameServer(config, st, world);
+            rig.Server = new GameServer(config, wrap != null ? wrap(st) : st, world);
             rig.Server.Listen(1);
             return rig;
         }
@@ -191,11 +193,11 @@ namespace EarthGame.Tests.Server
         }
 
         /// <summary>The kangaroo and the oystercatcher fed alike over the made coast, as a world folder's capacity layers would feed them.</summary>
-        private static CapacitySquares Fed()
+        private static CapacitySquares Fed(float rooPerKm2 = 30f, float birdPerKm2 = 10f)
         {
             CapacitySquares capacity = new CapacitySquares(TestRasters.MadeExtentM);
-            capacity.Add(AnimalSpecies.EasternGreyKangaroo, TestRasters.FromLaw(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "capacity_roo", (row, col) => 30f, CapacitySquares.Unit));
-            capacity.Add(AnimalSpecies.PiedOystercatcher, TestRasters.FromLaw(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "capacity_bird", (row, col) => 10f, CapacitySquares.Unit));
+            capacity.Add(AnimalSpecies.EasternGreyKangaroo, TestRasters.FromLaw(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "capacity_roo", (row, col) => rooPerKm2, CapacitySquares.Unit));
+            capacity.Add(AnimalSpecies.PiedOystercatcher, TestRasters.FromLaw(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "capacity_bird", (row, col) => birdPerKm2, CapacitySquares.Unit));
             return capacity;
         }
 
@@ -238,6 +240,43 @@ namespace EarthGame.Tests.Server
             Assert.That(rig.A.Entities.Count, Is.EqualTo(animals.Count));
             Assert.That(rig.A.Entities.Digest(), Is.EqualTo(rig.Server.EntityDigest(Session(rig, "A"))));
             Assert.That(rig.A.CorrectionCount, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void AnAnimalsChangeOfPoseArrivesThoughEveryUnreliableMessageIsLost()
+        {
+            DeliveryRecorder link = null;
+            Rig rig = Start(new ServerConfig(), Fed(rooPerKm2: 100f), inner => link = new DeliveryRecorder(inner));
+            WorldState world = rig.Server.World;
+            // A tenth of an hour of the world's time before the kangaroos get up for the evening: seven and a half seconds
+            // of the host's, which the join and the first stand-ups take less of.
+            SolarClock sun = SolarClock.ForRegion(world.Region, world.Clock);
+            double up = 12.0;
+            while (up < 24.0 && AnimalPresence.Activity01(AnimalSpecies.EasternGreyKangaroo, up, sun.DaylightHours) < AnimalStandUp.GrazingActivity) up += 0.001;
+            world.Clock.Advance((up - 0.1 - sun.HourOfDay) / 24.0 * WorldClock.RealSecondsPerDay);
+            rig.Server.RememberPlayers(new[] { At("A", 300, -300) });
+            link.LoseUnreliable = true;
+            rig.A = rig.Join("A");
+            rig.Pump(60);
+            Definition kangaroo = DefinitionCatalogue.AnimalOf(AnimalSpecies.EasternGreyKangaroo);
+            List<ulong> lyingUp = new List<ulong>();
+            foreach (EntityView v in rig.A.Entities.Views.Values)
+                if (v.Definition == kangaroo && v.Animal.Pose == AnimalPose.Resting) lyingUp.Add(v.Id.Value);
+            Assert.That(rig.A.State, Is.EqualTo(ClientState.Connected));
+            Assert.That(lyingUp.Count, Is.GreaterThan(0), "kangaroos lying up in the afternoon, and shown so");
+
+            rig.Pump(200);
+            int gotUp = 0;
+            foreach (EntityView v in rig.A.Entities.Views.Values)
+            {
+                Assert.That(world.Entities.TryGet(v.Id.Value, out Entity e), Is.True, "the mirror holds only what stands: " + v.Id);
+                Assert.That(v.Animal.Pose, Is.EqualTo(e.Animal.Pose), "each shown in the pose the server holds: " + v.Id);
+                if (lyingUp.Contains(v.Id.Value) && e.Animal.Pose == AnimalPose.Grazing) gotUp++;
+            }
+            Assert.That(gotUp, Is.GreaterThan(0), "kangaroos got up while the client watched");
+            Assert.That(link.Sent.Exists(s => s.Lost), Is.True, "while every unreliable message was lost");
+            Assert.That(link.Sent.Exists(s => s.Payload[0] == (byte)MessageKind.EntityState && (s.Payload[17] & (byte)EntityFields.Pose) != 0 && s.Delivery == Delivery.Reliable),
+                Is.True, "because the states that carried the change went reliably");
         }
     }
 }

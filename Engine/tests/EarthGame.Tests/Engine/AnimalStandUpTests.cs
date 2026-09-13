@@ -249,6 +249,26 @@ namespace EarthGame.Tests.Engine
         }
 
         [Test]
+        public void AStandingAnimalIsMovedEverySecondEvenToWhereItAlreadyStands()
+        {
+            // The world's clock held still, so presence puts every group where it was a step before: a move a viewer lost
+            // is put right only if the stand-up moves each animal all the same.
+            WorldState world = World(7.5);
+            world.InterestPoints.Add(new Double3(0.0, 0.0, 0.0));
+            world.Step(0.0);
+            Assert.That(world.Entities.Transient.Count, Is.GreaterThan(0));
+            Dictionary<ulong, Double3> first = new Dictionary<ulong, Double3>();
+            foreach (Entity e in world.Entities.Transient) first[e.Id.Value] = e.Position;
+            world.Step(0.0);
+            foreach (Entity e in world.Entities.Transient)
+            {
+                Assert.That(e.Position.Equals(first[e.Id.Value]), Is.True, "with the clock held, it stands where it stood: " + e.Id);
+                Assert.That(e.PositionTick, Is.EqualTo(1L), "and is moved there all the same, stamped with this step: " + e.Id);
+                Assert.That(e.ChangedSince(1) & EntityFields.Position, Is.EqualTo(EntityFields.Position));
+            }
+        }
+
+        [Test]
         public void NoneStandWithoutAFounderOrTheWorldsCapacity()
         {
             WorldState bare = new WorldState(Seed, Plain, Plain.WakeClock());

@@ -140,7 +140,9 @@ other's way:
   Tools/world/stream.py --build`. The corpus: `python Tools/corpus/run.py` (`--quick` for a smoke test; about 75
   minutes in full, with the host built Release and a player built with `--player`); it creates its own world
   first and gives every scenario a copy; when the wake moves, `python Tools/corpus/lay_loop.py --write` lays its
-  loop again, and the player is rebuilt.
+  loop again, and the player is rebuilt. It points `Artefacts/corpus/latest`, which the gates read, at whichever run it
+  wrote, a quick one included: a smoke run after a full one goes in a folder of its own (`--out
+  Artefacts/corpus-postfix/<name>`), or the gate reads the smoke run (2026-09-13).
 - `Data/` is fetched, never committed: `python Tools/data/bake_region.py --zoom 14 --cell-m 4` for the heights,
   `python Tools/data/bake_water.py` for the OpenStreetMap outlines, `python Tools/data/fetch_ala.py` for the plants' records. `Artefacts/`, `Saves/`, `Build/` and logs are
   ignored by git.
