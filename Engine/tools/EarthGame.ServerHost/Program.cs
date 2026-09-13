@@ -200,7 +200,9 @@ namespace EarthGame.ServerHost
             while (running)
             {
                 double now = seconds();
+                long before = world.Tick;
                 server.Update(now - last, seconds);
+                instruments.Updated(before, world.Tick, seconds() - now);
                 last = now;
                 instruments.Tick(now);
                 if (stopAfter > 0 && now >= stopAfter)
@@ -274,7 +276,8 @@ namespace EarthGame.ServerHost
 
         /// <summary>
         /// What the host measures and writes: per tick the bodies digests (buffered into a line per session per
-        /// second), per second the bandwidth per session and the process memory, per minute the tick window.
+        /// second), per second the bandwidth per session and the process memory, every ten seconds the animals held
+        /// (M1.7a), per minute the tick window with the updates that stood animals up kept apart.
         /// Every record's tick is the world's tick at the moment of writing.
         /// </summary>
         private sealed class Instruments
@@ -292,11 +295,19 @@ namespace EarthGame.ServerHost
             private double _nextMinute = 60.0;
             private long _tilesServedBefore;
 
+            /// <summary>How often the animals held are written, seconds (M1.7a).</summary>
+            private const double FaunaEverySeconds = 10.0;
+            private double _nextFauna = FaunaEverySeconds;
+            private readonly TickStats _standUpUpdates;
+            private readonly TickStats _otherUpdates;
+
             public Instruments(GameServer server, RunLog log, Stopwatch clock)
             {
                 _server = server;
                 _log = log;
                 _clock = clock;
+                _standUpUpdates = new TickStats(1.0 / server.Config.TickRate);
+                _otherUpdates = new TickStats(1.0 / server.Config.TickRate);
             }
 
             private double T => _clock.Elapsed.TotalSeconds;
@@ -354,6 +365,47 @@ namespace EarthGame.ServerHost
                 }
             }
 
+            /// <summary>
+            /// After every host update: its cost by the host's clock, kept apart for the updates whose steps stood the animals
+            /// up (M1.7a), so the minute's record says what standing them up costs an update. An update that released no step
+            /// is neither.
+            /// </summary>
+            public void Updated(long tickBefore, long tickAfter, double seconds)
+            {
+                if (_log == null || tickAfter <= tickBefore) return;
+                double step = 1.0 / _server.Config.TickRate;
+                bool stoodUp = false;
+                for (long t = tickBefore; t < tickAfter && !stoodUp; t++) stoodUp = AnimalStandUp.RefreshesAt(t, step);
+                (stoodUp ? _standUpUpdates : _otherUpdates).Record(seconds);
+            }
+
+            /// <summary>
+            /// Every ten seconds (M1.7a): the founders the animals are stood up round, and every animal held by its id, its
+            /// definition's key, where it stands and its pose, for fauna_check to hold against the world folder's layers.
+            /// </summary>
+            private void FaunaRecord()
+            {
+                WorldState world = _server.World;
+                List<object> founders = new List<object>();
+                foreach (Double3 p in world.InterestPoints)
+                {
+                    founders.Add(p.X);
+                    founders.Add(p.Z);
+                }
+                List<object> ids = new List<object>(), keys = new List<object>(), positions = new List<object>(), poses = new List<object>();
+                foreach (Entity e in world.Entities.Transient)
+                {
+                    ids.Add(e.Id.Value);
+                    keys.Add(e.Definition.Key);
+                    positions.Add(e.Position.X);
+                    positions.Add(e.Position.Y);
+                    positions.Add(e.Position.Z);
+                    poses.Add((int)e.Animal.Pose);
+                }
+                _log.Record(T, world.Tick, "fauna", new JsonObject().With("count", ids.Count).With("founders", founders)
+                    .With("ids", ids).With("keys", keys).With("positions", positions).With("poses", poses));
+            }
+
             public void Tick(double now)
             {
                 if (_log == null) return;
@@ -380,8 +432,14 @@ namespace EarthGame.ServerHost
                     _log.Record(T, tick, "memory", new JsonObject()
                         .With("heap_bytes", GC.GetTotalMemory(false)).With("working_set_bytes", WorkingSet())
                         .With("players", _server.Sessions.Count).With("tiles_served_bytes", tilesServed - _tilesServedBefore)
-                        .With("dropped_seconds", _server.DroppedSeconds).With("digest", _server.Digest()));
+                        .With("dropped_seconds", _server.DroppedSeconds).With("digest", _server.Digest())
+                        .With("animals", _server.World.Entities.Transient.Count));
                     _tilesServedBefore = tilesServed;
+                }
+                if (now >= _nextFauna)
+                {
+                    _nextFauna += FaunaEverySeconds;
+                    FaunaRecord();
                 }
                 if (now >= _nextMinute)
                 {
@@ -394,9 +452,12 @@ namespace EarthGame.ServerHost
             private void TickWindowRecord()
             {
                 TickWindow w = _server.Ticks.Snapshot();
+                TickWindow up = _standUpUpdates.Snapshot(), other = _otherUpdates.Snapshot();
                 _log.Record(T, _server.World.Tick, "ticks", new JsonObject().With("count", w.Count).With("over_interval", w.OverInterval)
                     .With("max_ms", w.MaxSeconds * 1000.0).With("mean_ms", w.MeanSeconds * 1000.0).With("p95_ms", w.P95Seconds * 1000.0)
-                    .With("heap_collected_bytes", GC.GetTotalMemory(true)).With("working_set_bytes", WorkingSet()));
+                    .With("heap_collected_bytes", GC.GetTotalMemory(true)).With("working_set_bytes", WorkingSet())
+                    .With("stand_up_updates", up.Count).With("stand_up_mean_ms", up.MeanSeconds * 1000.0).With("stand_up_p95_ms", up.P95Seconds * 1000.0)
+                    .With("other_updates", other.Count).With("other_mean_ms", other.MeanSeconds * 1000.0).With("other_p95_ms", other.P95Seconds * 1000.0));
             }
 
             private void Flush(uint sessionId)

@@ -30,13 +30,15 @@ What each row uses:
       'mirror' samples (once the mirror holds two states, so the delay has something to interpolate between;
       the first sample after a join holds one) within 0.5 m of the server's interpolated position in >= 99 %
       and 2.0 m in all; each
-      two clients' 'sample'.remotes are equal in >= 99 % of the wall-clock seconds both were interactive (their
-      headers' started_utc plus t) and never unequal for more than 2 consecutive seconds;
+      two clients' 'sample'.entities_shared (since M1.7a the entities each holds inside its own and the other player's
+      interest radius; before it the row compared 'remotes', the other players each held) are equal in >= 99 % of the
+      server's seconds both were interactive (a sample's tick less one, over the server header's tick_rate) and never
+      unequal for more than 2 consecutive seconds, and a soak whose interactive samples do not carry the field fails the
+      row;
       sum(over_interval)/sum(count) of 'ticks' <= 0.001 with max p95_ms <= 5;
       server 'bandwidth'.sent averaged over seconds later than 15 s after the session's 'join' <= 20480 B/s.
 """
 import argparse
-import datetime
 import json
 import math
 import os
@@ -56,8 +58,8 @@ N4_HEAP_RATIO = 1.2
 N4_MIRROR_NEAR_M = 0.5
 N4_MIRROR_NEAR_FRACTION = 0.99
 N4_MIRROR_FAR_M = 2.0
-N4_REMOTES_FRACTION = 0.99
-N4_REMOTES_MAX_DIVERGE_S = 2
+N4_ENTITIES_FRACTION = 0.99
+N4_ENTITIES_MAX_DIVERGE_S = 2
 N4_TICK_OVER_FRACTION = 0.001
 N4_TICK_P95_MS = 5.0
 N4_BANDWIDTH_BYTES_PER_SECOND = 20 * 1024
@@ -254,16 +256,6 @@ def interpolate(table, at_tick):
     return None
 
 
-def wall_seconds(started_utc):
-    """A header's started_utc as seconds since the epoch, or None when it is absent or unreadable."""
-    if not started_utc:
-        return None
-    try:
-        return datetime.datetime.strptime(started_utc, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc).timestamp()
-    except ValueError:
-        return None
-
-
 def check_n4(corpus, rows):
     sheader, srecords = load(corpus, "soak", "server")
     aheader, arecords = load(corpus, "soak", "A")
@@ -325,15 +317,28 @@ def check_n4(corpus, rows):
             rows.row(name, fraction >= N4_MIRROR_NEAR_FRACTION and far == 0,
                      "%.2f%% of %d samples within 0.5 m (>= 99%%), %d beyond 2.0 m (must be 0), %d unmeasured, %d before the mirror held two states" % (100.0 * fraction, measured, far, unmeasured, unestablished))
 
-    # The remote counts, compared second by second on the wall clock while both clients were interactive.
+    # The entity counts inside the shared interest radius (M1.7a), compared second by second of the server's clock while
+    # both clients were interactive. A sample belongs to the server second of the newest tick its client had heard, less
+    # one: an update stamps what it sends with the tick after its last step, and the animals are stood up on the steps
+    # whose tick is a whole number of seconds, so every sample of one server second has heard that second's stand-up and
+    # neither client can be caught either side of it. Until M1.7a the counts were paired on the wall clock, from start
+    # times written to the whole second; nothing came into or left the radius then, and once animals did, a change parted
+    # the two clients whenever it fell in the second their clocks disagreed on (the quick soak of 2026-09-13: 3 of 86
+    # seconds). A sample without the field is counted, so a soak from before M1.7a fails the row rather than passing on
+    # the players it used to compare; the last sample of a server second stands for it.
+    tick_rate = int(sheader.get("tick_rate") or 0)
     by_second = {}
-    for who, header in (("A", aheader), ("B", bheader)):
-        started = wall_seconds(header.get("started_utc"))
+    unfielded = 0
+    for who in ("A", "B"):
         table = {}
-        if started is not None:
-            for smp in kinds(clients[who], "sample"):
-                if smp.get("interactive"):
-                    table[int(started + float(smp["t"]))] = int(smp.get("remotes", 0))
+        for smp in kinds(clients[who], "sample"):
+            if not smp.get("interactive"):
+                continue
+            if "entities_shared" not in smp:
+                unfielded += 1
+                continue
+            if tick_rate > 0 and int(smp.get("tick", -1)) >= 1:
+                table[(int(smp["tick"]) - 1) // tick_rate] = int(smp["entities_shared"])
         by_second[who] = table
     shared = sorted(set(by_second["A"]) & set(by_second["B"]))
     equal = sum(1 for sec in shared if by_second["A"][sec] == by_second["B"][sec])
@@ -344,12 +349,18 @@ def check_n4(corpus, rows):
         run = run + 1 if unequal and previous is not None and sec == previous + 1 else (1 if unequal else 0)
         longest = max(longest, run)
         previous = sec
-    name = "N4 remote counts equal"
-    if not shared:
-        rows.row(name, False, "no wall-clock second with both clients interactive (started_utc missing, or the runs never overlapped)")
+    name = "N4 entity counts equal"
+    if unfielded:
+        rows.row(name, False, "%d interactive sample(s) carry no entities_shared (a soak from before M1.7a)" % unfielded)
+    elif tick_rate <= 0:
+        rows.row(name, False, "the soak server's header carries no tick_rate, so no sample can be given its server second")
+    elif not shared:
+        rows.row(name, False, "no server second with both clients interactive (the runs never overlapped)")
     else:
-        rows.row(name, equal / len(shared) >= N4_REMOTES_FRACTION and longest <= N4_REMOTES_MAX_DIVERGE_S,
-                 "%.2f%% of %d shared seconds agree (>= 99%%), longest disagreement %d s <= 2 s" % (100.0 * equal / len(shared), len(shared), longest))
+        most = max(max(by_second["A"][sec], by_second["B"][sec]) for sec in shared)
+        rows.row(name, equal / len(shared) >= N4_ENTITIES_FRACTION and longest <= N4_ENTITIES_MAX_DIVERGE_S,
+                 "%.2f%% of %d shared server seconds agree (>= 99%%), longest disagreement %d s <= 2 s; at most %d entities shared"
+                 % (100.0 * equal / len(shared), len(shared), longest, most))
 
     if windows:
         count = sum(int(w["count"]) for w in windows)

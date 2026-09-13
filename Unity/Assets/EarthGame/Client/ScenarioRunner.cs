@@ -215,7 +215,7 @@ namespace EarthGame.Client
             MoverState s = _player.State;
             _log.Record(t, Tick, "sample", new JsonObject().With("east", s.East).With("up", s.Up).With("north", s.North)
                 .With("grounded", s.Grounded).With("wading", s.Wading).With("speed", s.HorizontalSpeed).With("segment", _segment)
-                .With("remotes", c.Mirrors.Count).With("rtt_ms", c.LastRttMs).With("bytes_sent", c.BytesSent).With("bytes_received", c.BytesReceived)
+                .With("remotes", c.Mirrors.Count).With("entities_shared", SharedEntities(c, s)).With("rtt_ms", c.LastRttMs).With("bytes_sent", c.BytesSent).With("bytes_received", c.BytesReceived)
                 .With("corrections", _corrections).With("interactive", _runtime.Interactive).With("connection", _runtime.Joins)
                 .With("fps", Time.unscaledDeltaTime > 0f ? 1.0 / Time.unscaledDeltaTime : 0.0));
             long nowMs = (long)(Time.realtimeSinceStartupAsDouble * 1000.0);
@@ -231,6 +231,36 @@ namespace EarthGame.Client
                     .With("at_tick", sampled ? m.AtTick : (double)latest.ServerTick).With("interpolated", sampled && m.Interpolated)
                     .With("estimated_tick", c.EstimatedServerTick(nowMs)).With("states_held", pair.Value.Count));
             }
+        }
+
+        /// <summary>
+        /// How many of the entities this client holds lie inside its founder's interest radius and inside every other
+        /// player's it holds (M1.7a): what N4 asks both clients to agree on, by the radius the server's Welcome states, each
+        /// other player where their newest state puts them. With no other player held, the ones inside the founder's own.
+        /// </summary>
+        private static int SharedEntities(GameClient c, MoverState self)
+        {
+            double r2 = c.Welcome.InterestRadiusM * c.Welcome.InterestRadiusM;
+            int shared = 0;
+            foreach (EntityView v in c.Entities.Views.Values)
+            {
+                if (!InsideRadius(v.Position, self.East, self.North, r2)) continue;
+                bool everyone = true;
+                foreach (RemoteMirror m in c.Mirrors.Values)
+                    if (m.Count > 0 && !InsideRadius(v.Position, m.Latest.Body.East, m.Latest.Body.North, r2))
+                    {
+                        everyone = false;
+                        break;
+                    }
+                if (everyone) shared++;
+            }
+            return shared;
+        }
+
+        private static bool InsideRadius(Double3 at, double east, double north, double r2)
+        {
+            double dx = at.X - east, dz = at.Z - north;
+            return dx * dx + dz * dz <= r2;
         }
 
         private void Finish(int exitCode)

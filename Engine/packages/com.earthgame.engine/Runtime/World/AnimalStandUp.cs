@@ -60,11 +60,20 @@ namespace EarthGame.Engine
 
         public string Name => "animal stand-up";
 
-        /// <summary>Refreshes the animals on the first step of each second: on the ticks the step length divides a second into.</summary>
+        /// <summary>Refreshes the animals on the first step of each second.</summary>
         public void Step(WorldState world, double dt)
         {
-            long every = dt > 0.0 ? Math.Max(1L, (long)Math.Round(EverySeconds / dt)) : 1L;
-            if (world.Tick % every == 0) Refresh(world);
+            if (RefreshesAt(world.Tick, dt)) Refresh(world);
+        }
+
+        /// <summary>
+        /// Whether the step of a tick refreshes the animals, for steps of a length: on the ticks the step length divides a
+        /// second into. A host timing its updates asks it to tell the ones that stood animals up.
+        /// </summary>
+        public static bool RefreshesAt(long tick, double stepSeconds)
+        {
+            long every = stepSeconds > 0.0 ? Math.Max(1L, (long)Math.Round(EverySeconds / stepSeconds)) : 1L;
+            return tick % every == 0;
         }
 
         /// <summary>

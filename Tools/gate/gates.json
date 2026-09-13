@@ -1031,6 +1031,62 @@
         "tile_check"
       ],
       "owner_decides": "whether the country reads as forested to the horizon, in the frames at the four vantages"
+    },
+    "M1.7a": {
+      "steps": [
+        {
+          "name": "dotnet test",
+          "cmd": [
+            "dotnet",
+            "test",
+            "Engine/EarthGame.slnx",
+            "-c",
+            "Debug",
+            "--nologo"
+          ]
+        },
+        {
+          "name": "Unity-layer compile",
+          "cmd": [
+            "dotnet",
+            "build",
+            "Engine/EarthGame.Unity.Compile.csproj",
+            "-c",
+            "Debug",
+            "--nologo",
+            "-v",
+            "minimal"
+          ]
+        },
+        {
+          "name": "Unity edit-mode tests",
+          "cmd": [
+            "python",
+            "Tools/unity/editmode.py"
+          ]
+        },
+        {
+          "name": "join_check on the latest corpus, run with animals stood up round both players, N4's count row reading the entities they share",
+          "cmd": [
+            "python",
+            "Tools/verifiers/checks/join_check.py",
+            "Artefacts/corpus/latest"
+          ]
+        },
+        {
+          "name": "fauna_check on the soak of the latest corpus, the animals its host logged held against the world's layers",
+          "cmd": [
+            "python",
+            "Tools/verifiers/checks/fauna_check.py",
+            "Artefacts/corpus/latest"
+          ]
+        }
+      ],
+      "verifiers": [
+        "join_check",
+        "fauna_check"
+      ],
+      "owner_decides": "nothing to see or feel yet, since nothing is drawn; how the animals will look (made in code, or bought) before M1.7b draws them"
     }
   }
 }

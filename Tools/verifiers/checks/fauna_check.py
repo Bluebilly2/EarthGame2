@@ -1,0 +1,265 @@
+#!/usr/bin/env python3
+"""fauna_check.py: do the animals the server stood up round the founders stand where the world can hold them, and are
+there as many as its capacity layers say?
+
+The M1.7a contract (`Docs/contracts/M1.7a_ANIMALS_IN_THE_WORLD.md`) promises that the server stands up the kangaroo mobs
+and oystercatcher pairs presence puts within 500 m of a founder, never on the water, each kind on the ground that feeds
+it. This check reads what the server host wrote about them, the `fauna` records of its run.jsonl (every ten seconds: the
+founders, and every animal's id, key, place and pose; ARCHITECTURE section 10), and holds each against the world
+folder's own layers, read with numpy by the layouts their sidecars state. It imports nothing the game runs.
+
+Rows, each with both numbers:
+  1. animals stood up: fauna records were written, and animals stood round the founders in them;
+  2. none on open water: no animal on a cell the water layer calls a creek, a stream, a lake or the sea;
+  3. none under the water's surface: no animal between posts where the surface layer stands above the heights layer;
+  4. every oystercatcher on the shore strip: its cell's distance to the sea within the tideline's reach, widened by what
+     can carry a bird from the ground that feeds it (a square's diagonal, the wander, the pair's spread, half a cell);
+  5. every kangaroo within reach of fresh water: its cell's distance to fresh water within the kind's range, widened the
+     same way;
+  6. and 7. for each kind, the groups that stood against what the capacity layers put there. Over the squares that lay,
+     at some record, wholly within 450 m of a founder (the 500 m of the stand-up, less the 40 m wander, less what a
+     founder and a group move in the second since the last stand-up) and wholly inside the region: the groups seen,
+     against the sum over those squares of each square's chance of holding one (its mean capacity, in groups, over its
+     area, as presence draws a square) times the share of the square that is dry (a group whose own place is wet is not
+     stood up). The row passes within three standard deviations of that Bernoulli sum, and one group.
+
+What is restated here, and from where. The kinds' group sizes, from the species table (`Docs/ECOSYSTEM.md`, "The
+animals of Bherwerre": mobs of eight, pairs); the kangaroo's 4,000 m from fresh water (`AnimalSpecies.WaterRangeM`) and
+the tideline's 300 m (`AnimalCapacity.TidelineReachM`), past which their capacity is nothing; presence's 100 m squares
+and 40 m wander and the stand-up's 500 m, from the contract and ARCHITECTURE section 5; a member's spread, five metres
+times the root of its group's size, as the stand-up states it (a looseness, not a citation); and an animal's id's layout,
+from ARCHITECTURE section 10.
+
+Independent of the game: the squares' means are summed over the whole raster at once with numpy's bincount, every cell
+into the one square its centre lies in, where the game adds a layer cell by cell; the dry share of a square is counted
+from the water and surface layers, which the game never counts; the expectation is a Bernoulli sum the game never
+forms; and every place comes from the host's log, never from presence.
+
+Exit 0 when every row passes, 1 when any fails, 2 when the log or a layer is missing.
+Run from the repository root:
+    python Tools/verifiers/checks/fauna_check.py [corpus folder, or a server folder holding run.jsonl and world]
+(default Artefacts/corpus/latest, whose soak/server/run.jsonl and soak/server/world are read.)
+"""
+import json
+import math
+import os
+import sys
+
+import numpy as np
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+DEFAULT_CORPUS = os.path.join("Artefacts", "corpus", "latest")
+NP_DTYPES = {"u8": "u1", "u16": "<u2", "i16": "<i2", "u32": "<u4", "f32": "<f4"}
+
+# The kinds stood up, by the kind field of an animal's id: the species table's order, counting from one.
+KANGAROO, OYSTERCATCHER = 1, 2
+KINDS = (KANGAROO, OYSTERCATCHER)
+NAMES = {KANGAROO: "kangaroo", OYSTERCATCHER: "oystercatcher"}
+GROUP_SIZE = {KANGAROO: 8, OYSTERCATCHER: 2}
+CAPACITY_LAYER = {KANGAROO: "capacity_easterngreykangaroo", OYSTERCATCHER: "capacity_piedoystercatcher"}
+FRESH_WATER_RANGE_M = 4000.0
+TIDELINE_REACH_M = 300.0
+# Presence and the stand-up.
+SQUARE_M = 100.0
+SQUARE_KM2 = 0.01
+WANDER_M = 40.0
+MEMBER_SPACING_M = 5.0
+WHOLLY_WITHIN_M = 450.0
+SIGMAS = 3.0
+# The water layer's codes for open water, as its legend states them: creek, stream, lake, sea.
+OPEN_WATER = (3, 4, 5, 7)
+
+
+class Rows:
+    def __init__(self):
+        self.failed = 0
+
+    def row(self, name, ok, detail):
+        if not ok:
+            self.failed += 1
+        print("%-48s %s  %s" % (name, "PASS" if ok else "FAIL", detail))
+
+
+def layer(world, name):
+    path = os.path.join(world, "layers", name + ".json")
+    if not os.path.isfile(path):
+        return None, None
+    sidecar = json.load(open(path, encoding="utf-8"))
+    raw = os.path.join(os.path.dirname(path), sidecar["raw"])
+    return sidecar, np.fromfile(raw, dtype=NP_DTYPES[sidecar["dtype"]]).reshape(sidecar["height"], sidecar["width"])
+
+
+def in_unit(sidecar, grid):
+    """A layer's values in its unit: the raw numbers times the sidecar's scale."""
+    return grid.astype(np.float64) * float(sidecar.get("scale", 1.0))
+
+
+def fauna_records(path):
+    records = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                record = json.loads(line)
+                if record.get("kind") == "fauna":
+                    records.append(record)
+    return records
+
+
+def decode(animal_id):
+    """(kind, square east, square north, member) from an id of the reserved range, or None for an id outside it."""
+    if not (animal_id >> 63) & 1:
+        return None
+    return ((animal_id >> 56) & 0x7F, ((animal_id >> 32) & 0xFFFFFF) - (1 << 23), ((animal_id >> 8) & 0xFFFFFF) - (1 << 23), animal_id & 0xFF)
+
+
+def nearest_cell(sidecar, east, north):
+    """The cell whose centre is nearest a point: column 0 at the west edge, row 0 at the north, clamped to the grid."""
+    half, cell = sidecar["extent_m"] / 2.0, sidecar["cell_m"]
+    col = int(min(max(round((east + half) / cell), 0), sidecar["width"] - 1))
+    row = int(min(max(round((half - north) / cell), 0), sidecar["height"] - 1))
+    return row, col
+
+
+def posts_between(sidecar, east, north):
+    """The posts a point lies between that carry a share of a bilinear reading there; a post on a line of posts carries all of it."""
+    half, cell = sidecar["extent_m"] / 2.0, sidecar["cell_m"]
+    max_col, max_row = sidecar["width"] - 1, sidecar["height"] - 1
+    col = min(max((east + half) / cell, 0.0), float(max_col))
+    row = min(max((half - north) / cell, 0.0), float(max_row))
+    c0 = min(int(math.floor(col)), max_col - 1)
+    r0 = min(int(math.floor(row)), max_row - 1)
+    tc, tr = col - c0, row - r0
+    return [(r, c) for r, share_r in ((r0, 1.0 - tr), (r0 + 1, tr)) for c, share_c in ((c0, 1.0 - tc), (c0 + 1, tc))
+            if share_r > 0.0 and share_c > 0.0]
+
+
+def squares_of(sidecar):
+    """Each column's square east and each row's square north, by the cell's centre."""
+    half, cell = sidecar["extent_m"] / 2.0, sidecar["cell_m"]
+    east = np.arange(sidecar["width"], dtype=np.float64) * cell - half
+    north = half - np.arange(sidecar["height"], dtype=np.float64) * cell
+    return np.floor(east / SQUARE_M).astype(np.int64), np.floor(north / SQUARE_M).astype(np.int64)
+
+
+def main(argv):
+    target = argv[1] if len(argv) > 1 else DEFAULT_CORPUS
+    base = os.path.normpath(target if os.path.isabs(target) else os.path.join(ROOT, target))
+    server = os.path.join(base, "soak", "server")
+    if not os.path.isfile(os.path.join(server, "run.jsonl")):
+        server = base
+    log_path, world = os.path.join(server, "run.jsonl"), os.path.join(server, "world")
+    if not os.path.isfile(log_path):
+        print("no server log at %s" % log_path)
+        return 2
+    wanted = ["water", "surface", "heights", "shore_distance", "fresh_water_distance"] + [CAPACITY_LAYER[k] for k in KINDS]
+    layers = {}
+    for name in wanted:
+        sidecar, grid = layer(world, name)
+        if grid is None:
+            print("the world at %s has no %s layer; %s are needed" % (world, name, ", ".join(wanted)))
+            return 2
+        layers[name] = (sidecar, grid)
+    grid_side, heights = layers["heights"]
+    for name in wanted:
+        s = layers[name][0]
+        if (s["width"], s["height"], s["cell_m"], s["extent_m"]) != (grid_side["width"], grid_side["height"], grid_side["cell_m"], grid_side["extent_m"]):
+            print("the %s layer is not on the heights layer's grid" % name)
+            return 2
+    water = layers["water"][1]
+    surface = layers["surface"][1]
+    half = grid_side["extent_m"] / 2.0
+    half_cell_diagonal = grid_side["cell_m"] * math.sqrt(2.0) / 2.0
+
+    print("fauna_check: %s against %s" % (log_path, world))
+    records = fauna_records(log_path)
+    rows = Rows()
+
+    # Every place logged, with what it is.
+    animals = []
+    malformed = 0
+    for record in records:
+        ids, positions = record.get("ids", []), record.get("positions", [])
+        if len(positions) != 3 * len(ids) or len(record.get("founders", [])) % 2:
+            malformed += 1
+            continue
+        for i, animal_id in enumerate(ids):
+            animals.append((decode(int(animal_id)), float(positions[3 * i]), float(positions[3 * i + 2])))
+    most = max((len(r.get("ids", [])) for r in records), default=0)
+    outside = sum(1 for a in animals if a[0] is None or a[0][0] not in KINDS)
+    rows.row("animals stood up round the founders", len(records) > 0 and most > 0 and malformed == 0 and outside == 0,
+             "%d fauna records, at most %d animals held at once (must be above 0); %d malformed record(s), %d id(s) not of a kind stood up (must be 0)"
+             % (len(records), most, malformed, outside))
+    animals = [a for a in animals if a[0] is not None and a[0][0] in KINDS]
+
+    on_open = sum(1 for _, east, north in animals if int(water[nearest_cell(grid_side, east, north)]) in OPEN_WATER)
+    rows.row("none on open water", on_open == 0,
+             "%d of %d places logged on a creek, a stream, a lake or the sea (must be 0)" % (on_open, len(animals)))
+
+    under = sum(1 for _, east, north in animals
+                if any(float(surface[p]) > float(heights[p]) for p in posts_between(grid_side, east, north)))
+    rows.row("none under the water's surface", under == 0,
+             "%d of %d places logged between posts under the water (must be 0)" % (under, len(animals)))
+
+    for kind, name, reach, ground, what in ((OYSTERCATCHER, "every oystercatcher on the shore strip", TIDELINE_REACH_M, "shore_distance", "the sea"),
+                                            (KANGAROO, "every kangaroo within reach of fresh water", FRESH_WATER_RANGE_M, "fresh_water_distance", "fresh water")):
+        side, distances = layers[ground]
+        bound = reach + SQUARE_M * math.sqrt(2.0) + WANDER_M + MEMBER_SPACING_M * math.sqrt(GROUP_SIZE[kind]) + half_cell_diagonal
+        found = [float(distances[nearest_cell(side, east, north)]) * float(side.get("scale", 1.0)) for d, east, north in animals if d[0] == kind]
+        beyond = sum(1 for m in found if m > bound)
+        rows.row(name, beyond == 0,
+                 "%d of %d places logged farther than %.0f m from %s (%.0f m of reach, widened); the farthest %s"
+                 % (beyond, len(found), bound, what, reach, "%.0f m" % max(found) if found else "none"))
+
+    # The squares wholly within reach of a founder at some record, and whether a group of each kind stood in them.
+    seen = {k: {} for k in KINDS}
+    for record in records:
+        flat = record.get("founders", [])
+        founders = [(float(flat[i]), float(flat[i + 1])) for i in range(0, len(flat) - 1, 2)]
+        held = {k: set() for k in KINDS}
+        for animal_id in record.get("ids", []):
+            d = decode(int(animal_id))
+            if d is not None and d[0] in held:
+                held[d[0]].add((d[1], d[2]))
+        covered = set()
+        for fe, fn in founders:
+            for x in range(int(math.floor((fe - WHOLLY_WITHIN_M) / SQUARE_M)), int(math.floor((fe + WHOLLY_WITHIN_M) / SQUARE_M)) + 1):
+                for z in range(int(math.floor((fn - WHOLLY_WITHIN_M) / SQUARE_M)), int(math.floor((fn + WHOLLY_WITHIN_M) / SQUARE_M)) + 1):
+                    if x * SQUARE_M < -half or (x + 1) * SQUARE_M > half or z * SQUARE_M < -half or (z + 1) * SQUARE_M > half:
+                        continue
+                    corners = ((x * SQUARE_M, z * SQUARE_M), ((x + 1) * SQUARE_M, z * SQUARE_M), (x * SQUARE_M, (z + 1) * SQUARE_M), ((x + 1) * SQUARE_M, (z + 1) * SQUARE_M))
+                    if all((ce - fe) ** 2 + (cn - fn) ** 2 <= WHOLLY_WITHIN_M ** 2 for ce, cn in corners):
+                        covered.add((x, z))
+        for kind in KINDS:
+            for square in covered:
+                seen[kind][square] = seen[kind].get(square, False) or square in held[kind]
+
+    square_east, square_north = squares_of(grid_side)
+    x0, z0 = int(square_east.min()), int(square_north.min())
+    across, down = int(square_east.max()) - x0 + 1, int(square_north.max()) - z0 + 1
+    key = ((square_north - z0)[:, None] * across + (square_east - x0)[None, :]).ravel()
+    cells = np.bincount(key, minlength=across * down).astype(np.float64)
+    wet_cells = (np.isin(water, OPEN_WATER) | (surface > heights)).ravel().astype(np.float64)
+    dry_share = 1.0 - np.bincount(key, weights=wet_cells, minlength=across * down) / np.maximum(cells, 1.0)
+    for kind in KINDS:
+        side, raw = layers[CAPACITY_LAYER[kind]]
+        means = np.bincount(key, weights=in_unit(side, raw).ravel(), minlength=across * down) / np.maximum(cells, 1.0)
+        mu = variance = 0.0
+        stood = 0
+        for (x, z), held_one in seen[kind].items():
+            i = (z - z0) * across + (x - x0)
+            chance = min(1.0, max(0.0, means[i] / GROUP_SIZE[kind] * SQUARE_KM2)) * dry_share[i]
+            mu += chance
+            variance += chance * (1.0 - chance)
+            stood += 1 if held_one else 0
+        sigma = math.sqrt(variance)
+        rows.row("%s groups against the capacity layers" % NAMES[kind], len(seen[kind]) > 0 and abs(stood - mu) <= SIGMAS * sigma + 1.0,
+                 "%d groups stood in the %d squares wholly within reach; the layers put %.1f there, give or take %.1f (|%d - %.1f| <= 3 x %.1f + 1)"
+                 % (stood, len(seen[kind]), mu, sigma, stood, mu, sigma))
+
+    print("fauna_check: %s" % ("PASS" if rows.failed == 0 else "FAIL (%d row(s))" % rows.failed))
+    return 0 if rows.failed == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

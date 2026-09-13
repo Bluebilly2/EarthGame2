@@ -244,6 +244,8 @@ namespace EarthGame.Tests.Engine
             for (int i = 0; i < 11; i++) world.Step(0.05);
             foreach (Entity e in world.Entities.Transient)
                 Assert.That(e.PositionTick, Is.EqualTo(40L), "and again at tick 40: " + e.Id);
+            Assert.That(AnimalStandUp.RefreshesAt(40, 0.05) && !AnimalStandUp.RefreshesAt(41, 0.05) && AnimalStandUp.RefreshesAt(30, 0.1), Is.True,
+                "and a host asking of a tick is told the same");
         }
 
         [Test]
