@@ -63,8 +63,11 @@ namespace EarthGame.Engine
         /// <summary>The entities (M1.3, ARCHITECTURE §5).</summary>
         public EntityStore Entities { get; } = new EntityStore();
 
-        /// <summary>The fast tick's systems, run in this order every step: the order is the specification.</summary>
-        public List<IFastSystem> Systems { get; } = new List<IFastSystem> { new ItemFall() };
+        /// <summary>
+        /// The fast tick's systems, run in this order every step: the order is the specification. The items fall, then the
+        /// animals round the founders are stood up, moved and taken away (M1.7a).
+        /// </summary>
+        public List<IFastSystem> Systems { get; } = new List<IFastSystem> { new ItemFall(), new AnimalStandUp() };
 
         /// <summary>The slow layers and the scheduler that advances them by cell and distance.</summary>
         public SlowScheduler Scheduler { get; } = new SlowScheduler();
@@ -93,8 +96,14 @@ namespace EarthGame.Engine
         /// <summary>What has been taken up of what lies loose (M1.5b), kept beside the layer, which never changes.</summary>
         public LooseTaken Taken { get; } = new LooseTaken();
 
+        /// <summary>
+        /// What each square of presence feeds, from the world folder's capacity layers (M1.7a); null on a world made before
+        /// them, round whose founders no animal stands.
+        /// </summary>
+        public CapacitySquares Capacity { get; }
+
         public WorldState(ulong seed, Region region, WorldClock clock, Heightfield terrain = null, long tick = 0, Double3? wake = null, WorldWater water = null, RegionRaster cover = null,
-                          RegionRaster stand = null, RegionRaster loose = null, RegionRaster stone = null)
+                          RegionRaster stand = null, RegionRaster loose = null, RegionRaster stone = null, CapacitySquares capacity = null)
         {
             Seed = seed;
             Region = region ?? throw new ArgumentNullException(nameof(region));
@@ -114,6 +123,10 @@ namespace EarthGame.Engine
             Stand = stand;
             Loose = loose;
             Stone = stone;
+            if (capacity != null && Math.Abs(capacity.ExtentM - region.ExtentM) > 1e-6)
+                throw new ArgumentException("the capacity squares cover " + capacity.ExtentM + " m but the region is " + region.ExtentM
+                                            + " m; one of them is not this world's", nameof(capacity));
+            Capacity = capacity;
         }
 
         /// <summary>

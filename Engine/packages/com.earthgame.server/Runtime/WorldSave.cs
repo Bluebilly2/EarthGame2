@@ -305,11 +305,11 @@ namespace EarthGame.Server
         /// <summary>The world as it was, with the terrain the host loaded for it and every entity restored. The region must still be known to this build.</summary>
         /// <param name="region">The region the host runs, when it is not one <see cref="Region.ById"/> knows (a test's fixture); else looked up by the save's id.</param>
         public static WorldState Restore(WorldSaveInfo info, Heightfield terrain, Region region = null, WorldWater water = null, RegionRaster cover = null,
-                                         RegionRaster stand = null, RegionRaster loose = null, RegionRaster stone = null)
+                                         RegionRaster stand = null, RegionRaster loose = null, RegionRaster stone = null, CapacitySquares capacity = null)
         {
             if (region == null) region = Region.ById(info.RegionId);
             if (region == null) throw new InvalidDataException("the save is set in region '" + info.RegionId + "', which this build does not know");
-            WorldState world = new WorldState(info.Seed, region, WorldClock.Restore(info.TotalHours, info.StartedAtHours), terrain, info.Tick, info.Wake, water, cover, stand, loose, stone);
+            WorldState world = new WorldState(info.Seed, region, WorldClock.Restore(info.TotalHours, info.StartedAtHours), terrain, info.Tick, info.Wake, water, cover, stand, loose, stone, capacity);
             foreach (SavedTaking taking in info.Taken) world.Taken.Merge(CheckTaking(world, taking));
             foreach (SavedEntity s in info.Entities)
             {

@@ -12,7 +12,8 @@ namespace EarthGame.Client
     /// delay ago, between the positions it stated, so a thing let fall is drawn falling as a remote body is drawn walking
     /// rather than stepping twenty times a second, and each is destroyed when the entity is gone. A definition with no
     /// look is drawn as a small magenta cube and logged once: a hole in the table is meant to be seen, and the edit-mode
-    /// test is meant to catch it first.
+    /// test is meant to catch it first. An animal is mirrored and not drawn (M1.7a): no cube, and nothing for the crosshair
+    /// to meet, until M1.7b gives it a look.
     ///
     /// <para>The crosshair asks what a ray meets (<see cref="Pick"/>) of each thing's own bounds rather than of a
     /// collider: nothing lying is a collider, so a founder never stumbles on a stick the server's ground does not
@@ -73,6 +74,7 @@ namespace EarthGame.Client
 
         private void OnSpawned(EntityView view)
         {
+            if (view.Definition.Kind == DefinitionKind.Animal) return;
             if (_drawn.TryGetValue(view.Id.Value, out Drawn old) && old.Transform != null) Object.Destroy(old.Transform.gameObject);
             Drawn d = new Drawn { View = view };
             GameObject go;

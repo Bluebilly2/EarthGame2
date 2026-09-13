@@ -69,6 +69,38 @@ namespace EarthGame.Tests.Server
         }
 
         [Test]
+        public void AWorldSavedWithAnimalsRoundItsFoundersIsTheWorldSavedWithoutThem()
+        {
+            CapacitySquares capacity = new CapacitySquares(TestRasters.MadeExtentM);
+            capacity.Add(AnimalSpecies.EasternGreyKangaroo, TestRasters.FromLaw(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "capacity_roo", (row, col) => 30f, CapacitySquares.Unit));
+            capacity.Add(AnimalSpecies.PiedOystercatcher, TestRasters.FromLaw(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "capacity_bird", (row, col) => 10f, CapacitySquares.Unit));
+            WorldState w = new WorldState(1347UL, Fixture, Fixture.WakeClock(), _terrain, capacity: capacity);
+            w.SpawnItem(DefinitionCatalogue.Cobble, 310, -305);
+            SavedPlayer[] players = { Player("William", 300, -300) };
+            w.InterestPoints.Add(players[0].Body.Feet);
+            w.Step(0.05);
+            Assert.That(w.Entities.Transient.Count, Is.GreaterThan(0), "animals stand round the founder");
+            string named = Digest(w, players);
+            string with = Path.Combine(_dir, "with"), without = Path.Combine(_dir, "without");
+            WorldSave.Write(with, w, players, Now);
+
+            w.InterestPoints.Clear();
+            ((AnimalStandUp)w.Systems[1]).Refresh(w);
+            w.Entities.EndTick();
+            Assert.That(w.Entities.Transient.Count, Is.Zero, "with the founder gone, every one is taken away");
+            Assert.That(Digest(w, players), Is.EqualTo(named), "and the world's name never named them");
+            WorldSave.Write(without, w, players, Now);
+
+            string[] files = Directory.GetFiles(with, "*", SearchOption.AllDirectories);
+            Assert.That(Directory.GetFiles(without, "*", SearchOption.AllDirectories).Length, Is.EqualTo(files.Length), "the same files");
+            foreach (string file in files)
+                Assert.That(File.ReadAllBytes(Path.Combine(without, file.Substring(with.Length + 1))), Is.EqualTo(File.ReadAllBytes(file)), "the same bytes: " + file);
+            WorldSaveInfo info = WorldSave.Read(with);
+            Assert.That(info.Entities.Count, Is.EqualTo(1), "the cobble alone");
+            Assert.That(info.NextEntityId, Is.EqualTo(2UL), "and the count the cobble moved it to");
+        }
+
+        [Test]
         public void TheWorldRoundTripsWithItsEntitiesTheNextIdAndThePlayersFlags()
         {
             WorldState w = Make();

@@ -20,14 +20,39 @@ namespace EarthGame.Engine
         /// </summary>
         public readonly double Activity01;
 
+        /// <summary>
+        /// The square that holds the group, by its indices (M1.7a): with the kind, what names the group, so an animal stood up
+        /// from it has the same id whenever it is stood up.
+        /// </summary>
+        public readonly int CellX, CellZ;
+
+        /// <summary>The group's own place in its square, which its wander circles (M1.7a).</summary>
+        public readonly double BaseEastM, BaseNorthM;
+
+        /// <summary>Which way its wander is carrying it, degrees clockwise from north (M1.7a).</summary>
+        public readonly double HeadingDeg;
+
+        /// <summary>A group with no square of its own, for a caller that asks only where it is and how many: its own place is where it stands.</summary>
         public AnimalSighting(AnimalSpecies species, double eastM, double northM,
                               int groupSize, double activity01)
+            : this(species, eastM, northM, groupSize, activity01, 0, 0, eastM, northM, 0.0)
+        {
+        }
+
+        public AnimalSighting(AnimalSpecies species, double eastM, double northM,
+                              int groupSize, double activity01,
+                              int cellX, int cellZ, double baseEastM, double baseNorthM, double headingDeg)
         {
             Species = species;
             EastM = eastM;
             NorthM = northM;
             GroupSize = groupSize;
             Activity01 = activity01;
+            CellX = cellX;
+            CellZ = cellZ;
+            BaseEastM = baseEastM;
+            BaseNorthM = baseNorthM;
+            HeadingDeg = headingDeg;
         }
     }
 
@@ -40,9 +65,9 @@ namespace EarthGame.Engine
     /// <i>derivable</i>, so the tablet can know it before the founder walks there, a test can
     /// replay it exactly, and the save file never carries an animal. The same reasoning that keeps
     /// the weather forecastable keeps the fauna forecastable, and for the same reason — anything
-    /// that has to be walked forward cannot be asked about tomorrow. M1.7 materialises entities
-    /// from this expectation inside the interest radius (ARCHITECTURE §4.4) and dematerialises
-    /// them outside it; the expectation stays a function.</para>
+    /// that has to be walked forward cannot be asked about tomorrow. Since M1.7a entities are stood
+    /// up from this expectation within half a kilometre of a founder and taken away beyond it
+    /// (<see cref="AnimalStandUp"/>); the expectation stays a function.</para>
     ///
     /// <para><b>Position enters only to vary the draw.</b> Terrain reaches this layer solely
     /// through the capacity a supplied site produced: this asks no questions of the ground. Hand
@@ -338,7 +363,10 @@ namespace EarthGame.Engine
                 double dx = e - eastM, dz = n - northM;
                 if (dx * dx + dz * dz > radiusM * radiusM) continue;
 
-                found.Add(new AnimalSighting(species, e, n, groupSize, activity));
+                // The wander turns anticlockwise as the angle grows, carrying the group along (-sin, cos) in east and north:
+                // as a bearing clockwise from north, the angle's own negative.
+                double heading = Mod(-angle * 180.0 / Math.PI, 360.0);
+                found.Add(new AnimalSighting(species, e, n, groupSize, activity, cx, cz, baseE, baseN, heading));
             }
 
             return found;

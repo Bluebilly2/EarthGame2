@@ -53,7 +53,7 @@ namespace EarthGame.Engine
 
     /// <summary>
     /// An animal, described by what it eats and what it can stand — never by where it lives. Ported from v1
-    /// (slice E5) with the species table replaced by Bherwerre's: the two kinds M1.7 materialises and the bird
+    /// (slice E5) with the species table replaced by Bherwerre's: the two kinds M1.7a stands up and the bird
     /// the dawn chorus needs (ECOSYSTEM.md, "The animals of Bherwerre").
     ///
     /// <para>The sixth link of the chain, and it obeys the law the other five obey: <b>nothing is

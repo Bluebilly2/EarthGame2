@@ -19,6 +19,9 @@ namespace EarthGame.Server
         /// <summary>Distances are stored as whole metres in u16; anything beyond this is "none within reach".</summary>
         public const int DistanceCapM = 65535;
 
+        /// <summary>The name of a kind's capacity layer in a world folder: what creation writes (M1.2) and the loader reads (M1.7a).</summary>
+        public static string CapacityLayer(AnimalSpecies species) => "capacity_" + species.Name.ToLowerInvariant();
+
         /// <summary>What creation produced, for the host to log and the save to record.</summary>
         public sealed class Result
         {
@@ -91,8 +94,8 @@ namespace EarthGame.Server
             IReadOnlyList<AnimalSpecies> species = AnimalSpecies.All;
             for (int s = 0; s < species.Count; s++)
             {
-                string name = "capacity_" + species[s].Name.ToLowerInvariant();
-                SaveLayer(name, RegionRaster.Write(dir, name, heights, name, "u16", 0.01, "1/km2", layers.Capacity[s],
+                string name = CapacityLayer(species[s]);
+                SaveLayer(name, RegionRaster.Write(dir, name, heights, name, "u16", 0.01, CapacitySquares.Unit, layers.Capacity[s],
                     "AnimalCapacity.PerKm2 for " + species[s].DisplayName, by, nowUtcText));
             }
             SaveLayer("stone_distance", RegionRaster.WriteCodes(dir, "stone_distance", heights, "stone_distance", "u16", "m", Metres(scorer.StoneDistanceM),

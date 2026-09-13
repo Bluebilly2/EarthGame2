@@ -83,8 +83,8 @@ namespace EarthGame.Tests
             return RegionRaster.FromParts(sidecar, raw, name);
         }
 
-        /// <summary>A raster from a height law, with a sidecar the loader accepts.</summary>
-        public static RegionRaster FromLaw(int side, double cellM, double extentM, string name, Func<int, int, float> law)
+        /// <summary>A raster from a law of values, in metres unless another unit is named, with a sidecar the loader accepts.</summary>
+        public static RegionRaster FromLaw(int side, double cellM, double extentM, string name, Func<int, int, float> law, string unit = "m")
         {
             byte[] raw = new byte[side * side * 4];
             float min = float.MaxValue, max = float.MinValue;
@@ -105,7 +105,7 @@ namespace EarthGame.Tests
                 foreach (byte b in s.ComputeHash(raw)) sb.Append(b.ToString("x2"));
                 sha = sb.ToString();
             }
-            string sidecar = "{\"format\":\"eg2.raster\",\"version\":2,\"name\":\"" + name + "\",\"region\":\"fixture\",\"layer\":\"heights\",\"dtype\":\"f32\",\"byte_order\":\"little\",\"raw\":\"" + name + ".r32\",\"scale\":1.0,\"unit\":\"m\","
+            string sidecar = "{\"format\":\"eg2.raster\",\"version\":2,\"name\":\"" + name + "\",\"region\":\"fixture\",\"layer\":\"heights\",\"dtype\":\"f32\",\"byte_order\":\"little\",\"raw\":\"" + name + ".r32\",\"scale\":1.0,\"unit\":\"" + unit + "\","
                              + "\"width\":" + side + ",\"height\":" + side + ",\"cell_m\":" + cellM.ToString(CultureInfo.InvariantCulture) + ",\"extent_m\":" + extentM.ToString(CultureInfo.InvariantCulture)
                              + ",\"centre_lat\":-35.14,\"centre_lon\":150.675,\"min\":" + min.ToString(CultureInfo.InvariantCulture) + ",\"max\":" + max.ToString(CultureInfo.InvariantCulture) + ",\"sha256\":\"" + sha + "\"}";
             return RegionRaster.FromParts(sidecar, raw, name);

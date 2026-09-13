@@ -114,9 +114,11 @@ namespace EarthGame.Tests.Engine
         public void TheFastSystemsRunInTheStatedOrder()
         {
             WorldState world = World();
-            Assert.That(world.Systems.Count, Is.EqualTo(1));
+            Assert.That(world.Systems.Count, Is.EqualTo(2));
             Assert.That(world.Systems[0], Is.TypeOf<ItemFall>());
             Assert.That(world.Systems[0].Name, Is.EqualTo("item fall"));
+            Assert.That(world.Systems[1], Is.TypeOf<AnimalStandUp>(), "the animals after the items (M1.7a)");
+            Assert.That(world.Systems[1].Name, Is.EqualTo("animal stand-up"));
         }
     }
 }

@@ -57,8 +57,10 @@ namespace EarthGame.Server
                 RegionRaster stand = ReadCodes(worldDir, "stand");
                 RegionRaster loose = ReadCodes(worldDir, "loose");
                 RegionRaster stone = ReadCodes(worldDir, "stone");
+                Report("Reading what the ground feeds");
+                CapacitySquares feeds = ReadCapacity(worldDir, region.ExtentM);
                 Report("Restoring the world");
-                WorldState world = WorldSave.Restore(saved, terrain, region, water, cover, stand, loose, stone);
+                WorldState world = WorldSave.Restore(saved, terrain, region, water, cover, stand, loose, stone, feeds);
                 Report("World ready");
                 return new Result { World = world, Saved = saved, Checksums = saved.Layers };
             }
@@ -71,9 +73,11 @@ namespace EarthGame.Server
             WorldCreation.Result created = WorldCreation.Create(worldDir, region, seed, bake.Raster, nowUtc, outlines, Report);
             Report("Reading prepared terrain");
             Heightfield ground = new Heightfield(RegionRaster.Load(created.Layers["heights"]));
+            Report("Reading what the ground feeds");
+            CapacitySquares capacity = ReadCapacity(worldDir, region.ExtentM);
             WorldState made = new WorldState(seed, region, region.WakeClock(), ground, 0,
                 new Double3(created.Wake.East, 0, created.Wake.North), ReadWater(worldDir), ReadCodes(worldDir, "cover"),
-                ReadCodes(worldDir, "stand"), ReadCodes(worldDir, "loose"), ReadCodes(worldDir, "stone"));
+                ReadCodes(worldDir, "stand"), ReadCodes(worldDir, "loose"), ReadCodes(worldDir, "stone"), capacity);
             Report("Saving the world");
             WorldSave.Write(worldDir, made, null, nowUtc, created.Checksums);
             Report("World ready");
@@ -104,6 +108,24 @@ namespace EarthGame.Server
         {
             string path = Path.Combine(worldDir, WorldCreation.LayersFolder, name + ".json");
             return File.Exists(path) ? RegionRaster.Load(path) : null;
+        }
+
+        /// <summary>
+        /// What each square of presence feeds, from every kind's capacity layer the world folder holds (M1.7a), each read,
+        /// averaged over its squares and let go; null on a world made before the layers were (M1.2), round whose founders no
+        /// animal stands.
+        /// </summary>
+        private static CapacitySquares ReadCapacity(string worldDir, double extentM)
+        {
+            CapacitySquares squares = null;
+            foreach (AnimalSpecies species in AnimalSpecies.All)
+            {
+                string path = Path.Combine(worldDir, WorldCreation.LayersFolder, WorldCreation.CapacityLayer(species) + ".json");
+                if (!File.Exists(path)) continue;
+                if (squares == null) squares = new CapacitySquares(extentM);
+                squares.Add(species, RegionRaster.Load(path));
+            }
+            return squares;
         }
 
         private static Heightfield ReadBake(string dataDir)

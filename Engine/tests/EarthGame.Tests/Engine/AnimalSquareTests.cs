@@ -75,5 +75,32 @@ namespace EarthGame.Tests.Engine
             }
             Assert.That(shared, Is.GreaterThan(0), "there must be pairs both reach");
         }
+
+        [Test]
+        public void AGroupNamesItsSquareItsOwnPlaceAndTheWayItWanders()
+        {
+            AnimalPresence presence = new AnimalPresence(Seed);
+            AnimalSpecies roo = AnimalSpecies.EasternGreyKangaroo;
+            const double Hour = 17.0, AMomentLater = Hour + 0.0001;
+            List<AnimalSighting> now = presence.Near(roo, 25.0, 300.0, -200.0, 1500.0, Hour, AugustDaylightHours, 12.0);
+            List<AnimalSighting> soon = presence.Near(roo, 25.0, 300.0, -200.0, 1500.0, AMomentLater, AugustDaylightHours, 12.0);
+            Assert.That(now.Count, Is.GreaterThan(5), "there must be groups to read");
+            int headed = 0;
+            foreach (AnimalSighting g in now)
+            {
+                Assert.That(Math.Floor(g.BaseEastM / AnimalPresence.CellSizeM), Is.EqualTo(g.CellX), "its own place lies in its square");
+                Assert.That(Math.Floor(g.BaseNorthM / AnimalPresence.CellSizeM), Is.EqualTo(g.CellZ));
+                double wander = Math.Sqrt((g.EastM - g.BaseEastM) * (g.EastM - g.BaseEastM) + (g.NorthM - g.BaseNorthM) * (g.NorthM - g.BaseNorthM));
+                Assert.That(wander, Is.EqualTo(AnimalPresence.DriftRadiusM).Within(1e-9), "and it wanders the drift's radius from there");
+                int at = soon.FindIndex(h => h.CellX == g.CellX && h.CellZ == g.CellZ);
+                if (at < 0) continue;
+                double bearing = Math.Atan2(soon[at].EastM - g.EastM, soon[at].NorthM - g.NorthM) * 180.0 / Math.PI;
+                if (bearing < 0.0) bearing += 360.0;
+                double off = Math.Abs(bearing - g.HeadingDeg);
+                Assert.That(Math.Min(off, 360.0 - off), Is.LessThan(0.1), "it heads the way it moves a moment later");
+                headed++;
+            }
+            Assert.That(headed, Is.GreaterThan(5));
+        }
     }
 }

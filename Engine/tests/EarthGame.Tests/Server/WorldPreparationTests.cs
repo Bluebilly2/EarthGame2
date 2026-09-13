@@ -56,6 +56,39 @@ namespace EarthGame.Tests.Server
         }
 
         [Test]
+        public void TheSquaresFeedTheMeanOfTheWorldsOwnCapacityLayersMadeOrRestored()
+        {
+            Bake();
+            var made = WorldPreparation.Load(_world, _data, Region, 1347, Now, null, CancellationToken.None);
+            var back = WorldPreparation.Load(_world, Path.Combine(_root, "absent"), Region, 1347, Now, null, CancellationToken.None);
+            Assert.That(back.Saved, Is.Not.Null, "the second load restores");
+            int fed = 0;
+            foreach (AnimalSpecies species in AnimalSpecies.All)
+            {
+                // Read back by hand: each cell's centre, 10 m apart from the north-west corner, in the 100 m square it lies in.
+                RegionRaster layer = RegionRaster.Load(Path.Combine(_world, "layers", "capacity_" + species.Name.ToLowerInvariant() + ".json"));
+                var sums = new Dictionary<(int, int), (double Sum, int Count)>();
+                for (int row = 0; row < layer.Height; row++)
+                    for (int col = 0; col < layer.Width; col++)
+                    {
+                        double east = -layer.ExtentM / 2 + col * layer.CellM, north = layer.ExtentM / 2 - row * layer.CellM;
+                        var square = ((int)Math.Floor(east / 100.0), (int)Math.Floor(north / 100.0));
+                        sums.TryGetValue(square, out var s);
+                        sums[square] = (s.Sum + layer[row, col], s.Count + 1);
+                    }
+                Assert.That(sums.Count, Is.EqualTo(17 * 17), "the made coast's squares, 800 m either side of its centre");
+                foreach (var pair in sums)
+                {
+                    double mean = pair.Value.Sum / pair.Value.Count;
+                    if (mean > 0.0) fed++;
+                    Assert.That(made.World.Capacity.PerKm2(species, pair.Key.Item1, pair.Key.Item2), Is.EqualTo(mean).Within(1e-9), species + " square " + pair.Key);
+                    Assert.That(back.World.Capacity.PerKm2(species, pair.Key.Item1, pair.Key.Item2), Is.EqualTo(mean).Within(1e-9), "restored, " + species + " square " + pair.Key);
+                }
+            }
+            Assert.That(fed, Is.GreaterThan(0), "some square feeds something");
+        }
+
+        [Test]
         public void ProgressDoesNotChangeTheWorld()
         {
             Bake();

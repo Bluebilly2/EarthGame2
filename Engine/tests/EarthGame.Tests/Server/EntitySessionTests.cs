@@ -11,7 +11,8 @@ namespace EarthGame.Tests.Server
 {
     /// <summary>
     /// Two clients over the in-memory transport (M1.3 promises 5, 6 and 8): entities inside the interest radius
-    /// are shown, changes follow, leaving and dying are told, and the mirrors name what the server names.
+    /// are shown, changes follow, leaving and dying are told, and the mirrors name what the server names; since M1.7a,
+    /// the animals stood up round the founders too.
     /// </summary>
     public sealed class EntitySessionTests
     {
@@ -53,9 +54,9 @@ namespace EarthGame.Tests.Server
             }
         }
 
-        private Rig Start(ServerConfig config)
+        private Rig Start(ServerConfig config, CapacitySquares capacity = null)
         {
-            WorldState world = new WorldState(1347UL, Fixture, Fixture.WakeClock(), _ground);
+            WorldState world = new WorldState(1347UL, Fixture, Fixture.WakeClock(), _ground, capacity: capacity);
             InMemoryTransport.CreatePair(out IServerTransport st, out IClientTransport ct);
             Rig rig = new Rig { ServerTransport = st };
             rig.Server = new GameServer(config, st, world);
@@ -187,6 +188,56 @@ namespace EarthGame.Tests.Server
             rig.Pump(8);
             Assert.That(rig.A.Entities.Count, Is.EqualTo(10), "the rest follow, none lost");
             Assert.That(rig.A.Entities.Digest(), Is.EqualTo(rig.Server.EntityDigest(Session(rig, "A"))));
+        }
+
+        /// <summary>The kangaroo and the oystercatcher fed alike over the made coast, as a world folder's capacity layers would feed them.</summary>
+        private static CapacitySquares Fed()
+        {
+            CapacitySquares capacity = new CapacitySquares(TestRasters.MadeExtentM);
+            capacity.Add(AnimalSpecies.EasternGreyKangaroo, TestRasters.FromLaw(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "capacity_roo", (row, col) => 30f, CapacitySquares.Unit));
+            capacity.Add(AnimalSpecies.PiedOystercatcher, TestRasters.FromLaw(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "capacity_bird", (row, col) => 10f, CapacitySquares.Unit));
+            return capacity;
+        }
+
+        [Test]
+        public void BothClientsAreShownTheSameAnimalsAndTheOnesAFounderLeavesBehindHaveLeft()
+        {
+            // The default reach, which from either founder takes in every animal standing round both.
+            Rig rig = Start(new ServerConfig(), Fed());
+            rig.Server.RememberPlayers(new[] { At("A", -400, -300), At("B", 400, -300) });
+            rig.A = rig.Join("A");
+            rig.B = rig.Join("B");
+            List<(EntityView, byte)> goneA = new List<(EntityView, byte)>();
+            rig.A.Entities.Gone += (v, why) => goneA.Add((v, why));
+            rig.Pump(30);
+            IReadOnlyList<Entity> animals = rig.Server.World.Entities.Transient;
+            Assert.That(rig.A.State, Is.EqualTo(ClientState.Connected));
+            Assert.That(animals.Count, Is.GreaterThan(0), "animals stand round the founders");
+            Assert.That(rig.Server.World.Entities.NextId, Is.EqualTo(1UL), "and never move the world's count");
+            Assert.That(rig.A.Entities.Count, Is.EqualTo(animals.Count), "A is shown every one");
+            Assert.That(rig.B.Entities.Count, Is.EqualTo(animals.Count), "and so is B");
+            Assert.That(rig.B.Entities.Digest(), Is.EqualTo(rig.A.Entities.Digest()), "the same animals, in the same places and poses");
+            Assert.That(rig.A.Entities.Digest(), Is.EqualTo(rig.Server.EntityDigest(Session(rig, "A"))), "the mirror names what the server names");
+            foreach (EntityView v in rig.A.Entities.Views.Values)
+            {
+                Assert.That(v.HasAnimal, Is.True, "each is shown as an animal: " + v.Definition.Key);
+                Assert.That(v.Animal.Pose, Is.EqualTo(AnimalPose.Resting).Or.EqualTo(AnimalPose.Grazing));
+            }
+
+            int before = animals.Count;
+            rig.B.Disconnect("home");
+            rig.B = null;
+            rig.Pump(25);
+            Assert.That(animals.Count, Is.GreaterThan(0).And.LessThan(before), "the animals round B alone are taken away within the second");
+            Assert.That(goneA.Count, Is.EqualTo(before - animals.Count), "and A is told of each");
+            foreach ((EntityView view, byte why) in goneA)
+            {
+                Assert.That(why, Is.EqualTo(EntityGoneMessage.Left), "an animal taken away left; it did not die");
+                Assert.That(EntityId.IsTransientValue(view.Id.Value), Is.True);
+            }
+            Assert.That(rig.A.Entities.Count, Is.EqualTo(animals.Count));
+            Assert.That(rig.A.Entities.Digest(), Is.EqualTo(rig.Server.EntityDigest(Session(rig, "A"))));
+            Assert.That(rig.A.CorrectionCount, Is.EqualTo(0));
         }
     }
 }

@@ -51,8 +51,8 @@ namespace EarthGame.Engine
     /// <summary>
     /// One kind of thing the world can hold, by a stable string key (<c>plant/blackbutt</c>, <c>stone/silcrete</c>,
     /// <c>animal/eastern-grey-kangaroo</c>, <c>item/cobble</c>, <c>player</c>). Whether it is spawnable as an entity
-    /// says what M1 materialises (items now; trees and animals when they become entities, when their looks on the
-    /// client must exist too). Physics values live here and nowhere else: a client that draws a cobble asks the
+    /// says what the world spawns as its own: the items. A tree stays a layer (M1.6a), and an animal is stood up from
+    /// presence rather than spawned (M1.7a). Physics values live here and nowhere else: a client that draws a cobble asks the
     /// engine how heavy it is.
     /// </summary>
     public sealed class Definition
@@ -106,6 +106,7 @@ namespace EarthGame.Engine
         public const double CobbleDensityKgM3 = 2600.0;
 
         private static readonly Dictionary<StoneType, Definition> _cobbles = new Dictionary<StoneType, Definition>();
+        private static readonly Dictionary<AnimalSpecies, Definition> _animals = new Dictionary<AnimalSpecies, Definition>();
         private static readonly List<Definition> _all = new List<Definition>();
         private static readonly List<Definition> _spawnable = new List<Definition>();
         private static readonly Dictionary<string, Definition> _byKey = new Dictionary<string, Definition>(StringComparer.Ordinal);
@@ -119,7 +120,7 @@ namespace EarthGame.Engine
             foreach (StoneType stone in StoneType.All)
                 Add(new Definition("stone/" + Slug(stone.Name), DefinitionKind.Stone, stone.Name, false, 0.0, 0.0, stone));
             foreach (AnimalSpecies animal in AnimalSpecies.All)
-                Add(new Definition("animal/" + Slug(animal.Name), DefinitionKind.Animal, animal.DisplayName, false, 0.0, 0.0, animal));
+                _animals[animal] = Add(new Definition("animal/" + Slug(animal.Name), DefinitionKind.Animal, animal.DisplayName, false, 0.0, 0.0, animal));
             Cobble = Add(new Definition("item/cobble", DefinitionKind.Item, "a cobble", true, 0.6, 0.05, null));
             Stick = Add(new Definition("item/stick", DefinitionKind.Item, "a stick", true, 0.3, 0.02, null));
             // A cobble taken up from the ground is of the stone its cell names (M1.5b): the same shape, weighing by its density.
@@ -133,6 +134,13 @@ namespace EarthGame.Engine
 
         /// <summary>The cobble of a stone, as a thing taken from a cell of it becomes; the plain cobble for a stone this catalogue has none for.</summary>
         public static Definition CobbleOf(StoneType stone) => stone != null && _cobbles.TryGetValue(stone, out Definition d) ? d : Cobble;
+
+        /// <summary>The definition of a kind of animal, which an animal stood up from presence is (M1.7a).</summary>
+        public static Definition AnimalOf(AnimalSpecies species)
+        {
+            if (species == null || !_animals.TryGetValue(species, out Definition d)) throw new KeyNotFoundException("no definition for the animal '" + species + "'");
+            return d;
+        }
 
         private static bool StartsWithVowel(string word) => word.Length > 0 && "aeiou".IndexOf(word[0]) >= 0;
 
