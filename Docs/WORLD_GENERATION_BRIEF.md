@@ -16,11 +16,13 @@ that the two lines of work do not collide and nothing the project has already pr
 
 ## 2. How to work alongside the beta arc
 
-- **Your own judgement.** William's word of 2026-09-13 (CANON ruling 26): you are told how to get started, not
-  what to do, and what you work on, and how, is your decision in the project's favour. You open your own
+- **World generation, on your own judgement.** William's word of 2026-09-13 (CANON ruling 26): world generation is
+  your work, and what you take on there, and how, is your decision in the project's favour. You open your own
   contracts under `Docs/contracts/` and land them; the existing contracts show the shape: "What was found",
   "What this slice promises", "Non-goals", "How it is proved", and an exit record once it lands.
 - **Sharing main and the machine with Claude** is `Docs/WORKING.md`'s section "Two agents, one machine".
+- **The beta's animals read world generation's layers.** Claude's M1.7 (`Docs/contracts/M1.7_ANIMALS.md`) stands the
+  animals up from the `capacity_*` layers and `AnimalPresence`; tell William before a change to either lands.
 - **Tell William before you change a format or a layer** that the game streams or draws, so he can sequence it with the
   beta arc. On 2026-09-13 Claude added two tile layers for the far forest (layer 6, the far stand, and layer 7, the
   far count), which the server works out from `stand` whenever a tile is first asked for, and moved the wire

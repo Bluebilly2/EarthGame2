@@ -156,10 +156,12 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
 
 ### Rulings of 2026-09-13
 
-26. **GPT works on its own judgement.** Asked for a prompt to set GPT (through Codex) to work: "dont tell it what
-    to do, tell it how to get started, making its own sovereign decisions in the projects favour." GPT is told how
-    to get started, not what to do: what it works on, and how, is its own decision in the project's favour, and the
-    house rules and this file bind it as they bind every agent.
+26. **GPT works on world generation, on its own judgement.** Asked for a prompt to set GPT (through Codex) to work:
+    "dont tell it what to do, tell it how to get started, making its own sovereign decisions in the projects
+    favour"; and, asking for another later the same day, "i want gpt6 to work on world gen." World generation is
+    GPT's work. What it takes on there, and how, is its own decision in the project's favour, and the house rules
+    and this file bind it as they bind every agent. First recorded on 2026-09-13 as GPT choosing its own work
+    anywhere; his second word that day gave it world generation.
 
 27. **A fully functioning biosphere comes after the beta, under world generation.** "once we get past the beta arc,
     one of the things we will do is design a fully functioning biosphere (earth). this is one thing that will come

@@ -94,8 +94,8 @@ got wrong was duplication (a copy of `CLAUDE.md` as `AGENTS.md`; the dedicated h
 
 ## Two agents, one machine
 
-Since CANON ruling 26 (2026-09-13) GPT, through Codex, works here on its own judgement while Claude carries the
-beta arc, in the same repository on the same machine. Neither hands the other work, and each keeps out of the
+Since CANON ruling 26 (2026-09-13) GPT, through Codex, works on world generation on its own judgement while Claude
+carries the beta arc, in the same repository on the same machine. Neither hands the other work, and each keeps out of the
 other's way:
 
 - **Main is shared.** Each works on its own branch or worktree and lands on main in small commits, rebased on the
