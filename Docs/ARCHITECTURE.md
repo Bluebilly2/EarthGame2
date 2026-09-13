@@ -100,9 +100,10 @@ still runs on the main thread; this slice does not claim a frame-time budget for
   `GroundCovers.Of` in the engine says what covers a cell (the world's `cover` layer, M1.4d), and `GroundPalette`
   in ClientCore says what that cover looks like. The terrain's colour, and later grass, litter and impostors, ask
   those two and nothing else. v1's `GroundColourAt` was one function; the split is the price of the wire (§8).
-- **Climate:** `Climate`/`Synoptic`/`Weather` ported; station 068034 (Point Perpendicular Lighthouse, 1899–2004)
-  with 068072 (Nowra) as the second anchor; pre-human baseline by the owner's rule; the known 03:00-minimum
-  defect fixed as a contracted step.
+- **Climate:** v1's `Climate`/`Synoptic`/`Weather` are ported by M1.8a (`contracts/M1.8a_THE_WEATHER.md`; until
+  2026-09-13 this line called them ported, and no engine package held them): station 068034 (Point Perpendicular
+  Lighthouse, 1899–2004) with 068072 (Nowra) as the second anchor; pre-human baseline by the owner's rule; the known
+  03:00-minimum defect fixed as a contracted step.
 
 ## 4. Time and ticking
 
