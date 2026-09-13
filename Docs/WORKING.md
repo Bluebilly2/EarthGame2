@@ -92,6 +92,24 @@ gate, read its verifier's evidence and its frames, and read the code for what a 
 fact, dated comments, no TODOs, versioned formats. Its loading slice held up and fixed a real bug of ours; what it
 got wrong was duplication (a copy of `CLAUDE.md` as `AGENTS.md`; the dedicated host left on an old path).
 
+## Two agents, one machine
+
+Since CANON ruling 26 (2026-09-13) GPT, through Codex, works here on its own judgement while Claude carries the
+beta arc, in the same repository on the same machine. Neither hands the other work, and each keeps out of the
+other's way:
+
+- **Main is shared.** Each works on its own branch or worktree and lands on main in small commits, rebased on the
+  latest main and green through the pre-push hook. Stage explicit paths, never `git add -A`; never force-push or
+  rewrite main; never commit a file the other made and left uncommitted.
+  `Unity/Assets/EarthGame/Tests/Editor/ReviewOpusProbe.cs` and its `.meta` stay out of every commit.
+- **One Unity batch run at a time.** A batch run locks the project, so `tasklist | findstr Unity` shows nothing
+  before one starts: neither the owner's editor nor the other agent's run.
+- **A running `EarthGame2.exe` may be the other's timing run.** Frame costs are measured with the machine quiet;
+  builds, world creation and suites beside one make its numbers lie, so they wait until it ends.
+- **Output under a name of one's own:** fresh folders under `Artefacts/`, players built into a fresh
+  `Build/Player-<name>`, and no deletes in an automated run.
+- **Each reviews what the other lands**, as the section above says, before building on it.
+
 ## This machine's traps
 
 - Bash heredocs over about 8 KB fail with "unexpected EOF", and a heredoc containing `\n` or `\\` in a Python

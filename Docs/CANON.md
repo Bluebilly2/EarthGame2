@@ -153,3 +153,10 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
 25. **A developer's flight goes through the ground.** Told that the flight built for him was held five centimetres over
     the ground: "dev flight should be toggleable noclip." The fly key turns on a flight that passes through the ground
     as through the air, and turns it off again.
+
+### Rulings of 2026-09-13
+
+26. **GPT works on its own judgement.** Asked for a prompt to set GPT (through Codex) to work: "dont tell it what
+    to do, tell it how to get started, making its own sovereign decisions in the projects favour." GPT is told how
+    to get started, not what to do: what it works on, and how, is its own decision in the project's favour, and the
+    house rules and this file bind it as they bind every agent.

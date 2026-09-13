@@ -2,7 +2,7 @@
 
 Written 2026-09-13 by Claude (Opus 5), which builds the beta arc in this repository, for the agent William is bringing
 in to work on world generation as a side project. It is what that agent needs to know before it changes anything, so
-that the two lines of work do not collide and nothing the project has already proved gets quietly broken.
+that the two lines of work do not collide and nothing the project has already proved gets quietly broken. Amended the same day for CANON ruling 26.
 
 ## 1. Read these first
 
@@ -16,12 +16,11 @@ that the two lines of work do not collide and nothing the project has already pr
 
 ## 2. How to work alongside the beta arc
 
-- **Do not commit to `main`.** Claude is committing to `main` at the same time. Work on a branch, or in a separate git
-  worktree.
-- **Propose before you build.** Deliver a drafted, unopened contract in `Docs/contracts/` first: what you found, what
-  you would change, which contracted formats and which checks it touches, and how you would prove it. William decides
-  what opens. The existing contracts show the shape: "What was found", "What this slice promises", "Non-goals", "How it
-  is proved", and an exit record once it lands.
+- **Your own judgement.** William's word of 2026-09-13 (CANON ruling 26): you are told how to get started, not
+  what to do, and what you work on, and how, is your decision in the project's favour. You open your own
+  contracts under `Docs/contracts/` and land them; the existing contracts show the shape: "What was found",
+  "What this slice promises", "Non-goals", "How it is proved", and an exit record once it lands.
+- **Sharing main and the machine with Claude** is `Docs/WORKING.md`'s section "Two agents, one machine".
 - **Tell William before you change a format or a layer** that the game streams or draws, so he can sequence it with the
   beta arc. On 2026-09-13 Claude added two tile layers for the far forest (layer 6, the far stand, and layer 7, the
   far count), which the server works out from `stand` whenever a tile is first asked for, and moved the wire
@@ -46,38 +45,19 @@ that the two lines of work do not collide and nothing the project has already pr
 
 ## 4. Rules that will bite
 
-- **Formats are contracts.** The world folder's layers, the tile layers, the wire protocol and `run.jsonl` are
-  versioned in ARCHITECTURE §10. Changing one is a written renegotiation with a version bump in the same commit, never
-  a quiet refactor. A tile layer's number is never reused.
 - **Generation changes ripple.** Change a layer rule and the layer checksums change, the scorer's wake can move, and
   the corpus's walking loop can be left off the wake (DEBTS, "the corpus loop is tied to one world's wake"). After a
   rule change, on a freshly created world: `Tools/corpus/lay_loop.py`, the corpus walk (`Tools/corpus/run.py
   --scenarios walk`) with `join_check --only N2`, and the checks under `Tools/verifiers/checks/` — `drainage_check`,
   `census_check`, `species_check`, `stand_check`, `tile_check`, `save_check`, `region_stats --world`.
-- **A check must be independent of what it checks** (CANON ruling 17): a different algorithm or a different data
-  source, its reference named, and both numbers printed beside the verdict. A check that reuses the tool's own code is
-  a stub.
 - **It is a real place** (rulings 5, 21, 22). The layers are held against real records — the Atlas of Living
   Australia, BioNet, OpenStreetMap, the Bureau of Meteorology. Every dataset or vendored file lands with its entry in
   `THIRD_PARTY_NOTICES.md` in the same commit. **Nothing is downloaded without William's permission.**
-- **Engine packages stay engine-free.** Nothing in `Engine/packages/*` references `UnityEngine`; C# 9, .NET Standard
-  2.1; compiled by both dotnet and Unity. `dotnet test Engine/EarthGame.slnx` and the Unity-layer compile
-  (`dotnet build Engine/EarthGame.Unity.Compile.csproj`) stay green.
-- **One owner for every fact.** A number or rule that lives in two places with nothing forcing them to agree is the
-  named bug shape here. Alias or delete the second copy.
-- **No TODO comments.** A debt goes in `Docs/DEBTS.md` with an owner and what pays it. Doc comments explain the
-  mechanism and its history; they date the ruling, never the state, and state no counts.
-- **Commit messages say exactly what the commit holds,** and a count is stated only when it was run.
+- **Every other rule** is `CLAUDE.md`'s and `Docs/STANDARDS.md`'s, and binds you as it binds Claude.
 
 ## 5. Machine rules
 
-- Never open a visible game window and never make a sound. Batch runs are windowless and muted.
-- The Unity editor must be closed for a batch run (`-batchmode`).
-- Build to a fresh `Build/Player-<name>` folder, never to `Build/Player` or a folder a running game is using, and never
-  delete anything in an automated run.
-- Never pipe a test suite into `tail` or `head`: the pipe hides the exit code. Redirect to a file, echo the exit code,
-  then read the file.
-- Python tools that need numpy run under `Tools/.venv/Scripts/python.exe`.
+`Docs/WORKING.md` holds them: its traps, and its section "Two agents, one machine".
 
 ## 6. Where world generation is already owed work
 
