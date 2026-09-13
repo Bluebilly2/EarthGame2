@@ -108,6 +108,10 @@ other's way:
   builds, world creation and suites beside one make its numbers lie, so they wait until it ends.
 - **Output under a name of one's own:** fresh folders under `Artefacts/`, players built into a fresh
   `Build/Player-<name>`, and no deletes in an automated run.
+- **A push carries what the other landed.** Main lives in one checkout, so the other's merged commits go up with
+  one's own: `git log origin/main..main` before a push names every commit it carries, and each is reviewed first
+  (2026-09-13: Claude's push of the M1.7 draft carried Codex's two WG.0a commits unread; the pre-push hook passed
+  on them, and they were reviewed after).
 - **Each reviews what the other lands**, as the section above says, before building on it.
 
 ## This machine's traps

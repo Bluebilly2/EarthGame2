@@ -526,11 +526,6 @@ mandatory in every file from the first write.
 
 ## 12. Decision log (agent decisions; owner rulings are in CANON.md)
 
-WG.0a, 2026-09-13 (Codex): inspect the existing global bake before acquiring atlas inputs. Containing-cell
-sampling exposes its actual resolution without inventing fine detail. Treat any cell crossing the legacy
-writer's Mercator coverage edge as unavailable, because repeated polar rows are not evidence of polar ground.
-No change to beta geography or formats; source acquisition and landscape generation remain separate work.
-
 | Date | Decision | Why |
 |---|---|---|
 | 2026-09-07 | Hand-rolled protocol over the engine-free core; FishNet is plan B | FishNet/NGO/Mirror require a Unity server process, forfeiting the engine-free server, its dotnet tests and the pure-.NET dedicated server. Kept by the owner at the checkpoint (CANON ruling 19, 2026-09-10) |
@@ -626,3 +621,4 @@ No change to beta geography or formats; source acquisition and landscape generat
 | 2026-09-13 | A tile's far forest is drawn only while its own stand is not held: one far tree to a 40 m square, as tall as the square's trees on average and as wide as all their crowns would cover, in the far band's mesh and material, unthinned and casting no shadow | Two owners of one kilometre's trees would stand two forests in it; giving way tile by tile keeps one at a time. A square's trees seen from beyond a kilometre are a patch of canopy, and the far band already draws canopy as one clump on a trunk |
 | 2026-09-13 | The far trees stand on the region's bake, the ground the coarse ring beyond the tiles is drawn from | A far tree stands where the client holds no stand tile, over ground drawn from the bake; stood on the streamed ground it would need tiles the client does not hold |
 | 2026-09-13 | A world whose stand is not a whole number of cells to a 40 m square serves no far layers, rather than failing when one is asked for | The far squares are counted in whole cells so that no tree is counted twice; a stand of another cell size (a world generation of its own) then joins without a far forest, as a world without a stand joins without trees |
+| 2026-09-13 | WG.0a (Codex): the existing global bake is inspected before any atlas input is acquired; a point reads its containing cell, and any cell crossing the legacy writer's Mercator coverage edge is unavailable | Containing-cell sampling exposes the bake's actual resolution without inventing fine detail, and repeated polar rows are not evidence of polar ground. No change to beta geography or formats; source acquisition and landscape generation remain separate work |
