@@ -195,6 +195,16 @@
       ],
       "checks": "What stands and lies on the ground follows the M1.6a rules: every trunk under its own canopy, no two nearer than their crowns allow, the crowns covering about what the canopy covers, heights inside each plant's range and the sand forest inside BioNet's 5-20 m, stems a hectare of each plant's canopy inside the design's band, sticks only under crowns, cobbles only where stone lies loose.",
       "independent_of_the_tool_by": "numpy over the world's own layers by the codes their sidecars' legends state; the crown shares and height ranges restated from ECOSYSTEM.md's table and the sand forest's height from NSW BioNet's profile of Bangalay Sand Forest; never imports the engine, so a placement that drifts from the contract's rules is caught by a reader that did not drift with it"
+    },
+    {
+      "name": "weather_check",
+      "path": "Tools/verifiers/checks/weather_check.py",
+      "author": "Claude",
+      "gates": [
+        "M1.8a"
+      ],
+      "checks": "A year of the engine's weather for each of many world seeds, at Point Perpendicular Lighthouse's height, written by the almanac tool's +weather: August's mean daily maximum and minimum, read as the Bureau reads them (the highest in the 24 hours from 9 am, the lowest in the 24 hours to 9 am), against the lighthouse's less the region's warming, to twice the warming's uncertainty; August's daily range to 0.15 degrees; the coldest hour of August's mean day within three quarters of an hour of mid-August's sunrise; and August's rain and the year's within a tenth of the record with the cool season's drying undone, with the station's rain days between the counts at 1 mm and at 0.2 mm for both.",
+      "independent_of_the_tool_by": "numpy over the raw samples by the layout ARCHITECTURE section 10 states: each day's extremes and total, the rain days and the mean August day's coldest step are worked out in the check, where the engine works out none of them; the lighthouse's figures, the warming, the drying and the lapse rate restated from their sources, and sunrise from the NOAA solar equations through solar_check.py, which share nothing with the engine's Spencer series; never imports the engine"
     }
   ]
 }

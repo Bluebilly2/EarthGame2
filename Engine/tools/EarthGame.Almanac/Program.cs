@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using EarthGame.Engine;
 
 namespace EarthGame.Almanac
@@ -8,13 +9,17 @@ namespace EarthGame.Almanac
     /// <summary>
     /// Prints the engine's sun as eg2.almanac lines (format contract in ARCHITECTURE.md §10). Arguments follow the
     /// +key value convention of the server host: +region bherwerre (the default place and wake hour), or +lat and
-    /// +lon with +hour for the wake reading; +day N, optionally +to M for a range of days. Exit 2 on a bad argument.
+    /// +lon with +hour for the wake reading; +day N, optionally +to M for a range of days. With +weather and a folder it
+    /// writes years of the engine's weather at the region's centre there instead, as eg2.weather (M1.8a): +first the
+    /// first world seed (1000), +seeds how many (256), +days (365), +steps a day (48), +altitude metres (the height of the
+    /// weather station the region's climate stands on) and +exposure 0 to 1 (1, open ground). Exit 2 on a bad argument.
     /// </summary>
     public static class Program
     {
         public static int Main(string[] args)
         {
             Dictionary<string, string> a = ParseArgs(args);
+            if (a.ContainsKey("weather")) return WriteWeather(a);
             Region region = Region.ById(Str(a, "region", Region.Bherwerre.Id));
             if (region == null && !(a.ContainsKey("lat") && a.ContainsKey("lon")))
             {
@@ -33,6 +38,39 @@ namespace EarthGame.Almanac
             }
             for (int d = day; d <= to; d++)
                 Console.WriteLine(EarthGame.Engine.Almanac.ToJsonLine(EarthGame.Engine.Almanac.Compute(lat, lon, d, hour), hour));
+            return 0;
+        }
+
+        private static int WriteWeather(Dictionary<string, string> a)
+        {
+            Region region = Region.ById(Str(a, "region", Region.Bherwerre.Id));
+            if (region == null)
+            {
+                Console.Error.WriteLine("unknown region '" + Str(a, "region", "") + "'; known: " + Region.Bherwerre.Id);
+                return 2;
+            }
+            Climate climate;
+            try
+            {
+                climate = Climate.ForRegion(region);
+            }
+            catch (ArgumentException ex)
+            {
+                Console.Error.WriteLine(ex.Message);
+                return 2;
+            }
+            string folder = a["weather"];
+            ulong first = ULong(a, "first", 1000UL);
+            int seeds = Int(a, "seeds", 256), days = Int(a, "days", 365), steps = Int(a, "steps", 48);
+            double altitude = Dbl(a, "altitude", climate.StationElevationM);
+            double exposure = Dbl(a, "exposure", 1.0);
+            if (folder == "true" || seeds < 1 || days < 1 || steps < 1 || exposure < 0.0 || exposure > 1.0)
+            {
+                Console.Error.WriteLine("usage: +weather <folder> [+region bherwerre] [+first N] [+seeds N] [+days N] [+steps N a day] [+altitude metres] [+exposure 0..1]");
+                return 2;
+            }
+            WeatherYears.Write(folder, region, first, seeds, days, steps, altitude, exposure);
+            Console.WriteLine("wrote " + seeds + " seeds of " + days + " days at " + steps + " steps a day to " + Path.GetFullPath(folder));
             return 0;
         }
 
@@ -56,5 +94,8 @@ namespace EarthGame.Almanac
 
         private static int Int(Dictionary<string, string> a, string key, int fallback)
             => a.TryGetValue(key, out string v) && int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out int i) ? i : fallback;
+
+        private static ulong ULong(Dictionary<string, string> a, string key, ulong fallback)
+            => a.TryGetValue(key, out string v) && ulong.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out ulong u) ? u : fallback;
     }
 }

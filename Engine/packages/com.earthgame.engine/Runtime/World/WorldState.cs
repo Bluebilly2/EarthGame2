@@ -102,6 +102,22 @@ namespace EarthGame.Engine
         /// </summary>
         public CapacitySquares Capacity { get; }
 
+        /// <summary>
+        /// The world's climate (M1.8a), from the weather station's record this build holds for its region. Built when first
+        /// asked for rather than with the world, so that a world of a region no record is held for (a test's fixture) is
+        /// refused only by what asks it about the weather.
+        /// </summary>
+        public Climate Climate => _climate ?? (_climate = Climate.ForRegion(Region));
+
+        /// <summary>
+        /// The fronts this world's seed draws (M1.8a), built when first asked for. A client draws the same from the seed its
+        /// Welcome carries, so nothing of the weather is sent.
+        /// </summary>
+        public Synoptic Synoptic => _synoptic ?? (_synoptic = new Synoptic(Seed));
+
+        private Climate _climate;
+        private Synoptic _synoptic;
+
         public WorldState(ulong seed, Region region, WorldClock clock, Heightfield terrain = null, long tick = 0, Double3? wake = null, WorldWater water = null, RegionRaster cover = null,
                           RegionRaster stand = null, RegionRaster loose = null, RegionRaster stone = null, CapacitySquares capacity = null)
         {
