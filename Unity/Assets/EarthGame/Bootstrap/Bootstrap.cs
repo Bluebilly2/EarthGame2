@@ -405,9 +405,11 @@ namespace EarthGame.Bootstrap
             DateTime bestTime = DateTime.MinValue;
             foreach (string dir in Directory.GetDirectories(saves))
             {
-                string worldFile = Path.Combine(dir, WorldSave.WorldFile);
-                if (!File.Exists(worldFile)) continue;
-                DateTime t = File.GetLastWriteTimeUtc(worldFile);
+                // A world whose save a crash stopped is still the world (M1.3b): its record stands for a file not yet put in place.
+                if (!WorldSave.Exists(dir)) continue;
+                DateTime t = DateTime.MinValue;
+                foreach (string file in new[] { Path.Combine(dir, WorldSave.WorldFile), Path.Combine(dir, WorldSave.CommitFile) })
+                    if (File.Exists(file) && File.GetLastWriteTimeUtc(file) > t) t = File.GetLastWriteTimeUtc(file);
                 if (t > bestTime)
                 {
                     bestTime = t;

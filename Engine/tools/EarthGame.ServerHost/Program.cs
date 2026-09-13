@@ -244,8 +244,10 @@ namespace EarthGame.ServerHost
                                 if (string.IsNullOrEmpty(worldDir)) Log("no world folder to save to (+server.world)");
                                 else
                                 {
+                                    System.Diagnostics.Stopwatch savingNow = System.Diagnostics.Stopwatch.StartNew();
                                     server.Save(worldDir, DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture), layerChecksums);
-                                    Log("saved " + worldDir + " at tick " + world.Tick + " digest " + server.Digest());
+                                    Log("saved " + worldDir + " at tick " + world.Tick + " digest " + server.Digest() + " in "
+                                        + savingNow.Elapsed.TotalMilliseconds.ToString("0.0", CultureInfo.InvariantCulture) + " ms");
                                 }
                                 break;
                             case "":
@@ -266,8 +268,9 @@ namespace EarthGame.ServerHost
             instruments.End(seconds());
             if (!string.IsNullOrEmpty(worldDir))
             {
+                System.Diagnostics.Stopwatch savingAtStop = System.Diagnostics.Stopwatch.StartNew();
                 server.Save(worldDir, DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture), layerChecksums);
-                Log("saved " + worldDir);
+                Log("saved " + worldDir + " in " + savingAtStop.Elapsed.TotalMilliseconds.ToString("0.0", CultureInfo.InvariantCulture) + " ms");
             }
             transport.Dispose();
             log?.Dispose();

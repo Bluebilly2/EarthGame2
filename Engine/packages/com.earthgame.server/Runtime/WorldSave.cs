@@ -61,9 +61,11 @@ namespace EarthGame.Server
     /// is still read and replaced),
     /// <c>regions/r.X.Y.egr</c> (the entities by 512 m cell and, since M1.5b, what has been taken from the loose layer)
     /// and <c>digest.txt</c> (the world's name, for a test or
-    /// a verifier to compare). The server is the only writer; every file is written to a <c>.part</c> and moved
-    /// into place so a crash mid-write leaves the previous save intact. Dates are the host's: the server reads no
-    /// clock.
+    /// a verifier to compare). The server is the only writer. A save is whole or it is not there (M1.3b): its files are
+    /// written aside and flushed, a record of what it will put in place is placed, and only then are they put in place, so a
+    /// crash leaves the previous save or a save <see cref="Recover"/> finishes. Until 2026-09-13 each file was moved in on its
+    /// own, deleting the old one first, and a crash could lose a file or leave old files and new ones mixed. Dates are the
+    /// host's: the server reads no clock.
     /// </summary>
     public static class WorldSave
     {
@@ -73,11 +75,29 @@ namespace EarthGame.Server
         public const string PlayersFolder = "players";
         public const string DigestFile = "digest.txt";
 
+        /// <summary>The record of a save part of the way through (M1.3b): what it puts in place and what it removes, there only until the save is whole.</summary>
+        public const string CommitFile = "save.commit";
+        public const string CommitFormat = "eg2.save_commit";
+        public const int CommitVersion = 1;
+        private const string PartSuffix = ".part";
+
+        /// <summary>
+        /// Writes the world's save (M1.3b): every file it changes beside its target as <c>.part</c>, each flushed to the disk;
+        /// then the record of what it will put in place and remove, <see cref="CommitFile"/>, beside itself, flushed and moved in
+        /// whole; then the files put in place and the files of cells that emptied removed; then the record removed. A crash
+        /// before the record is placed leaves the previous save untouched, and one after it a save <see cref="Recover"/>
+        /// finishes. <paramref name="afterEachStep"/> is told each step once it is done, in order: a test throws from it where a
+        /// crash would stop the save.
+        /// </summary>
         public static void Write(string dir, WorldState world, IReadOnlyList<SavedPlayer> players, string nowUtcText,
-                                 IReadOnlyDictionary<string, string> layerChecksums = null)
+                                 IReadOnlyDictionary<string, string> layerChecksums = null, Action<string> afterEachStep = null)
         {
             if (world == null) throw new ArgumentNullException(nameof(world));
             Directory.CreateDirectory(dir);
+            // A save a crash stopped is finished or cleared before this one begins, so that nothing of it is taken for this one's.
+            Recover(dir);
+            List<KeyValuePair<string, byte[]>> place = new List<KeyValuePair<string, byte[]>>();
+            List<string> remove = new List<string>();
             string worldPath = Path.Combine(dir, WorldFile);
             string created = nowUtcText ?? string.Empty;
             JsonObject layers = null;
@@ -114,10 +134,9 @@ namespace EarthGame.Server
                 foreach (var pair in layerChecksums) layers.With(pair.Key, pair.Value);
             }
             if (layers != null) doc.With("layers", layers);
-            WriteAtomic(worldPath, Encoding.UTF8.GetBytes(Json.Write(doc, indent: true)));
-
-            WritePlayers(dir, players);
-            WriteRegions(dir, world);
+            place.Add(new KeyValuePair<string, byte[]>(WorldFile, Encoding.UTF8.GetBytes(Json.Write(doc, indent: true))));
+            PlayerFiles(dir, players, place, remove);
+            RegionFiles(dir, world, place, remove);
 
             List<KeyValuePair<string, MoverState>> bodies = new List<KeyValuePair<string, MoverState>>();
             List<CarrierRecord> carriers = new List<CarrierRecord>();
@@ -128,21 +147,21 @@ namespace EarthGame.Server
                     bodies.Add(new KeyValuePair<string, MoverState>(p.Name, p.Body));
                     carriers.Add(new CarrierRecord { Name = p.Name, Hand = p.Hand, Things = p.Carried ?? Array.Empty<CarriedThing>() });
                 }
-            WriteAtomic(Path.Combine(dir, DigestFile), Encoding.UTF8.GetBytes(WorldDigest.World(world, bodies, carriers) + "\n"));
+            place.Add(new KeyValuePair<string, byte[]>(DigestFile, Encoding.UTF8.GetBytes(WorldDigest.World(world, bodies, carriers) + "\n")));
+            Commit(dir, place, remove, afterEachStep);
         }
 
-        private static void WritePlayers(string dir, IReadOnlyList<SavedPlayer> players)
+        private static void PlayerFiles(string dir, IReadOnlyList<SavedPlayer> players, List<KeyValuePair<string, byte[]>> place, List<string> remove)
         {
             if (players == null) return;
-            string playersDir = Path.Combine(dir, PlayersFolder);
-            Directory.CreateDirectory(playersDir);
+            Directory.CreateDirectory(Path.Combine(dir, PlayersFolder));
             foreach (SavedPlayer s in players)
             {
                 if (string.IsNullOrEmpty(s.Name)) continue;
-                string stem = Path.Combine(playersDir, FileNameFor(s.Name));
-                WriteAtomic(stem + PlayerFile.Extension, PlayerFile.Encode(s));
+                string stem = PlayersFolder + "/" + FileNameFor(s.Name);
+                place.Add(new KeyValuePair<string, byte[]>(stem + PlayerFile.Extension, PlayerFile.Encode(s)));
                 // A version-1 JSON file for the same name is superseded by the binary file, never left to disagree with it.
-                if (File.Exists(stem + ".json")) File.Delete(stem + ".json");
+                if (File.Exists(Full(dir, stem + ".json"))) remove.Add(stem + ".json");
             }
         }
 
@@ -150,7 +169,7 @@ namespace EarthGame.Server
         /// The entities by cell, and the takings from the loose layer by the cell their raster cell's centre lies in
         /// (M1.5b); a cell's file is removed when it holds neither, so the folder says exactly what exists.
         /// </summary>
-        private static void WriteRegions(string dir, WorldState world)
+        private static void RegionFiles(string dir, WorldState world, List<KeyValuePair<string, byte[]>> place, List<string> remove)
         {
             string regionsDir = Path.Combine(dir, RegionFile.Folder);
             Directory.CreateDirectory(regionsDir);
@@ -185,18 +204,25 @@ namespace EarthGame.Server
                 string name = RegionFile.NameFor(cx, cz);
                 byCell.TryGetValue(key, out List<SavedEntity> entities);
                 takenByCell.TryGetValue(key, out List<LooseTaken.Cell> taken);
-                WriteAtomic(Path.Combine(regionsDir, name), RegionFile.Encode(cx, cz, (IReadOnlyList<SavedEntity>)entities ?? Array.Empty<SavedEntity>(), taken));
+                place.Add(new KeyValuePair<string, byte[]>(RegionFile.Folder + "/" + name,
+                    RegionFile.Encode(cx, cz, (IReadOnlyList<SavedEntity>)entities ?? Array.Empty<SavedEntity>(), taken)));
                 written.Add(name);
             }
             foreach (string file in Directory.GetFiles(regionsDir, "r.*.egr"))
-                if (!written.Contains(Path.GetFileName(file))) File.Delete(file);
+                if (!written.Contains(Path.GetFileName(file))) remove.Add(RegionFile.Folder + "/" + Path.GetFileName(file));
         }
 
-        /// <summary>True when the folder holds a readable world.json.</summary>
-        public static bool Exists(string dir) => !string.IsNullOrEmpty(dir) && File.Exists(Path.Combine(dir, WorldFile));
+        /// <summary>
+        /// True when the folder holds a world: its <c>world.json</c>, or the record of a save a crash stopped before that file
+        /// was put in place, which <see cref="Read"/> finishes.
+        /// </summary>
+        public static bool Exists(string dir)
+            => !string.IsNullOrEmpty(dir) && (File.Exists(Path.Combine(dir, WorldFile)) || File.Exists(Path.Combine(dir, CommitFile)));
 
+        /// <summary>The world a folder holds, once <see cref="Recover"/> has left it one whole save.</summary>
         public static WorldSaveInfo Read(string dir)
         {
+            Recover(dir);
             string worldPath = Path.Combine(dir, WorldFile);
             if (!File.Exists(worldPath)) throw new FileNotFoundException("no world here", worldPath);
             JsonObject doc = Json.ParseObject(File.ReadAllText(worldPath, Encoding.UTF8));
@@ -355,12 +381,105 @@ namespace EarthGame.Server
             return sb.Length == 0 ? "_" : sb.ToString();
         }
 
-        private static void WriteAtomic(string path, byte[] bytes)
+        /// <summary>
+        /// Finishes a save a crash stopped after its record was placed, or clears away one stopped before (M1.3b), so that the
+        /// folder holds one whole save. Reading a world recovers its folder first, and a save recovers it before it begins.
+        /// A record whose files are not the files it names is refused, and the folder is left as it is to be looked at.
+        /// </summary>
+        public static void Recover(string dir)
         {
-            string part = path + ".part";
-            File.WriteAllBytes(part, bytes);
-            if (File.Exists(path)) File.Delete(path);
-            File.Move(part, path);
+            if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return;
+            string recordPath = Path.Combine(dir, CommitFile);
+            if (File.Exists(recordPath))
+            {
+                JsonObject record;
+                try
+                {
+                    record = Json.ParseObject(File.ReadAllText(recordPath, Encoding.UTF8));
+                }
+                catch (JsonException ex)
+                {
+                    throw new InvalidDataException(recordPath + " cannot be read (" + ex.Message + "); the last save cannot be finished");
+                }
+                if (record.StringOr("format", "(none)") != CommitFormat || record.Int("version") != CommitVersion)
+                    throw new InvalidDataException(recordPath + " is not a save's record this build reads");
+                Finish(dir, record, null, checkBytes: true);
+            }
+            // What is left belongs to a save that never placed its record, and the files it would have replaced were never touched.
+            foreach (string folder in new[] { dir, Path.Combine(dir, PlayersFolder), Path.Combine(dir, RegionFile.Folder) })
+                if (Directory.Exists(folder))
+                    foreach (string part in Directory.GetFiles(folder, "*" + PartSuffix))
+                        File.Delete(part);
         }
+
+        /// <summary>Writes the files aside, then places the record, then finishes: the two halves of a save, either side of the moment it counts.</summary>
+        private static void Commit(string dir, List<KeyValuePair<string, byte[]>> place, List<string> remove, Action<string> afterEachStep)
+        {
+            List<object> placed = new List<object>();
+            foreach (KeyValuePair<string, byte[]> file in place)
+            {
+                WriteFlushed(Full(dir, file.Key) + PartSuffix, file.Value);
+                placed.Add(new JsonObject().With("file", file.Key).With("crc32", (double)Crc32.Compute(file.Value)));
+                afterEachStep?.Invoke("wrote " + file.Key + PartSuffix);
+            }
+            List<object> removed = new List<object>();
+            foreach (string name in remove) removed.Add(name);
+            JsonObject record = new JsonObject().With("format", CommitFormat).With("version", CommitVersion).With("place", placed).With("remove", removed);
+            string recordPath = Path.Combine(dir, CommitFile);
+            WriteFlushed(recordPath + PartSuffix, Encoding.UTF8.GetBytes(Json.Write(record, indent: true)));
+            File.Move(recordPath + PartSuffix, recordPath);
+            afterEachStep?.Invoke("placed " + CommitFile);
+            Finish(dir, record, afterEachStep, checkBytes: false);
+        }
+
+        /// <summary>
+        /// Puts in place every file a placed record names and removes what it says emptied, then removes the record: the second
+        /// half of a save, the same whether the save runs it or a recovery does. A file already in place is known by its bytes,
+        /// and a recovery holds each replacement's bytes to the record before putting it in place, where the save itself, which
+        /// has only just written them, does not read them back.
+        /// </summary>
+        private static void Finish(string dir, JsonObject record, Action<string> afterEachStep, bool checkBytes)
+        {
+            foreach (object entry in record.Array("place"))
+            {
+                JsonObject file = entry as JsonObject ?? throw new InvalidDataException(CommitFile + " lists a file it does not describe");
+                string name = file.String("file");
+                uint crc = (uint)file.Number("crc32");
+                string target = Full(dir, name), part = target + PartSuffix;
+                if (File.Exists(part))
+                {
+                    if (checkBytes && Crc32.Compute(File.ReadAllBytes(part)) != crc)
+                        throw new InvalidDataException(name + PartSuffix + " is not the file this world's last save recorded, so the save cannot be finished");
+                    if (File.Exists(target)) File.Replace(part, target, null);
+                    else File.Move(part, target);
+                    afterEachStep?.Invoke("put " + name + " in place");
+                }
+                else if (!File.Exists(target) || Crc32.Compute(File.ReadAllBytes(target)) != crc)
+                    throw new InvalidDataException(name + " is not the file this world's last save recorded, so the save cannot be finished");
+            }
+            foreach (object entry in record.Array("remove"))
+            {
+                string name = entry as string ?? throw new InvalidDataException(CommitFile + " lists something to remove that is not a file's name");
+                string path = Full(dir, name);
+                if (!File.Exists(path)) continue;
+                File.Delete(path);
+                afterEachStep?.Invoke("removed " + name);
+            }
+            File.Delete(Path.Combine(dir, CommitFile));
+            afterEachStep?.Invoke("removed " + CommitFile);
+        }
+
+        private static void WriteFlushed(string path, byte[] bytes)
+        {
+            using (FileStream stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                stream.Write(bytes, 0, bytes.Length);
+                // To the disk, not only to the operating system's buffers: a power cut after the record is placed must find every file whole.
+                stream.Flush(true);
+            }
+        }
+
+        /// <summary>A file of the world folder by its name in the record, which uses forward slashes on every platform.</summary>
+        private static string Full(string dir, string name) => Path.Combine(dir, name.Replace('/', Path.DirectorySeparatorChar));
     }
 }

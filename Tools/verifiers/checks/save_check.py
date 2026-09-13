@@ -23,6 +23,8 @@ per second>]), one line per cell something was taken from, by row and then colum
 to even, and prints it beside the server's.
 
 Rows, each with both numbers:
+  0. the folder holds one whole save: no file written aside (.part) and no save's record (save.commit) left over, which
+     only a save a crash stopped leaves, for the next load to finish or clear (M1.3b);
   1. every region file's CRC matches its records;
   2. every region file is the cell its name says, and every entity in it lies in that cell (512 m cells from the
      south-west corner);
@@ -188,6 +190,14 @@ def main(argv):
         print("%-40s %s  %s" % (name, "ok " if ok else "FAIL", detail))
         if not ok:
             failures.append(name)
+
+    # 0: one whole save, not a save a crash stopped part of the way through (M1.3b).
+    left = sorted(os.path.relpath(p, full) for folder in (full, os.path.join(full, "players"), os.path.join(full, "regions"))
+                  for p in glob.glob(os.path.join(folder, "*.part")))
+    if os.path.isfile(os.path.join(full, "save.commit")):
+        left.append("save.commit")
+    expect("the folder holds one whole save", not left,
+           "left over: " + ", ".join(left) if left else "no file written aside and no save's record left over")
 
     # 1 and 2: the region files.
     regions = sorted(glob.glob(os.path.join(full, "regions", "r.*.egr")))
