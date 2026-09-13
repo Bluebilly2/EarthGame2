@@ -330,9 +330,9 @@ the facts they improve and cite their source; they should not duplicate entire i
 
 ## 10. Fit with EarthGame2: inspected constraints
 
-Code observations below were reviewed against main `179bf8d` on 2026-09-13 after the far forest landed:
-protocol 8 and tile layers 6 and 7 derive the distant forest from `stand`. This proposal changes none of those
-formats. Implementation must recheck the current contracts, because the beta continues alongside this work.
+Code observations below were reviewed against main `e3e93c6` on 2026-09-13: protocol 9 carries animal poses,
+while tile layers 6 and 7 derive the distant forest from `stand`. M1.8a has begun the regional weather model.
+Implementation must recheck the current contracts, because the beta continues alongside this work.
 
 | Existing seam / evidence | Consequence for this design |
 |---|---|
@@ -407,4 +407,8 @@ storage arithmetic, source-code inspection and an unopened next-step contract. N
 acquisition, numeric coordinate sampling, generation experiments, tests, builds, format changes or playtests.
 That is the scope of the original research, not the status of subsequent implementation. The subsequent
 [WG.0a exit record](contracts/WG.0a_EXISTING_ELEVATION.md#exit-record) owns the existing-data lookup results.
-Work lives in the separate `codex/world-generation-design` worktree; ongoing beta code is not edited here.
+[WG.0b](contracts/WG.0b_WORLD_INPUTS.md) adds input agreement to the existing generation path: map roles and
+shared grid identity must match before the engine combines them. Its exit record owns the preservation proof.
+The future Earth-wide biosphere belongs to world generation after the beta, under CANON ruling 27; its idea
+and unanswered design questions live in [BIOSPHERE.md](BIOSPHERE.md). No biosphere implementation is opened here.
+Work lives in the separate `codex/world-generation-design` worktree.

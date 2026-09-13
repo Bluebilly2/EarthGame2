@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 
 namespace EarthGame.Engine
 {
@@ -206,6 +208,7 @@ namespace EarthGame.Engine
         public static WorldLayers Compute(RegionRaster heights, ulong seed, RegionRaster waterBodies = null, Action<string> progress = null)
         {
             if (heights == null) throw new ArgumentNullException(nameof(heights));
+            ValidateInputs(heights, waterBodies);
             WorldLayers w = new WorldLayers(heights, waterBodies, progress);
             progress?.Invoke("Reading slopes and wind exposure");
             w.SlopeAndExposure();
@@ -231,6 +234,55 @@ namespace EarthGame.Engine
             progress?.Invoke("Calculating animal habitat");
             w.Capacities();
             return w;
+        }
+
+        /// <summary>
+        /// WG.0b (2026-09-13): mapped outlines are joined to the heights by array index, so their cells must
+        /// name the same places. Matching dimensions alone once let another region's lakes shape the soil
+        /// and habitat. Refuse before allocating the layer chain; reprojecting is the bake's job.
+        /// </summary>
+        private static void ValidateInputs(RegionRaster heights, RegionRaster waterBodies)
+        {
+            Require(heights, "layer", heights.Layer, "heights");
+            Require(heights, "unit", heights.Unit, "m");
+            Frame(heights);
+            if (waterBodies == null) return;
+            Require(waterBodies, "layer", waterBodies.Layer, "water_bodies");
+            Require(waterBodies, "unit", waterBodies.Unit, "id");
+            Require(waterBodies, "scale", waterBodies.Scale, 1.0);
+            if (!waterBodies.IsIntegral) Refuse(waterBodies, "dtype", waterBodies.Dtype, "integral IDs");
+            Frame(waterBodies);
+            Require(waterBodies, "region", waterBodies.RegionId, heights.RegionId);
+            Require(waterBodies, "width", waterBodies.Width, heights.Width);
+            Require(waterBodies, "height", waterBodies.Height, heights.Height);
+            Require(waterBodies, "cell_m", waterBodies.CellM, heights.CellM);
+            Require(waterBodies, "extent_m", waterBodies.ExtentM, heights.ExtentM);
+            Require(waterBodies, "centre_lat", waterBodies.CentreLatDeg, heights.CentreLatDeg);
+            Require(waterBodies, "centre_lon", waterBodies.CentreLonDeg, heights.CentreLonDeg);
+
+            void Frame(RegionRaster raster)
+            {
+                if (!(raster.CellM > 0) || double.IsInfinity(raster.CellM))
+                    Refuse(raster, "cell_m", raster.CellM, "finite and positive metres");
+                if (!(raster.ExtentM > 0) || double.IsInfinity(raster.ExtentM))
+                    Refuse(raster, "extent_m", raster.ExtentM, "finite and positive metres");
+                if (!(raster.CentreLatDeg >= -90 && raster.CentreLatDeg <= 90))
+                    Refuse(raster, "centre_lat", raster.CentreLatDeg, "finite degrees in [-90, 90]");
+                if (!(raster.CentreLonDeg >= -180 && raster.CentreLonDeg <= 180))
+                    Refuse(raster, "centre_lon", raster.CentreLonDeg, "finite degrees in [-180, 180]");
+            }
+
+            void Require<T>(RegionRaster raster, string field, T actual, T required)
+            {
+                if (!EqualityComparer<T>.Default.Equals(actual, required)) Refuse(raster, field, actual, required);
+            }
+
+            void Refuse(RegionRaster raster, string field, object actual, object required)
+            {
+                throw new InvalidDataException("World input '" + raster.Name + "' (" + raster.Layer + "), " + field
+                    + ": actual '" + Convert.ToString(actual, CultureInfo.InvariantCulture)
+                    + "'; required '" + Convert.ToString(required, CultureInfo.InvariantCulture) + "'.");
+            }
         }
 
         private int Index(int row, int col) => row * Width + col;
@@ -455,9 +507,6 @@ namespace EarthGame.Engine
         /// </summary>
         private void Mapped(ReadOnlySpan<float> z, RegionRaster waterBodies, bool[] lake)
         {
-            if (waterBodies.Width != Width || waterBodies.Height != Height)
-                throw new ArgumentException("the water bodies are " + waterBodies.Width + "x" + waterBodies.Height + ", the heights " + Width + "x" + Height, nameof(waterBodies));
-            if (!waterBodies.IsIntegral) throw new ArgumentException("the water bodies must be an id layer", nameof(waterBodies));
             var bodies = new List<WaterBody>();
             var byCode = new Dictionary<int, WaterBody>();
             if (waterBodies.Sidecar.Contains("bodies"))

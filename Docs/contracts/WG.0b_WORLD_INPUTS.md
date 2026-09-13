@@ -54,5 +54,46 @@ The last two are separate input boundaries and must not be silently folded into 
 
 ## Exit record
 
-Open. William was told the scope before implementation. There is no appearance or feel decision in this slice;
-worldwide atlas acquisitions remain his to allow, and eventual landscapes his to judge.
+Completed 2026-09-13 on the `e3e93c6` baseline. `WorldLayers` now owns input validation before generation;
+the later dimension/type checks in `Mapped` were removed, leaving one owner. The server's existing error path
+handles `InvalidDataException`, so a mismatched bake produces a useful refusal instead of a partly made world.
+No file format or generator rule changed. Primary-region and saved-layer checks remain a named Codex debt.
+
+Evidence below is in `C:/Users/willi/projects/EarthGame2-world-generation-design/Artefacts/`.
+
+| Check | Observed | Required / reference |
+|---|---|---|
+| Tests before implementation, `dotnet test Engine/EarthGame.slnx -c Debug --nologo --no-restore --filter FullyQualifiedName~WorldInputTests` | 15 failed, 2 passed; exit 1 | A red run: the old code accepts bad inputs; exit nonzero |
+| Same input tests after implementation | 17 passed, 0 failed/skipped; exit 0 | 17 passed; 0 failed/skipped; exit 0 |
+| Final full engine suite, `dotnet test Engine/EarthGame.slnx -c Debug --nologo --no-restore` | 443 passed, 0 failed/skipped; exit 0 | 0 failed/skipped; exit 0 |
+| Unity-layer compile | 0 warnings, 0 errors; exit 0 | 0 warnings/errors; exit 0 |
+| `python Tools/gate/run_gate.py WG.0b` | exit 0 | exit 0 |
+| Independent dedicated-host cases | 16 outcomes agree: 2 valid, 14 invalid | Reference from synthetic inputs: 2 valid, 14 invalid |
+| Aligned inputs and absent optional outlines | each exit 0; world saved | each exit 0; world saved |
+| Invalid inputs, including shifted-origin sidecars retaining identical raw bytes | each exit 2; 0 partial world folders | each exit 2; 0 partial world folders |
+| Bherwerre before/after raw-layer comparison, seed 1347 | 24 hashes agree; 0 mismatches | Same 24 layer names; 0 mismatches |
+| Saved wake, east / up / north metres | -1392 / 0 / 2804 | Before change: -1392 / 0 / 2804 |
+
+The source of each geographic expectation is the verifier's own synthetic sidecar, converted to post positions
+by the documented frame equation; it does not call `WorldLayers` or the bake's reader. The real-world comparison
+uses Python SHA-256 over raw file bytes, not the hashes claimed in their sidecars. It includes every capacity,
+stand, loose, cover, water and height layer. Every comparison prints actual and required values.
+
+- Red and focused green logs: `codex-wg0b-red-20260913-161409/tests.log` and
+  `codex-wg0b-tests-20260913-161546/tests.log`.
+- Full suite and compile: `codex-wg0b-final-20260913-162136/{engine,unity}.log`. Compile command:
+  `dotnet build Engine/EarthGame.Unity.Compile.csproj -c Debug --nologo --no-restore`, with
+  `-p:UnityScriptAssemblies=<main>/Unity/Library/ScriptAssemblies` and
+  `-p:UnityPackageCache=<main>/Unity/Library/PackageCache`, using the existing import without launching Unity.
+- Gate: `codex-wg0b-gate-20260913-161751/gate.log`.
+- Before world and host log: `codex-wg0b-before-20260913-161245/`. Both worlds use the existing host's
+  `+server.data <main>/Data/regions/bherwerre +server.seed 1347 +server.port 0 +server.seconds 1` and fresh
+  `+server.world` folders. No data was fetched and no player was launched.
+- Comparison: `codex-wg0b-real-20260913-161819/comparison.log`; run as
+  `python Tools/verifiers/checks/world_inputs_check.py --data <main>/Data/regions/bherwerre --before
+  Artefacts/codex-wg0b-before-20260913-161245/world`. The after world and per-case host logs are under
+  `codex-world-inputs-668f07a6af784eb4a66c1f2c9a3f79a5/`.
+
+No lake, coast, plant or animal-capacity debt is claimed paid; valid layers and the wake did not change, so the
+corpus route is not re-laid. There is no new rendered appearance or feel claim. William was told the scope
+before implementation; atlas acquisitions remain his to allow, and eventual landscapes his to judge.

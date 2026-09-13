@@ -2,6 +2,14 @@
   "_note": "Verifiers are the checks the gates run (CANON.md ruling 16 as amended by ruling 17 of 2026-09-08: Claude writes them). Because the same party writes the tool and its check, each entry states the independent method or data the check rests on; a check that reuses the tool's own code is a stub with extra steps. The gate runner derives each status from the file on disk: missing (no file), stub (empty or carrying the '# STUB' marker), present; a present verifier is run as a gate step for its exit code.",
   "verifiers": [
     {
+      "name": "world_inputs_check",
+      "path": "Tools/verifiers/checks/world_inputs_check.py",
+      "author": "Codex",
+      "gates": ["WG.0b"],
+      "checks": "Generation refuses spatially mismatched or semantically wrong maps before writing a world; aligned maps and absent optional water still work. Optional pre-change comparison reads raw layer bytes and saved wake coordinates.",
+      "independent_of_the_tool_by": "Python writes its own synthetic eg2.raster v2 maps and evaluates geographic post positions from ARCHITECTURE section 10; the engine compares metadata. Drives the real dedicated host for its exit and filesystem effects. No engine or bake-helper imports. Hashes before/after raw files itself instead of trusting their writer's checksums."
+    },
+    {
       "name": "atlas_probe_check",
       "path": "Tools/verifiers/checks/atlas_probe_check.py",
       "author": "Codex",
