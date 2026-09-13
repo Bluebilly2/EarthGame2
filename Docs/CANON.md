@@ -168,3 +168,7 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     under the world generation," and "make sure this idea of a full functioning biosphere is written down for later
     development." After the beta arc, a biosphere for the whole Earth is designed as part of world generation. The
     idea is written down in `BIOSPHERE.md`.
+
+28. **F11 fills the screen.** Having asked to "launch the latest version", which opened in a window on his left screen:
+    "and add the ability to enter fullscreen mode with f11". F11 makes the game fill the screen its window is on, and
+    gives the window back when pressed again, in the menu and in play.

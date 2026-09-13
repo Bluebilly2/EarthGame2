@@ -73,6 +73,11 @@ namespace EarthGame.Client
         public const string Screenshot = "Screenshot";
         /// <summary>A development game's flight (M1.5e): bound at the desk alone, since only a developer flies.</summary>
         public const string Fly = "Fly";
+        /// <summary>
+        /// Fullscreen and back, at the desk (William's ruling of 2026-09-13): read by <see cref="WindowMode"/> in the menu and
+        /// in play, not by the founder's hands.
+        /// </summary>
+        public const string Fullscreen = "Fullscreen";
 
         /// <summary>The action for a place's key: "Hand1" to "Hand9".</summary>
         public static string Hand(int place) => "Hand" + place;
@@ -99,6 +104,7 @@ namespace EarthGame.Client
                 yield return Menu;
                 yield return Screenshot;
                 yield return Fly;
+                yield return Fullscreen;
             }
         }
 

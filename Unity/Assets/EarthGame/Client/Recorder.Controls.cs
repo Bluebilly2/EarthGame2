@@ -115,8 +115,8 @@ namespace EarthGame.Client
             int carried = CarriedCount();
             yield return Expect("use puts down what is in hand", Controls.Use, Controls.Pad, () => CarriedCount() == carried - 1, 4.0, Carried);
 
-            // The menu and the screenshot do nothing a windowless run can see, so their presses are looked for in the
-            // controls frame.
+            // The menu, the screenshot and fullscreen do nothing a windowless run can see, so the first two presses are looked
+            // for in the controls frame, and fullscreen's in the window's count of what it was asked.
             bool seen = false;
             _player.TakeSeen();
             yield return Expect("the menu reaches the controls", Controls.Menu, Controls.Desk, () => seen |= _player.TakeSeen().Menu, 1.0, () => "a windowless run lets go of no mouse");
@@ -126,6 +126,8 @@ namespace EarthGame.Client
             seen = false;
             _player.TakeSeen();
             yield return Expect("the screenshot reaches the controls", Controls.Screenshot, Controls.Desk, () => seen |= _player.TakeSeen().Screenshot, 1.0, () => "a windowless run saves no screenshot");
+            int asked = WindowMode.Requested;
+            yield return Expect("the fullscreen key reaches the window", Controls.Fullscreen, Controls.Desk, () => WindowMode.Requested > asked, 1.0, () => "a windowless run fills no screen");
 
             // The body: walking, running, crouching and the jump, at the desk and on the gamepad.
             Turn(0f, -_player.PitchDeg);

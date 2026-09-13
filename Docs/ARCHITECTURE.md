@@ -478,7 +478,9 @@ corpus runs, its raw results in the contracted run logs (§10), recomputed indep
 - Input System 1.20 with one actions asset, `Assets/InputSystem_Actions.inputactions`: the project's actions and,
   since M1.5a (2026-09-11), the one owner of every binding. Its "Player" map is CANON's verb rule — move, look, jump,
   sprint, crouch, work (left mouse, held), use (right mouse), carrying (Tab), the wheel, the gamepad's shoulders and
-  the keys 1–9 for the hand, Escape, and F12 for a screenshot — and code names actions (`Controls`), never keys. An
+  the keys 1–9 for the hand, Escape, F11 for fullscreen (CANON ruling 28: `WindowMode`, polled by `Bootstrap` in the
+  menu and in play alike, fills the screen the window is on and gives the window back), and F12 for a screenshot — and
+  code names actions (`Controls`), never keys. An
   action the asset lacks does nothing and is named in the log; `CIBuild` refuses to build without every one, the
   edit-mode `ControlsTests` checks each is bound at the desk, and a source rule refuses a key in code. The
   scripted-input seam hands the same frame (`ControlsFrame`), its pitch the camera's. The verbs (`VerbController`)

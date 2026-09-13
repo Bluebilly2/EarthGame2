@@ -342,6 +342,8 @@ namespace EarthGame.Bootstrap
 
         private void Update()
         {
+            // The fullscreen key, in the menu and in play alike (William's ruling of 2026-09-13).
+            EarthGame.Client.WindowMode.Poll();
             PollPreparation();
             if (_server != null)
             {
