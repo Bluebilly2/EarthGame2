@@ -62,4 +62,56 @@ atlas fields remain future work; William judges the eventual landscapes, not the
 
 ## Exit record
 
-Open. Counts and evidence will be recorded from the completed runs.
+Completed 2026-09-13, rebased on main `179bf8d`. The probe, its independent verifier and `WG.0a` gate landed
+with the design proposal brought current with protocol 8, far layers 6/7 and main's height-range refusal.
+No beta code, game format or acquired data changed. Existing AWS attribution already covers the inspected bake.
+
+Evidence is in the `EarthGame2-world-generation-design` worktree:
+`Artefacts/codex-wg0a-final-20260913-121150/{engine,unity,gate,existing}.log`;
+the source report and sabotage evidence are in
+`Artefacts/codex-atlas-check-3329131d2cd14c68910e7fbd6b2b58b0/`.
+The suite before changes on main was 395 passed, 0 failed, exit 0. Main added a tile-range test during this
+slice; the final suite below is the rebased tree's own run, not a count attributed to the Python work.
+
+| Check | Observed | Reference / required |
+|---|---|---|
+| Engine suite, `dotnet test Engine/EarthGame.slnx -c Debug --nologo --no-restore` | 396 passed; 0 failed; 0 skipped; exit 0 | 0 failures/skips; exit 0 |
+| Unity-layer compile, `dotnet build Engine/EarthGame.Unity.Compile.csproj -c Debug --nologo --no-restore` | 0 warnings; 0 errors; exit 0 | 0 warnings/errors; exit 0 |
+| `python Tools/gate/run_gate.py WG.0a` | exit 0 | exit 0 |
+| Synthetic coordinate probes, including cell edges, centres, seam and poles | 56; no mismatches | 56; exact integers/status; geometry within 1e-10 degrees |
+| Invalid input cases (6 coordinates, 9 metadata, 2 byte lengths, 2 missing files) | 19 refusals, each exit 2 and empty stdout | 19 refusals, each exit 2 and empty stdout |
+| Corrupted report, separate verifier process | exit 1; elevation -299 m | exit 1; source elevation -300 m |
+| Existing-source probes, `atlas_probe_check.py --source <main>/Data/global/EarthElevation.json` | 8; no mismatches; exit 0 | 8; no mismatches; exit 0 |
+| Identical-query reruns, fixture and existing source | stdout identical in both | stdout identical in both |
+| Fixture raw and sidecar after all queries | unchanged / unchanged | unchanged / unchanged |
+
+The worktree uses main's existing Unity import via `-p:UnityScriptAssemblies=<main>/Unity/Library/ScriptAssemblies`
+and `-p:UnityPackageCache=<main>/Unity/Library/PackageCache`. Its initial NuGet restore used a config with all
+package sources cleared, resolving installed packages only; no package acquisition was required.
+
+| Coordinate (latitude, longitude) | Probe elevation m | Independent source-cell elevation m |
+|---|---|---|
+| -35.140, 150.675 | 33 | 33 |
+| -25, 137 | 123 | 123 |
+| 27.9881, 86.9250 | 6208 | 6208 |
+| 0, 179.999 | -5100 | -5100 |
+| 0, -179.999 | -5212 | -5212 |
+| 89, 0 | null: source-edge-or-outside | null: source-edge-or-outside |
+| -89, 0 | null: source-edge-or-outside | null: source-edge-or-outside |
+| 0, -140 | -4284 | -4284 |
+
+The raw file is 16,777,216 bytes; SHA-256 `1998447c62a53b017eef05fe2a101cf598046669ca92ae51ba8c74c2a8e9354b`.
+The report records the sidecar hash too. Each cell spans 0.087890625 degrees in latitude and longitude.
+These are coarse cell averages, including the mountain probe; none is a claim about exact point height or a
+playable surface. Negative elevation does not establish that a cell is ocean. The two dateline probes are
+different neighbouring cells; +180/-180 identity is tested separately on the synthetic fixture.
+
+**What changed on the way:** the verifier's first run overwrote its own temporary fixture sidecar with its
+report and failed. Report filenames now end `.report.json`, and both input files are checked unchanged. The
+initial test-before-tool run failed (exit 1), and the intentional one-metre report corruption was also rejected.
+The gate's passing run does not count that expected sabotage failure as a passing source comparison.
+
+**Judgement:** retain this bake as a coarse relief diagnostic. It is insufficient to drive the first landscape
+experiment alone. The next data work is WG.0's exact acquisition manifest for land/water, climate and terrain
+context, with explicit permission before any fetch. Missing atlas coverage is recorded under Codex in DEBTS.
+No frames or hands-on verdict is claimed: this slice changes neither appearance nor feel.

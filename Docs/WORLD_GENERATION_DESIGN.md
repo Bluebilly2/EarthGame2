@@ -330,7 +330,7 @@ the facts they improve and cite their source; they should not duplicate entire i
 
 ## 10. Fit with EarthGame2: inspected constraints
 
-Code observations below were reviewed against main `bc9a6a8` on 2026-09-13 after the far forest landed:
+Code observations below were reviewed against main `179bf8d` on 2026-09-13 after the far forest landed:
 protocol 8 and tile layers 6 and 7 derive the distant forest from `stand`. This proposal changes none of those
 formats. Implementation must recheck the current contracts, because the beta continues alongside this work.
 
@@ -338,7 +338,7 @@ formats. Implementation must recheck the current contracts, because the beta con
 |---|---|
 | [Region.cs](../Engine/packages/com.earthgame.engine/Runtime/World/Region.cs): `ById` recognizes Bherwerre; the class combines place, bounded extent and wake time. [WorldSave.cs](../Engine/packages/com.earthgame.server/Runtime/WorldSave.cs): loading can resolve this ID. | Separate world geography, generated areas and start selection. Saves must carry enough identity to load arbitrary supported starts. No unknown-place default. |
 | [LocalFrame.cs](../Engine/packages/com.earthgame.engine/Runtime/World/LocalFrame.cs) uses a bounded small-angle map and rejects origins at absolute latitude ≥89°. [WorldPoint.cs](../Engine/packages/com.earthgame.engine/Runtime/World/WorldPoint.cs) already represents Earth-fixed double-precision positions. | Reuse the geographic concepts, but do not claim the current local frame tiles the planet. Design canonical global addressing, polar handling, local frame transitions and client recentering before seamless expansion. Arbitrary-start patches can be an intermediate proof, not the final boundary. |
-| [TileCodec.cs](../Engine/packages/com.earthgame.engine/Runtime/World/TileCodec.cs): `ToCentimetres` clamps to `MaxHeightM = 327`. | Mountains and deep ocean cannot use this representation unchanged. The architecture prose describes refusal, but inspected code clamps. A future contract must resolve range/precision explicitly, such as wider values or tile elevation origins with checked residual ranges. This is not fixed here. |
+| [TileCodec.cs](../Engine/packages/com.earthgame.engine/Runtime/World/TileCodec.cs): `MaxHeightM = 327`; main now refuses out-of-range heights and neighbour deltas rather than silently clamping/wrapping. | Mountains and deep ocean cannot use this representation unchanged. A future contract must resolve range/precision explicitly, such as wider values or tile elevation origins with checked residual ranges. The refusal protects existing formats; it does not extend them. |
 | [WorldCreation.cs](../Engine/packages/com.earthgame.server/Runtime/WorldCreation.cs) takes a baked height raster, invokes `WorldLayers.Compute`, saves layers and chooses `WakeScorer.Best()`. | Useful authority/persistence seam. Introduce an atlas-fed generation path behind an explicit version, and make spawn resolution separate. Keep the existing beta path as a regression fixture. |
 | [WorldLayers.cs](../Engine/packages/com.earthgame.engine/Runtime/World/WorldLayers.cs): `Stones` follows plant communities and cover; rock draws use topology and a province hash. [GeologyScale.cs](../Engine/packages/com.earthgame.engine/Runtime/World/GeologyScale.cs) carries a regional scale measured in the Southern Highlands. | The philosophical rock-to-ecology chain is not fully the implementation order. Atlas geology must influence terrain/soil upstream. A regional province measurement cannot become a global geological constant. |
 | [SoilModel.cs](../Engine/packages/com.earthgame.engine/Runtime/World/SoilModel.cs) normalizes topographic wetness using the region's land percentiles. | Relative ridge/hollow wetness is useful but not absolute climatic water supply. Retain its useful mechanism while adding calibrated water availability; a desert's wettest cell is not necessarily wet. |
@@ -405,4 +405,6 @@ reviewing this design, and none is silently recorded as canon.
 Completed: provider/source review, conceptual data and generation design, three sourced walkthroughs, raw
 storage arithmetic, source-code inspection and an unopened next-step contract. Not performed: dataset
 acquisition, numeric coordinate sampling, generation experiments, tests, builds, format changes or playtests.
-The design work lives in the separate `codex/world-generation-design` worktree; ongoing beta files were not edited.
+That is the scope of the original research, not the status of subsequent implementation. The subsequent
+[WG.0a exit record](contracts/WG.0a_EXISTING_ELEVATION.md#exit-record) owns the existing-data lookup results.
+Work lives in the separate `codex/world-generation-design` worktree; ongoing beta code is not edited here.

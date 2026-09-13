@@ -2,6 +2,14 @@
   "_note": "Verifiers are the checks the gates run (CANON.md ruling 16 as amended by ruling 17 of 2026-09-08: Claude writes them). Because the same party writes the tool and its check, each entry states the independent method or data the check rests on; a check that reuses the tool's own code is a stub with extra steps. The gate runner derives each status from the file on disk: missing (no file), stub (empty or carrying the '# STUB' marker), present; a present verifier is run as a gate step for its exit code.",
   "verifiers": [
     {
+      "name": "atlas_probe_check",
+      "path": "Tools/verifiers/checks/atlas_probe_check.py",
+      "author": "Codex",
+      "gates": ["WG.0a"],
+      "checks": "Legacy global elevation lookup, cell registration, source coverage, source hashes, invalid input refusal and deterministic output; a deliberately altered elevation report must fail in a separate verifier process.",
+      "independent_of_the_tool_by": "Enumerates geographic cell intervals and decodes signed values by byte arithmetic, against an asymmetric synthetic fixture and optionally the existing bake; the tool uses direct coordinate indexing and struct. Reference is WG.0a's cell-area law. Imports no probe code; validates the adapter, not geographic source accuracy."
+    },
+    {
       "name": "decode_check",
       "path": "Tools/verifiers/checks/decode_check.py",
       "author": "Claude",

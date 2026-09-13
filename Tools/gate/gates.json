@@ -1,6 +1,12 @@
 {
   "_note": "A gate is a list of steps run in order; every step's exit code is the verdict, never a parsed log line. 'verifiers' names owner verifiers that must exist (see Tools/verifiers/MANIFEST.json); a missing or stub verifier blocks the gate before any step runs.",
   "gates": {
+    "WG.0a": {
+      "steps": [
+        { "name": "atlas_probe_check", "cmd": ["python", "Tools/verifiers/checks/atlas_probe_check.py"] }
+      ],
+      "verifiers": ["atlas_probe_check"]
+    },
     "engine": {
       "steps": [
         {
