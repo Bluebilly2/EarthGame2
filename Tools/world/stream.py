@@ -71,7 +71,7 @@ def main():
         raise RuntimeError("no world at %s; run Tools/world/create.py first" % args.world)
 
     host_log = open(directory / "host.log", "w")
-    host = subprocess.Popen(["dotnet", str(HOST_DLL), "+server.port", str(PORT), "+server.world", args.world,
+    host = subprocess.Popen(["dotnet", str(HOST_DLL), "+server.port", str(PORT), "+server.local", "1", "+server.world", args.world,
                              "+server.seconds", str(SECONDS),
                              "+server.simulate.latency", str(LATENCY_MS), "+server.simulate.jitter", str(JITTER_MS),
                              "+server.simulate.loss", str(LOSS_PERCENT), "+server.sendcap", str(CAP_BYTES),

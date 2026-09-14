@@ -268,7 +268,7 @@ namespace EarthGame.Bootstrap
                 }
                 case LaunchMode.Host:
                 {
-                    StartServer(new UdpServerTransport(new UdpOptions()), world, saved, _port);
+                    StartServer(new UdpServerTransport(ServerUdpOptions()), world, saved, _port);
                     StartClient(() => new UdpClientTransport(clientOptions), "127.0.0.1", _port, region);
                     break;
                 }
@@ -276,7 +276,7 @@ namespace EarthGame.Bootstrap
                     StartClient(() => new UdpClientTransport(clientOptions), _address, _port, region);
                     break;
                 case LaunchMode.Dedicated:
-                    StartServer(new UdpServerTransport(new UdpOptions()), world, saved, _port);
+                    StartServer(new UdpServerTransport(ServerUdpOptions()), world, saved, _port);
                     break;
             }
             if (_mode == LaunchMode.Dedicated) CloseLoading();
@@ -293,7 +293,11 @@ namespace EarthGame.Bootstrap
                       + (clientOptions.SendCapBytesPerSecond > 0 ? ", client send cap " + clientOptions.SendCapBytesPerSecond + " B/s" : ""));
         }
 
-        /// <summary>The client socket's shaping and cap, the harness's conditions for the client's own uplink.</summary>
+        /// <summary>
+        /// The client socket's shaping and cap, the harness's conditions for the client's own uplink. -eg-local: a
+        /// socket for this machine alone (UdpOptions.LocalOnly), the harness's; a client joining 127.0.0.1 binds so
+        /// by itself.
+        /// </summary>
         private static UdpOptions ClientUdpOptions()
         {
             int latency = LaunchArgs.GetInt("latency", 0);
@@ -304,8 +308,12 @@ namespace EarthGame.Bootstrap
                 SimulatedMaxLatencyMs = latency + jitter,
                 SimulatedPacketLossPercent = LaunchArgs.GetInt("loss", 0),
                 SendCapBytesPerSecond = (long)LaunchArgs.GetDouble("sendcap", 0.0),
+                LocalOnly = LaunchArgs.Has("local"),
             };
         }
+
+        /// <summary>A hosted game's server socket: every address for friends, this machine alone under -eg-local.</summary>
+        private static UdpOptions ServerUdpOptions() => new UdpOptions { LocalOnly = LaunchArgs.Has("local") };
 
         private void StartServer(IServerTransport transport, WorldState world, WorldSaveInfo saved, int port)
         {

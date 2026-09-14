@@ -30,7 +30,7 @@ RING_M = 12.0
 
 def run_host(folder, seconds, log_path, commands=None, settle_s=0.0):
     """Runs the host for `seconds`, feeding console commands after it has started; returns its exit code."""
-    args = ["dotnet", HOST_DLL, "+server.port", str(PORT), "+server.world", folder, "+server.seconds", str(seconds)]
+    args = ["dotnet", HOST_DLL, "+server.port", str(PORT), "+server.local", "1", "+server.world", folder, "+server.seconds", str(seconds)]
     with open(log_path, "w", encoding="utf-8") as log:
         process = subprocess.Popen(args, cwd=ROOT, stdin=subprocess.PIPE, stdout=log, stderr=subprocess.STDOUT, text=True)
         if commands:

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Text;
 using LiteNetLib;
 
@@ -32,6 +33,17 @@ namespace EarthGame.Transport
         /// conditions regardless of the owner's link (CANON ruling 11).
         /// </summary>
         public long SendCapBytesPerSecond = 0;
+
+        /// <summary>
+        /// Bind to this machine's loopback address alone (127.0.0.1 and ::1) instead of every address, so nothing
+        /// off the machine can reach the socket and Windows' firewall has nothing to ask about: a socket bound to
+        /// every address raises its "Security Alert" once for each new program path, and by 2026-09-14 the owner
+        /// had answered it for eight test builds and the test suite twice, each corpus run's players joining
+        /// 127.0.0.1 from a fresh build folder. The harness's hosts run with it (<c>+server.local 1</c>,
+        /// <c>-eg-local</c>); a joining client takes it by itself when the address it joins is loopback; a game
+        /// hosted for friends binds every address, and asks once.
+        /// </summary>
+        public bool LocalOnly = false;
     }
 
     public sealed class UdpConnection : IConnection
@@ -152,6 +164,28 @@ namespace EarthGame.Transport
             if (loss) Manager.SimulationPacketLossChance = Options.SimulatedPacketLossPercent;
         }
 
+        /// <summary>The port the socket is bound to; 0 before it is.</summary>
+        public int LocalPort => Manager.LocalPort;
+
+        /// <summary>True once the socket is bound to the loopback address alone (<see cref="UdpOptions.LocalOnly"/>).</summary>
+        public bool BoundLocalOnly { get; private set; }
+
+        /// <summary>
+        /// Binds the socket: the loopback address alone when this end is for this machine, else every address, which
+        /// is LiteNetLib's own Start(port) and the firewall's question.
+        /// </summary>
+        protected bool Start(bool localOnly, int port)
+        {
+            BoundLocalOnly = localOnly;
+            return Manager.Start(localOnly ? IPAddress.Loopback : IPAddress.Any,
+                                 localOnly ? IPAddress.IPv6Loopback : IPAddress.IPv6Any, port);
+        }
+
+        /// <summary>The addresses that name this machine: 127.0.0.0/8, ::1 and "localhost".</summary>
+        public static bool IsLoopback(string address) =>
+            string.Equals(address, "localhost", StringComparison.OrdinalIgnoreCase)
+            || (IPAddress.TryParse(address, out IPAddress ip) && IPAddress.IsLoopback(ip));
+
         protected UdpConnection Track(NetPeer peer)
         {
             UdpConnection c;
@@ -240,12 +274,12 @@ namespace EarthGame.Transport
         }
 
         public bool IsListening => Manager.IsRunning;
-        public int Port => Manager.LocalPort;
+        public int Port => LocalPort;
         public IReadOnlyList<IConnection> Connections => _connections;
 
         public void Listen(int port)
         {
-            if (!Manager.Start(port))
+            if (!Start(Options.LocalOnly, port))
                 throw new InvalidOperationException("could not bind UDP port " + port);
         }
 
@@ -264,7 +298,8 @@ namespace EarthGame.Transport
 
         public void Connect(string address, int port)
         {
-            if (!Manager.IsRunning && !Manager.Start())
+            // A client joining this machine binds to it alone: the harness's players, and a hosted game's own client.
+            if (!Manager.IsRunning && !Start(Options.LocalOnly || IsLoopback(address), 0))
                 throw new InvalidOperationException("could not open a UDP socket");
             NetPeer peer = Manager.Connect(address, port, Options.ConnectionKey);
             if (peer == null) throw new InvalidOperationException("connect refused locally for " + address + ":" + port);

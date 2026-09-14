@@ -99,7 +99,7 @@ def main():
         east, north = VANTAGES[name]
         at = directory / name
         at.mkdir(parents=True, exist_ok=True)
-        stood = subprocess.run(["dotnet", str(host), "+server.world", str(world), "+server.port", "28318"],
+        stood = subprocess.run(["dotnet", str(host), "+server.world", str(world), "+server.port", "28318", "+server.local", "1"],
                                input="stand William %d %d\nsave\nstop\n" % (east, north),
                                capture_output=True, text=True, cwd=ROOT, timeout=600)
         (at / "host.log").write_text(stood.stdout + stood.stderr, encoding="utf-8")

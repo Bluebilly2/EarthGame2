@@ -66,7 +66,7 @@ def write_map(folder, name, header, values):
 
 def run_host(data, world, log):
     with log.open('w', encoding='utf-8') as output:
-        result = subprocess.run(['dotnet', str(HOST), '+server.port', '0', '+server.data', str(data),
+        result = subprocess.run(['dotnet', str(HOST), '+server.port', '0', '+server.local', '1', '+server.data', str(data),
                                  '+server.world', str(world), '+server.seed', '1347', '+server.seconds', '1'],
                                 cwd=ROOT, stdout=output, stderr=subprocess.STDOUT, timeout=300)
     return result.returncode

@@ -75,7 +75,7 @@ class Server:
         self.console = open(self.console_path, "w", encoding="utf-8")
         world = copy_world(os.path.join(out_dir, "world"))
         args = ["dotnet", server_dll(), "+server.world", world,
-                "+server.port", str(port), "+server.log", os.path.join(out_dir, "run.jsonl"),
+                "+server.port", str(port), "+server.local", "1", "+server.log", os.path.join(out_dir, "run.jsonl"),
                 "+server.simulate.latency", str(cond["rtt_ms"] // 2), "+server.simulate.jitter", str(cond["jitter_ms"] // 2),
                 "+server.simulate.loss", str(cond["loss_percent"]), "+server.sendcap", str(cond["cap_bytes_per_second"]),
                 "+server.seconds", str(seconds)]

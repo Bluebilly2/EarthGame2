@@ -164,7 +164,7 @@ def main():
     east, north = lake.shore
     print("the lake at %.1f m: its middle at east %.0f north %.0f; the founder stands at east %.0f north %.0f"
           % (args.lake, lake.centre[0], lake.centre[1], east, north))
-    stood = subprocess.run(["dotnet", str(host), "+server.world", str(world), "+server.port", "28317"],
+    stood = subprocess.run(["dotnet", str(host), "+server.world", str(world), "+server.port", "28317", "+server.local", "1"],
                            input="stand William %d %d\nsave\nstop\n" % (round(east), round(north)),
                            capture_output=True, text=True, cwd=ROOT, timeout=600)
     (directory / "host.log").write_text(stood.stdout + stood.stderr, encoding="utf-8")

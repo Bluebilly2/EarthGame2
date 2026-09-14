@@ -292,7 +292,11 @@ file's name.
   always compiled with `SIMULATE_NETWORK`). `UdpOptions.SendCapBytesPerSecond` is a token bucket per connection
   with a quarter-second burst (never smaller than one 64 KB message), refilled by the caller's elapsed time: the
   harness's stand-in for a real uplink (CANON ruling 11). `UdpTransportBase.Sever()` drops the socket without a
-  word, the N3 cut.
+  word, the N3 cut. A socket binds every address only when it is meant to be reached from off the machine (a game
+  hosted for friends, a dedicated server): an end for this machine binds the loopback address alone
+  (`UdpOptions.LocalOnly`: the host's `+server.local 1`, the game's `-eg-local`, and a client joining a loopback
+  address takes it by itself), which is what keeps Windows' firewall from asking after every fresh build
+  (M1.Ba, 2026-09-14).
 - **Handshake (protocol v1):** the first message must be `Hello` (protocol version, player name, password); the
   server answers `Welcome` (session id, seed, region, time, tick, tick rate) or `Refused` (reason) and closes with
   the same reason. A malformed packet is a refusal, never a crash. Over UDP a close can overtake the `Refused`
@@ -744,3 +748,4 @@ mandatory in every file from the first write.
 | 2026-09-14 | M1.7c: a group's flight is its offset from where presence puts it, held by the stand-up while the group stands and forgotten when it is taken away; presence stays a pure function | Presence must stay derivable (the tablet, a test, the save carry no animal); an animal that fled is state, and the least state is how far its group is from where presence would have it, which the once-a-second refresh adds back and the walk home takes away |
 | 2026-09-14 | M1.7c: a running group is moved every step and a standing one once a second; a run turns 45°, 90° and then 135° either way at a wet or edge step, and stops where none is dry; a group startled while standing or walking back runs again from where it is | A client draws an entity three ticks behind between its states, so a run told once a second would jump seven metres a second; a run told every step is smooth and costs a mob eight states a tick, inside the byte budget. The turns keep a mob along a shore rather than through it or stuck at it; the second startle is the contract's "a founder who comes near again sends it off again" |
 | 2026-09-14 | M1.7c: an animal's third pose, fleeing, is protocol 12, though no layout changed | A client of an earlier protocol would take the byte and draw nothing for it; the version is the one place a meaning's change is declared, and the Hello refuses the mismatch as it does a layout's |
+| 2026-09-14 | M1.Ba: a socket for this machine binds the loopback address alone (`UdpOptions.LocalOnly`; the harness's hosts and a client joining a loopback address), and only a socket meant for friends binds every address | Windows' firewall asks about a program the moment it binds every address, once per program path, with a box on the owner's main screen: by 2026-09-14 he had answered it for eight test builds and the test suite twice, each a fresh build folder's players joining 127.0.0.1. The fix is in the game, not in his firewall |

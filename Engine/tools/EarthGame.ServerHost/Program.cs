@@ -23,6 +23,8 @@ namespace EarthGame.ServerHost
     ///   +server.world Saves/world-1347  (the world folder: created with its layers, wake and census when absent, continued
     ///   when present, saved at stop)
     ///   +server.dev 1  (a development server: a founder may fly, M1.5e, and a developer's settings are taken, M1.D)
+    ///   +server.local 1  (a socket for this machine alone, the harness's; nothing off the machine can join and the
+    ///   firewall has nothing to ask, M1.Ba)
     /// Console commands: status, pause, resume, digest, stop.
     ///
     /// <para>The host is the server's clock and its instruments: it times each update for the tick statistics,
@@ -79,6 +81,7 @@ namespace EarthGame.ServerHost
                 SimulatedMaxLatencyMs = latency + jitter,
                 SimulatedPacketLossPercent = loss,
                 SendCapBytesPerSecond = sendCap,
+                LocalOnly = Int(a, "server.local", 0) != 0,
             };
             int stopAfter = Int(a, "server.seconds", 0);
 
@@ -189,7 +192,7 @@ namespace EarthGame.ServerHost
                 Log("cannot listen on " + port + ": " + ex.Message);
                 return 2;
             }
-            Log("EarthGame2 dedicated server " + EngineInfo.Version + " listening on UDP " + port
+            Log("EarthGame2 dedicated server " + EngineInfo.Version + " listening on UDP " + port + (options.LocalOnly ? " on this machine alone" : "")
                 + ", region " + region.Id + ", seed " + seed + ", tick " + config.TickRate + " Hz"
                 + (latency > 0 || loss > 0 ? ", simulating " + options.SimulatedMinLatencyMs + "-" + options.SimulatedMaxLatencyMs + " ms one way, " + loss + "% loss" : "")
                 + (sendCap > 0 ? ", send cap " + sendCap + " B/s" : ""));

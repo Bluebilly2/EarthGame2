@@ -51,7 +51,7 @@ def bake(folder):
 
 def host(world, data, log, seed=1347):
     with log.open('w', encoding='utf-8') as output:
-        return subprocess.run(['dotnet', str(HOST), '+server.port', '0', '+server.world', str(world),
+        return subprocess.run(['dotnet', str(HOST), '+server.port', '0', '+server.local', '1', '+server.world', str(world),
             '+server.data', str(data), '+server.seed', str(seed), '+server.seconds', '1'],
             cwd=ROOT, stdout=output, stderr=subprocess.STDOUT, timeout=120).returncode
 

@@ -22,7 +22,7 @@ namespace EarthGame.Tests.Transport
         public void ABurstAboveTheCapWaitsForTheBucketToRefill()
         {
             UdpOptions capped = new UdpOptions { SendCapBytesPerSecond = 100000 };
-            using (UdpServerTransport st = new UdpServerTransport())
+            using (UdpServerTransport st = new UdpServerTransport(new UdpOptions { LocalOnly = true }))
             using (UdpClientTransport ct = new UdpClientTransport(capped))
             {
                 Stopwatch clock = Stopwatch.StartNew();

@@ -127,6 +127,10 @@ other's way:
   it was doing: on 2026-09-14 a sabotage script stopped between its change and its restore left a sabotaged line in
   `GameServer.cs` (found by `grep` for the sabotage's own text, and put back by hand). Give a chain the time it needs,
   a corpus among it more than an hour, or run its pieces one at a time; and after any stop, `git diff` before building on.
+  A sabotage script must not run while a Unity build is compiling the same sources: on 2026-09-14 a player built
+  alongside one carried a sabotaged transport (its client bound every address, and raised the very firewall box the
+  build was to prove gone), and the run on it proved nothing. Build with the sources at rest; a build folder Windows
+  has already been asked about proves nothing either, so a firewall check needs a folder of a new name.
 - Something on this machine holds a file for a moment after it is touched: on 2026-09-13 the built game's closing save
   could not replace a region file its autosave had written, and on 2026-09-14 a sabotage script's restore of
   `GameServer.cs` was refused on the open itself ("invalid argument") and left the sabotaged file in place. A save
@@ -151,6 +155,11 @@ other's way:
   loop again, and the player is rebuilt. It points `Artefacts/corpus/latest`, which the gates read, at whichever run it
   wrote, a quick one included: a smoke run after a full one goes in a folder of its own (`--out
   Artefacts/corpus-postfix/<name>`), or the gate reads the smoke run (2026-09-13).
+- Windows' firewall asks about a program the moment it binds a socket on every address, once for each program path,
+  with a box on the owner's main screen; by 2026-09-14 he had answered it for eight test builds and the test suite
+  twice. Every end for this machine binds the loopback address alone (`UdpOptions.LocalOnly`, M1.Ba): the host takes
+  `+server.local 1`, the game `-eg-local`, and a client joining 127.0.0.1 does it by itself. A new tool that starts
+  the host passes `+server.local 1`; only a game hosted for friends should ever raise the box, and then once.
 - `Data/` is fetched, never committed: `python Tools/data/bake_region.py --zoom 14 --cell-m 4` for the heights,
   `python Tools/data/bake_water.py` for the OpenStreetMap outlines, `python Tools/data/fetch_ala.py` for the plants' records. `Artefacts/`, `Saves/`, `Build/` and logs are
   ignored by git.

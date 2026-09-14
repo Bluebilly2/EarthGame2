@@ -42,7 +42,7 @@ def main(argv):
         shutil.rmtree(full)
     started = time.time()
     host_log = full + ".log"
-    code = run(["dotnet", HOST_DLL, "+server.port", str(PORT), "+server.world", folder, "+server.seconds", "1"], host_log)
+    code = run(["dotnet", HOST_DLL, "+server.port", str(PORT), "+server.local", "1", "+server.world", folder, "+server.seconds", "1"], host_log)
     elapsed = time.time() - started
     census_path = os.path.join(full, "census.txt")
     if code != 0 or not os.path.isfile(census_path):

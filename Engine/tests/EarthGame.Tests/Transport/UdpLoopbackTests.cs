@@ -16,6 +16,9 @@ namespace EarthGame.Tests.Transport
     {
         private const int Port = 28915;
 
+        /// <summary>The suite's servers are for this machine alone, so the suite never asks the firewall (UdpBindTests).</summary>
+        private static UdpOptions Local => new UdpOptions { LocalOnly = true };
+
         private static WorldState NewWorld() =>
             new WorldState(1347, Region.Bherwerre, Region.Bherwerre.WakeClock());
 
@@ -43,7 +46,7 @@ namespace EarthGame.Tests.Transport
         [Test]
         public void HandshakeOverLocalhost()
         {
-            using (UdpServerTransport st = new UdpServerTransport())
+            using (UdpServerTransport st = new UdpServerTransport(Local))
             using (UdpClientTransport ct = new UdpClientTransport())
             {
                 Stopwatch clock = Stopwatch.StartNew();
@@ -72,6 +75,7 @@ namespace EarthGame.Tests.Transport
                 SimulatedMinLatencyMs = 40,
                 SimulatedMaxLatencyMs = 60,
                 SimulatedPacketLossPercent = 2,
+                LocalOnly = true,
             };
             using (UdpServerTransport st = new UdpServerTransport(shaped))
             using (UdpClientTransport ct = new UdpClientTransport(shaped))
@@ -89,7 +93,7 @@ namespace EarthGame.Tests.Transport
         [Test]
         public void RefusalReasonCrossesTheWire()
         {
-            using (UdpServerTransport st = new UdpServerTransport())
+            using (UdpServerTransport st = new UdpServerTransport(Local))
             using (UdpClientTransport ct = new UdpClientTransport())
             {
                 Stopwatch clock = Stopwatch.StartNew();
