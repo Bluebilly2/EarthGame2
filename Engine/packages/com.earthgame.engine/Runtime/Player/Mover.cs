@@ -19,8 +19,9 @@ namespace EarthGame.Engine
     /// </summary>
     public static class Mover
     {
-        private const int MaxSlideIterations = 4;
-        private const double Epsilon = 1e-9;
+        /// <summary>How many times a step slides along what stopped it before it gives up; the flight sweeps by the same rule (M1.D).</summary>
+        internal const int MaxSlideIterations = 4;
+        internal const double Epsilon = 1e-9;
         /// <summary>How close to the ground airborne feet must be to count as resting on it, metres.</summary>
         private const double LandingTolerance = 0.02;
 

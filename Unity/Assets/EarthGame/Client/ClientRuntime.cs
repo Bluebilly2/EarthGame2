@@ -30,6 +30,11 @@ namespace EarthGame.Client
         private const float TileRequestIntervalSeconds = 2f;
         /// <summary>What the main thread may spend on streaming work in one frame (ARCHITECTURE section 8).</summary>
         private const double StreamingBudgetMs = 1.5;
+        /// <summary>
+        /// How far the client's clock may slip from the server's, as each pong carries it, before it is set to it (M1.D): three
+        /// minutes of the world's time, more than the round trip's worth and less than a developer's move of the clock.
+        /// </summary>
+        private const double ClockSlipHours = 0.05;
 
         private Func<IClientTransport> _transportFactory;
         private string _address;
@@ -71,6 +76,8 @@ namespace EarthGame.Client
         private StandViews _stand;
         private UnderstoreyViews _understorey;
         private VerbController _verbs;
+        /// <summary>The developer's panel (M1.D); null in a game not for development.</summary>
+        private DevPanelController _devPanel;
         private HandView _hand;
         private Sounds _sounds;
         private TrunkBodies _trunks;
@@ -220,6 +227,9 @@ namespace EarthGame.Client
                 _nextPingAt = Time.realtimeSinceStartup + 1.0f;
             }
             if (_clock != null && dt > 0.0) _clock.Advance(dt);
+            // The server's clock is the one clock (WorldClock): this client's runs between pongs and follows it when it slips.
+            if (_clock != null && !double.IsNaN(_client.LastServerTotalHours) && Math.Abs(_client.LastServerTotalHours - _clock.TotalHours) > ClockSlipHours)
+                _clock.SetTotalHours(_client.LastServerTotalHours);
             if (ViewBuilt)
             {
                 if (_client.State == ClientState.Connected && Time.realtimeSinceStartup >= _nextTileRequestAt)
@@ -240,7 +250,14 @@ namespace EarthGame.Client
                 DrawMirrors(nowMs);
                 ControlsFrame presses = _player.TakePresses();
                 if (presses.Screenshot && !Application.isBatchMode) Screenshot();
-                _verbs?.Tick(presses, Time.realtimeSinceStartup);
+                if (_devPanel != null && _devPanel.Open)
+                {
+                    // The panel has the mouse: its key or Escape gives it back, and the hands rest meanwhile (M1.D).
+                    if (presses.DevPanel || presses.Menu) _devPanel.Hide();
+                    else _devPanel.Tick();
+                }
+                else if (presses.DevPanel && _devPanel != null) _devPanel.Show();
+                else _verbs?.Tick(presses, Time.realtimeSinceStartup);
                 // The hand moves with the head and the stride every frame (M1.5c); off the ground it only follows.
                 _hand?.Place(Time.deltaTime, _player.Frozen || !_player.State.Grounded ? 0.0 : _player.State.HorizontalSpeed, _player.PitchDeg);
                 UpdateHud(dt);
@@ -281,6 +298,7 @@ namespace EarthGame.Client
                 // client (until 2026-09-11 a rejoin went on drawing the first connection's things and none of its own).
                 ViewEntities();
                 _verbs?.Rebind(_client, _entityViews);
+                _devPanel?.Rebind(_client);
             }
             Welcomed?.Invoke(welcome, rejoin);
         }
@@ -855,6 +873,13 @@ namespace EarthGame.Client
             // The verbs (M1.5a): what the crosshair is on, the verb line, the carrying window and the thing in hand.
             if (_stand != null) _hand = new HandView(_camera, _stand.LooseMaterial);
             _verbs = new VerbController(_client, _entityViews, _player, _camera, _hud, _hand);
+            // The developer's panel (M1.D): in a development game alone, on an object of its own, since an object holds one
+            // UIDocument and the HUD's is on this one.
+            if (_player.FlightAllowed)
+            {
+                _devPanel = new GameObject("Developer panel").AddComponent<DevPanelController>();
+                _devPanel.Build(_client, _player, _region, welcome.Seed, _solar);
+            }
 
             if (script == null && !Application.isBatchMode)
             {
@@ -883,7 +908,7 @@ namespace EarthGame.Client
                 Recorder recorder = gameObject.AddComponent<Recorder>();
                 recorder.Begin(_recordDir, _camera, _player, script, _hud, () => _client.LastServerTick, header, StandSettled,
                                () => _stand != null ? _stand.TreeCount : -1, () => _stand != null ? _stand.LastDrawMs : 0.0,
-                               _scenario ?? Recorder.Scenario, _client, _verbs);
+                               _scenario ?? Recorder.Scenario, _client, _verbs, _devPanel);
                 TileBuilt += recorder.RecordBuild;
             }
         }
@@ -988,6 +1013,7 @@ namespace EarthGame.Client
             _stand?.Dispose();
             _client?.Disconnect("client destroyed");
             _transport?.Dispose();
+            if (_devPanel != null) UnityObjects.Free(_devPanel.gameObject);
             // What the ground was drawn from goes with the world (M1.4f): the tiles, their water and colour, the coarse region and the skirt.
             foreach (Terrain tile in _tileTerrains.Values) TerrainTileBuilder.Free(tile);
             _tileTerrains.Clear();

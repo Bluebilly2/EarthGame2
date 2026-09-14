@@ -25,6 +25,8 @@ namespace EarthGame.Client
         private Keyboard _keyboard;
         private Mouse _mouse;
         private Gamepad _pad;
+        /// <summary>The developer's panel (M1.D), when the run is a development game's; null otherwise.</summary>
+        private DevPanelController _devPanel;
         private int _checks;
         private readonly List<string> _failed = new List<string>();
 
@@ -128,6 +130,20 @@ namespace EarthGame.Client
             yield return Expect("the screenshot reaches the controls", Controls.Screenshot, Controls.Desk, () => seen |= _player.TakeSeen().Screenshot, 1.0, () => "a windowless run saves no screenshot");
             int asked = WindowMode.Requested;
             yield return Expect("the fullscreen key reaches the window", Controls.Fullscreen, Controls.Desk, () => WindowMode.Requested > asked, 1.0, () => "a windowless run fills no screen");
+            // The developer's panel (M1.D): opened and closed by its key in a development game; in any other there is no panel,
+            // and the key is looked for in the controls frame alone.
+            if (_devPanel != null)
+            {
+                yield return Expect("the dev panel key opens the panel", Controls.DevPanel, Controls.Desk, () => _devPanel.Open, 1.0, Panel);
+                yield return Expect("the dev panel key closes the panel", Controls.DevPanel, Controls.Desk, () => !_devPanel.Open, 1.0, Panel);
+            }
+            else
+            {
+                seen = false;
+                _player.TakeSeen();
+                yield return Expect("the dev panel key reaches the controls, and no panel exists in a game not for development", Controls.DevPanel, Controls.Desk,
+                                    () => seen |= _player.TakeSeen().DevPanel, 1.0, () => "no panel");
+            }
 
             // The body: walking, running, crouching and the jump, at the desk and on the gamepad.
             Turn(0f, -_player.PitchDeg);
@@ -204,6 +220,8 @@ namespace EarthGame.Client
         private double GroundHere() => _player.Ground != null ? _player.Ground.HeightAt(_player.State.East, _player.State.North) : double.NaN;
 
         private string Flying() => (_player.Flying ? "flying, " : "not flying, ") + Height() + ", the ground at " + F2(GroundHere());
+
+        private string Panel() => _devPanel != null && _devPanel.Open ? "the panel is open" : "the panel is closed";
 
         /// <summary>
         /// An action pressed by the control the asset binds to it in a scheme, and its effect waited for. The check passes

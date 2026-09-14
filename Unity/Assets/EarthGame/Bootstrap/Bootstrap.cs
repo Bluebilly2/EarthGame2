@@ -317,6 +317,7 @@ namespace EarthGame.Bootstrap
             _server.SessionJoined += s => Debug.Log("[server] join  " + s.Name + " (session " + s.SessionId + ") at tick " + s.JoinedTick + (s.HasBody ? ", remembered" : ""));
             _server.SessionLeft += (s, reason) => Debug.Log("[server] leave " + s.Name + ": " + reason);
             _server.MoveCorrected += (s, reason) => Debug.Log("[server] correct " + s.Name + ": " + reason);
+            _server.DevSettingApplied += (s, setting) => Debug.Log("[server] dev   " + s.Name + " set " + setting.Name + " to " + setting.Value.ToString("0.###", CultureInfo.InvariantCulture));
             _server.Listen(port);
 
             // -eg-items N: N things dropped on a ring three metres from the wake, cobbles and sticks in turn, every

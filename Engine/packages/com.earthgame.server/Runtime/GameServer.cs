@@ -92,6 +92,9 @@ namespace EarthGame.Server
         /// <summary>Raised when a reported move is refused, with the reason; every one on a legal walk is a false positive (N2).</summary>
         public event Action<PlayerSession, string> MoveCorrected;
 
+        /// <summary>Raised when a developer's setting has been applied (M1.D), for the host's log.</summary>
+        public event Action<PlayerSession, DevSettingMessage> DevSettingApplied;
+
         /// <summary>
         /// Players a previous run left in this world, by name: one who joins with a saved name wakes where they
         /// were, not at the region's wake point. Read by the host from the world folder before listening; added
@@ -272,6 +275,7 @@ namespace EarthGame.Server
                         PongMessage pong;
                         pong.ClientTimeMs = ping.ClientTimeMs;
                         pong.ServerTick = World.Tick;
+                        pong.ServerTotalHours = World.Clock.TotalHours;
                         _writer.Reset();
                         pong.Write(_writer);
                         connection.Send(_writer.Written, Delivery.Unreliable);
@@ -298,6 +302,13 @@ namespace EarthGame.Server
                         IntentMessage intent = IntentMessage.Read(reader);
                         reader.ExpectEnd();
                         HandleIntent(session, intent);
+                        break;
+                    }
+                    case MessageKind.DevSetting:
+                    {
+                        DevSettingMessage setting = DevSettingMessage.Read(reader);
+                        reader.ExpectEnd();
+                        HandleDevSetting(session, setting);
                         break;
                     }
                     default:
@@ -813,6 +824,79 @@ namespace EarthGame.Server
                 m.Write(_writer);
                 joiner.Connection.Send(_writer.Written, Delivery.Reliable);
             }
+        }
+
+        /// <summary>
+        /// A developer's setting (M1.D, CANON ruling 30): taken on a development server alone, held to its table's range and
+        /// applied to what owns it. A server not started for development refuses it and closes, as it does a malformed
+        /// message, since a client that sends one to such a server is not the game's; a name this build's table lacks is
+        /// refused the same way. The table (<see cref="DevSettings"/>) is the one owner of what exists; this is the one owner
+        /// of what each does.
+        /// </summary>
+        private void HandleDevSetting(PlayerSession session, DevSettingMessage setting)
+        {
+            if (!_config.Movement.AllowFlight)
+            {
+                Refuse(session.Connection, "a developer's setting (" + setting.Name + ") on a server not started for development");
+                return;
+            }
+            DevSetting known = DevSettings.Find(setting.Name);
+            if (known == null)
+            {
+                Refuse(session.Connection, "a developer's setting this build does not know: " + setting.Name);
+                return;
+            }
+            double value = known.IsDeed ? 0.0 : DevSettings.Held(known, setting.Value);
+            switch (setting.Name)
+            {
+                case DevSettings.AnimalsStandUpM:
+                case DevSettings.AnimalsTakeAwayM:
+                {
+                    AnimalStandUp animals = Animals();
+                    if (animals == null) break;
+                    if (setting.Name == DevSettings.AnimalsStandUpM) animals.StandUpRadiusM = value;
+                    else animals.TakeAwayRadiusM = value;
+                    // A group on the edge is not stood up and taken away by turns: the take-away is never nearer than the stand-up.
+                    animals.TakeAwayRadiusM = Math.Max(animals.TakeAwayRadiusM, animals.StandUpRadiusM);
+                    break;
+                }
+                case DevSettings.ClockLocalHour:
+                {
+                    // The same local day at the region's centre, at the hour asked for.
+                    double longitude = World.Region.CentreLongitudeDeg;
+                    double dayStart = Math.Floor(World.Clock.LocalHours(longitude) / 24.0) * 24.0;
+                    World.Clock.SetTotalHours(dayStart + value - WorldClock.OffsetHours(longitude));
+                    break;
+                }
+                case DevSettings.StandAtWake:
+                {
+                    // Stood as a correction stands a founder: the body the server holds, sent back to the client to take.
+                    Double3 wake = World.SpawnPoint();
+                    session.Body = MoverState.AtRest(wake.X, wake.Y, wake.Z);
+                    session.Body.Grounded = true;
+                    session.StoodUp = wake.Y;
+                    session.HasBody = true;
+                    session.LastMoveTick = World.Tick;
+                    CorrectionMessage stood;
+                    stood.Sequence = session.LastSequence;
+                    stood.ServerTick = World.Tick;
+                    stood.Body = session.Body;
+                    stood.Reason = "stood at the wake by the developer's panel";
+                    _writer.Reset();
+                    stood.Write(_writer);
+                    session.Connection.Send(_writer.Written, Delivery.Reliable);
+                    break;
+                }
+            }
+            DevSettingApplied?.Invoke(session, setting);
+        }
+
+        /// <summary>The system that stands the animals up, for a developer's setting to move; null on a world without one.</summary>
+        private AnimalStandUp Animals()
+        {
+            foreach (IFastSystem system in World.Systems)
+                if (system is AnimalStandUp animals) return animals;
+            return null;
         }
 
         private void Refuse(IConnection connection, string reason)

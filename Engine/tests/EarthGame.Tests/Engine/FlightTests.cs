@@ -4,7 +4,10 @@ using NUnit.Framework;
 
 namespace EarthGame.Tests.Engine
 {
-    /// <summary>A developer's flight (M1.5e): where the view points, at v1's speeds, rising and sinking as asked, and through the ground (CANON ruling 25).</summary>
+    /// <summary>
+    /// A developer's flight (M1.5e): where the view points, at v1's speeds, rising and sinking as asked, and through the ground
+    /// (CANON ruling 25); and given a world (M1.D, the noclip switch off), stopped by the ground and never left under it.
+    /// </summary>
     public sealed class FlightTests
     {
         private const double Dt = 0.02;
@@ -59,6 +62,32 @@ namespace EarthGame.Tests.Engine
             Assert.That(under.East, Is.GreaterThan(100.0), "well into the hill");
             Assert.That(under.Up, Is.LessThan(hill.HeightAt(under.East, under.North) - 50.0), "and well under it");
             Assert.That(under.Grounded || under.Wading || under.Swimming, Is.False);
+        }
+
+        [Test]
+        public void FlightGivenAWorldIsStoppedByTheGroundAndNeverLeftUnderIt()
+        {
+            // The same hill, flown into the same way but at the flight's walking pace, with the world to be stopped by (M1.D):
+            // the founder lands on its face and skims up it. At the running pace the heightfield's own sweep, which judges a
+            // rise by the stride, would call the hill a face; the game's ground is PhysX's, which judges the surface.
+            IHeightSource hill = new Ground((e, n) => Math.Max(0.0, e) * 0.5);
+            IWorldCollision world = HeightfieldCollision.For(hill, MoverConfig.Default, false);
+            MoverState s = MoverState.AtRest(0.0, 5.0, 0.0);
+            for (int i = 0; i < 300; i++)
+            {
+                s = Flight.Step(s, 0.0, 1.0, false, true, false, 90.0, 60.0, Dt, world, MoverConfig.Default);
+                Assert.That(s.IsFinite, Is.True, "state went non-finite at step " + i);
+                Assert.That(s.Up, Is.GreaterThanOrEqualTo(hill.HeightAt(s.East, s.North) - 0.05), "under the ground at step " + i);
+            }
+            Assert.That(s.East, Is.GreaterThan(5.0), "and still gets along the face");
+            Assert.That(s.Grounded || s.Wading || s.Swimming, Is.False, "a flight is a flight, stopped or not");
+
+            // Level over the flat, the world in the way changes nothing of the flight.
+            IWorldCollision flat = HeightfieldCollision.For(new Ground((e, n) => 0.0), MoverConfig.Default, false);
+            MoverState level = MoverState.AtRest(0.0, 50.0, 0.0);
+            for (int i = 0; i < 150; i++) level = Flight.Step(level, 0.0, 1.0, false, false, false, 90.0, 0.0, Dt, flat, MoverConfig.Default);
+            Assert.That(level.VelEast, Is.EqualTo(Flight.SpeedMs).Within(0.1));
+            Assert.That(level.Up, Is.EqualTo(50.0).Within(1e-6));
         }
     }
 }

@@ -34,6 +34,8 @@ namespace EarthGame.Client
         public bool Screenshot;
         /// <summary>The fly key pressed: a development game's founder takes off, or comes down (M1.5e, <c>-eg-dev</c>).</summary>
         public bool Fly;
+        /// <summary>The dev panel key pressed: a development game's panel opens, or closes (M1.D).</summary>
+        public bool DevPanel;
     }
 
     /// <summary>
@@ -78,6 +80,8 @@ namespace EarthGame.Client
         /// in play, not by the founder's hands.
         /// </summary>
         public const string Fullscreen = "Fullscreen";
+        /// <summary>The developer's panel (M1.D, CANON ruling 30): bound at the desk alone, since only a developer has one.</summary>
+        public const string DevPanel = "DevPanel";
 
         /// <summary>The action for a place's key: "Hand1" to "Hand9".</summary>
         public static string Hand(int place) => "Hand" + place;
@@ -105,6 +109,7 @@ namespace EarthGame.Client
                 yield return Screenshot;
                 yield return Fly;
                 yield return Fullscreen;
+                yield return DevPanel;
             }
         }
 
@@ -145,6 +150,7 @@ namespace EarthGame.Client
         private readonly InputAction _menu;
         private readonly InputAction _screenshot;
         private readonly InputAction _fly;
+        private readonly InputAction _devPanel;
         private readonly InputAction[] _hand = new InputAction[Hands.Places];
 
         public InputSystemSource()
@@ -167,6 +173,7 @@ namespace EarthGame.Client
             _menu = Find(map, Controls.Menu);
             _screenshot = Find(map, Controls.Screenshot);
             _fly = Find(map, Controls.Fly);
+            _devPanel = Find(map, Controls.DevPanel);
             for (int p = 1; p <= Hands.Places; p++) _hand[p - 1] = Find(map, Controls.Hand(p));
             map?.Enable();
         }
@@ -199,6 +206,7 @@ namespace EarthGame.Client
             frame.Menu = Pressed(_menu);
             frame.Screenshot = Pressed(_screenshot);
             frame.Fly = Pressed(_fly);
+            frame.DevPanel = Pressed(_devPanel);
         }
 
         private static bool Pressed(InputAction action) => action != null && action.WasPressedThisFrame();
@@ -235,6 +243,7 @@ namespace EarthGame.Client
         public void Hold(int place) => _presses.HandPlace = place;
         public void StepHand(int step) => _presses.HandStep += step;
         public void Fly() => _presses.Fly = true;
+        public void DevPanel() => _presses.DevPanel = true;
 
         public void Sample(float dt, out ControlsFrame frame)
         {

@@ -98,6 +98,9 @@ namespace EarthGame.ClientCore
         /// <summary>The newest server tick seen in any message (Pong, PlayerState, SnapshotEnd); negative until one arrives.</summary>
         public long LastServerTick { get; private set; } = -1;
 
+        /// <summary>The server's clock as its newest Pong carried it, hours (M1.D); NaN until one arrives.</summary>
+        public double LastServerTotalHours { get; private set; } = double.NaN;
+
         /// <summary>How many ticks behind the estimated server tick a mirror is sampled, so a state is usually held either side.</summary>
         public int MirrorDelayTicks = 3;
 
@@ -155,6 +158,16 @@ namespace EarthGame.ClientCore
             intent.Write(_writer);
             _transport.Connection.Send(_writer.Written, Delivery.Reliable);
             return intent.Sequence;
+        }
+
+        /// <summary>Asks a development server to move a developer's setting, or do a deed (M1.D), reliably; nothing when not connected.</summary>
+        public void SendDevSetting(string name, double value)
+        {
+            if (State != ClientState.Connected) return;
+            DevSettingMessage setting = new DevSettingMessage { Name = name, Value = value };
+            _writer.Reset();
+            setting.Write(_writer);
+            _transport.Connection.Send(_writer.Written, Delivery.Reliable);
         }
 
         /// <summary>Opens the connection; the Hello is sent when the transport reports Connected.</summary>
@@ -366,6 +379,7 @@ namespace EarthGame.ClientCore
                         PongMessage pong = PongMessage.Read(reader);
                         reader.ExpectEnd();
                         LastRttMs = clientTimeMs - pong.ClientTimeMs;
+                        LastServerTotalHours = pong.ServerTotalHours;
                         ObserveTick(pong.ServerTick, clientTimeMs);
                         break;
                     }

@@ -107,11 +107,12 @@ namespace EarthGame.Client
         private Func<double> _standCpu;
 
         public void Begin(string dir, Camera camera, PlayerController player, ScriptedInputSource script, HudController hud, Func<long> serverTick, JsonObject header, Func<bool> ready = null, Func<int> trees = null, Func<double> standCpu = null,
-                          string scenario = Scenario, GameClient client = null, VerbController verbs = null)
+                          string scenario = Scenario, GameClient client = null, VerbController verbs = null, DevPanelController devPanel = null)
         {
             _scenario = IsKnown(scenario) ? scenario : Scenario;
             _client = client;
             _verbs = verbs;
+            _devPanel = devPanel;
             _ready = ready;
             _trees = trees;
             _standCpu = standCpu;

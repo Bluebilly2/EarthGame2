@@ -49,6 +49,8 @@ namespace EarthGame.Protocol
         Carrying = 19,
         /// <summary>Server → client: what has been taken from the loose layer, cell by cell (M1.5b).</summary>
         LooseTaken = 20,
+        /// <summary>Client → server, reliable: a developer's setting by name and number (M1.D), taken by a development server alone.</summary>
+        DevSetting = 21,
     }
 
     /// <summary>One tile of one layer the client wants, with the checksum of the copy it already holds (zero for none).</summary>
@@ -335,12 +337,18 @@ namespace EarthGame.Protocol
     {
         public long ClientTimeMs;
         public long ServerTick;
+        /// <summary>
+        /// The server's clock, hours since its epoch, when it answered (M1.D, protocol 10): a client's own clock runs from its
+        /// Welcome and follows this when it slips, so a clock a developer has moved moves every client's sky.
+        /// </summary>
+        public double ServerTotalHours;
 
         public void Write(PacketWriter w)
         {
             w.WriteByte((byte)MessageKind.Pong);
             w.WriteInt64(ClientTimeMs);
             w.WriteInt64(ServerTick);
+            w.WriteDouble(ServerTotalHours);
         }
 
         public static PongMessage Read(PacketReader r)
@@ -348,6 +356,38 @@ namespace EarthGame.Protocol
             PongMessage m;
             m.ClientTimeMs = r.ReadInt64();
             m.ServerTick = r.ReadInt64();
+            m.ServerTotalHours = r.ReadDouble();
+            if (!BodyWire.Finite(m.ServerTotalHours)) throw new ProtocolException("a pong's clock is not a number");
+            return m;
+        }
+    }
+
+    /// <summary>
+    /// Client → server, reliable: a developer's setting, by the name <see cref="DevSettings"/> gives it and a number (M1.D,
+    /// protocol 10). A server started for development applies one it knows and refuses one it does not; any other server
+    /// refuses it and closes, as it does a malformed message. A setting with no name, or a number that is not one, is refused
+    /// where it is read.
+    /// </summary>
+    public struct DevSettingMessage
+    {
+        public string Name;
+        public double Value;
+
+        public void Write(PacketWriter w)
+        {
+            if (string.IsNullOrEmpty(Name)) throw new ProtocolException("a developer's setting has a name");
+            w.WriteByte((byte)MessageKind.DevSetting);
+            w.WriteString(Name);
+            w.WriteDouble(Value);
+        }
+
+        public static DevSettingMessage Read(PacketReader r)
+        {
+            DevSettingMessage m;
+            m.Name = r.ReadString();
+            m.Value = r.ReadDouble();
+            if (string.IsNullOrEmpty(m.Name)) throw new ProtocolException("a developer's setting has a name");
+            if (!BodyWire.Finite(m.Value)) throw new ProtocolException("a developer's setting of " + m.Name + " is not a number");
             return m;
         }
     }

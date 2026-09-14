@@ -22,7 +22,7 @@ namespace EarthGame.ServerHost
     ///   +server.seconds 1800  (stop by itself after this long)
     ///   +server.world Saves/world-1347  (the world folder: created with its layers, wake and census when absent, continued
     ///   when present, saved at stop)
-    ///   +server.dev 1  (a development server: a founder may fly, M1.5e)
+    ///   +server.dev 1  (a development server: a founder may fly, M1.5e, and a developer's settings are taken, M1.D)
     /// Console commands: status, pause, resume, digest, stop.
     ///
     /// <para>The host is the server's clock and its instruments: it times each update for the tick statistics,
@@ -42,7 +42,7 @@ namespace EarthGame.ServerHost
                 Password = Str(a, "server.password", string.Empty),
                 Movement = new MovementRules { AllowFlight = Int(a, "server.dev", 0) != 0 },
             };
-            if (config.Movement.AllowFlight) Log("a development server: a founder may fly");
+            if (config.Movement.AllowFlight) Log("a development server: a founder may fly, and a developer's settings are taken");
             ulong seed = ULong(a, "server.seed", 1347UL);
             string regionId = Str(a, "server.region", Region.Bherwerre.Id);
             Region region = Region.ById(regionId);
@@ -164,6 +164,8 @@ namespace EarthGame.ServerHost
                 Log("correct " + s.Name + ": " + reason);
                 instruments.Corrected(s, reason);
             };
+            server.DevSettingApplied += (s, setting) =>
+                Log("dev    " + s.Name + " set " + setting.Name + " to " + setting.Value.ToString("0.###", CultureInfo.InvariantCulture));
             server.Stepped += (w, dt) => instruments.Stepped();
 
             double encodeStart = clock.Elapsed.TotalSeconds;

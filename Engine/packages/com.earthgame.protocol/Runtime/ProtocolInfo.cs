@@ -17,9 +17,11 @@ namespace EarthGame.Protocol
         /// 6 — M1.5a verbs and carrying (Intent, IntentResult, Carrying; an entity taken up is gone for a reason of its own);
         /// 7 — M1.5b taking what lies (a pick-up names a thing of the loose layer by its cell, kind and index; LooseTaken);
         /// 8 — M1.6d the far forest (tile layers 6 and 7, the far stand and the far count, over the region's whole grid);
-        /// 9 — M1.7a animals in the world (an animal's pose on EntitySpawn and EntityState; the interest radius in Welcome).
+        /// 9 — M1.7a animals in the world (an animal's pose on EntitySpawn and EntityState; the interest radius in Welcome);
+        /// 10 — M1.D a developer's settings (DevSetting, a name and a number, taken by a development server; Pong carries the
+        /// server's clock, so a sky follows a clock a developer has moved).
         /// </summary>
-        public const ushort Version = 9;
+        public const ushort Version = 10;
 
         /// <summary>Bytes of tile data per TileChunk; well under <see cref="MaxMessageBytes"/> with the header.</summary>
         public const int TileChunkBytes = 16 * 1024;

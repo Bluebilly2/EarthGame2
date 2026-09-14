@@ -220,6 +220,15 @@
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": false
+                },
+                {
+                    "name": "DevPanel",
+                    "type": "Button",
+                    "id": "5c1e9b2a-7f43-4d6e-8a0b-3e2f9c4d1a77",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
                 }
             ],
             "bindings": [
@@ -671,6 +680,17 @@
                     "processors": "",
                     "groups": "Keyboard&Mouse",
                     "action": "Fullscreen",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "9b7d3c1e-2a54-4f8e-b6d0-1c3e5a7f9b21",
+                    "path": "<Keyboard>/f3",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Keyboard&Mouse",
+                    "action": "DevPanel",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

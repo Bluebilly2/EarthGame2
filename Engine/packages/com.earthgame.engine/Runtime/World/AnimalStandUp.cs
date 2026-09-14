@@ -17,14 +17,21 @@ namespace EarthGame.Engine
     /// </summary>
     public sealed class AnimalStandUp : IFastSystem
     {
-        /// <summary>How near a founder a group's place must be for the group to be stood up, m.</summary>
-        public const double StandUpRadiusM = 500.0;
+        /// <summary>How near a founder a group's place must be for the group to be stood up, m, as built.</summary>
+        public const double DefaultStandUpRadiusM = 500.0;
 
         /// <summary>
-        /// How near a founder a standing group's place must stay for it to be kept, m: farther than it took to stand it up, so
-        /// a group on the edge is not stood up and taken away by turns.
+        /// How near a founder a standing group's place must stay for it to be kept, m, as built: farther than it took to stand
+        /// it up, so a group on the edge is not stood up and taken away by turns.
         /// </summary>
-        public const double TakeAwayRadiusM = 550.0;
+        public const double DefaultTakeAwayRadiusM = 550.0;
+
+        /// <summary>
+        /// The two distances as this world runs them: the defaults, until a development server's developer moves them (M1.D,
+        /// CANON ruling 30), which keeps the take-away no nearer than the stand-up.
+        /// </summary>
+        public double StandUpRadiusM = DefaultStandUpRadiusM;
+        public double TakeAwayRadiusM = DefaultTakeAwayRadiusM;
 
         /// <summary>How often the animals are stood up, moved and taken away, seconds.</summary>
         public const double EverySeconds = 1.0;

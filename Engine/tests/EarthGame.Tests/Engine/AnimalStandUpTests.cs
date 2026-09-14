@@ -70,7 +70,7 @@ namespace EarthGame.Tests.Engine
             int expected = 0;
             foreach ((AnimalSpecies species, float perKm2) in new[] { (Roo, RooPerKm2), (Bird, BirdPerKm2) })
             {
-                List<AnimalSighting> groups = Groups(world, species, perKm2, 300.0, -200.0, AnimalStandUp.StandUpRadiusM);
+                List<AnimalSighting> groups = Groups(world, species, perKm2, 300.0, -200.0, AnimalStandUp.DefaultStandUpRadiusM);
                 Assert.That(groups.Count, Is.GreaterThan(0), species + ": there must be groups near the founder");
                 foreach (AnimalSighting g in groups)
                     for (int m = 0; m < g.GroupSize; m++)
@@ -140,7 +140,7 @@ namespace EarthGame.Tests.Engine
             HashSet<long> squares = new HashSet<long>();
             int wetPlaces = 0, drifted = 0;
             foreach (Double3 founder in walk)
-                foreach (AnimalSighting g in presence.Near(Roo, shore, founder.X, founder.Z, AnimalStandUp.StandUpRadiusM, sun.HourOfDay, sun.DaylightHours, sun.DayOfYear))
+                foreach (AnimalSighting g in presence.Near(Roo, shore, founder.X, founder.Z, AnimalStandUp.DefaultStandUpRadiusM, sun.HourOfDay, sun.DaylightHours, sun.DayOfYear))
                 {
                     if (!squares.Add(((long)g.CellX << 32) | (uint)g.CellZ)) continue;
                     bool standing = world.Entities.TryGet(AnimalStandUp.IdOf(Roo, g.CellX, g.CellZ, 0), out _);

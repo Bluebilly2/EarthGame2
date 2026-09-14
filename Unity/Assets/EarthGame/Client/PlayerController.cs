@@ -64,6 +64,12 @@ namespace EarthGame.Client
         /// <summary>Whether the founder is flying (M1.5e).</summary>
         public bool Flying { get; private set; }
 
+        /// <summary>
+        /// Whether the flight passes through the ground and the trunks (ruling 25) or is stopped by them (M1.D, ruling 30's
+        /// switch under the flight's). On, as the flight was built; the developer's panel turns it off.
+        /// </summary>
+        public bool Noclip { get; private set; } = true;
+
         /// <summary>A foot fell (M1.5c) on the ground the body covered, or a stroke was swum (M1.5e); the client sounds it.</summary>
         public event Action<Footfall> Stepped;
 
@@ -207,6 +213,7 @@ namespace EarthGame.Client
             _presses.HandStep += f.HandStep;
             _presses.Menu |= f.Menu;
             _presses.Screenshot |= f.Screenshot;
+            _presses.DevPanel |= f.DevPanel;
             _seen.Jump |= f.Jump;
             _seen.Use |= f.Use;
             _seen.Carrying |= f.Carrying;
@@ -215,6 +222,43 @@ namespace EarthGame.Client
             _seen.Menu |= f.Menu;
             _seen.Screenshot |= f.Screenshot;
             _seen.Fly |= f.Fly;
+            _seen.DevPanel |= f.DevPanel;
+        }
+
+        /// <summary>
+        /// Takes off, or comes down (M1.5e): the fly key and the developer's panel both come here (M1.D). Coming down, the
+        /// founder falls from where they are, and is set on the ground when the flight left them under it (ruling 25's
+        /// noclip), which nothing else would lift them out of. A game not for development never flies.
+        /// </summary>
+        public void SetFlying(bool flying)
+        {
+            if (!FlightAllowed || Flying == flying) return;
+            Flying = flying;
+            if (!Flying)
+            {
+                State.VelEast = State.VelUp = State.VelNorth = 0.0;
+                LiftOutOfTheGround();
+            }
+            Debug.Log("[player] " + (Flying ? "flying" : "flying no more"));
+        }
+
+        /// <summary>Lets the flight through the ground, or has it stopped there (M1.D): a founder under the ground when it is stopped is set on it.</summary>
+        public void SetNoclip(bool noclip)
+        {
+            if (Noclip == noclip) return;
+            Noclip = noclip;
+            if (!noclip) LiftOutOfTheGround();
+            Debug.Log("[player] noclip " + (noclip ? "on" : "off"));
+        }
+
+        private void LiftOutOfTheGround()
+        {
+            double below = Ground != null ? Ground.HeightAt(State.East, State.North) : double.NaN;
+            if (!double.IsNaN(below) && State.Up < below)
+            {
+                State.Up = below + 0.01;
+                State.Grounded = false;
+            }
         }
 
         /// <summary>
@@ -245,26 +289,11 @@ namespace EarthGame.Client
             if (_flyQueued)
             {
                 _flyQueued = false;
-                if (FlightAllowed)
-                {
-                    Flying = !Flying;
-                    if (!Flying)
-                    {
-                        // Come down: the founder falls from where they are, and is set on the ground when the flight left
-                        // them under it (ruling 25's noclip), which nothing else would lift them out of.
-                        State.VelEast = State.VelUp = State.VelNorth = 0.0;
-                        double below = Ground != null ? Ground.HeightAt(State.East, State.North) : double.NaN;
-                        if (!double.IsNaN(below) && State.Up < below)
-                        {
-                            State.Up = below + 0.01;
-                            State.Grounded = false;
-                        }
-                    }
-                    Debug.Log("[player] " + (Flying ? "flying" : "flying no more"));
-                }
+                SetFlying(!Flying);
             }
 
-            State = Flying ? Flight.Step(State, _move.x, _move.y, _rise, _crouch, _sprint, YawDeg, PitchDeg, dt)
+            // A flight with noclip off is stopped by what the walk is stopped by: the same collision, swept the same way (M1.D).
+            State = Flying ? Flight.Step(State, _move.x, _move.y, _rise, _crouch, _sprint, YawDeg, PitchDeg, dt, Noclip ? null : _collision, _config)
                            : Mover.Step(State, input, dt, _collision, _config);
             if (_region != null)
             {

@@ -31,9 +31,10 @@ namespace EarthGame.Server
         public double MoveCreditCapSeconds = 5.0;
 
         /// <summary>
-        /// A development server's: a founder may fly (M1.5e, the owner's "flight i can use in dev"), so nothing but the
-        /// region's edge and finite numbers is held. A SOLO game started with <c>-eg-dev</c> runs its server so, and a host
-        /// with <c>+server.dev 1</c>; every other server corrects a flying founder back.
+        /// The one mark of a development server, set by a SOLO game's <c>-eg-dev</c> and a host's <c>+server.dev 1</c>: a
+        /// founder may fly (M1.5e, the owner's "flight i can use in dev"), so nothing but the region's edge and finite numbers
+        /// is held on their moves; and a developer's settings are taken (M1.D). Every other server corrects a flying founder
+        /// back and refuses the settings.
         /// </summary>
         public bool AllowFlight;
     }
