@@ -95,6 +95,44 @@ namespace EarthGame.Tests.Server
             Assert.That(client.LastReason, Is.EqualTo("password rejected"));
         }
 
+        /// <summary>
+        /// Two names the world would write to one player file are two founders it could keep only one of (M1.3d): the
+        /// second is refused at the door, with both names in the reason, and the name the world knows still comes back.
+        /// </summary>
+        [Test]
+        public void ANameTooLikeOneTheWorldKnowsIsRefusedAtTheDoorNamingBoth()
+        {
+            InMemoryTransport.CreatePair(out IServerTransport st, out IClientTransport ct);
+            GameServer server = new GameServer(new ServerConfig(), st, NewWorld());
+            SavedPlayer remembered = default;
+            remembered.Name = "William";
+            remembered.Body = MoverState.AtRest(10.0, 0.0, 10.0);
+            server.RememberPlayers(new[] { remembered });
+            server.Listen(1);
+
+            GameClient lower = new GameClient(ct);
+            lower.Connect("memory", 1, "william", "");
+            Pump(server, lower);
+            Assert.That(lower.State, Is.EqualTo(ClientState.Refused), "william would be written to William's file");
+            Assert.That(lower.LastReason, Does.Contain("william").And.Contain("William"));
+
+            GameClient spaced = new GameClient(InMemoryTransport.CreateClient(st));
+            spaced.Connect("memory", 1, "Jo Jo", "");
+            Pump(server, spaced);
+            Assert.That(spaced.State, Is.EqualTo(ClientState.Connected), "a name like no other joins");
+
+            GameClient marked = new GameClient(InMemoryTransport.CreateClient(st));
+            marked.Connect("memory", 1, "Jo_Jo", "");
+            Pump(server, marked);
+            Assert.That(marked.State, Is.EqualTo(ClientState.Refused), "Jo_Jo would be written to the file of Jo Jo, who is here");
+            Assert.That(marked.LastReason, Does.Contain("Jo Jo").And.Contain("Jo_Jo"));
+
+            GameClient back = new GameClient(InMemoryTransport.CreateClient(st));
+            back.Connect("memory", 1, "William", "");
+            Pump(server, back);
+            Assert.That(back.State, Is.EqualTo(ClientState.Connected), "and the name the world knows is welcomed back");
+        }
+
         [Test]
         public void ServerFullIsRefused()
         {

@@ -90,6 +90,8 @@ namespace EarthGame.ServerHost
             // quietly in its place. This host did that until 2026-09-10, so a world whose heights layer had gone
             // came back standing on different ground without a word, and its digest with it.
             string worldDir = Str(a, "server.world", null);
+            // The world folder is held for this process from its preparation until its last save (M1.3d).
+            IDisposable worldHold = null;
             WorldState world;
             WorldSaveInfo saved = null;
             IReadOnlyDictionary<string, string> layerChecksums = null;
@@ -110,6 +112,7 @@ namespace EarthGame.ServerHost
                     Log("cannot " + (continuing ? "continue " : "create ") + worldDir + ": " + ex.Message);
                     return 2;
                 }
+                worldHold = prepared;
                 world = prepared.World;
                 saved = prepared.Saved;
                 layerChecksums = prepared.Checksums;
@@ -274,6 +277,7 @@ namespace EarthGame.ServerHost
             }
             transport.Dispose();
             log?.Dispose();
+            worldHold?.Dispose();
             return 0;
         }
 

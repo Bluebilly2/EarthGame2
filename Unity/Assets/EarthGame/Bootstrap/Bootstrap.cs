@@ -67,6 +67,8 @@ namespace EarthGame.Bootstrap
         private LoadingController _loading;
         private LoadingRecorder _loadingRecorder;
         private Task<WorldPreparation.Result> _preparation;
+        /// <summary>The world this game prepared, whose folder it holds until the game has written its last save of it (M1.3d).</summary>
+        private WorldPreparation.Result _opened;
         private CancellationTokenSource _preparationCancellation;
         private readonly ConcurrentQueue<string> _loadingStages = new ConcurrentQueue<string>();
         private Region _loadingRegion;
@@ -195,10 +197,15 @@ namespace EarthGame.Bootstrap
             _preparation = null;
             _preparationCancellation.Dispose();
             _preparationCancellation = null;
-            if (_quitting) return;
+            if (_quitting)
+            {
+                if (done.Status == TaskStatus.RanToCompletion) done.Result.Dispose();
+                return;
+            }
             try
             {
                 WorldPreparation.Result ready = done.GetAwaiter().GetResult();
+                _opened = ready;
                 _seed = ready.World.Seed;
                 _layerChecksums = ready.Checksums;
                 _loadingRecorder?.Prepared();
@@ -219,6 +226,8 @@ namespace EarthGame.Bootstrap
         {
             if (_preparation != null || _server != null || _clientRuntime != null) return;
             CloseLoading();
+            _opened?.Dispose();
+            _opened = null;
             _launched = false;
             _worldDir = null;
             _layerChecksums = null;
@@ -436,6 +445,8 @@ namespace EarthGame.Bootstrap
             _quitting = true;
             _preparationCancellation?.Cancel();
             SaveOnClosing();
+            _opened?.Dispose();
+            _opened = null;
         }
 
         private void OnDestroy()
@@ -445,11 +456,17 @@ namespace EarthGame.Bootstrap
             if (_preparationCancellation != null)
             {
                 var cancellation = _preparationCancellation;
-                _preparation?.ContinueWith(_ => cancellation.Dispose(), TaskScheduler.Default);
+                _preparation?.ContinueWith(task =>
+                {
+                    cancellation.Dispose();
+                    if (task.Status == TaskStatus.RanToCompletion) task.Result.Dispose();
+                }, TaskScheduler.Default);
                 _preparationCancellation = null;
             }
             CloseLoading();
             _serverTransport?.Dispose();
+            _opened?.Dispose();
+            _opened = null;
         }
 
         /// <summary>The most recently written world under the saves folder, or null.</summary>

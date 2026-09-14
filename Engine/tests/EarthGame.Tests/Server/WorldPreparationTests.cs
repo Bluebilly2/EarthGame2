@@ -48,7 +48,8 @@ namespace EarthGame.Tests.Server
             Assert.That(made.Saved, Is.Null);
             Assert.That(made.World.Tick, Is.Zero);
             Assert.That(made.World.Wake.HasValue, Is.True);
-            var back = WorldPreparation.Load(_world, Path.Combine(_root, "absent"), Region, 999, Now, null, CancellationToken.None);
+            made.Dispose();
+            using var back = WorldPreparation.Load(_world, Path.Combine(_root, "absent"), Region, 999, Now, null, CancellationToken.None);
             Assert.That(back.Saved, Is.Not.Null);
             Assert.That(back.World.Seed, Is.EqualTo(1347));
             Assert.That(back.World.Terrain.Raster.Sha256, Is.EqualTo(made.World.Terrain.Raster.Sha256));
@@ -60,7 +61,8 @@ namespace EarthGame.Tests.Server
         {
             Bake();
             var made = WorldPreparation.Load(_world, _data, Region, 1347, Now, null, CancellationToken.None);
-            var back = WorldPreparation.Load(_world, Path.Combine(_root, "absent"), Region, 1347, Now, null, CancellationToken.None);
+            made.Dispose();
+            using var back = WorldPreparation.Load(_world, Path.Combine(_root, "absent"), Region, 1347, Now, null, CancellationToken.None);
             Assert.That(back.Saved, Is.Not.Null, "the second load restores");
             int fed = 0;
             foreach (AnimalSpecies species in AnimalSpecies.All)
@@ -92,8 +94,8 @@ namespace EarthGame.Tests.Server
         public void ProgressDoesNotChangeTheWorld()
         {
             Bake();
-            var a = WorldPreparation.Load(_world, _data, Region, 1347, Now, _ => { }, CancellationToken.None);
-            var b = WorldPreparation.Load(Path.Combine(_root, "second"), _data, Region, 1347, Now, null, CancellationToken.None);
+            using var a = WorldPreparation.Load(_world, _data, Region, 1347, Now, _ => { }, CancellationToken.None);
+            using var b = WorldPreparation.Load(Path.Combine(_root, "second"), _data, Region, 1347, Now, null, CancellationToken.None);
             Assert.That(a.Checksums, Is.EquivalentTo(b.Checksums));
             Assert.That(a.Census, Is.EqualTo(b.Census));
         }
@@ -105,7 +107,7 @@ namespace EarthGame.Tests.Server
             Assert.Throws<FileNotFoundException>(() => WorldPreparation.Load(_world, _data, Region, 1347, Now, null, CancellationToken.None));
             Assert.That(WorldSave.Exists(_world), Is.False);
             Bake();
-            WorldPreparation.Load(_world, _data, Region, 1347, Now, null, CancellationToken.None);
+            WorldPreparation.Load(_world, _data, Region, 1347, Now, null, CancellationToken.None).Dispose();
             string savedTerrain = Path.Combine(_world, "layers", "heights.json");
             if (missing) File.Delete(savedTerrain);
             else File.WriteAllText(savedTerrain, "broken");
@@ -122,14 +124,39 @@ namespace EarthGame.Tests.Server
         public void AWorldOfAnotherRegionIsRefusedNotReinterpreted()
         {
             Bake();
-            WorldPreparation.Load(_world, _data, Region, 1347, Now, null, CancellationToken.None);
+            WorldPreparation.Load(_world, _data, Region, 1347, Now, null, CancellationToken.None).Dispose();
             Region elsewhere = new Region("elsewhere", "Elsewhere", -35.14, 150.675,
                 TestRasters.MadeExtentM, 237, 8);
             InvalidDataException refused = Assert.Throws<InvalidDataException>(
                 () => WorldPreparation.Load(_world, _data, elsewhere, 1347, Now, null, CancellationToken.None));
             Assert.That(refused.Message, Does.Contain("fixture").And.Contain("elsewhere"), "the refusal names both");
-            Assert.That(WorldPreparation.Load(_world, _data, Region, 1347, Now, null, CancellationToken.None).Saved, Is.Not.Null,
-                "and its own region still opens it");
+            using (WorldPreparation.Result own = WorldPreparation.Load(_world, _data, Region, 1347, Now, null, CancellationToken.None))
+                Assert.That(own.Saved, Is.Not.Null, "and its own region still opens it");
+        }
+
+        /// <summary>
+        /// A world one program holds is refused to a second before the second reads or changes anything (M1.3d): what the
+        /// first one's save has written aside stays, where the second's recovery of the folder would have deleted it.
+        /// </summary>
+        [Test]
+        public void AWorldOneProgramHoldsIsRefusedToASecondBeforeItTouchesAnything()
+        {
+            Bake();
+            WorldPreparation.Load(_world, _data, Region, 1347, Now, null, CancellationToken.None).Dispose();
+            string aside = Path.Combine(_world, WorldSave.WorldFile + ".part");
+            using (WorldPreparation.Result first = WorldPreparation.Load(_world, _data, Region, 1347, Now, null, CancellationToken.None))
+            {
+                File.WriteAllText(aside, "a save the first program is writing");
+                IOException refused = Assert.Throws<IOException>(() => WorldPreparation.Load(_world, _data, Region, 1347, Now, null, CancellationToken.None));
+                Assert.That(refused.Message, Does.Contain("already open"));
+                Assert.That(File.Exists(aside), Is.True, "the second program touched nothing of the first one's save");
+            }
+            using (WorldPreparation.Result again = WorldPreparation.Load(_world, _data, Region, 1347, Now, null, CancellationToken.None))
+            {
+                Assert.That(again.Saved, Is.Not.Null, "once the first lets it go, the world opens");
+                Assert.That(File.Exists(aside), Is.False, "and what was left aside is cleared");
+            }
+            Assert.That(File.Exists(Path.Combine(_world, WorldLock.FileName)), Is.False, "and nothing of the hold is left in the folder");
         }
 
         [TestCase("Tracing drainage")]

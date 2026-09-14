@@ -330,6 +330,12 @@ namespace EarthGame.Server
                 Refuse(connection, "password rejected");
                 return;
             }
+            string alike = KnownNameSharingAFileWith(name);
+            if (alike != null)
+            {
+                Refuse(connection, "the name " + name + " is too like " + alike + ", whom this world already knows: names may not differ only in capitals or marks");
+                return;
+            }
 
             // A name that is still connected is a rejoin the transport has not yet noticed the cut of (a cable
             // pulled, a process killed): the old session ends now, its body remembered, and the new one takes it.
@@ -388,6 +394,19 @@ namespace EarthGame.Server
         {
             for (int i = 0; i < _sessions.Count; i++)
                 if (string.Equals(_sessions[i].Name, name, StringComparison.Ordinal)) return _sessions[i];
+            return null;
+        }
+
+        /// <summary>
+        /// A name this server knows, remembered or connected, that is not this name but would be written to its player file
+        /// (M1.3d); null when there is none. The world could keep only one of the two, so the second is refused at the door.
+        /// </summary>
+        private string KnownNameSharingAFileWith(string name)
+        {
+            foreach (string known in _savedPlayers.Keys)
+                if (WorldSave.ShareAFile(known, name)) return known;
+            for (int i = 0; i < _sessions.Count; i++)
+                if (WorldSave.ShareAFile(_sessions[i].Name, name)) return _sessions[i].Name;
             return null;
         }
 
@@ -536,6 +555,8 @@ namespace EarthGame.Server
         public SavedPlayer StandPlayer(string name, double east, double north)
         {
             if (string.IsNullOrEmpty(name)) throw new ArgumentException("a player has a name", nameof(name));
+            string alike = KnownNameSharingAFileWith(name);
+            if (alike != null) throw new ArgumentException("the name " + name + " is too like " + alike + ", whom this world already knows", nameof(name));
             if (Math.Abs(east) > World.Region.HalfExtentM || Math.Abs(north) > World.Region.HalfExtentM)
                 throw new ArgumentOutOfRangeException(nameof(east), "(" + east + ", " + north + ") is outside the region");
             SavedPlayer p = new SavedPlayer();

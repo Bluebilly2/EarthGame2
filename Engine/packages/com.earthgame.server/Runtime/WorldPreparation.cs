@@ -7,21 +7,87 @@ using EarthGame.Engine;
 namespace EarthGame.Server
 {
     /// <summary>
+    /// A world folder held by the one program that opened it (M1.3d): a file in the folder, open and shared with no one,
+    /// deleted when it is closed, and closed by the operating system when the program dies. The bug hunt of 2026-09-13
+    /// found that a second program opening a world a first still ran recovered the folder under it, deleting the files
+    /// the first was writing aside, and the first's record then named files that were gone, so the world was refused for
+    /// good. A second program is now refused before it reads or changes anything.
+    /// </summary>
+    public sealed class WorldLock : IDisposable
+    {
+        public const string FileName = "world.lock";
+        private FileStream _held;
+
+        private WorldLock(FileStream held)
+        {
+            _held = held;
+        }
+
+        /// <summary>Holds the folder, making it when it is not there; an IOException in plain words when another program holds it.</summary>
+        public static WorldLock Take(string worldDir)
+        {
+            Directory.CreateDirectory(worldDir);
+            string path = Path.Combine(worldDir, FileName);
+            try
+            {
+                return new WorldLock(new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.DeleteOnClose));
+            }
+            catch (Exception ex) when ((ex is IOException && !(ex is FileNotFoundException) && !(ex is DirectoryNotFoundException))
+                                       || ex is UnauthorizedAccessException)
+            {
+                throw new IOException("This world is already open in another copy of the game or on a server (" + worldDir + ").", ex);
+            }
+        }
+
+        public void Dispose()
+        {
+            _held?.Dispose();
+            _held = null;
+        }
+    }
+
+    /// <summary>
     /// Prepares a world before a server owns it. Paths and time are supplied by the host; no Unity state
     /// is accessed, so the desktop host can run this on a worker (M1.4 loading, 2026-09-10).
     /// The progress callback runs on the caller's thread; cancellation is checked between stages.
     /// </summary>
     public static class WorldPreparation
     {
-        public sealed class Result
+        public sealed class Result : IDisposable
         {
             public WorldState World;
             public WorldSaveInfo Saved;
             public IReadOnlyDictionary<string, string> Checksums;
             public string Census;
+            /// <summary>The folder held for the program that prepared the world (M1.3d), until it has written its last save and disposes this.</summary>
+            public WorldLock Hold;
+
+            public void Dispose() => Hold?.Dispose();
         }
 
+        /// <summary>
+        /// Opens the world in <paramref name="worldDir"/>, or makes it there, holding the folder first (M1.3d): reading a
+        /// folder recovers it, and recovering deletes what a save left aside, which a second program would delete from under
+        /// the first. A load that fails lets the folder go; one that succeeds holds it until its result is disposed.
+        /// </summary>
         public static Result Load(string worldDir, string dataDir, Region region, ulong seed, string nowUtc,
+            Action<string> progress, CancellationToken cancellation)
+        {
+            WorldLock hold = WorldLock.Take(worldDir);
+            try
+            {
+                Result result = LoadHeld(worldDir, dataDir, region, seed, nowUtc, progress, cancellation);
+                result.Hold = hold;
+                return result;
+            }
+            catch
+            {
+                hold.Dispose();
+                throw;
+            }
+        }
+
+        private static Result LoadHeld(string worldDir, string dataDir, Region region, ulong seed, string nowUtc,
             Action<string> progress, CancellationToken cancellation)
         {
             void Report(string stage)

@@ -252,6 +252,16 @@ again, each wait longer than the last, before the save fails naming the file, fo
 host saves in place on its own thread, which draws no frames. Until then the whole save, its flushing among it, stood
 between two of the game's frames.
 
+Landed 2026-09-14 (M1.3d): a world folder is held by the program that opened it. `WorldPreparation.Load` takes
+`world.lock` in the folder before it reads anything: a file kept open, shared with no one and deleted when it is closed.
+A second program, the game opened twice or the game beside a host, is refused in plain words before its recovery of the
+folder could delete what the first program's save has written aside. A load that fails lets the folder go; the game lets
+it go once it has written its closing save, the host once it has written its last, and a program that dies lets it go
+with its files. A founder's file name sets capitals aside as Windows does: a name whose file would be another known
+founder's, William beside william or Jo Jo beside Jo_Jo, is refused at the door, and a save that would write two founders
+to one file is refused before it writes anything. A name Windows keeps for a device takes an underscore in front of its
+file's name.
+
 ## 7. Networking
 
 - **Rule 1 — there is no single player.** SOLO = server + client in one process over `InMemoryTransport`; every
@@ -319,7 +329,8 @@ between two of the game's frames.
   as the world made them, so no tile is sent again.
 - **Rejoin:** a session that ends keeps its body and what it carries by player name for the life of the server (and in the world
   folder on save); the same name wakes there, and a Hello for a name still connected supersedes the old session
-  (the transport had not yet noticed the cut). **Digests** (`WorldDigest`, ARCHITECTURE §6): FNV-1a 64 over
+  (the transport had not yet noticed the cut). A name that would share a player file with another name the server knows,
+  remembered or connected, is refused, naming both (M1.3d). **Digests** (`WorldDigest`, ARCHITECTURE §6): FNV-1a 64 over
   lines of fixed-resolution integers (micrometres, nanohours), sorted by key; the world digest names the clock, the tick and every
   body by name; the bodies digest names one body by session id, computed the same way by the server's record
   and the client's mirror, so N3 and N4 compare strings.
@@ -675,3 +686,5 @@ mandatory in every file from the first write.
 | 2026-09-13 | M1.3b: a save writes its files aside and flushed, places one record of what it will put in place, and only then puts them in place; reading a world recovers its folder first | A save is many files and was written one at a time, each moved in by deleting the old first, so a crash could lose `world.json`, and a new world would be made over the old, or mix old files and new, and the folder was refused. One record placed in one move is the moment a save counts, and its CRCs tell a file already put in place from one never put there. It stays in the folder the world already has, rather than a folder for each save, so the layers and every tool that reads `world.json` stay where they are |
 | 2026-09-13 | M1.3c: the game makes an autosave on its main thread and writes it on a worker, one save at a time; closing the game waits for the save being written, then writes its own in place | The making reads the world and the players, which the main thread steps, and once warm it takes about a millisecond; the writing touches only the bytes made and the disk, and since M1.3b's flushing it is most of a save's time. Made on a worker, the world would have to be copied or locked for it, and a copy is what the making already is. Two saves written at once would write aside over each other's files. The host saves in place, since it draws no frames |
 | 2026-09-13 | M1.3c: a file operation of a save or a recovery is tried again while another program holds the file, each wait longer than the last, and then fails naming the file | On 2026-09-13 the built game's closing save could not replace a region file its autosave had written fifteen seconds before. Nothing in the game holds its files open, the same run repeated closed cleanly, and on Windows a virus scanner or the search indexer reading a file just written is the usual holder. M1.3b's record already made the failed save one the next load finishes; trying again lets the game finish it itself, and the file's name in a failure says where to look |
+| 2026-09-14 | M1.3d: a name that would share a player file with a founder the world knows is refused at the door, rather than folded into that founder or given a file of its own | Folding William and william into one founder decides who a founder is, which is the owner's to decide. A file name that kept capitals apart, an escape before each capital say, would rename every existing file and still meet Jo Jo beside Jo_Jo. Refusing keeps every file where it is and loses nobody, and the refused player chooses another name or types the one the world knows |
+| 2026-09-14 | M1.3d: a world folder is held by a file the opening program keeps open, shared with no one and deleted when closed, rather than by a marker written at opening and removed at closing | The operating system closes a dead program's files, so a crash leaves no hold to clear by hand, where a marker a crash left would refuse the world to its own next run. It is taken before anything is read, because reading recovers the folder and recovering deletes what a save left aside |

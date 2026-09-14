@@ -160,6 +160,12 @@ namespace EarthGame.Server
         private static void PlayerFiles(string dir, IReadOnlyList<SavedPlayer> players, List<KeyValuePair<string, byte[]>> place, List<string> remove)
         {
             if (players == null) return;
+            // Two founders written to one file would leave one of them (M1.3d): refused before anything is written.
+            for (int i = 0; i < players.Count; i++)
+                for (int j = i + 1; j < players.Count; j++)
+                    if (ShareAFile(players[i].Name, players[j].Name))
+                        throw new InvalidOperationException("the founders '" + players[i].Name + "' and '" + players[j].Name
+                                                            + "' would be written to one player file, so the save is refused");
             Directory.CreateDirectory(Path.Combine(dir, PlayersFolder));
             foreach (SavedPlayer s in players)
             {
@@ -378,14 +384,37 @@ namespace EarthGame.Server
             return c;
         }
 
-        /// <summary>A player's name as a file name: letters, digits and a few marks; everything else becomes an underscore.</summary>
+        /// <summary>
+        /// A player's name as a file name: letters, digits and a few marks; everything else becomes an underscore. A name
+        /// Windows keeps for a device (CON, PRN, AUX, NUL, COM0 to COM9 and LPT0 to LPT9, in any case) takes an underscore in
+        /// front (M1.3d, 2026-09-14): a file of that name is the device, whatever its extension, and cannot be written.
+        /// </summary>
         public static string FileNameFor(string name)
         {
             StringBuilder sb = new StringBuilder(name.Length);
             foreach (char c in name)
                 sb.Append(char.IsLetterOrDigit(c) || c == '-' || c == '_' ? c : '_');
-            return sb.Length == 0 ? "_" : sb.ToString();
+            string stem = sb.Length == 0 ? "_" : sb.ToString();
+            return IsDeviceName(stem) ? "_" + stem : stem;
         }
+
+        private static bool IsDeviceName(string stem)
+        {
+            string upper = stem.ToUpperInvariant();
+            if (upper == "CON" || upper == "PRN" || upper == "AUX" || upper == "NUL") return true;
+            return upper.Length == 4 && (upper.StartsWith("COM", StringComparison.Ordinal) || upper.StartsWith("LPT", StringComparison.Ordinal))
+                   && upper[3] >= '0' && upper[3] <= '9';
+        }
+
+        /// <summary>
+        /// Whether two different names would be written to one player file (M1.3d): their file names are the same once
+        /// capitals are set aside, as Windows sets them aside, and marks have become underscores. The bug hunt of 2026-09-13
+        /// found William and william sharing a file, so that a save kept one of them; the server refuses such a name at the
+        /// door, and a save refuses to write two founders to one file.
+        /// </summary>
+        public static bool ShareAFile(string a, string b)
+            => !string.IsNullOrEmpty(a) && !string.IsNullOrEmpty(b) && !string.Equals(a, b, StringComparison.Ordinal)
+               && string.Equals(FileNameFor(a), FileNameFor(b), StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
         /// Finishes a save a crash stopped after its record was placed, or clears away one stopped before (M1.3b), so that the

@@ -125,6 +125,46 @@ namespace EarthGame.Tests.Server
             Assert.That(WorldSave.FileNameFor("William"), Is.EqualTo("William"));
             Assert.That(WorldSave.FileNameFor("../x/y:z"), Is.EqualTo("___x_y_z"));
             Assert.That(WorldSave.FileNameFor(""), Is.EqualTo("_"));
+            Assert.That(WorldSave.FileNameFor("Con"), Is.EqualTo("_Con"), "a device's name is not a file's on Windows");
+            Assert.That(WorldSave.FileNameFor("lpt1"), Is.EqualTo("_lpt1"));
+            Assert.That(WorldSave.FileNameFor("Console"), Is.EqualTo("Console"));
+        }
+
+        /// <summary>A save that would write two founders to one file is refused before it writes anything (M1.3d), and the save before it stands.</summary>
+        [Test]
+        public void TwoFoundersWhoseFilesWouldBeOneAreRefusedBeforeAnythingIsWritten()
+        {
+            WorldState world = new WorldState(1, Region.Bherwerre, Region.Bherwerre.WakeClock());
+            WorldSave.Write(_dir, world, new[] { Founder("William", 10.0) }, "2026-09-14T10:00:00Z");
+            string file = Path.Combine(_dir, WorldSave.PlayersFolder, "William.egp");
+            byte[] before = File.ReadAllBytes(file);
+
+            InvalidOperationException refused = Assert.Throws<InvalidOperationException>(
+                () => WorldSave.Write(_dir, world, new[] { Founder("William", 20.0), Founder("william", 30.0) }, "2026-09-14T10:00:30Z"));
+            Assert.That(refused.Message, Does.Contain("'William'").And.Contain("'william'"));
+            Assert.That(File.ReadAllBytes(file), Is.EqualTo(before), "the save before stands");
+            Assert.That(Directory.GetFiles(_dir, "*.part", SearchOption.AllDirectories), Is.Empty, "and nothing was written aside");
+            Assert.That(WorldSave.ShareAFile("Jo Jo", "Jo_Jo"), Is.True, "marks become underscores");
+            Assert.That(WorldSave.ShareAFile("William", "William"), Is.False, "a name's file is its own");
+        }
+
+        /// <summary>A founder named for a Windows device is written to a file of their own and read back (M1.3d).</summary>
+        [Test]
+        public void AFounderNamedForADeviceIsWrittenAndReadBack()
+        {
+            WorldState world = new WorldState(1, Region.Bherwerre, Region.Bherwerre.WakeClock());
+            WorldSave.Write(_dir, world, new[] { Founder("Con", 42.0) }, "2026-09-14T10:00:00Z");
+            WorldSaveInfo info = WorldSave.Read(_dir);
+            Assert.That(info.Players.ContainsKey("Con"), Is.True);
+            Assert.That(info.Players["Con"].Body.East, Is.EqualTo(42.0));
+        }
+
+        private static SavedPlayer Founder(string name, double east)
+        {
+            SavedPlayer p = default;
+            p.Name = name;
+            p.Body = MoverState.AtRest(east, 0.0, 0.0);
+            return p;
         }
 
         private static void Pump(GameServer server, GameClient client, int rounds)
