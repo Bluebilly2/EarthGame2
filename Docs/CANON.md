@@ -172,3 +172,16 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
 28. **F11 fills the screen.** Having asked to "launch the latest version", which opened in a window on his left screen:
     "and add the ability to enter fullscreen mode with f11". F11 makes the game fill the screen its window is on, and
     gives the window back when pressed again, in the menu and in play.
+
+### Rulings of 2026-09-14
+
+29. **The animals' looks are made here, by him and the agent.** Asked again for the looks decision M1.7b waits on: "i
+    dont want to outsource the animals looks, we will do them." No model is bought, downloaded or commissioned; the
+    kangaroo and the oystercatcher are made in this project, as the trees and the litter were. How wary the animals
+    are (M1.7c) he left to the agent: "you choose for the wariness, what would feel okay?"
+
+30. **A developer's panel, with flight and noclip apart.** "dev panel: toggleable flight, and noclip under that; slider
+    for animal traits like wariness, distance they run, and other traits they have; other things that are appropriate
+    for this panel, and other things in the future." A panel in the game, for development, holds a flight switch with
+    a noclip switch under it (amending ruling 25, whose one key gave both at once), sliders for the animals' traits,
+    and whatever else belongs to a developer's hand, growing as the game does.
