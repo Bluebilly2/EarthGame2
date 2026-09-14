@@ -13,9 +13,10 @@ namespace EarthGame.Tests.Editor
     /// </summary>
     public sealed class TerrainTileBuilderTests
     {
-        private static string RepoRoot => Path.GetFullPath(Path.Combine(Application.dataPath, "..", ".."));
+        internal static string RepoRoot => Path.GetFullPath(Path.Combine(Application.dataPath, "..", ".."));
 
-        private static Heightfield Tiny()
+        /// <summary>The tiny fixture raster, for this file's tests and <see cref="TileReleaseTests"/>.</summary>
+        internal static Heightfield Tiny()
         {
             string sidecar = Path.Combine(RepoRoot, "Data", "fixtures", "raster", "tiny.json");
             Assert.That(File.Exists(sidecar), Is.True, "fixture missing: " + sidecar);

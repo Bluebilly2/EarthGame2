@@ -61,5 +61,15 @@ namespace EarthGame.Client
             renderer.shadowCastingMode = ShadowCastingMode.Off;
             return go;
         }
+
+        /// <summary>Frees a water tile and the mesh it owns (M1.4f): destroying the GameObject alone leaves the mesh behind.</summary>
+        public static void Free(GameObject water)
+        {
+            if (water == null) return;
+            MeshFilter filter = water.GetComponent<MeshFilter>();
+            Mesh mesh = filter != null ? filter.sharedMesh : null;
+            UnityObjects.Free(water);
+            UnityObjects.Free(mesh);
+        }
     }
 }

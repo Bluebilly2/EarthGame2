@@ -51,8 +51,8 @@ namespace EarthGame.Client
         public static void Free(TerrainLayer layer)
         {
             if (layer == null) return;
-            if (layer.diffuseTexture != null) Object.Destroy(layer.diffuseTexture);
-            Object.Destroy(layer);
+            UnityObjects.Free(layer.diffuseTexture);
+            UnityObjects.Free(layer);
         }
     }
 }

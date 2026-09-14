@@ -61,6 +61,8 @@ namespace EarthGame.Client
         private readonly List<uint> _goneMirrors = new List<uint>();
         private Heightfield _bakedRegion;
         private Terrain _coarse;
+        /// <summary>The 64 km surround beyond the region, held so that leaving the world frees it (M1.4f).</summary>
+        private Terrain _skirt;
         private Material _terrainMaterial;
         private TerrainLayer _groundLayer;
         private Material _mirrorMaterial;
@@ -315,7 +317,7 @@ namespace EarthGame.Client
             // checksums together name what it was built from.
             long from = ((long)ground.Crc32 << 32) | depth.Crc32;
             if (_waterFrom.TryGetValue(id, out long built) && built == from && _waterTiles.ContainsKey(id)) return;
-            if (_waterTiles.TryGetValue(id, out GameObject previous) && previous != null) Destroy(previous);
+            if (_waterTiles.TryGetValue(id, out GameObject previous)) WaterTileBuilder.Free(previous);
             _waterTiles.Remove(id);
             _waterFrom[id] = from;
             System.Collections.Generic.List<WaterQuad> quads = WaterSurface.Build(ground, depth, Heightfield.SeaLevelM);
@@ -368,7 +370,7 @@ namespace EarthGame.Client
             if (layer == TileLayer.WaterDepth) _depth?.Remove(id);
             if (_waterTiles.TryGetValue(id, out GameObject drawn))
             {
-                if (drawn != null) Destroy(drawn);
+                WaterTileBuilder.Free(drawn);
                 _waterTiles.Remove(id);
                 _waterFrom.Remove(id);
             }
@@ -382,7 +384,15 @@ namespace EarthGame.Client
             _preparing.Remove(id);
             _colouring.Remove(id);
             _ground?.Remove(id);
-            if (_tileTerrains.TryGetValue(id, out Terrain terrain) && terrain != null) Destroy(terrain.gameObject);
+            if (_tileTerrains.TryGetValue(id, out Terrain terrain) && terrain != null)
+            {
+                // The coarse ground shows again where the tile stood (M1.4f); until then a walk left a hole behind it. Each
+                // terrain's south-west corner is its own position, so the cut and the fill are asked of the same cells.
+                if (_coarse != null)
+                    TerrainTileBuilder.FillHole(_coarse, _coarse.transform.position.x, _coarse.transform.position.z,
+                        terrain.transform.position.x, terrain.transform.position.z, terrain.terrainData.size.x);
+                TerrainTileBuilder.Free(terrain);
+            }
             _tileTerrains.Remove(id);
             _tileCrcs.Remove(id);
         }
@@ -568,7 +578,7 @@ namespace EarthGame.Client
             double started = _clockMs.Elapsed.TotalMilliseconds;
             double at = started;
             Terrain previous;
-            if (_tileTerrains.TryGetValue(prepared.Id, out previous) && previous != null) Destroy(previous.gameObject);
+            if (_tileTerrains.TryGetValue(prepared.Id, out previous)) TerrainTileBuilder.Free(previous);
             TerrainLayer painted = _groundLayer;
             if (prepared.ColourMap != null)
             {
@@ -595,7 +605,7 @@ namespace EarthGame.Client
             _tileCrcs[prepared.Id] = prepared.GroundCrc;
             BuildWater(prepared.Id);
             if (_coarse != null)
-                TerrainTileBuilder.CutHole(_coarse, -_region.HalfExtentM, -_region.HalfExtentM, prepared.OriginEast, prepared.OriginNorth, prepared.SizeM);
+                TerrainTileBuilder.CutHole(_coarse, _coarse.transform.position.x, _coarse.transform.position.z, prepared.OriginEast, prepared.OriginNorth, prepared.SizeM);
             double waterMs = Since(ref at);
             // A cover that arrived before this tile was built is asked for now: on a join over the in-memory
             // transport the small cover tile lands first, and the frames of 2026-09-10 came back one flat tan
@@ -717,9 +727,9 @@ namespace EarthGame.Client
                 Debug.Log("[client] " + surroundMessage);
                 if (surround != null)
                 {
-                    Terrain skirt = TerrainTileBuilder.Build(surround, -surround.HalfExtentM, -surround.HalfExtentM, (float)surround.Raster.ExtentM,
+                    _skirt = TerrainTileBuilder.Build(surround, -surround.HalfExtentM, -surround.HalfExtentM, (float)surround.Raster.ExtentM,
                         TerrainTileBuilder.CoarsePosts, _terrainMaterial, _groundLayer, "Terrain (surround skirt)", false, 15f);
-                    TerrainTileBuilder.CutHole(skirt, -surround.HalfExtentM, -surround.HalfExtentM, -_region.HalfExtentM, -_region.HalfExtentM, _region.ExtentM);
+                    TerrainTileBuilder.CutHole(_skirt, -surround.HalfExtentM, -surround.HalfExtentM, -_region.HalfExtentM, -_region.HalfExtentM, _region.ExtentM);
                 }
             }
             GameObject sea = GameObject.CreatePrimitive(PrimitiveType.Plane);
@@ -978,6 +988,15 @@ namespace EarthGame.Client
             _stand?.Dispose();
             _client?.Disconnect("client destroyed");
             _transport?.Dispose();
+            // What the ground was drawn from goes with the world (M1.4f): the tiles, their water and colour, the coarse region and the skirt.
+            foreach (Terrain tile in _tileTerrains.Values) TerrainTileBuilder.Free(tile);
+            _tileTerrains.Clear();
+            foreach (GameObject water in _waterTiles.Values) WaterTileBuilder.Free(water);
+            _waterTiles.Clear();
+            foreach (TerrainLayer layer in _coverLayers.Values) GroundLayerBuilder.Free(layer);
+            _coverLayers.Clear();
+            TerrainTileBuilder.Free(_coarse);
+            TerrainTileBuilder.Free(_skirt);
         }
     }
 }

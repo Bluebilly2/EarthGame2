@@ -170,10 +170,29 @@ namespace EarthGame.Client
         }
 
         /// <summary>
+        /// Frees a tile's Terrain and the data it draws from (M1.4f): destroying the GameObject alone leaves the data
+        /// behind, a 513-post heightmap for every tile a walk let go of.
+        /// </summary>
+        public static void Free(Terrain terrain)
+        {
+            if (terrain == null) return;
+            TerrainData data = terrain.terrainData;
+            UnityObjects.Free(terrain.gameObject);
+            UnityObjects.Free(data);
+        }
+
+        /// <summary>
         /// Cuts a hole in a coarse tile where a finer tile sits on top of it, so the two never show through each
         /// other. The rectangle is in local metres; cells outside the tile are ignored.
         /// </summary>
         public static void CutHole(Terrain coarse, double originEast, double originNorth, double eastM, double northM, double sizeM)
+            => SetHole(coarse, originEast, originNorth, eastM, northM, sizeM, true);
+
+        /// <summary>Fills the hole <see cref="CutHole"/> cut for a finer tile, once that tile has gone (M1.4f): the same cells, by the same rounding.</summary>
+        public static void FillHole(Terrain coarse, double originEast, double originNorth, double eastM, double northM, double sizeM)
+            => SetHole(coarse, originEast, originNorth, eastM, northM, sizeM, false);
+
+        private static void SetHole(Terrain coarse, double originEast, double originNorth, double eastM, double northM, double sizeM, bool cut)
         {
             TerrainData data = coarse.terrainData;
             int res = data.holesResolution;
@@ -185,7 +204,12 @@ namespace EarthGame.Client
             int z0 = Mathf.Clamp((int)System.Math.Ceiling((northM - originNorth) / tileSize * res), 0, res);
             int z1 = Mathf.Clamp((int)System.Math.Floor((northM + sizeM - originNorth) / tileSize * res), 0, res);
             if (x1 <= x0 || z1 <= z0) return;
+            // Unity's holes array is true where the surface is: a cut is all false, a fill all true.
             bool[,] holes = new bool[z1 - z0, x1 - x0];
+            if (!cut)
+                for (int z = 0; z < z1 - z0; z++)
+                    for (int x = 0; x < x1 - x0; x++)
+                        holes[z, x] = true;
             data.SetHoles(x0, z0, holes);
         }
     }
