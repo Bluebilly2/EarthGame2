@@ -363,6 +363,7 @@ namespace EarthGame.Server
             {
                 spawn = saved.Body.Feet;
                 session.Body = saved.Body;
+                session.StoodUp = saved.Body.Up;
                 session.YawDeg = saved.YawDeg;
                 session.PitchDeg = saved.PitchDeg;
                 session.LastMoveTick = World.Tick;
@@ -461,11 +462,13 @@ namespace EarthGame.Server
                 interval = Math.Min(bySequence, session.MoveCredit);
             }
             string reason = MovementValidator.Check(session.Body, session.HasBody, move.Body, interval, World.Terrain,
-                                                    World.Region.HalfExtentM, _config.Mover, _config.Movement);
+                                                    World.Region.HalfExtentM, _config.Mover, _config.Movement, session.StoodUp);
             if (reason == null)
             {
                 session.MoveCredit = Math.Max(0.0, session.MoveCredit - interval);
                 session.Body = move.Body;
+                // A first report, or a founder on their feet, is where they stood; a fall keeps the height it left.
+                if (move.Body.Grounded || double.IsNaN(session.StoodUp)) session.StoodUp = move.Body.Up;
                 session.YawDeg = move.YawDeg;
                 session.PitchDeg = move.PitchDeg;
                 session.LastSequence = move.Sequence;

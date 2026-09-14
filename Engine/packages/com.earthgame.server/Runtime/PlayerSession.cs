@@ -32,6 +32,12 @@ namespace EarthGame.Server
         public long LastMoveTick;
         /// <summary>Real seconds this session may still claim for movement (MovementRules.MoveCreditCapSeconds); accrued by the host's elapsed time, spent by accepted reports.</summary>
         public double MoveCredit;
+        /// <summary>
+        /// The height of the last body this player reported standing on the ground, m (M1.5f): the first report's, then every
+        /// report on their feet, and a saved founder's from their save; NaN before any. A body off its feet is believed to
+        /// cross the ground as fast as a run and the height lost since allow.
+        /// </summary>
+        public double StoodUp = double.NaN;
         /// <summary>True from the Welcome until the snapshot has gone out, which happens after the next step (or at once while paused).</summary>
         public bool SnapshotPending;
         /// <summary>Where the joiner was told it stands, for the interest radius of its snapshot.</summary>

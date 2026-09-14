@@ -123,6 +123,10 @@ other's way:
 - `$TEMP` in Git Bash is the system temp folder, not the session's scratchpad; use the scratchpad's full path.
 - A scratch script named like a standard module (`bisect.py`) shadows it for every script in that folder.
 - Git prints CRLF warnings on every add; they are noise.
+- Something on this machine holds a file for a moment after it is touched: on 2026-09-13 the built game's closing save
+  could not replace a region file its autosave had written, and on 2026-09-14 a sabotage script's restore of
+  `GameServer.cs` was refused on the open itself ("invalid argument") and left the sabotaged file in place. A save
+  tries again (M1.3c); a script that writes and restores a project file must too, and must verify the restore.
 - Python for the tools is `Tools/.venv/Scripts/python.exe` (numpy, Pillow, requests); the gate runner uses it for
   steps that start with `python`. Console output needs `PYTHONIOENCODING=utf-8` for degree signs.
 - `dotnet build Engine/EarthGame.Unity.Compile.csproj` compiles the Unity layer against the editor's own assemblies

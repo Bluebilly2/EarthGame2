@@ -47,8 +47,9 @@ namespace EarthGame.Server
     public static class MovementValidator
     {
         /// <summary>Null when the report is acceptable; otherwise the reason, in words a log can carry.</summary>
+        /// <param name="stoodUp">The height of the last body this player reported standing on the ground; NaN before any.</param>
         public static string Check(in MoverState last, bool hasLast, in MoverState reported, double intervalSeconds,
-                                   Heightfield ground, double halfExtentM, MoverConfig mover, MovementRules rules)
+                                   Heightfield ground, double halfExtentM, MoverConfig mover, MovementRules rules, double stoodUp = double.NaN)
         {
             if (!reported.IsFinite) return "non-finite numbers in the report";
             if (Math.Abs(reported.East) > halfExtentM || Math.Abs(reported.North) > halfExtentM)
@@ -61,7 +62,7 @@ namespace EarthGame.Server
                 double de = reported.East - last.East;
                 double dn = reported.North - last.North;
                 double horizontal = Math.Sqrt(de * de + dn * dn) / dt;
-                double ceiling = mover.MaxHorizontalSpeed * rules.SpeedTolerance;
+                double ceiling = HorizontalCeiling(reported, stoodUp, mover) * rules.SpeedTolerance;
                 if (horizontal > ceiling)
                     return "speed " + F(horizontal) + " m/s exceeds the ceiling " + F(ceiling);
                 double vertical = Math.Abs(reported.Up - last.Up) / dt;
@@ -78,6 +79,22 @@ namespace EarthGame.Server
                     return "below the ground by " + F(g - reported.Up) + " m";
             }
             return null;
+        }
+
+        /// <summary>
+        /// The fastest a body can be crossing the ground, m/s (M1.5f). On its feet, the mover's run. Off them, falling or
+        /// sliding down a face too steep to stand on, nothing drives it but gravity, so it is no faster than a run together
+        /// with all the height it has lost since it last stood: v² = run² + 2 g drop. The bug hunt of 2026-09-13 found a
+        /// slide down a steep face outrunning a run's ceiling and corrected, as a cheat is, all the way down. Height gained
+        /// gives nothing, and the allowance is measured from where the founder stood rather than from their last report, so
+        /// it cannot grow report by report.
+        /// </summary>
+        public static double HorizontalCeiling(in MoverState reported, double stoodUp, MoverConfig mover)
+        {
+            double run = mover.MaxHorizontalSpeed;
+            if (reported.Grounded || double.IsNaN(stoodUp)) return run;
+            double drop = Math.Max(0.0, stoodUp - reported.Up);
+            return Math.Sqrt(run * run + 2.0 * mover.Gravity * drop);
         }
 
         private static string F(double v) => v.ToString("0.00", CultureInfo.InvariantCulture);

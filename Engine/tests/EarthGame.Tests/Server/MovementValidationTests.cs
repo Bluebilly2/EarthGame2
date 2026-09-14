@@ -94,6 +94,117 @@ namespace EarthGame.Tests.Server
             }
         }
 
+        /// <summary>
+        /// A founder sliding down a face too steep to stand on is only falling along it (the bug hunt of 2026-09-13): the
+        /// mover gives the slide to gravity, and the server must believe what gravity gives. Reported as the game reports,
+        /// every 0.05 s of fixed steps of 0.02 s, so after three steps and then after two, each judged over a server tick.
+        /// </summary>
+        [Test]
+        public void ASlideDownAFaceTooSteepToStandOnIsNotCorrected()
+        {
+            const double grade = 1.8; // 61 degrees, the face of MoverTests' own slide
+            IWorldCollision face = HeightfieldCollision.For(new Face(e => e * grade), MoverConfig.Default, false);
+            MovementRules rules = new MovementRules();
+            MoverState body = MoverState.AtRest(40.0, 40.0 * grade, 0.0);
+            MoverState accepted = body;
+            // Where the founder stood, as the server keeps it: the first report's height, then any report on their feet.
+            double stoodUp = body.Up;
+            double sinceSend = 0.0;
+            for (int step = 1; step <= 150; step++)
+            {
+                body = Mover.Step(body, MoverInput.None, 0.02, face);
+                sinceSend += 0.02;
+                if (sinceSend < 0.05 - 1e-4) continue;
+                sinceSend -= 0.05;
+                string reason = MovementValidator.Check(accepted, true, body, 0.05, null, 1000.0, MoverConfig.Default, rules, stoodUp);
+                Assert.That(reason, Is.Null, "corrected " + (step * 0.02).ToString("0.00") + " s into the slide at "
+                                             + body.HorizontalSpeed.ToString("0.00") + " m/s: " + reason);
+                accepted = body;
+                if (body.Grounded) stoodUp = body.Up;
+            }
+            Assert.That(body.HorizontalSpeed, Is.GreaterThan(MoverConfig.Default.MaxHorizontalSpeed * rules.SpeedTolerance),
+                "the slide outran the ceiling a run is held to, so the test is not passed by a slow slide");
+        }
+
+        /// <summary>
+        /// The server keeps where each founder last stood (M1.5f): off their feet below it, a founder is believed as fast as
+        /// the height lost allows; level with it or above it, they are held to a run; and standing again moves it. Over the
+        /// wire, on a world without terrain, so the heights are the ones stated here.
+        /// </summary>
+        [Test]
+        public void OffTheirFeetAFounderMayCrossTheGroundAsFastAsTheHeightLostSinceTheyStood()
+        {
+            WorldState bare = new WorldState(1, Region.Bherwerre, Region.Bherwerre.WakeClock());
+            Rig rig = Connect(bare);
+            MoverState stood = MoverState.AtRest(0.0, 100.0, 0.0);
+            stood.Grounded = true;
+            rig.Client.SendMove(MoverInput.None, 0f, 0f, stood);
+            rig.Pump(1);
+            Assert.That(rig.Session.StoodUp, Is.EqualTo(100.0), "where they stood");
+
+            // Two and a half metres below it at 10 m/s, where a run and that fall allow 11.2 m/s with the tolerance.
+            rig.Client.SendMove(MoverInput.None, 0f, 0f, MoverState.AtRest(0.5, 97.5, 0.0));
+            rig.Pump(1);
+            Assert.That(rig.Client.CorrectionCount, Is.EqualTo(0), "a fall's speed is believed");
+            Assert.That(rig.Session.StoodUp, Is.EqualTo(100.0), "and a fall keeps where they stood");
+
+            // Back up level with where they stood, off their feet at 12 m/s: nothing drives that but a cheat.
+            rig.Client.SendMove(MoverInput.None, 0f, 0f, MoverState.AtRest(1.1, 100.0, 0.0));
+            rig.Pump(1);
+            Assert.That(rig.Client.CorrectionCount, Is.EqualTo(1), "a body hanging level with where it stood is held to a run");
+            Assert.That(rig.Client.LastCorrection.Reason, Does.Contain("speed"));
+
+            MoverState landed = MoverState.AtRest(0.8, 96.0, 0.0);
+            landed.Grounded = true;
+            rig.Client.SendMove(MoverInput.None, 0f, 0f, landed);
+            rig.Pump(1);
+            Assert.That(rig.Client.CorrectionCount, Is.EqualTo(1));
+            Assert.That(rig.Session.StoodUp, Is.EqualTo(96.0), "standing again moves it");
+
+            // Two metres above where they now stood, off their feet at 9 m/s: height gained buys no speed.
+            rig.Client.SendMove(MoverInput.None, 0f, 0f, MoverState.AtRest(1.25, 98.0, 0.0));
+            rig.Pump(1);
+            Assert.That(rig.Client.CorrectionCount, Is.EqualTo(2), "a body above where it stood is held to a run");
+        }
+
+        /// <summary>A founder who comes back off their feet is judged from the height their save held (M1.5f), not held to a run.</summary>
+        [Test]
+        public void AFounderWhoRejoinsOffTheirFeetIsJudgedFromTheHeightTheirSaveHeld()
+        {
+            InMemoryTransport.CreatePair(out IServerTransport st, out IClientTransport ct);
+            GameServer server = new GameServer(new ServerConfig(), st, new WorldState(1, Region.Bherwerre, Region.Bherwerre.WakeClock()));
+            SavedPlayer saved = default;
+            saved.Name = "William";
+            saved.Body = MoverState.AtRest(0.0, 100.0, 0.0);
+            server.RememberPlayers(new[] { saved });
+            server.Listen(1);
+            GameClient client = new GameClient(ct);
+            client.Connect("memory", 1, "William", "");
+            long ms = 0;
+            for (int i = 0; i < 5; i++)
+            {
+                client.Update(ms);
+                server.Update(0.05);
+                client.Update(ms);
+                ms += 50;
+            }
+            Assert.That(client.State, Is.EqualTo(ClientState.Connected));
+            Assert.That(server.Sessions[0].StoodUp, Is.EqualTo(100.0), "where the save held them");
+
+            client.SendMove(MoverInput.None, 0f, 0f, MoverState.AtRest(0.5, 97.5, 0.0));
+            client.Update(ms);
+            server.Update(0.05);
+            client.Update(ms);
+            Assert.That(client.CorrectionCount, Is.EqualTo(0), "falling on from where the save held them, at 10 m/s");
+        }
+
+        private sealed class Face : IHeightSource
+        {
+            private readonly System.Func<double, double> _up;
+            public Face(System.Func<double, double> up) { _up = up; }
+            public double HeightAt(double east, double north) => _up(east);
+        }
+
         [Test]
         public void WelcomeCarriesTheSpawnOnTheGround()
         {
