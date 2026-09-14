@@ -81,11 +81,17 @@ namespace EarthGame.Engine
             return clock;
         }
 
-        /// <summary>Advances by real seconds at a time scale of one. The single place in-game time moves forward.</summary>
+        /// <summary>
+        /// How many times faster than the game's own rate the clock runs, for the dev tools (M1.D): one as the game runs
+        /// it, nought holds the sky still. A developer's setting lasts the session; it is never saved.
+        /// </summary>
+        public double Scale { get; set; } = 1.0;
+
+        /// <summary>Advances by real seconds at the game's rate times <see cref="Scale"/>. The single place in-game time moves forward.</summary>
         public void Advance(double realSeconds)
         {
-            if (realSeconds <= 0.0) return;
-            TotalHours += realSeconds * (24.0 / RealSecondsPerDay);
+            if (realSeconds <= 0.0 || Scale <= 0.0) return;
+            TotalHours += realSeconds * Scale * (24.0 / RealSecondsPerDay);
         }
 
         /// <summary>Moves the clock to an absolute instant. For the dev tools, not for the game.</summary>

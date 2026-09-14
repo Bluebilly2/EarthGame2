@@ -344,9 +344,11 @@ file's name.
   a client to the server, which, started for development (`-eg-dev`, `+server.dev 1`: `MovementRules.AllowFlight`, the
   one mark of a development server), holds it to its range and applies it, or refuses one it does not know; any other
   server refuses it and closes, as it does a malformed message. `DevSettings` in the protocol package is the one table
-  of what exists (the animals' stand-up and take-away distances, the local hour, standing at the wake as a deed), read
-  by the panel for its sliders and by the server for what it takes. `Pong` carries the server's clock, and a client's
-  own clock, which runs from its Welcome, is set to it when it slips by more than three minutes of the world's time,
+  of what exists (standing at the wake as a deed; the local hour and the day of the year; how fast the clock runs,
+  `WorldClock.Scale`, nought holding the sky still; the animals' stand-up and take-away distances; a stick or a cobble
+  set down two metres ahead as deeds), read by the panel for its sliders and by the server for what it takes. `Pong`
+  carries the server's clock and, since protocol v11 the same day, its scale: a client's own clock, which runs from its
+  Welcome, runs at that scale and is set to the server's when it slips by more than three minutes of the world's time,
   so a clock a developer moves moves every client's sky.
 - **Rejoin:** a session that ends keeps its body and what it carries by player name for the life of the server (and in the world
   folder on save); the same name wakes there, and a Hello for a name still connected supersedes the old session
@@ -528,9 +530,12 @@ corpus runs, its raw results in the contracted run logs (§10), recomputed indep
   scripted-input seam hands the same frame (`ControlsFrame`), its pitch the camera's. The verbs (`VerbController`)
   act on what the crosshair is on and what is in hand: a thing within reach, the ground within reach, the keys and the
   wheel for the hand, Tab for the carrying window; Escape lets the mouse go and a click takes it back; F3, in a
-  development game, opens the developer's panel (M1.D, CANON ruling 30: the flight switch with noclip under it, a
-  slider for each of the server's developer settings, the local hour, the sky now and the founder's place), which has
-  the mouse while it is open and rests the founder's hands. UI Toolkit
+  development game, opens the developer's panel (M1.D, CANON ruling 30) in sections: the founder (the flight switch
+  with noclip under it, standing at the wake), time (the hour, the day of the year, the clock's rate), the animals
+  (stood up within, taken away beyond; M1.7c's wariness and running to come), spawning (a stick or a cobble ahead;
+  animals shown greyed until M1.7b and M1.7c), the environment (shown greyed until the weather is drawn, M1.8b) and
+  the world as the client reads it; a row with a start has a reset, and one button resets them all with the flight.
+  It has the mouse while it is open and rests the founder's hands, and its text is white on the panel. UI Toolkit
   for HUD (M1: crosshair, verb line, clock, and the carrying window, which only shows the nine places, their things'
   masses and which is the hand while the world runs on), menus, settings, and the tablet page; readability floor
   3:1. Sound in M1: wind by exposure, surf by distance, birds from presence, footsteps by surface, rain. Footsteps
@@ -728,3 +733,5 @@ mandatory in every file from the first write.
 | 2026-09-14 | M1.D: the server's clock rides on every pong, and a client's clock is set to it only when it slips by more than three minutes of the world's time | The client's clock has run from its Welcome since M1.A and nothing corrected it; a developer moving the server's clock would have moved no sky. Setting it on every pong would jerk the sun by the round trip's worth every second; a slip larger than any round trip and smaller than any deliberate move is the line between drift and a move |
 | 2026-09-14 | M1.D: standing a founder at the wake is done as a correction is done, the server's body sent back for the client to take, under the reason that names the panel | Movement is client-authoritative and server-validated (§7, §9): the one way a server moves a founder is the correction, and a second way would be a second owner of where a body is |
 | 2026-09-14 | M1.D: the noclip switch off gives the flight the walk's collision, swept by the walk's own rule; what stops it is ground when its normal points more up than cos 60°, and then the flight skims, keeping its way across and losing its fall, else a face or a trunk slid along; feet that end under a gentle rise are set on the ground | The sweep stops a flight at faces and lands it on ground it falls onto, as it does the walk; slid along the ground's normal as along a wall, a flight pointed steeply into a rise was sent back down it (the test's first run), where the walk keeps its way and is set on the ground. A rise gentler than a face the sweep leaves to the walk's step-up, which a flight does not have; setting the feet on the ground within twice a step's reach keeps the flight out of the hill without a second collision rule, and 60° is the steepest ground that reach covers at the flight's running pace |
+| 2026-09-14 | M1.D's second landing: what the panel is asked for but cannot yet do (a hand on the weather, an animal set down) is shown greyed with a note of what it waits for, rather than left out or wired to nothing | The owner asked for these stubbed; a control that does nothing silently is the thing STANDARDS forbids in a verifier and no better in a panel, and one that is absent tells him nothing; greyed and named, it says what is not built and where it comes from |
+| 2026-09-14 | M1.D's second landing: the clock's rate is the clock's own (`WorldClock.Scale`), set by a developer's setting and never saved, and it rides on every pong beside the clock | A rate kept beside the clock would be a second owner of how fast time goes; kept in the clock, `Advance` is still the one place time moves. Without the rate on the pong a client running at the game's rate would slip past three minutes every second at any other rate and its sun would jerk at each pong |

@@ -19,9 +19,10 @@ namespace EarthGame.Protocol
         /// 8 — M1.6d the far forest (tile layers 6 and 7, the far stand and the far count, over the region's whole grid);
         /// 9 — M1.7a animals in the world (an animal's pose on EntitySpawn and EntityState; the interest radius in Welcome);
         /// 10 — M1.D a developer's settings (DevSetting, a name and a number, taken by a development server; Pong carries the
-        /// server's clock, so a sky follows a clock a developer has moved).
+        /// server's clock, so a sky follows a clock a developer has moved);
+        /// 11 — M1.D's second landing: Pong carries the clock's scale as well, so a client's clock runs at the server's rate.
         /// </summary>
-        public const ushort Version = 10;
+        public const ushort Version = 11;
 
         /// <summary>Bytes of tile data per TileChunk; well under <see cref="MaxMessageBytes"/> with the header.</summary>
         public const int TileChunkBytes = 16 * 1024;

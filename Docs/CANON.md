@@ -184,4 +184,9 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     for animal traits like wariness, distance they run, and other traits they have; other things that are appropriate
     for this panel, and other things in the future." A panel in the game, for development, holds a flight switch with
     a noclip switch under it (amending ruling 25, whose one key gave both at once), sliders for the animals' traits,
-    and whatever else belongs to a developer's hand, growing as the game does.
+    and whatever else belongs to a developer's hand, growing as the game does. Seeing the first panel the same day:
+    "add to the dev panel: time control; environment control, ability to manipulate environment (stubbed); spawn in
+    entities and animals (stubbed); reset button for relevant settings in the panel, and individual reset buttons.
+    Also, the text isn't very readable, make it coloured white." Time is controlled from the panel; the environment
+    and the spawning of animals are shown as what is not yet built; every setting resets, singly and all at once; and
+    the panel's text is white.

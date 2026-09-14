@@ -42,15 +42,27 @@ namespace EarthGame.Protocol
         public const string AnimalsTakeAwayM = "animals.take_away_m";
         /// <summary>The local hour at the region's centre the world's clock is set to, on the same day.</summary>
         public const string ClockLocalHour = "clock.local_hour";
+        /// <summary>The local day of the year the world's clock is set to, at the same hour.</summary>
+        public const string ClockDayOfYear = "clock.day_of_year";
+        /// <summary>How many times faster than the game's rate the clock runs (<see cref="WorldClock.Scale"/>); nought holds the sky still.</summary>
+        public const string ClockScale = "clock.scale";
         /// <summary>A deed: the founder who asks is stood at the world's wake.</summary>
         public const string StandAtWake = "founder.stand_at_wake";
+        /// <summary>A deed: a stick is set on the ground two metres ahead of the founder who asks.</summary>
+        public const string SpawnStick = "spawn.stick";
+        /// <summary>A deed: a cobble is set on the ground two metres ahead of the founder who asks.</summary>
+        public const string SpawnCobble = "spawn.cobble";
 
         public static readonly IReadOnlyList<DevSetting> All = new[]
         {
+            new DevSetting(StandAtWake, "Stand at the wake", 0.0, 0.0, 0.0, deed: true),
+            new DevSetting(ClockLocalHour, "Local hour", 0.0, 24.0, double.NaN),
+            new DevSetting(ClockDayOfYear, "Day of the year", 1.0, 365.0, double.NaN),
+            new DevSetting(ClockScale, "Clock runs at, times the game's rate", 0.0, 60.0, 1.0),
             new DevSetting(AnimalsStandUpM, "Animals stood up within, m", 100.0, 1500.0, AnimalStandUp.DefaultStandUpRadiusM),
             new DevSetting(AnimalsTakeAwayM, "Animals taken away beyond, m", 100.0, 1600.0, AnimalStandUp.DefaultTakeAwayRadiusM),
-            new DevSetting(ClockLocalHour, "Local hour", 0.0, 24.0, double.NaN),
-            new DevSetting(StandAtWake, "Stand at the wake", 0.0, 0.0, 0.0, deed: true),
+            new DevSetting(SpawnStick, "A stick, two metres ahead", 0.0, 0.0, 0.0, deed: true),
+            new DevSetting(SpawnCobble, "A cobble, two metres ahead", 0.0, 0.0, 0.0, deed: true),
         };
 
         /// <summary>The setting of a name, or null for a name this build's table lacks.</summary>

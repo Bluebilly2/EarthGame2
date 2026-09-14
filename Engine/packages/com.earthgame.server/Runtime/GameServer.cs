@@ -276,6 +276,7 @@ namespace EarthGame.Server
                         pong.ClientTimeMs = ping.ClientTimeMs;
                         pong.ServerTick = World.Tick;
                         pong.ServerTotalHours = World.Clock.TotalHours;
+                        pong.ClockScale = World.Clock.Scale;
                         _writer.Reset();
                         pong.Write(_writer);
                         connection.Send(_writer.Written, Delivery.Unreliable);
@@ -868,6 +869,33 @@ namespace EarthGame.Server
                     World.Clock.SetTotalHours(dayStart + value - WorldClock.OffsetHours(longitude));
                     break;
                 }
+                case DevSettings.ClockDayOfYear:
+                {
+                    // The day asked for, of the clock's first year, at the same local hour at the region's centre.
+                    double longitude = World.Region.CentreLongitudeDeg;
+                    double hour = World.Clock.LocalHourOfDay(longitude);
+                    World.Clock.SetTotalHours((Math.Round(value) - 1.0) * 24.0 + hour - WorldClock.OffsetHours(longitude));
+                    break;
+                }
+                case DevSettings.ClockScale:
+                    World.Clock.Scale = value;
+                    break;
+                case DevSettings.SpawnStick:
+                case DevSettings.SpawnCobble:
+                {
+                    // Two metres ahead of the founder who asks, on the ground; at the founder when that is off the region.
+                    Definition definition = setting.Name == DevSettings.SpawnStick ? DefinitionCatalogue.Stick : DefinitionCatalogue.Cobble;
+                    Double3 at = session.HasBody ? session.Body.Feet : World.SpawnPoint();
+                    double yaw = session.YawDeg * GeoMath.DegToRad;
+                    double east = at.X + SpawnAheadM * Math.Sin(yaw), north = at.Z + SpawnAheadM * Math.Cos(yaw);
+                    if (Math.Abs(east) > World.Region.HalfExtentM || Math.Abs(north) > World.Region.HalfExtentM)
+                    {
+                        east = at.X;
+                        north = at.Z;
+                    }
+                    World.SpawnItem(definition, east, north, null, session.YawDeg);
+                    break;
+                }
                 case DevSettings.StandAtWake:
                 {
                     // Stood as a correction stands a founder: the body the server holds, sent back to the client to take.
@@ -890,6 +918,9 @@ namespace EarthGame.Server
             }
             DevSettingApplied?.Invoke(session, setting);
         }
+
+        /// <summary>How far ahead of a founder a developer's spawn is set down, m.</summary>
+        private const double SpawnAheadM = 2.0;
 
         /// <summary>The system that stands the animals up, for a developer's setting to move; null on a world without one.</summary>
         private AnimalStandUp Animals()

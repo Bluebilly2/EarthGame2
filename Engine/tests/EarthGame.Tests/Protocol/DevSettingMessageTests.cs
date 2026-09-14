@@ -55,18 +55,28 @@ namespace EarthGame.Tests.Protocol
             m.ClientTimeMs = 1234;
             m.ServerTick = 99;
             m.ServerTotalHours = 5675.25;
+            m.ClockScale = 0.0;
             PacketWriter w = new PacketWriter();
             m.Write(w);
             PacketReader r = ReaderOver(w);
             PongMessage back = PongMessage.Read(r);
             r.ExpectEnd();
             Assert.That(back.ServerTotalHours, Is.EqualTo(5675.25));
+            Assert.That(back.ClockScale, Is.EqualTo(0.0), "a held clock travels as nought");
             w.Reset();
             w.WriteByte((byte)MessageKind.Pong);
             w.WriteInt64(1);
             w.WriteInt64(2);
             w.WriteDouble(double.PositiveInfinity);
-            Assert.Throws<ProtocolException>(() => PongMessage.Read(ReaderOver(w)));
+            w.WriteDouble(1.0);
+            Assert.Throws<ProtocolException>(() => PongMessage.Read(ReaderOver(w)), "a clock of infinity");
+            w.Reset();
+            w.WriteByte((byte)MessageKind.Pong);
+            w.WriteInt64(1);
+            w.WriteInt64(2);
+            w.WriteDouble(10.0);
+            w.WriteDouble(-1.0);
+            Assert.Throws<ProtocolException>(() => PongMessage.Read(ReaderOver(w)), "a scale below nought");
         }
 
         [Test]

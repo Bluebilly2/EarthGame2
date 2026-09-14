@@ -73,11 +73,12 @@ namespace EarthGame.Tests.Protocol
             Assert.That(PingMessage.Read(ReaderOver(w)).ClientTimeMs, Is.EqualTo(123456789012));
 
             w.Reset();
-            PongMessage q; q.ClientTimeMs = -5; q.ServerTick = 42; q.ServerTotalHours = 5675.0; q.Write(w);
+            PongMessage q; q.ClientTimeMs = -5; q.ServerTick = 42; q.ServerTotalHours = 5675.0; q.ClockScale = 12.0; q.Write(w);
             PongMessage back = PongMessage.Read(ReaderOver(w));
             Assert.That(back.ClientTimeMs, Is.EqualTo(-5));
             Assert.That(back.ServerTick, Is.EqualTo(42));
             Assert.That(back.ServerTotalHours, Is.EqualTo(5675.0), "protocol 10: the server's clock rides on the pong");
+            Assert.That(back.ClockScale, Is.EqualTo(12.0), "protocol 11: and its scale");
         }
 
         [Test]

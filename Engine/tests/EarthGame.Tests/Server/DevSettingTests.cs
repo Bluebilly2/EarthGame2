@@ -88,6 +88,57 @@ namespace EarthGame.Tests.Server
         }
 
         [Test]
+        public void TheDayOfTheYearIsSetAtTheSameHourAndTheScaleRunsTheClockAndRidesThePong()
+        {
+            Rig rig = Connect(true);
+            double longitude = Region.Bherwerre.CentreLongitudeDeg;
+            double hour = rig.World.Clock.LocalHourOfDay(longitude);
+            rig.Client.SendDevSetting(DevSettings.ClockDayOfYear, 120.0);
+            rig.Pump(2);
+            Assert.That(rig.World.Clock.LocalDayOfYear(longitude), Is.EqualTo(120), "the day asked for");
+            Assert.That(rig.World.Clock.LocalHourOfDay(longitude), Is.EqualTo(hour).Within(0.01), "at the same hour");
+
+            double before = rig.World.Clock.TotalHours;
+            rig.Client.SendDevSetting(DevSettings.ClockScale, 12.0);
+            rig.Pump(1);
+            Assert.That(rig.World.Clock.Scale, Is.EqualTo(12.0));
+            double marked = rig.World.Clock.TotalHours;
+            rig.Pump(10);
+            double moved = rig.World.Clock.TotalHours - marked;
+            Assert.That(moved, Is.EqualTo(10 * 0.05 * 12.0 * 24.0 / WorldClock.RealSecondsPerDay).Within(1e-9), "ten steps at twelve times the rate");
+            Assert.That(before, Is.LessThan(marked));
+            rig.Client.Ping(0);
+            rig.Pump(2);
+            Assert.That(rig.Client.LastClockScale, Is.EqualTo(12.0), "and the pong carries the scale");
+            rig.Client.SendDevSetting(DevSettings.ClockScale, 0.0);
+            rig.Pump(1);
+            marked = rig.World.Clock.TotalHours;
+            rig.Pump(5);
+            Assert.That(rig.World.Clock.TotalHours, Is.EqualTo(marked), "nought holds the sky still");
+        }
+
+        [Test]
+        public void ASpawnSetsAThingTwoMetresAheadOfTheFounder()
+        {
+            Rig rig = Connect(true);
+            MoverState standing = MoverState.AtRest(100.0, 0.0, 100.0);
+            standing.Grounded = true;
+            rig.Client.SendMove(MoverInput.None, 90f, 0f, standing);
+            rig.Pump(2);
+            rig.Client.SendDevSetting(DevSettings.SpawnStick, 0.0);
+            rig.Pump(2);
+            Assert.That(rig.World.Entities.All.Count, Is.EqualTo(1), "one thing spawned");
+            Entity stick = rig.World.Entities.All[0];
+            Assert.That(stick.Definition, Is.SameAs(DefinitionCatalogue.Stick));
+            Assert.That(stick.Position.X, Is.EqualTo(102.0).Within(1e-6), "two metres east, the way the founder faces");
+            Assert.That(stick.Position.Z, Is.EqualTo(100.0).Within(1e-6));
+            rig.Client.SendDevSetting(DevSettings.SpawnCobble, 0.0);
+            rig.Pump(2);
+            Assert.That(rig.World.Entities.All.Count, Is.EqualTo(2));
+            Assert.That(rig.World.Entities.All[1].Definition, Is.SameAs(DefinitionCatalogue.Cobble));
+        }
+
+        [Test]
         public void StandAtTheWakeCorrectsTheFounderThere()
         {
             Rig rig = Connect(true);

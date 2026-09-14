@@ -101,6 +101,9 @@ namespace EarthGame.ClientCore
         /// <summary>The server's clock as its newest Pong carried it, hours (M1.D); NaN until one arrives.</summary>
         public double LastServerTotalHours { get; private set; } = double.NaN;
 
+        /// <summary>How many times faster than the game's rate the server's clock runs, as its newest Pong carried it; one until one arrives.</summary>
+        public double LastClockScale { get; private set; } = 1.0;
+
         /// <summary>How many ticks behind the estimated server tick a mirror is sampled, so a state is usually held either side.</summary>
         public int MirrorDelayTicks = 3;
 
@@ -380,6 +383,7 @@ namespace EarthGame.ClientCore
                         reader.ExpectEnd();
                         LastRttMs = clientTimeMs - pong.ClientTimeMs;
                         LastServerTotalHours = pong.ServerTotalHours;
+                        LastClockScale = pong.ClockScale;
                         ObserveTick(pong.ServerTick, clientTimeMs);
                         break;
                     }

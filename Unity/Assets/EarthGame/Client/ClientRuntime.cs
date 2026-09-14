@@ -226,8 +226,10 @@ namespace EarthGame.Client
                 _client.Ping(nowMs);
                 _nextPingAt = Time.realtimeSinceStartup + 1.0f;
             }
+            // The server's clock is the one clock (WorldClock): this client's runs between pongs at the server's rate and
+            // follows it when it slips.
+            if (_clock != null) _clock.Scale = _client.LastClockScale;
             if (_clock != null && dt > 0.0) _clock.Advance(dt);
-            // The server's clock is the one clock (WorldClock): this client's runs between pongs and follows it when it slips.
             if (_clock != null && !double.IsNaN(_client.LastServerTotalHours) && Math.Abs(_client.LastServerTotalHours - _clock.TotalHours) > ClockSlipHours)
                 _clock.SetTotalHours(_client.LastServerTotalHours);
             if (ViewBuilt)
@@ -969,7 +971,10 @@ namespace EarthGame.Client
             }
             _hud.SetClock(_solar.ClockText + "   day " + (_solar.DaysElapsed + 1));
             MoverState s = _player.State;
-            _hud.SetDiagnostic("E " + F(s.East) + "  N " + F(s.North) + "  up " + F(s.Up) + "   " + s.HorizontalSpeed.ToString("0.0", CultureInfo.InvariantCulture) + " m/s"
+            // The velocity, its length and its three parts, where the speed across the ground alone was shown until 2026-09-14
+            // (William: "change speed in the bottom left to velocity").
+            _hud.SetDiagnostic("E " + F(s.East) + "  N " + F(s.North) + "  up " + F(s.Up)
+                               + "   velocity " + F(s.Velocity.Length) + " m/s (E " + F(s.VelEast) + ", up " + F(s.VelUp) + ", N " + F(s.VelNorth) + ")"
                                + (s.Grounded ? "  ground" : "  air") + (s.Wading ? "  wading" : "") + (s.Swimming ? "  swimming" : "")
                                + (_player.Flying ? "  flying" : "")
                                + "   rtt " + _client.LastRttMs + " ms   corrections " + _player.Corrections

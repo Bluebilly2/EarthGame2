@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using EarthGame.ClientCore;
 using EarthGame.Engine;
@@ -10,23 +11,33 @@ namespace EarthGame.Client
 {
     /// <summary>
     /// The developer's panel (M1.D, CANON ruling 30). In a development game (<c>-eg-dev</c>) its key opens a panel over the
-    /// game and frees the mouse, as the carrying window's Tab does, and the founder's hands rest while it is open. It holds
-    /// the flight switch with the noclip switch under it; a slider for each setting a development server takes and a button
-    /// for each deed (<see cref="DevSettings.All"/>, the one table the server reads too); the local hour, read and set; the
-    /// sky now, as this client works it out from the seed, the region and the clock its Welcome carried; and where the
-    /// founder stands. Built in code on the HUD's panel settings, like the HUD, on an object of its own, since an object holds
-    /// one UIDocument and the HUD's is on the bootstrap's. A game not for development has no panel, and its key does nothing.
+    /// game and frees the mouse, as the carrying window's Tab does, and the founder's hands rest while it is open. Its
+    /// sections: the founder (the flight switch with the noclip switch under it, and standing at the wake); time (the local
+    /// hour and the day of the year, read and set, and how fast the clock runs); the animals (how near they are stood up and
+    /// taken away; their wariness and running come with M1.7c); spawning (a stick or a cobble two metres ahead; animals
+    /// wait for their looks and their fleeing, and stand greyed); the environment (the sky is worked out from the seed and
+    /// the clock, M1.8a, so a hand on it waits for the weather drawn, M1.8b, and its controls stand greyed); and the world
+    /// as this client reads it. Every setting the server takes is a row of <see cref="DevSettings.All"/>, the one table the
+    /// server reads too, drawn by its name's prefix into its section; a row that has a start has a reset of its own, and one
+    /// button resets them all with the flight. Built in code on the HUD's panel settings, like the HUD, on an object of its
+    /// own, since an object holds one UIDocument and the HUD's is on the bootstrap's; every label is white, since the
+    /// theme's grey could not be read on the panel (William, 2026-09-14). A game not for development has no panel, and its
+    /// key does nothing.
     /// </summary>
     public sealed class DevPanelController : MonoBehaviour
     {
         private UIDocument _document;
         private VisualElement _panel;
+        private ScrollView _scroll;
         private Toggle _flight;
         private Toggle _noclip;
         private Slider _hour;
+        private Slider _day;
         private Label _time;
         private Label _sky;
         private Label _place;
+        private readonly Dictionary<string, Slider> _sliders = new Dictionary<string, Slider>(StringComparer.Ordinal);
+        private readonly Dictionary<string, VisualElement> _sections = new Dictionary<string, VisualElement>(StringComparer.Ordinal);
         private GameClient _client;
         private PlayerController _player;
         private SolarClock _solar;
@@ -34,6 +45,9 @@ namespace EarthGame.Client
         private Synoptic _synoptic;
         private string _skyRefused;
         private bool _open;
+
+        private static readonly Color Panel = new Color(0.05f, 0.05f, 0.04f, 0.86f);
+        private static readonly Color ButtonFace = new Color(0.22f, 0.22f, 0.20f, 1f);
 
         /// <summary>Whether the panel is open: the mouse is its and the founder's hands rest.</summary>
         public bool Open => _open;
@@ -70,8 +84,9 @@ namespace EarthGame.Client
             _panel = new VisualElement();
             _panel.style.position = Position.Absolute;
             _panel.style.left = 28;
-            _panel.style.top = 60;
-            _panel.style.width = 460;
+            _panel.style.top = 48;
+            _panel.style.width = 500;
+            _panel.style.maxHeight = new Length(88, LengthUnit.Percent);
             _panel.style.paddingLeft = 16;
             _panel.style.paddingRight = 16;
             _panel.style.paddingTop = 10;
@@ -80,52 +95,154 @@ namespace EarthGame.Client
             _panel.style.borderTopRightRadius = 6;
             _panel.style.borderBottomLeftRadius = 6;
             _panel.style.borderBottomRightRadius = 6;
-            _panel.style.backgroundColor = new Color(0.05f, 0.05f, 0.04f, 0.82f);
+            _panel.style.backgroundColor = Panel;
             _panel.style.display = DisplayStyle.None;
-            _panel.Add(Text("Developer", 18, 6));
 
-            _flight = new Toggle("Flight");
-            _flight.RegisterValueChangedCallback(e => _player.SetFlying(e.newValue));
-            _panel.Add(_flight);
-            _noclip = new Toggle("Noclip: through the ground and the trees");
+            VisualElement head = Row();
+            Label title = Text("Developer", 18, 0);
+            title.style.flexGrow = 1;
+            head.Add(title);
+            head.Add(MakeButton("Reset all", ResetAll));
+            _panel.Add(head);
+
+            _scroll = new ScrollView(ScrollViewMode.Vertical);
+            _scroll.style.flexGrow = 1;
+            _panel.Add(_scroll);
+
+            VisualElement founder = Section("founder", "The founder");
+            _flight = MakeToggle("Flight", on => _player.SetFlying(on));
+            founder.Add(_flight);
+            _noclip = MakeToggle("Noclip: through the ground and the trees", on => _player.SetNoclip(on));
             _noclip.style.marginLeft = 18;
-            _noclip.RegisterValueChangedCallback(e => _player.SetNoclip(e.newValue));
-            _panel.Add(_noclip);
+            founder.Add(_noclip);
 
-            _panel.Add(Text("The server", 15, 8));
-            foreach (DevSetting setting in DevSettings.All)
-            {
-                if (setting.IsDeed)
-                {
-                    string name = setting.Name;
-                    Button deed = new Button(() => _client?.SendDevSetting(name, 0.0)) { text = setting.Says };
-                    deed.style.marginTop = 6;
-                    _panel.Add(deed);
-                    continue;
-                }
-                Slider slider = MakeSlider(setting);
-                if (setting.Name == DevSettings.ClockLocalHour) _hour = slider;
-            }
+            Section("clock", "Time");
+            Section("animals", "The animals");
+            VisualElement spawning = Section("spawn", "Spawning");
+            foreach (DevSetting setting in DevSettings.All) AddRow(setting);
+            spawning.Add(Note("Kangaroos and oystercatchers are stood up by the country itself (M1.7a); one set down by hand waits for their looks and their fleeing (M1.7b, M1.7c)."));
+            VisualElement animalsToCome = Row();
+            animalsToCome.Add(Stub(MakeButton("A kangaroo", null)));
+            animalsToCome.Add(Stub(MakeButton("An oystercatcher", null)));
+            spawning.Add(animalsToCome);
+            spawning.Add(Note("The animals' wariness, and how far and how fast they run, come with M1.7c as rows here."));
 
-            _panel.Add(Text("The world", 15, 8));
+            VisualElement environment = Section("environment", "The environment");
+            environment.Add(Note("The sky is worked out from the world's seed and its clock (M1.8a); a hand on it waits for the weather drawn (M1.8b). Until then these do nothing."));
+            environment.Add(Stub(MakeSlider("Rain, mm/h", 0f, 50f, 0f, null)));
+            environment.Add(Stub(MakeSlider("Wind, m/s", 0f, 30f, 0f, null)));
+            environment.Add(Stub(MakeSlider("Cloud, %", 0f, 100f, 0f, null)));
+
+            VisualElement world = Section("world", "The world");
             _time = Text(string.Empty, 14, 2);
             _sky = Text(string.Empty, 14, 2);
             _place = Text(string.Empty, 14, 2);
-            _panel.Add(_time);
-            _panel.Add(_sky);
-            _panel.Add(_place);
+            world.Add(_time);
+            world.Add(_sky);
+            world.Add(_place);
             root.Add(_panel);
         }
 
-        /// <summary>A slider for a setting: its range the table's, its start the table's, and every change sent to the server.</summary>
-        private Slider MakeSlider(DevSetting setting)
+        /// <summary>A row of the table, drawn into the section its name's prefix names: a deed as a button, a number as a slider with a reset when it has a start.</summary>
+        private void AddRow(DevSetting setting)
         {
-            Slider slider = new Slider(setting.Says, (float)setting.Least, (float)setting.Most) { showInputField = true };
-            if (!double.IsNaN(setting.Initial)) slider.SetValueWithoutNotify((float)setting.Initial);
+            string prefix = setting.Name.Substring(0, setting.Name.IndexOf('.'));
+            VisualElement section = _sections.TryGetValue(prefix, out VisualElement s) ? s : _sections["world"];
             string name = setting.Name;
-            slider.RegisterValueChangedCallback(e => _client?.SendDevSetting(name, e.newValue));
-            _panel.Add(slider);
+            if (setting.IsDeed)
+            {
+                Button deed = MakeButton(setting.Says, () => _client?.SendDevSetting(name, 0.0));
+                deed.style.marginTop = 6;
+                section.Add(deed);
+                return;
+            }
+            VisualElement row = Row();
+            Slider slider = MakeSlider(setting.Says, (float)setting.Least, (float)setting.Most,
+                double.IsNaN(setting.Initial) ? (float)setting.Least : (float)setting.Initial, v => _client?.SendDevSetting(name, v));
+            slider.style.flexGrow = 1;
+            row.Add(slider);
+            if (!double.IsNaN(setting.Initial))
+            {
+                float start = (float)setting.Initial;
+                Button reset = MakeButton("reset", () => slider.value = start);
+                reset.style.marginLeft = 6;
+                row.Add(reset);
+            }
+            section.Add(row);
+            _sliders[name] = slider;
+            if (name == DevSettings.ClockLocalHour) _hour = slider;
+            if (name == DevSettings.ClockDayOfYear) _day = slider;
+        }
+
+        /// <summary>Every row with a start back to it, the flight off and the noclip on: what a developer's session starts with.</summary>
+        private void ResetAll()
+        {
+            foreach (DevSetting setting in DevSettings.All)
+                if (!setting.IsDeed && !double.IsNaN(setting.Initial) && _sliders.TryGetValue(setting.Name, out Slider slider))
+                    slider.value = (float)setting.Initial;
+            _player.SetFlying(false);
+            _player.SetNoclip(true);
+        }
+
+        private VisualElement Section(string key, string title)
+        {
+            VisualElement section = new VisualElement();
+            section.Add(Text(title, 15, 10));
+            _scroll.Add(section);
+            _sections[key] = section;
+            return section;
+        }
+
+        private static VisualElement Row()
+        {
+            VisualElement row = new VisualElement();
+            row.style.flexDirection = FlexDirection.Row;
+            row.style.alignItems = Align.Center;
+            return row;
+        }
+
+        private static Toggle MakeToggle(string label, Action<bool> changed)
+        {
+            Toggle toggle = new Toggle(label);
+            toggle.labelElement.style.color = Color.white;
+            toggle.labelElement.style.minWidth = 0;
+            if (changed != null) toggle.RegisterValueChangedCallback(e => changed(e.newValue));
+            return toggle;
+        }
+
+        /// <summary>A slider, its label white and its number typed beside it; every change goes to <paramref name="changed"/>.</summary>
+        private static Slider MakeSlider(string label, float least, float most, float start, Action<float> changed)
+        {
+            Slider slider = new Slider(label, least, most) { showInputField = true };
+            slider.labelElement.style.color = Color.white;
+            slider.labelElement.style.minWidth = 200;
+            slider.SetValueWithoutNotify(start);
+            if (changed != null) slider.RegisterValueChangedCallback(e => changed(e.newValue));
             return slider;
+        }
+
+        private static Button MakeButton(string text, Action clicked)
+        {
+            Button button = clicked != null ? new Button(clicked) : new Button();
+            button.text = text;
+            button.style.color = Color.white;
+            button.style.backgroundColor = ButtonFace;
+            return button;
+        }
+
+        /// <summary>A control that does nothing yet, shown greyed so that what is not built is seen and not mistaken for what is.</summary>
+        private static T Stub<T>(T control) where T : VisualElement
+        {
+            control.SetEnabled(false);
+            return control;
+        }
+
+        private static Label Note(string text)
+        {
+            Label note = Text(text, 12, 2);
+            note.style.unityFontStyleAndWeight = FontStyle.Normal;
+            note.style.color = new Color(0.85f, 0.85f, 0.8f);
+            return note;
         }
 
         private static Label Text(string text, int fontSize, int marginTop)
@@ -142,13 +259,17 @@ namespace EarthGame.Client
         /// <summary>A new connection (a rejoin): the settings go to the new server.</summary>
         public void Rebind(GameClient client) => _client = client;
 
-        /// <summary>Opens the panel and frees the mouse; the hour's slider starts at the hour it is.</summary>
+        /// <summary>Opens the panel and frees the mouse; the hour's and the day's sliders start at the hour and the day it is.</summary>
         public void Show()
         {
             if (_panel == null || _open) return;
             _open = true;
             _panel.style.display = DisplayStyle.Flex;
-            if (_hour != null && _solar != null) _hour.SetValueWithoutNotify((float)_solar.HourOfDay);
+            if (_solar != null)
+            {
+                _hour?.SetValueWithoutNotify((float)_solar.HourOfDay);
+                _day?.SetValueWithoutNotify(_solar.DayOfYear);
+            }
             if (!Application.isBatchMode)
             {
                 UnityEngine.Cursor.lockState = CursorLockMode.None;
@@ -178,7 +299,9 @@ namespace EarthGame.Client
             _noclip.SetValueWithoutNotify(_player.Noclip);
             _noclip.SetEnabled(_player.Flying);
             MoverState s = _player.State;
-            if (_solar != null) _time.text = "Time   " + _solar.ClockText + "   day " + (_solar.DaysElapsed + 1);
+            if (_solar != null)
+                _time.text = "Time   " + _solar.ClockText + "   day " + (_solar.DaysElapsed + 1) + " of the world, day " + _solar.DayOfYear + " of the year"
+                             + (_client != null && _client.LastClockScale != 1.0 ? "   the clock at " + F(_client.LastClockScale, "0.#") + " times" : "");
             if (_climate != null && _solar != null)
             {
                 Weather sky = Weather.At(_climate, _synoptic, _solar, Math.Max(0.0, s.Up), 1.0);

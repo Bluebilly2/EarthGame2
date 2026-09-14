@@ -342,6 +342,8 @@ namespace EarthGame.Protocol
         /// Welcome and follows this when it slips, so a clock a developer has moved moves every client's sky.
         /// </summary>
         public double ServerTotalHours;
+        /// <summary>How many times faster than the game's rate the server's clock runs (protocol 11): a client's runs at the same rate.</summary>
+        public double ClockScale;
 
         public void Write(PacketWriter w)
         {
@@ -349,6 +351,7 @@ namespace EarthGame.Protocol
             w.WriteInt64(ClientTimeMs);
             w.WriteInt64(ServerTick);
             w.WriteDouble(ServerTotalHours);
+            w.WriteDouble(ClockScale);
         }
 
         public static PongMessage Read(PacketReader r)
@@ -357,7 +360,9 @@ namespace EarthGame.Protocol
             m.ClientTimeMs = r.ReadInt64();
             m.ServerTick = r.ReadInt64();
             m.ServerTotalHours = r.ReadDouble();
-            if (!BodyWire.Finite(m.ServerTotalHours)) throw new ProtocolException("a pong's clock is not a number");
+            m.ClockScale = r.ReadDouble();
+            if (!BodyWire.Finite(m.ServerTotalHours) || !BodyWire.Finite(m.ClockScale) || m.ClockScale < 0.0)
+                throw new ProtocolException("a pong's clock is not a number");
             return m;
         }
     }
