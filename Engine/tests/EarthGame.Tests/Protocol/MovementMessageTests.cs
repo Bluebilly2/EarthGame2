@@ -54,6 +54,31 @@ namespace EarthGame.Tests.Protocol
             AssertBody(back.Body);
         }
 
+        /// <summary>A move whose wish or facing is not a number is refused by the reader (M1.5g): a NaN passes every comparison after it.</summary>
+        [Test]
+        public void AWishOrAFacingThatIsNotANumberIsARefusal()
+        {
+            foreach ((float wishEast, float wishNorth, float yaw, float pitch, string what) in new[]
+            {
+                (float.NaN, 0f, 0f, 0f, "a wish east of NaN"),
+                (0f, float.PositiveInfinity, 0f, 0f, "a wish north of infinity"),
+                (0f, 0f, float.NaN, 0f, "a yaw of NaN"),
+                (0f, 0f, 0f, float.NegativeInfinity, "a pitch of minus infinity"),
+            })
+            {
+                PacketWriter w = new PacketWriter();
+                w.WriteByte((byte)MessageKind.PlayerMove);
+                w.WriteUInt32(1);
+                w.WriteSingle(wishEast);
+                w.WriteSingle(wishNorth);
+                w.WriteByte(0);
+                w.WriteSingle(yaw);
+                w.WriteSingle(pitch);
+                BodyWire.WriteBody(w, Body());
+                Assert.Throws<ProtocolException>(() => PlayerMoveMessage.Read(ReaderOver(w)), what);
+            }
+        }
+
         [Test]
         public void PlayerStateRoundTrips()
         {

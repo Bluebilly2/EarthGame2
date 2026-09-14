@@ -86,6 +86,28 @@ namespace EarthGame.Tests.Protocol
             Assert.Throws<ProtocolException>(() => IntentMessage.Read(Reader(w)), "a target of kind 3");
         }
 
+        /// <summary>A put-down at a point that is not a number is refused by the reader (M1.5g): a NaN passes every comparison after it.</summary>
+        [Test]
+        public void APutDownPointThatIsNotANumberIsARefusal()
+        {
+            foreach ((double east, double up, double north, string what) in new[]
+            {
+                (double.NaN, 1.0, 2.0, "an east of NaN"),
+                (0.0, double.NaN, 2.0, "a height of NaN"),
+                (0.0, 1.0, double.PositiveInfinity, "a north of infinity"),
+            })
+            {
+                PacketWriter w = new PacketWriter(64);
+                w.WriteByte((byte)MessageKind.Intent);
+                w.WriteUInt32(1);
+                w.WriteByte((byte)Verb.PutDown);
+                w.WriteDouble(east);
+                w.WriteDouble(up);
+                w.WriteDouble(north);
+                Assert.Throws<ProtocolException>(() => IntentMessage.Read(Reader(w)), what);
+            }
+        }
+
         /// <summary>A pick-up of a thing lying names it by its place (protocol v7, M1.5b).</summary>
         [Test]
         public void APickUpNamesAThingLyingByItsPlace()

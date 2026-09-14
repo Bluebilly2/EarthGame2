@@ -394,6 +394,14 @@ namespace EarthGame.Protocol
             w.WriteByte(FlagsOf(s));
         }
 
+        /// <summary>
+        /// Whether a number read off the wire is one (M1.5g, 2026-09-14): a NaN or an infinity passes every comparison a
+        /// server makes, so a put-down at height NaN cleared the reach and the region checks and re-entered the world as a
+        /// thing that never lands, re-sent to everyone in reach every tick, and a facing of NaN was kept and passed on.
+        /// The reader refuses such a message, as it refuses any other it cannot make sense of.
+        /// </summary>
+        public static bool Finite(double v) => !(double.IsNaN(v) || double.IsInfinity(v));
+
         public static MoverState ReadBody(PacketReader r)
         {
             MoverState s = default;
@@ -443,6 +451,10 @@ namespace EarthGame.Protocol
             m.YawDeg = r.ReadSingle();
             m.PitchDeg = r.ReadSingle();
             m.Body = BodyWire.ReadBody(r);
+            if (!BodyWire.Finite(m.Input.WishEast) || !BodyWire.Finite(m.Input.WishNorth))
+                throw new ProtocolException("a move's wish is not a number");
+            if (!BodyWire.Finite(m.YawDeg) || !BodyWire.Finite(m.PitchDeg))
+                throw new ProtocolException("a move's facing is not a number");
             return m;
         }
     }
@@ -797,6 +809,8 @@ namespace EarthGame.Protocol
                     m.East = r.ReadDouble();
                     m.Up = r.ReadDouble();
                     m.North = r.ReadDouble();
+                    if (!BodyWire.Finite(m.East) || !BodyWire.Finite(m.Up) || !BodyWire.Finite(m.North))
+                        throw new ProtocolException("a put-down names a point that is not a number");
                     break;
                 case Verb.Hold:
                     m.Place = r.ReadByte();
