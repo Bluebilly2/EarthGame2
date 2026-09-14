@@ -81,3 +81,8 @@ and the final gate was run after their correction. No production rule was weaken
 DEBTS. Verifying previously unchecked layers adds load-time reading, on the existing preparation worker; it does
 not retain all those grids or run during gameplay. This is data integrity work, not proof that Bherwerre's
 geography is accurate. No visible or feel rule changed, so no frames or owner play session are claimed.
+
+**Loading-label follow-up (2026-09-14).** Remaining-layer verification runs within the existing "Restoring the
+world" stage, preserving the loading screen's labels. `gate-progress-preserved.log` records the rerun: 516/516
+engine tests passed, 0/0 required warnings and errors in both builds, 82/82 independent checker rows passed,
+WG.0c exit 0/required 0. The initial landing passed the pre-push hook (`push.log`, exit 0).

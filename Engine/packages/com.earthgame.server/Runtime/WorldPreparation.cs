@@ -120,9 +120,8 @@ namespace EarthGame.Server
                 RegionRaster stone = layers.Read("stone");
                 Report("Reading what the ground feeds");
                 CapacitySquares feeds = ReadCapacity(layers, region.ExtentM);
-                Report("Checking the remaining saved layers");
-                layers.VerifyRemaining();
                 Report("Restoring the world");
+                layers.VerifyRemaining();
                 WorldState world = WorldSave.Restore(saved, terrain, region, water, cover, stand, loose, stone, feeds);
                 Report("World ready");
                 return new Result { World = world, Saved = saved, Checksums = saved.Layers };
