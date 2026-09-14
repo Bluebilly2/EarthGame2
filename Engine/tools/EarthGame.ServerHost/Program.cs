@@ -166,6 +166,14 @@ namespace EarthGame.ServerHost
             };
             server.DevSettingApplied += (s, setting) =>
                 Log("dev    " + s.Name + " set " + setting.Name + " to " + setting.Value.ToString("0.###", CultureInfo.InvariantCulture));
+            // Every flight as it begins (M1.7c), for fauna_check to hold to its kind's distance.
+            AnimalStandUp animals = server.Animals();
+            if (animals != null) animals.Fled += flight =>
+            {
+                Log("flight " + flight.Species.Name + " square " + flight.CellX + ", " + flight.CellZ + " from a founder " + flight.DistanceM.ToString("0.0", CultureInfo.InvariantCulture)
+                    + " m off, bearing " + flight.BearingDeg.ToString("0", CultureInfo.InvariantCulture));
+                instruments.Flight(flight);
+            };
             server.Stepped += (w, dt) => instruments.Stepped();
 
             double encodeStart = clock.Elapsed.TotalSeconds;
@@ -340,6 +348,23 @@ namespace EarthGame.ServerHost
             {
                 _log?.Record(T, _server.World.Tick, "correction", new JsonObject().With("session", s.SessionId).With("name", s.Name).With("reason", reason)
                     .With("east", s.Body.East).With("up", s.Body.Up).With("north", s.Body.North));
+            }
+
+            /// <summary>A group has taken flight (M1.7c): which, from whom, how far off and which way, for fauna_check.</summary>
+            public void Flight(AnimalFlight flight)
+            {
+                _log?.Record(T, _server.World.Tick, "flight", new JsonObject().With("kind", KindOf(flight.Species)).With("cell_x", flight.CellX).With("cell_z", flight.CellZ)
+                    .With("east", flight.GroupEastM).With("north", flight.GroupNorthM).With("founder_east", flight.FounderEastM).With("founder_north", flight.FounderNorthM)
+                    .With("distance_m", flight.DistanceM).With("bearing_deg", flight.BearingDeg));
+            }
+
+            /// <summary>A kind's number as an animal's id carries it: its place in the species table, counting from one.</summary>
+            private static int KindOf(AnimalSpecies species)
+            {
+                IReadOnlyList<AnimalSpecies> all = AnimalSpecies.All;
+                for (int i = 0; i < all.Count; i++)
+                    if (all[i] == species) return i + 1;
+                return 0;
             }
 
             public void Command(string name)

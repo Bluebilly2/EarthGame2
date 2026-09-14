@@ -12,24 +12,24 @@ namespace EarthGame.Tests.Engine
     /// </summary>
     public sealed class AnimalStandUpTests
     {
-        private const double ExtentM = 4000.0, CellM = 10.0;
+        internal const double ExtentM = 4000.0, CellM = 10.0;
         private const int Side = 401;
         private const ulong Seed = 1347UL;
-        private const float RooPerKm2 = 30f, BirdPerKm2 = 10f;
+        internal const float RooPerKm2 = 30f, BirdPerKm2 = 10f;
 
-        private static readonly Region Plain = new Region("fixture", "Fixture", Region.Bherwerre.CentreLatitudeDeg,
+        internal static readonly Region Plain = new Region("fixture", "Fixture", Region.Bherwerre.CentreLatitudeDeg,
             Region.Bherwerre.CentreLongitudeDeg, ExtentM, 237, 8.0);
 
-        private static readonly AnimalSpecies Roo = AnimalSpecies.EasternGreyKangaroo, Bird = AnimalSpecies.PiedOystercatcher;
+        internal static readonly AnimalSpecies Roo = AnimalSpecies.EasternGreyKangaroo, Bird = AnimalSpecies.PiedOystercatcher;
 
         private static RegionRaster Layer(string name, Func<int, int, float> law, string unit = "m") => TestRasters.FromLaw(Side, CellM, ExtentM, name, law, unit);
 
         /// <summary>
         /// A plain rising gently east, four kilometres a side, at a local hour of the wake's day. Every kind is fed alike
         /// everywhere unless a law is given for the kangaroo; asked for a lake, the western half is one, its shore on the line
-        /// east 0, and the oystercatcher is fed nowhere.
+        /// east 0, and the oystercatcher is fed nowhere. Shared with <see cref="AnimalFlightTests"/>.
         /// </summary>
-        private static WorldState World(double localHour, bool lake = false, Func<int, int, float> roo = null)
+        internal static WorldState World(double localHour, bool lake = false, Func<int, int, float> roo = null)
         {
             RegionRaster ground = Layer("plain", (row, col) => 20f + col * 0.01f);
             CapacitySquares capacity = new CapacitySquares(ExtentM);
@@ -47,7 +47,7 @@ namespace EarthGame.Tests.Engine
             return new WorldState(Seed, Plain, clock, new Heightfield(ground), 0, null, water, capacity: capacity);
         }
 
-        private static AnimalStandUp StandUp(WorldState world)
+        internal static AnimalStandUp StandUp(WorldState world)
         {
             foreach (IFastSystem system in world.Systems)
                 if (system is AnimalStandUp standUp) return standUp;
@@ -55,7 +55,7 @@ namespace EarthGame.Tests.Engine
         }
 
         /// <summary>The groups presence puts near a point at the world's hour, where every square feeds alike.</summary>
-        private static List<AnimalSighting> Groups(WorldState world, AnimalSpecies species, float perKm2, double east, double north, double radiusM)
+        internal static List<AnimalSighting> Groups(WorldState world, AnimalSpecies species, float perKm2, double east, double north, double radiusM)
         {
             SolarClock sun = SolarClock.ForRegion(world.Region, world.Clock);
             return new AnimalPresence(world.Seed).Near(species, perKm2, east, north, radiusM, sun.HourOfDay, sun.DaylightHours, sun.DayOfYear);

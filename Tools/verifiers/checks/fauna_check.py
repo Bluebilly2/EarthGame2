@@ -21,7 +21,12 @@ Rows, each with both numbers:
      founder and a group move in the second since the last stand-up) and wholly inside the region: the groups seen,
      against the sum over those squares of each square's chance of holding one (its mean capacity, in groups, over its
      area, as presence draws a square) times the share of the square that is dry (a group whose own place is wet is not
-     stood up). The row passes within three standard deviations of that Bernoulli sum, and one group.
+     stood up). The row passes within three standard deviations of that Bernoulli sum, and one group;
+  8. every flight began within its kind's distance (M1.7c): each `flight` record's distance from the founder to the
+     nearest member, held to the kind's distance (80 m a mob, 60 m a pair, the contract's) plus a metre for the step
+     between the founder's move and the noticing; both numbers printed. With no flights the row holds nothing and says so;
+  9. every animal logged fleeing stood on dry ground: the places of pose 3 among the fauna records, held as rows 2 and 3
+     hold every place.
 
 What is restated here, and from where. The kinds' group sizes, from the species table (`Docs/ECOSYSTEM.md`, "The
 animals of Bherwerre": mobs of eight, pairs); the kangaroo's 4,000 m from fresh water (`AnimalSpecies.WaterRangeM`) and
@@ -59,6 +64,10 @@ GROUP_SIZE = {KANGAROO: 8, OYSTERCATCHER: 2}
 CAPACITY_LAYER = {KANGAROO: "capacity_easterngreykangaroo", OYSTERCATCHER: "capacity_piedoystercatcher"}
 FRESH_WATER_RANGE_M = 4000.0
 TIDELINE_REACH_M = 300.0
+# The flights (M1.7c): how near a founder sends a group running, restated from the contract, and a step's grace.
+FLEE_WITHIN_M = {KANGAROO: 80.0, OYSTERCATCHER: 60.0}
+FLIGHT_STEP_M = 1.0
+FLEEING_POSE = 3
 # Presence and the stand-up.
 SQUARE_M = 100.0
 SQUARE_KM2 = 0.01
@@ -94,16 +103,20 @@ def in_unit(sidecar, grid):
     return grid.astype(np.float64) * float(sidecar.get("scale", 1.0))
 
 
-def fauna_records(path):
+def records_of(path, kind):
     records = []
     with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line:
                 record = json.loads(line)
-                if record.get("kind") == "fauna":
+                if record.get("kind") == kind:
                     records.append(record)
     return records
+
+
+def fauna_records(path):
+    return records_of(path, "fauna")
 
 
 def decode(animal_id):
@@ -175,16 +188,20 @@ def main(argv):
     records = fauna_records(log_path)
     rows = Rows()
 
-    # Every place logged, with what it is.
+    # Every place logged, with what it is, and its pose.
     animals = []
+    fleeing = []
     malformed = 0
     for record in records:
-        ids, positions = record.get("ids", []), record.get("positions", [])
+        ids, positions, poses = record.get("ids", []), record.get("positions", []), record.get("poses", [])
         if len(positions) != 3 * len(ids) or len(record.get("founders", [])) % 2:
             malformed += 1
             continue
         for i, animal_id in enumerate(ids):
-            animals.append((decode(int(animal_id)), float(positions[3 * i]), float(positions[3 * i + 2])))
+            place = (decode(int(animal_id)), float(positions[3 * i]), float(positions[3 * i + 2]))
+            animals.append(place)
+            if i < len(poses) and int(poses[i]) == FLEEING_POSE:
+                fleeing.append(place)
     most = max((len(r.get("ids", [])) for r in records), default=0)
     outside = sum(1 for a in animals if a[0] is None or a[0][0] not in KINDS)
     rows.row("animals stood up round the founders", len(records) > 0 and most > 0 and malformed == 0 and outside == 0,
@@ -256,6 +273,29 @@ def main(argv):
         rows.row("%s groups against the capacity layers" % NAMES[kind], len(seen[kind]) > 0 and abs(stood - mu) <= SIGMAS * sigma + 1.0,
                  "%d groups stood in the %d squares wholly within reach; the layers put %.1f there, give or take %.1f (|%d - %.1f| <= 3 x %.1f + 1)"
                  % (stood, len(seen[kind]), mu, sigma, stood, mu, sigma))
+
+    # The flights (M1.7c): each began within its kind's distance of a founder, and every animal logged fleeing stood dry.
+    flights = records_of(log_path, "flight")
+    beyond, farthest, unknown = 0, {}, 0
+    for flight in flights:
+        kind = int(flight.get("kind", 0))
+        if kind not in FLEE_WITHIN_M:
+            unknown += 1
+            continue
+        distance = float(flight.get("distance_m", float("inf")))
+        farthest[kind] = max(farthest.get(kind, 0.0), distance)
+        if distance > FLEE_WITHIN_M[kind] + FLIGHT_STEP_M:
+            beyond += 1
+    told = ", ".join("%s farthest %.1f m of %.0f + %.0f" % (NAMES[k], farthest[k], FLEE_WITHIN_M[k], FLIGHT_STEP_M) for k in KINDS if k in farthest)
+    rows.row("every flight began within its kind's distance", beyond == 0 and unknown == 0,
+             "%d flight(s) recorded; %d began farther off than the kind's distance (must be 0), %d of a kind not stood up (must be 0); %s"
+             % (len(flights), beyond, unknown, told if told else "no flights: nothing held"))
+    fleeing = [a for a in fleeing if a[0] is not None and a[0][0] in KINDS]
+    wet = sum(1 for _, east, north in fleeing
+              if int(water[nearest_cell(grid_side, east, north)]) in OPEN_WATER
+              or any(float(surface[p]) > float(heights[p]) for p in posts_between(grid_side, east, north)))
+    rows.row("every animal logged fleeing stood on dry ground", wet == 0,
+             "%d fleeing place(s) logged, %d on open water or under the surface (must be 0)" % (len(fleeing), wet))
 
     print("fauna_check: %s" % ("PASS" if rows.failed == 0 else "FAIL (%d row(s))" % rows.failed))
     return 0 if rows.failed == 0 else 1

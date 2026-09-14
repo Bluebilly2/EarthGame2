@@ -14,6 +14,13 @@ namespace EarthGame.Engine
     /// <para>Where a member stands is worked out afresh each time from what it is: its group's place, a place of its own
     /// round the group, and a turn of its own from the way the group wanders. Nothing about it is remembered, so a mob walked
     /// away from and back to is the same mob, each animal in its place round it under the same id.</para>
+    ///
+    /// <para>Since M1.7c a standing group notices founders. Every step, a group any of whose members a founder has come
+    /// within its kind's distance of takes flight (<see cref="AnimalFlightRules"/>): it runs straight away from that founder,
+    /// its members keeping their places round it and moved every step, keeping to dry ground inside the region by turning
+    /// along a shore or the edge and stopping where it cannot turn; having run its length it stands a while, then walks back
+    /// to where presence puts it, and from there presence has it again. What a group is doing is held here while it stands,
+    /// as its offset from presence's place, and forgotten when it is taken away; nothing of it is saved or digested.</para>
     /// </summary>
     public sealed class AnimalStandUp : IFastSystem
     {
@@ -58,19 +65,59 @@ namespace EarthGame.Engine
         /// <summary>What a square's index is moved by before it is packed into an id, so a square west or south of the centre packs.</summary>
         private const long SquareOffset = 1L << 23;
 
+        /// <summary>The turns a running group tries, in order, when the way ahead is wet or off the region, degrees either way.</summary>
+        private static readonly double[] Turns = { 45.0, -45.0, 90.0, -90.0, 135.0, -135.0 };
+
         private readonly HashSet<long> _groups = new HashSet<long>();
         private readonly HashSet<ulong> _refreshed = new HashSet<ulong>();
+        /// <summary>Every group standing after the last refresh, by the id of its first member, with what presence said of it then.</summary>
+        private readonly Dictionary<ulong, AnimalSighting> _standing = new Dictionary<ulong, AnimalSighting>();
+        /// <summary>What each group that has taken flight is doing (M1.7c), by the id of its first member; none for a group presence has.</summary>
+        private readonly Dictionary<ulong, Flight> _flights = new Dictionary<ulong, Flight>();
+        private readonly Dictionary<AnimalSpecies, AnimalFlightRules> _rules = new Dictionary<AnimalSpecies, AnimalFlightRules>();
+        private readonly List<ulong> _gone = new List<ulong>();
         private AnimalPresence _presence;
         private ulong _memberSalt;
         private WorldWater _surfaceOf;
         private Heightfield _surface;
 
+        public AnimalStandUp()
+        {
+            for (int i = 0; i < Seen.Count; i++) _rules[Seen[i]] = AnimalFlightRules.DefaultsFor(Seen[i]);
+        }
+
         public string Name => "animal stand-up";
 
-        /// <summary>Refreshes the animals on the first step of each second.</summary>
+        /// <summary>Raised when a group takes flight (M1.7c), for the host to record.</summary>
+        public event Action<AnimalFlight> Fled;
+
+        /// <summary>The rules of a kind's flight, as this world runs them: the defaults until a developer's setting moves them.</summary>
+        public AnimalFlightRules RulesFor(AnimalSpecies species) => _rules.TryGetValue(species, out AnimalFlightRules rules) ? rules : null;
+
+        /// <summary>Whether a group is away from where presence puts it: running, standing after a run, or walking back.</summary>
+        public bool HasFlight(AnimalSpecies species, int cellX, int cellZ) => _flights.ContainsKey(IdOf(species, cellX, cellZ, 0));
+
+        /// <summary>Whether a group is running now.</summary>
+        public bool IsRunning(AnimalSpecies species, int cellX, int cellZ)
+            => _flights.TryGetValue(IdOf(species, cellX, cellZ, 0), out Flight flight) && flight.Phase == Phase.Running;
+
+        /// <summary>Refreshes the animals on the first step of each second, and every step moves the groups that have taken flight.</summary>
         public void Step(WorldState world, double dt)
         {
             if (RefreshesAt(world.Tick, dt)) Refresh(world);
+            Flee(world, dt);
+        }
+
+        private enum Phase { Running, Standing, WalkingBack }
+
+        /// <summary>A group's flight: how far it has gone from where presence puts it, which way it runs, and what is left of its run or its stand.</summary>
+        private sealed class Flight
+        {
+            public Phase Phase;
+            public double OffsetEast, OffsetNorth;
+            public double DirEast, DirNorth;
+            public double RunLeftM;
+            public double StandLeftS;
         }
 
         /// <summary>
@@ -94,6 +141,7 @@ namespace EarthGame.Engine
             _refreshed.Clear();
             IReadOnlyList<Double3> founders = world.InterestPoints;
             CapacitySquares capacity = world.Capacity;
+            _standing.Clear();
             if (capacity != null && founders.Count > 0)
             {
                 if (_presence == null || _presence.Seed != world.Seed)
@@ -118,6 +166,11 @@ namespace EarthGame.Engine
             IReadOnlyList<Entity> standing = world.Entities.Transient;
             for (int i = 0; i < standing.Count; i++)
                 if (!standing[i].Killed && !_refreshed.Contains(standing[i].Id.Value)) world.Entities.Kill(standing[i]);
+            // A group taken away forgets its flight: stood up again, it is where presence puts it.
+            _gone.Clear();
+            foreach (ulong key in _flights.Keys)
+                if (!_standing.ContainsKey(key)) _gone.Add(key);
+            for (int i = 0; i < _gone.Count; i++) _flights.Remove(_gone[i]);
         }
 
         /// <summary>
@@ -141,13 +194,21 @@ namespace EarthGame.Engine
         /// </summary>
         private void Stand(WorldState world, AnimalSighting group, IReadOnlyList<Double3> founders)
         {
-            bool standing = world.Entities.TryGet(IdOf(group.Species, group.CellX, group.CellZ, 0), out _);
+            ulong first = IdOf(group.Species, group.CellX, group.CellZ, 0);
+            bool standing = world.Entities.TryGet(first, out _);
             if (!standing && NearestFounderM(group, founders) > StandUpRadiusM) return;
             if (!Dry(world, group.BaseEastM, group.BaseNorthM)) return;
+            _standing[first] = group;
+            // A group away from where presence puts it (M1.7c) stands as far from it as its flight has taken it, and faces
+            // the way it runs.
+            _flights.TryGetValue(first, out Flight flight);
+            double offEast = flight != null ? flight.OffsetEast : 0.0, offNorth = flight != null ? flight.OffsetNorth : 0.0;
+            bool running = flight != null && flight.Phase == Phase.Running;
             Definition definition = DefinitionCatalogue.AnimalOf(group.Species);
             AnimalComponent animal;
-            animal.Pose = group.Activity01 >= GrazingActivity ? AnimalPose.Grazing : AnimalPose.Resting;
+            animal.Pose = running ? AnimalPose.Fleeing : group.Activity01 >= GrazingActivity ? AnimalPose.Grazing : AnimalPose.Resting;
             double spread = MemberSpacingM * Math.Sqrt(group.GroupSize);
+            double baseEast = group.BaseEastM + offEast, baseNorth = group.BaseNorthM + offNorth;
             for (int m = 0; m < group.GroupSize; m++)
             {
                 ulong id = IdOf(group.Species, group.CellX, group.CellZ, m);
@@ -157,15 +218,15 @@ namespace EarthGame.Engine
                 h = StandLayout.Mix(h);
                 double bearing = 2.0 * Math.PI * Unit(h);
                 h = StandLayout.Mix(h);
-                float yaw = (float)Mod(group.HeadingDeg + (2.0 * Unit(h) - 1.0) * OwnTurnDeg, 360.0);
-                double wantEast = group.EastM + reach * Math.Sin(bearing), wantNorth = group.NorthM + reach * Math.Cos(bearing);
+                float yaw = running ? (float)Bearing(flight.DirEast, flight.DirNorth) : (float)Mod(group.HeadingDeg + (2.0 * Unit(h) - 1.0) * OwnTurnDeg, 360.0);
+                double wantEast = group.EastM + offEast + reach * Math.Sin(bearing), wantNorth = group.NorthM + offNorth + reach * Math.Cos(bearing);
                 // Moved back towards the group's own place, an eighth of the way at a time, until the ground is dry; the own
-                // place itself is dry, or the group would not be standing.
-                double east = group.BaseEastM, north = group.BaseNorthM;
+                // place itself is dry, or the group would not be standing (a flight keeps its own place dry as it goes).
+                double east = baseEast, north = baseNorth;
                 for (int k = DryingSteps; k > 0; k--)
                 {
                     double t = (double)k / DryingSteps;
-                    double e = group.BaseEastM + t * (wantEast - group.BaseEastM), n = group.BaseNorthM + t * (wantNorth - group.BaseNorthM);
+                    double e = baseEast + t * (wantEast - baseEast), n = baseNorth + t * (wantNorth - baseNorth);
                     if (!Dry(world, e, n)) continue;
                     east = e;
                     north = n;
@@ -210,6 +271,189 @@ namespace EarthGame.Engine
             }
             return !(_surface.HeightAt(east, north) > world.GroundAt(east, north));
         }
+
+        /// <summary>
+        /// Every step (M1.7c): a standing group not running that a founder has come within its kind's distance of any member
+        /// of takes flight, away from that founder; a running group runs on, keeping to dry ground; one that has run its
+        /// length stands a while; one that has stood walks back to where presence puts it, and is presence's again.
+        /// </summary>
+        private void Flee(WorldState world, double dt)
+        {
+            if (dt <= 0.0 || _standing.Count == 0) return;
+            IReadOnlyList<Double3> founders = world.InterestPoints;
+            foreach (KeyValuePair<ulong, AnimalSighting> pair in _standing)
+            {
+                ulong first = pair.Key;
+                AnimalSighting group = pair.Value;
+                if (!_rules.TryGetValue(group.Species, out AnimalFlightRules rules)) continue;
+                _flights.TryGetValue(first, out Flight flight);
+                if (flight == null || flight.Phase != Phase.Running)
+                {
+                    if (Startles(world, group, founders, rules, out Double3 founder, out double distance))
+                    {
+                        double centreEast = group.EastM + (flight != null ? flight.OffsetEast : 0.0);
+                        double centreNorth = group.NorthM + (flight != null ? flight.OffsetNorth : 0.0);
+                        double dirEast = centreEast - founder.X, dirNorth = centreNorth - founder.Z;
+                        double length = Math.Sqrt(dirEast * dirEast + dirNorth * dirNorth);
+                        if (length < 1e-9)
+                        {
+                            // A founder on the group's own place: it runs the way it was wandering.
+                            dirEast = Math.Sin(group.HeadingDeg * GeoMath.DegToRad);
+                            dirNorth = Math.Cos(group.HeadingDeg * GeoMath.DegToRad);
+                        }
+                        else
+                        {
+                            dirEast /= length;
+                            dirNorth /= length;
+                        }
+                        if (flight == null) _flights[first] = flight = new Flight();
+                        flight.Phase = Phase.Running;
+                        flight.DirEast = dirEast;
+                        flight.DirNorth = dirNorth;
+                        flight.RunLeftM = rules.RunM;
+                        Pose(world, group, AnimalPose.Fleeing);
+                        Fled?.Invoke(new AnimalFlight(group.Species, group.CellX, group.CellZ, centreEast, centreNorth, founder.X, founder.Z, distance, Bearing(dirEast, dirNorth)));
+                    }
+                    else if (flight == null) continue;
+                }
+                switch (flight.Phase)
+                {
+                    case Phase.Running:
+                        Run(world, group, flight, rules, dt);
+                        break;
+                    case Phase.Standing:
+                        flight.StandLeftS -= dt;
+                        if (flight.StandLeftS <= 0.0) flight.Phase = Phase.WalkingBack;
+                        break;
+                    case Phase.WalkingBack:
+                        WalkBack(world, group, flight, rules, dt);
+                        break;
+                }
+            }
+            _gone.Clear();
+            foreach (KeyValuePair<ulong, Flight> pair in _flights)
+                if (pair.Value.Phase == Phase.WalkingBack && pair.Value.OffsetEast == 0.0 && pair.Value.OffsetNorth == 0.0) _gone.Add(pair.Key);
+            for (int i = 0; i < _gone.Count; i++) _flights.Remove(_gone[i]);
+        }
+
+        /// <summary>Whether a founder is within the kind's distance of any standing member, and which founder is nearest to one.</summary>
+        private static bool Startles(WorldState world, AnimalSighting group, IReadOnlyList<Double3> founders, AnimalFlightRules rules,
+                                     out Double3 founder, out double distanceM)
+        {
+            founder = default;
+            distanceM = double.PositiveInfinity;
+            for (int m = 0; m < group.GroupSize; m++)
+            {
+                if (!world.Entities.TryGet(IdOf(group.Species, group.CellX, group.CellZ, m), out Entity member) || member.Killed) continue;
+                for (int f = 0; f < founders.Count; f++)
+                {
+                    double dx = member.Position.X - founders[f].X, dz = member.Position.Z - founders[f].Z;
+                    double d = Math.Sqrt(dx * dx + dz * dz);
+                    if (d < distanceM)
+                    {
+                        distanceM = d;
+                        founder = founders[f];
+                    }
+                }
+            }
+            return distanceM <= rules.FleeWithinM;
+        }
+
+        /// <summary>
+        /// One step of a run: the group's place moves along its way at its speed, turning along a shore or the region's edge
+        /// when the way ahead is wet or off the ground, and stopping where no turn finds dry ground; its members move with it.
+        /// </summary>
+        private void Run(WorldState world, AnimalSighting group, Flight flight, AnimalFlightRules rules, double dt)
+        {
+            double step = Math.Min(flight.RunLeftM, rules.RunMs * dt);
+            double centreEast = group.EastM + flight.OffsetEast, centreNorth = group.NorthM + flight.OffsetNorth;
+            bool moved = false;
+            if (step > 0.0)
+            {
+                if (Clear(world, group, centreEast, centreNorth, flight.DirEast, flight.DirNorth, step)) moved = true;
+                else
+                    for (int t = 0; t < Turns.Length && !moved; t++)
+                    {
+                        double turn = Turns[t] * GeoMath.DegToRad;
+                        double cos = Math.Cos(turn), sin = Math.Sin(turn);
+                        // Turned clockwise by a positive angle, as a bearing turns.
+                        double dirEast = flight.DirEast * cos + flight.DirNorth * sin, dirNorth = flight.DirNorth * cos - flight.DirEast * sin;
+                        if (!Clear(world, group, centreEast, centreNorth, dirEast, dirNorth, step)) continue;
+                        flight.DirEast = dirEast;
+                        flight.DirNorth = dirNorth;
+                        moved = true;
+                    }
+            }
+            if (moved)
+            {
+                double dEast = flight.DirEast * step, dNorth = flight.DirNorth * step;
+                flight.OffsetEast += dEast;
+                flight.OffsetNorth += dNorth;
+                flight.RunLeftM -= step;
+                Shift(world, group, dEast, dNorth, (float)Bearing(flight.DirEast, flight.DirNorth));
+            }
+            if (!moved || flight.RunLeftM <= 1e-9)
+            {
+                flight.Phase = Phase.Standing;
+                flight.StandLeftS = AnimalFlightRules.SettleSeconds;
+                Pose(world, group, group.Activity01 >= GrazingActivity ? AnimalPose.Grazing : AnimalPose.Resting);
+            }
+        }
+
+        /// <summary>
+        /// Whether a step a way is dry for the group's place and for every standing member: a mob spread fourteen metres round
+        /// a dry place put a member into the lake when the place alone was asked (the shore test's first run).
+        /// </summary>
+        private bool Clear(WorldState world, AnimalSighting group, double centreEast, double centreNorth, double dirEast, double dirNorth, double step)
+        {
+            if (!Dry(world, centreEast + dirEast * step, centreNorth + dirNorth * step)) return false;
+            for (int m = 0; m < group.GroupSize; m++)
+                if (world.Entities.TryGet(IdOf(group.Species, group.CellX, group.CellZ, m), out Entity member) && !member.Killed
+                    && !Dry(world, member.Position.X + dirEast * step, member.Position.Z + dirNorth * step)) return false;
+            return true;
+        }
+
+        /// <summary>One step of the walk back: the group's place moves towards presence's at the walking pace, and arrives.</summary>
+        private void WalkBack(WorldState world, AnimalSighting group, Flight flight, AnimalFlightRules rules, double dt)
+        {
+            double away = Math.Sqrt(flight.OffsetEast * flight.OffsetEast + flight.OffsetNorth * flight.OffsetNorth);
+            if (away <= 1e-9)
+            {
+                flight.OffsetEast = flight.OffsetNorth = 0.0;
+                return;
+            }
+            double step = Math.Min(away, rules.WalkMs * dt);
+            double dEast = -flight.OffsetEast / away * step, dNorth = -flight.OffsetNorth / away * step;
+            flight.OffsetEast += dEast;
+            flight.OffsetNorth += dNorth;
+            if (Math.Sqrt(flight.OffsetEast * flight.OffsetEast + flight.OffsetNorth * flight.OffsetNorth) <= 1e-6) flight.OffsetEast = flight.OffsetNorth = 0.0;
+            Shift(world, group, dEast, dNorth, (float)Bearing(dEast, dNorth));
+        }
+
+        /// <summary>Moves every standing member of a group by the same step and turns it the way the group goes.</summary>
+        private void Shift(WorldState world, AnimalSighting group, double dEast, double dNorth, float yaw)
+        {
+            for (int m = 0; m < group.GroupSize; m++)
+            {
+                if (!world.Entities.TryGet(IdOf(group.Species, group.CellX, group.CellZ, m), out Entity member) || member.Killed) continue;
+                double east = member.Position.X + dEast, north = member.Position.Z + dNorth;
+                member.Move(new Double3(east, world.GroundAt(east, north), north), world.Tick);
+                member.Turn(yaw, world.Tick);
+            }
+        }
+
+        /// <summary>Gives every standing member of a group a pose, stamped only where it changes.</summary>
+        private static void Pose(WorldState world, AnimalSighting group, byte pose)
+        {
+            AnimalComponent animal;
+            animal.Pose = pose;
+            for (int m = 0; m < group.GroupSize; m++)
+                if (world.Entities.TryGet(IdOf(group.Species, group.CellX, group.CellZ, m), out Entity member) && !member.Killed && member.Animal.Pose != pose)
+                    member.SetAnimal(animal, world.Tick);
+        }
+
+        /// <summary>A direction's bearing, degrees clockwise from north.</summary>
+        private static double Bearing(double east, double north) => Mod(Math.Atan2(east, north) * 180.0 / Math.PI, 360.0);
 
         private static double NearestFounderM(AnimalSighting group, IReadOnlyList<Double3> founders)
         {

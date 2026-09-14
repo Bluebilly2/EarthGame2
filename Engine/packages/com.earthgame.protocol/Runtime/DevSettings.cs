@@ -46,6 +46,14 @@ namespace EarthGame.Protocol
         public const string ClockDayOfYear = "clock.day_of_year";
         /// <summary>How many times faster than the game's rate the clock runs (<see cref="WorldClock.Scale"/>); nought holds the sky still.</summary>
         public const string ClockScale = "clock.scale";
+        /// <summary>The kangaroos' flight (M1.7c, <see cref="AnimalFlightRules"/>): how near a founder sends a mob running, how far and how fast it runs.</summary>
+        public const string KangarooFleeWithinM = "animals.kangaroo.flee_within_m";
+        public const string KangarooRunM = "animals.kangaroo.run_m";
+        public const string KangarooRunMs = "animals.kangaroo.run_ms";
+        /// <summary>The oystercatchers' flight (M1.7c): the same three.</summary>
+        public const string OystercatcherFleeWithinM = "animals.oystercatcher.flee_within_m";
+        public const string OystercatcherRunM = "animals.oystercatcher.run_m";
+        public const string OystercatcherRunMs = "animals.oystercatcher.run_ms";
         /// <summary>A deed: the founder who asks is stood at the world's wake.</summary>
         public const string StandAtWake = "founder.stand_at_wake";
         /// <summary>A deed: a stick is set on the ground two metres ahead of the founder who asks.</summary>
@@ -61,6 +69,12 @@ namespace EarthGame.Protocol
             new DevSetting(ClockScale, "Clock runs at, times the game's rate", 0.0, 60.0, 1.0),
             new DevSetting(AnimalsStandUpM, "Animals stood up within, m", 100.0, 1500.0, AnimalStandUp.DefaultStandUpRadiusM),
             new DevSetting(AnimalsTakeAwayM, "Animals taken away beyond, m", 100.0, 1600.0, AnimalStandUp.DefaultTakeAwayRadiusM),
+            new DevSetting(KangarooFleeWithinM, "Kangaroos run when a founder is within, m", 5.0, 400.0, AnimalFlightRules.KangarooFleeWithinM),
+            new DevSetting(KangarooRunM, "Kangaroos run for, m", 10.0, 1000.0, AnimalFlightRules.KangarooRunM),
+            new DevSetting(KangarooRunMs, "Kangaroos run at, m/s", 1.0, 20.0, AnimalFlightRules.KangarooRunMs),
+            new DevSetting(OystercatcherFleeWithinM, "Oystercatchers fly when a founder is within, m", 5.0, 400.0, AnimalFlightRules.OystercatcherFleeWithinM),
+            new DevSetting(OystercatcherRunM, "Oystercatchers fly for, m", 10.0, 1000.0, AnimalFlightRules.OystercatcherRunM),
+            new DevSetting(OystercatcherRunMs, "Oystercatchers fly at, m/s", 1.0, 30.0, AnimalFlightRules.OystercatcherRunMs),
             new DevSetting(SpawnStick, "A stick, two metres ahead", 0.0, 0.0, 0.0, deed: true),
             new DevSetting(SpawnCobble, "A cobble, two metres ahead", 0.0, 0.0, 0.0, deed: true),
         };

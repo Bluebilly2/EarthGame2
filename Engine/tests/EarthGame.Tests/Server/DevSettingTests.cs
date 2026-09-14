@@ -73,6 +73,28 @@ namespace EarthGame.Tests.Server
         }
 
         [Test]
+        public void TheAnimalsFlightRulesAreMovedByTheirRows()
+        {
+            Rig rig = Connect(true);
+            AnimalStandUp animals = Animals(rig.World);
+            AnimalFlightRules roo = animals.RulesFor(AnimalSpecies.EasternGreyKangaroo), bird = animals.RulesFor(AnimalSpecies.PiedOystercatcher);
+            Assert.That(roo.FleeWithinM, Is.EqualTo(AnimalFlightRules.KangarooFleeWithinM));
+            rig.Client.SendDevSetting(DevSettings.KangarooFleeWithinM, 40.0);
+            rig.Client.SendDevSetting(DevSettings.KangarooRunM, 300.0);
+            rig.Client.SendDevSetting(DevSettings.KangarooRunMs, 9.0);
+            rig.Client.SendDevSetting(DevSettings.OystercatcherFleeWithinM, 30.0);
+            rig.Client.SendDevSetting(DevSettings.OystercatcherRunM, 250.0);
+            rig.Client.SendDevSetting(DevSettings.OystercatcherRunMs, 900.0);
+            rig.Pump(2);
+            Assert.That(roo.FleeWithinM, Is.EqualTo(40.0));
+            Assert.That(roo.RunM, Is.EqualTo(300.0));
+            Assert.That(roo.RunMs, Is.EqualTo(9.0));
+            Assert.That(bird.FleeWithinM, Is.EqualTo(30.0));
+            Assert.That(bird.RunM, Is.EqualTo(250.0));
+            Assert.That(bird.RunMs, Is.EqualTo(30.0), "held to the table's most");
+        }
+
+        [Test]
         public void TheLocalHourIsSetOnTheSameDayAndThePongCarriesTheClock()
         {
             Rig rig = Connect(true);

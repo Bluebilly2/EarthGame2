@@ -318,6 +318,9 @@ namespace EarthGame.Bootstrap
             _server.SessionLeft += (s, reason) => Debug.Log("[server] leave " + s.Name + ": " + reason);
             _server.MoveCorrected += (s, reason) => Debug.Log("[server] correct " + s.Name + ": " + reason);
             _server.DevSettingApplied += (s, setting) => Debug.Log("[server] dev   " + s.Name + " set " + setting.Name + " to " + setting.Value.ToString("0.###", CultureInfo.InvariantCulture));
+            EarthGame.Engine.AnimalStandUp animals = _server.Animals();
+            if (animals != null) animals.Fled += flight => Debug.Log("[server] flight " + flight.Species.Name + " from a founder " + flight.DistanceM.ToString("0.0", CultureInfo.InvariantCulture)
+                                                                     + " m off, bearing " + flight.BearingDeg.ToString("0", CultureInfo.InvariantCulture));
             _server.Listen(port);
 
             // -eg-items N: N things dropped on a ring three metres from the wake, cobbles and sticks in turn, every

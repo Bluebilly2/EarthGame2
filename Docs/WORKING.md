@@ -123,6 +123,10 @@ other's way:
 - `$TEMP` in Git Bash is the system temp folder, not the session's scratchpad; use the scratchpad's full path.
 - A scratch script named like a standard module (`bisect.py`) shadows it for every script in that folder.
 - Git prints CRLF warnings on every add; they are noise.
+- A command run in the background is cut off at the timeout it was given, and a chain of runs cut off mid-way leaves what
+  it was doing: on 2026-09-14 a sabotage script stopped between its change and its restore left a sabotaged line in
+  `GameServer.cs` (found by `grep` for the sabotage's own text, and put back by hand). Give a chain the time it needs,
+  a corpus among it more than an hour, or run its pieces one at a time; and after any stop, `git diff` before building on.
 - Something on this machine holds a file for a moment after it is touched: on 2026-09-13 the built game's closing save
   could not replace a region file its autosave had written, and on 2026-09-14 a sabotage script's restore of
   `GameServer.cs` was refused on the open itself ("invalid argument") and left the sabotaged file in place. A save

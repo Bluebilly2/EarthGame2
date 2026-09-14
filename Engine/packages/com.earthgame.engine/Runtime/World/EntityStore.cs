@@ -65,6 +65,9 @@ namespace EarthGame.Engine
 
         /// <summary>Up and feeding: a kangaroo grazing a flat, a bird working the tideline.</summary>
         public const byte Grazing = 2;
+
+        /// <summary>Running from a founder (M1.7c, protocol 12): a mob bounding, a pair flying off.</summary>
+        public const byte Fleeing = 3;
     }
 
     /// <summary>An entity as the digest and the wire see it: what the server holds and the mirror repeats.</summary>

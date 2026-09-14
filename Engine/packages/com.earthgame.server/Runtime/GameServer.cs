@@ -861,6 +861,22 @@ namespace EarthGame.Server
                     animals.TakeAwayRadiusM = Math.Max(animals.TakeAwayRadiusM, animals.StandUpRadiusM);
                     break;
                 }
+                case DevSettings.KangarooFleeWithinM:
+                case DevSettings.KangarooRunM:
+                case DevSettings.KangarooRunMs:
+                case DevSettings.OystercatcherFleeWithinM:
+                case DevSettings.OystercatcherRunM:
+                case DevSettings.OystercatcherRunMs:
+                {
+                    AnimalStandUp animals = Animals();
+                    bool kangaroo = setting.Name.StartsWith("animals.kangaroo.", StringComparison.Ordinal);
+                    AnimalFlightRules rules = animals?.RulesFor(kangaroo ? AnimalSpecies.EasternGreyKangaroo : AnimalSpecies.PiedOystercatcher);
+                    if (rules == null) break;
+                    if (setting.Name.EndsWith(".flee_within_m", StringComparison.Ordinal)) rules.FleeWithinM = value;
+                    else if (setting.Name.EndsWith(".run_m", StringComparison.Ordinal)) rules.RunM = value;
+                    else rules.RunMs = value;
+                    break;
+                }
                 case DevSettings.ClockLocalHour:
                 {
                     // The same local day at the region's centre, at the hour asked for.
@@ -922,8 +938,8 @@ namespace EarthGame.Server
         /// <summary>How far ahead of a founder a developer's spawn is set down, m.</summary>
         private const double SpawnAheadM = 2.0;
 
-        /// <summary>The system that stands the animals up, for a developer's setting to move; null on a world without one.</summary>
-        private AnimalStandUp Animals()
+        /// <summary>The system that stands the animals up, for a developer's setting to move and a host to hear its flights; null on a world without one.</summary>
+        public AnimalStandUp Animals()
         {
             foreach (IFastSystem system in World.Systems)
                 if (system is AnimalStandUp animals) return animals;
