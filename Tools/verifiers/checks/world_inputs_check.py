@@ -147,7 +147,10 @@ def main():
         failures += check(name + '.host_exit', code, 0 if accepted else 2)
         failures += check(name + '.world_saved', (world / 'world.json').is_file(), accepted)
         if not accepted:
-            failures += check(name + '.partial_world_exists', world.exists(), False)
+            # M1.3d takes a world lock before reading; an empty directory can remain after refusal.
+            # Check for written world content rather than the lock's directory.
+            files = [p for p in world.rglob('*') if p.is_file() and p.name != 'world.lock']
+            failures += check(name + '.partial_world_files', len(files), 0)
     if args.data:
         world = run / 'bherwerre'
         code = run_host(args.data.resolve(), world, run / 'bherwerre.log')

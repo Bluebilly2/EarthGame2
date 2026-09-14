@@ -183,5 +183,5 @@ sleep, locomotion, saves, the oracle — **already exists and is tested in v1's 
    concept of the game."* The arc ends at the established camp's first warm night; the
    solstice night becomes the first post-beta finale.
 
-No open questions remain. The draft awaits the owner's sign-off as a whole; on it, this
-document becomes binding and the queue re-cuts against the beta build list.
+The owner's approval of 2026-09-01, recorded at the top, makes this path binding. Its v1 system descriptions
+are read with the EarthGame2 qualification above; they do not claim that those ports are complete.

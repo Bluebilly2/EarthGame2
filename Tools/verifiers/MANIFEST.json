@@ -2,6 +2,14 @@
   "_note": "Verifiers are the checks the gates run (CANON.md ruling 16 as amended by ruling 17 of 2026-09-08: Claude writes them). Because the same party writes the tool and its check, each entry states the independent method or data the check rests on; a check that reuses the tool's own code is a stub with extra steps. The gate runner derives each status from the file on disk: missing (no file), stub (empty or carrying the '# STUB' marker), present; a present verifier is run as a gate step for its exit code.",
   "verifiers": [
     {
+      "name": "world_save_integrity_check",
+      "path": "Tools/verifiers/checks/world_save_integrity_check.py",
+      "author": "Codex",
+      "gates": ["WG.0c"],
+      "checks": "Exact unsigned seeds through the real host; required saved layers, world manifest hashes and geographic frames; legacy worlds; refusal leaves saved content unchanged.",
+      "independent_of_the_tool_by": "Writes synthetic files using Python stdlib JSON and struct, checks integers with Python arbitrary-precision JSON parsing rather than C# fixed-width accessors, and hashes raw files and entire saved folders with hashlib. Uses real host process exits. Imports no engine or bake helper. Reference: eg2.world v1 and eg2.raster v2 in ARCHITECTURE section 10."
+    },
+    {
       "name": "world_inputs_check",
       "path": "Tools/verifiers/checks/world_inputs_check.py",
       "author": "Codex",

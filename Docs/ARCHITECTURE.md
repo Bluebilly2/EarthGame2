@@ -194,6 +194,16 @@ still runs on the main thread; this slice does not claim a frame-time budget for
 
 ## 6. Save and world folder
 
+WG.0c (2026-09-14): numeric JSON seed, tick and next-entity-id fields are read as exact integers. The JSON reader
+preserves whole-number tokens as signed/unsigned 64-bit integers; measured quantities
+still use `Number`. Exact integer access requires integer tokens and refuses overflow, fractions and decimal/exponent
+spellings rather than accepting their rounded values. The writer's numeric field spelling and `eg2.world` version 1 are unchanged.
+An old save with its original integer text is repaired by reading it correctly; a seed rounded and resaved by an
+older build cannot be inferred back. `SavedWorldLayers` checks every promised layer against the world's manifest
+and region/frame before restoration. Optional unpromised legacy layers may be absent. Layers read for runtime
+use are checked as they load; the remaining promised layers are checked and released, with cancellation between
+layers. `WorldCreation` checks the primary bake against the requested region before it computes or writes.
+
 `Saves/<world>/world.json` (seed, region, extent, wake point, created, protocol version), the baked layer rasters,
 `regions/r.X.Y.egr` (one file per 512 m cell: entities and mutable layer diffs; atomic write), `players/<id>.egp`
 (server-side), `digest.txt` (the world digest the tests diff: `WorldDigest`, every number a whole count of micrometres or nanohours, rounded to even, the lines sorted and hashed with FNV-1a 64; integers rather than a printed double because the player's Mono and the server's .NET print the twelfth significant figure of some doubles differently, as the first full corpus found on 2026-09-08). The server is the only writer.
@@ -578,6 +588,15 @@ mandatory in every file from the first write.
   from a lake's shore into water over their head and holds the camera's height over the surface all the way in.
 
 ## 12. Decision log (agent decisions; owner rulings are in CANON.md)
+
+- **2026-09-14 — Preserve saved integers and enforce the complete layer promise (WG.0c, Codex).** Keep the existing
+  numeric JSON fields so old saves with exact written seeds remain readable; retain large integer tokens before
+  floating-point conversion, and use exact access for saved seed/tick/allocation counters. Validate a layer's
+  existence, hash, role and geographic frame against the world, including layers not currently consumed at runtime.
+  Different pitches remain legal; region, centre and extent do not. Check each loaded grid once and release the
+  unused ones instead of retaining a second whole world. A legacy absence is allowed only without a manifest promise.
+  M1.3d's lock may leave an empty directory after refusal, so WG.0b's checker now requires zero written world files,
+  rather than no directory. No valid terrain or wire/save schema changes; William was told before implementation.
 
 | Date | Decision | Why |
 |---|---|---|

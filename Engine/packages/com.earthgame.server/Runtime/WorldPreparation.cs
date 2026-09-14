@@ -107,24 +107,21 @@ namespace EarthGame.Server
                 if (!string.Equals(saved.RegionId, region.Id, StringComparison.Ordinal))
                     throw new InvalidDataException("This world is set in '" + saved.RegionId + "', and this one was opened as '" + region.Id + "'.");
                 Report("Reading saved terrain");
-                string path = Path.Combine(worldDir, WorldCreation.LayersFolder, "heights.json");
-                Heightfield terrain;
-                // A manifest promises world-owned terrain: its absence or corruption must not be hidden by a bake.
-                if (File.Exists(path) || saved.Layers.ContainsKey("heights"))
-                    terrain = new Heightfield(RegionRaster.Load(path));
-                else
-                    terrain = ReadBake(dataDir);
-                if (saved.Layers.TryGetValue("heights", out string expected) && terrain.Raster.Sha256 != expected)
-                    throw new InvalidDataException("The saved terrain does not match this world's layer manifest.");
+                var layers = new SavedWorldLayers(worldDir, region, saved.Layers, cancellation);
+                RegionRaster heights = layers.Read("heights");
+                Heightfield terrain = heights == null ? ReadBake(dataDir) : new Heightfield(heights);
+                SavedWorldLayers.CheckRegion(terrain.Raster, region);
                 Report("Reading the water");
-                WorldWater water = ReadWater(worldDir);
-                RegionRaster cover = ReadCodes(worldDir, "cover");
+                WorldWater water = ReadWater(layers);
+                RegionRaster cover = layers.Read("cover");
                 Report("Reading what stands and lies on the ground");
-                RegionRaster stand = ReadCodes(worldDir, "stand");
-                RegionRaster loose = ReadCodes(worldDir, "loose");
-                RegionRaster stone = ReadCodes(worldDir, "stone");
+                RegionRaster stand = layers.Read("stand");
+                RegionRaster loose = layers.Read("loose");
+                RegionRaster stone = layers.Read("stone");
                 Report("Reading what the ground feeds");
-                CapacitySquares feeds = ReadCapacity(worldDir, region.ExtentM);
+                CapacitySquares feeds = ReadCapacity(layers, region.ExtentM);
+                Report("Checking the remaining saved layers");
+                layers.VerifyRemaining();
                 Report("Restoring the world");
                 WorldState world = WorldSave.Restore(saved, terrain, region, water, cover, stand, loose, stone, feeds);
                 Report("World ready");
@@ -137,13 +134,14 @@ namespace EarthGame.Server
             string waterPath = Path.Combine(dataDir, "water_bodies.json");
             RegionRaster outlines = File.Exists(waterPath) ? RegionRaster.Load(waterPath) : null;
             WorldCreation.Result created = WorldCreation.Create(worldDir, region, seed, bake.Raster, nowUtc, outlines, Report);
+            var createdLayers = new SavedWorldLayers(worldDir, region, created.Checksums, cancellation);
             Report("Reading prepared terrain");
-            Heightfield ground = new Heightfield(RegionRaster.Load(created.Layers["heights"]));
+            Heightfield ground = new Heightfield(createdLayers.Read("heights"));
             Report("Reading what the ground feeds");
-            CapacitySquares capacity = ReadCapacity(worldDir, region.ExtentM);
+            CapacitySquares capacity = ReadCapacity(createdLayers, region.ExtentM);
             WorldState made = new WorldState(seed, region, region.WakeClock(), ground, 0,
-                new Double3(created.Wake.East, 0, created.Wake.North), ReadWater(worldDir), ReadCodes(worldDir, "cover"),
-                ReadCodes(worldDir, "stand"), ReadCodes(worldDir, "loose"), ReadCodes(worldDir, "stone"), capacity);
+                new Double3(created.Wake.East, 0, created.Wake.North), ReadWater(createdLayers), createdLayers.Read("cover"),
+                createdLayers.Read("stand"), createdLayers.Read("loose"), createdLayers.Read("stone"), capacity);
             Report("Saving the world");
             WorldSave.Write(worldDir, made, null, nowUtc, created.Checksums);
             Report("World ready");
@@ -154,26 +152,14 @@ namespace EarthGame.Server
         /// The water layers a world folder holds, for the server to stream (M1.4b); null when it has neither, which
         /// is any world made before M1.2. One present without the other is a folder half written, and is refused.
         /// </summary>
-        private static WorldWater ReadWater(string worldDir)
+        private static WorldWater ReadWater(SavedWorldLayers layers)
         {
-            string surface = Path.Combine(worldDir, WorldCreation.LayersFolder, "surface.json");
-            string classes = Path.Combine(worldDir, WorldCreation.LayersFolder, "water.json");
-            bool hasSurface = File.Exists(surface), hasClasses = File.Exists(classes);
+            RegionRaster surface = layers.Read("surface"), classes = layers.Read("water");
+            bool hasSurface = surface != null, hasClasses = classes != null;
             if (!hasSurface && !hasClasses) return null;
             if (hasSurface != hasClasses)
                 throw new InvalidDataException("this world has " + (hasSurface ? "a water surface without its classes" : "water classes without their surface") + "; its layers are half written");
-            return new WorldWater(RegionRaster.Load(surface), RegionRaster.Load(classes));
-        }
-
-        /// <summary>
-        /// A layer of codes a world folder holds for the server: the ground cover since M1.4d, what stands and what lies
-        /// loose since M1.6a, streamed; and the stone, which a cobble taken up is made of (M1.5b). Null on a world made
-        /// before the layer was, whose client draws without it: a flat ground colour, and nothing standing.
-        /// </summary>
-        private static RegionRaster ReadCodes(string worldDir, string name)
-        {
-            string path = Path.Combine(worldDir, WorldCreation.LayersFolder, name + ".json");
-            return File.Exists(path) ? RegionRaster.Load(path) : null;
+            return new WorldWater(surface, classes);
         }
 
         /// <summary>
@@ -181,15 +167,15 @@ namespace EarthGame.Server
         /// averaged over its squares and let go; null on a world made before the layers were (M1.2), round whose founders no
         /// animal stands.
         /// </summary>
-        private static CapacitySquares ReadCapacity(string worldDir, double extentM)
+        private static CapacitySquares ReadCapacity(SavedWorldLayers layers, double extentM)
         {
             CapacitySquares squares = null;
             foreach (AnimalSpecies species in AnimalSpecies.All)
             {
-                string path = Path.Combine(worldDir, WorldCreation.LayersFolder, WorldCreation.CapacityLayer(species) + ".json");
-                if (!File.Exists(path)) continue;
+                RegionRaster layer = layers.Read(WorldCreation.CapacityLayer(species));
+                if (layer == null) continue;
                 if (squares == null) squares = new CapacitySquares(extentM);
-                squares.Add(species, RegionRaster.Load(path));
+                squares.Add(species, layer);
             }
             return squares;
         }

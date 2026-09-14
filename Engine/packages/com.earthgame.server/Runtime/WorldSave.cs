@@ -244,11 +244,11 @@ namespace EarthGame.Server
             if (version != Version) throw new InvalidDataException(worldPath + ": version " + version + "; this build reads " + Version);
             WorldSaveInfo info = new WorldSaveInfo();
             info.RegionId = doc.String("region");
-            info.Seed = (ulong)doc.Number("seed");
-            info.Tick = (long)doc.Number("tick");
+            info.Seed = doc.UInt64("seed");
+            info.Tick = doc.Int64("tick");
             info.CreatedUtc = doc.StringOr("created_utc", string.Empty);
             info.ProtocolVersion = (ushort)doc.Int("protocol_version");
-            info.NextEntityId = (ulong)doc.NumberOr("next_entity_id", 1.0);
+            info.NextEntityId = doc.UInt64Or("next_entity_id", 1);
             if (doc.Contains("wake_east") && doc.Contains("wake_north"))
                 info.Wake = new Double3(doc.Number("wake_east"), doc.NumberOr("wake_up", 0.0), doc.Number("wake_north"));
             if (doc.Contains("layers"))
@@ -280,7 +280,7 @@ namespace EarthGame.Server
                 sp.Body.Grounded = p.Contains("grounded") && p.Bool("grounded");
                 sp.YawDeg = (float)p.NumberOr("yaw_deg", 0.0);
                 sp.PitchDeg = (float)p.NumberOr("pitch_deg", 0.0);
-                sp.SavedTick = (long)p.NumberOr("saved_tick", 0.0);
+                sp.SavedTick = p.Int64Or("saved_tick", 0);
                 info.Players[sp.Name] = sp;
             }
             // The binary file wins over a version-1 file of the same name that a crash left behind.

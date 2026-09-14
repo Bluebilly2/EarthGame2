@@ -43,6 +43,7 @@ namespace EarthGame.Server
         {
             if (region == null) throw new ArgumentNullException(nameof(region));
             if (heights == null) throw new ArgumentNullException(nameof(heights));
+            SavedWorldLayers.CheckRegion(heights, region);
             WorldLayers layers = WorldLayers.Compute(heights, seed, waterBodies, progress);
             progress?.Invoke("Choosing the wake");
             WakeScorer scorer = new WakeScorer(layers);

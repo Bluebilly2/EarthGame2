@@ -49,7 +49,29 @@ namespace EarthGame.Engine
             => this[key] is string s ? s : throw new JsonException("key '" + key + "' is not a string");
 
         public double Number(string key)
-            => this[key] is double d ? d : throw new JsonException("key '" + key + "' is not a number");
+            => this[key] is double d ? d : this[key] is ulong u ? u : this[key] is long l ? l
+                : throw new JsonException("key '" + key + "' is not a number");
+
+        /// <summary>An exact unsigned integer (WG.0c, 2026-09-14). Seeds must never pass through a rounded double.</summary>
+        public ulong UInt64(string key)
+        {
+            object value = this[key];
+            if (value is ulong u) return u;
+            if (value is long l && l >= 0) return (ulong)l;
+            throw new JsonException("key '" + key + "' is not an exact unsigned 64-bit integer");
+        }
+
+        /// <summary>An exact signed integer, for saved ticks as well as JSON's small integer fields.</summary>
+        public long Int64(string key)
+        {
+            object value = this[key];
+            if (value is long l) return l;
+            if (value is ulong u && u <= long.MaxValue) return (long)u;
+            throw new JsonException("key '" + key + "' is not an exact signed 64-bit integer");
+        }
+
+        public ulong UInt64Or(string key, ulong fallback) => Contains(key) ? UInt64(key) : fallback;
+        public long Int64Or(string key, long fallback) => Contains(key) ? Int64(key) : fallback;
 
         public int Int(string key)
         {
@@ -86,8 +108,9 @@ namespace EarthGame.Engine
     /// and the run logs are all simple documents, and both Unity and dotnet compile these packages from the same
     /// files, so neither side's JSON library is available to the engine (System.Text.Json is not in .NET Standard
     /// 2.1; Newtonsoft is a Unity package). Values are <see cref="JsonObject"/>, <c>List&lt;object&gt;</c>,
-    /// <c>string</c>, <c>double</c>, <c>bool</c> and <c>null</c>. Numbers are always doubles, which is exact for
-    /// every integer a sidecar or save carries (below 2^53).
+    /// <c>string</c>, <c>double</c>, <c>long</c>, <c>ulong</c>, <c>bool</c> and <c>null</c>. Whole-number tokens
+    /// retain their integer type (WG.0c, 2026-09-14); the old all-double reader
+    /// rounded large world seeds on continue. Measured quantities still use <see cref="JsonObject.Number"/>.
     /// </summary>
     public static class Json
     {
@@ -361,7 +384,7 @@ namespace EarthGame.Engine
                 _pos += word.Length;
             }
 
-            private double ReadNumber()
+            private object ReadNumber()
             {
                 int start = _pos;
                 if (Peek() == '-') _pos++;
@@ -382,6 +405,8 @@ namespace EarthGame.Engine
                     while (Peek() >= '0' && Peek() <= '9') _pos++;
                 }
                 string slice = _text.Substring(start, _pos - start);
+                if (ulong.TryParse(slice, NumberStyles.None, CultureInfo.InvariantCulture, out ulong unsigned)) return unsigned;
+                if (long.TryParse(slice, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out long signed)) return signed;
                 if (!double.TryParse(slice, NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
                     throw Error("bad number '" + slice + "'");
                 return value;
