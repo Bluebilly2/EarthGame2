@@ -193,8 +193,9 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
 
 ### Rulings of 2026-09-15
 
-31. **The survival story comes first.** Asked, after the review of 2026-09-13 found no survival beat playable,
-    whether to turn to the survival story now (thirst, water, the first stone, fire, shelter, a bed: the Founder's
-    Path's first two acts) or to keep the order the agents had been working in (the animals' looks, then hunting):
-    "a survival story." The work turns to the Founder's Path from here, beat by beat; the animals' looks (ruling 29)
-    and hunting wait behind it.
+31. **The Founder's Path comes first.** Asked, after the review of 2026-09-13 found none of the path's beats
+    playable, whether to turn to them now (thirst, water, the first stone, fire, shelter, a bed: the Founder's Path's
+    first two acts) or to keep the order the agents had been working in (the animals' looks, then hunting): "a
+    survival story." The work turns to the Founder's Path from here, beat by beat; the animals' looks (ruling 29)
+    and hunting wait behind it. The same day, of the agent's phrase for it: "make sure the name 'survival story'
+    doesnt catch on" — the work is called by the path's own name, the Founder's Path, and its beats by theirs.
