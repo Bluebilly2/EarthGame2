@@ -127,6 +127,31 @@ namespace EarthGame.Tests.Server
         }
 
         /// <summary>
+        /// The ceiling is the body's (FP.1): a founder told a work capacity is held to the run that capacity allows, by the
+        /// mover's own rule, and a full-speed run from a body told a tenth of its water gone is corrected.
+        /// </summary>
+        [Test]
+        public void TheCeilingFallsWithTheCapacityTheFounderWasTold()
+        {
+            MoverConfig mover = MoverConfig.Default;
+            MoverState grounded = MoverState.AtRest(0.0, 0.0, 0.0);
+            grounded.Grounded = true;
+            double full = MovementValidator.HorizontalCeiling(grounded, 0.0, mover);
+            double weakened = MovementValidator.HorizontalCeiling(grounded, 0.0, mover, Hydration.CapacityOf(0.9));
+            Assert.That(full, Is.EqualTo(mover.MaxHorizontalSpeed).Within(1e-9));
+            Assert.That(weakened, Is.EqualTo(mover.MaxHorizontalSpeedAt(0.5)).Within(1e-9), "a tenth lost is half the capacity, by the table");
+            Assert.That(weakened, Is.LessThan(full));
+            Assert.That(weakened / full, Is.EqualTo((0.45 + 0.55 * 0.5) / 1.0).Within(1e-9), "the mover's own scaling of a body's speed");
+
+            MovementRules rules = new MovementRules();
+            MoverState next = grounded;
+            next.East = full * 0.05 * 0.99;
+            next.Grounded = true;
+            Assert.That(MovementValidator.Check(grounded, true, next, 0.05, null, 1000.0, mover, rules, 0.0), Is.Null, "a full run for a full body");
+            Assert.That(MovementValidator.Check(grounded, true, next, 0.05, null, 1000.0, mover, rules, 0.0, Hydration.CapacityOf(0.9)), Is.Not.Null, "and too fast for a body told half its capacity");
+        }
+
+        /// <summary>
         /// The server keeps where each founder last stood (M1.5f): off their feet below it, a founder is believed as fast as
         /// the height lost allows; level with it or above it, they are held to a run; and standing again moves it. Over the
         /// wire, on a world without terrain, so the heights are the ones stated here.

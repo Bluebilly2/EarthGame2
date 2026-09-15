@@ -36,6 +36,8 @@ namespace EarthGame.Client
         private readonly Camera _camera;
         private readonly HudController _hud;
         private readonly HandView _hand;
+        private readonly IHeightSource _ground;
+        private readonly StreamedWater _water;
         private GameClient _client;
         private EntityViews _entities;
         private string _answer = string.Empty;
@@ -51,15 +53,21 @@ namespace EarthGame.Client
         /// <summary>Where the crosshair meets the ground within reach, when it does and no thing is in front of it.</summary>
         public Vector3? Ground { get; private set; }
 
+        /// <summary>Where the crosshair meets the streamed water's surface within reach (FP.1), when no thing is in front of it.</summary>
+        public Vector3? WaterAt { get; private set; }
+
         /// <summary>What the verb line says now.</summary>
         public string Line { get; private set; } = string.Empty;
 
-        public VerbController(GameClient client, EntityViews entities, PlayerController player, Camera camera, HudController hud, HandView hand)
+        public VerbController(GameClient client, EntityViews entities, PlayerController player, Camera camera, HudController hud, HandView hand,
+                              IHeightSource ground = null, StreamedWater water = null)
         {
             _player = player;
             _camera = camera;
             _hud = hud;
             _hand = hand;
+            _ground = ground;
+            _water = water;
             Rebind(client, entities);
         }
 
@@ -142,6 +150,12 @@ namespace EarthGame.Client
                 _hand?.Strike();
                 if (Target != null) _client.SendIntent(new IntentMessage { Verb = Verb.PickUp, Target = IntentMessage.TargetEntity, EntityId = Target.Id.Value });
                 else if (TargetLying.HasValue) _client.SendIntent(new IntentMessage { Verb = Verb.PickUp, Target = IntentMessage.TargetLying, Lying = TargetLying.Value });
+                else if (WaterAt.HasValue)
+                {
+                    // A drink (FP.1): the server says whether the water gives, and why the sea does not.
+                    Vector3 at = WaterAt.Value;
+                    _client.SendIntent(new IntentMessage { Verb = Verb.Drink, East = at.x, Up = at.y, North = at.z });
+                }
                 else if (Ground.HasValue && TryInHand(carrying, out _))
                 {
                     Vector3 at = Ground.Value;
@@ -161,6 +175,7 @@ namespace EarthGame.Client
             Target = null;
             TargetLying = null;
             Ground = null;
+            WaterAt = null;
             Transform eye = _camera.transform;
             Ray ray = new Ray(eye.position, eye.forward);
             float within = (float)Hands.ReachM + LookBeyondM;
@@ -186,6 +201,23 @@ namespace EarthGame.Client
                 return;
             }
             if (onGround && Double3.Distance(body, new Double3(hit.point.x, hit.point.y, hit.point.z)) <= Hands.ReachM) Ground = hit.point;
+
+            // Water under the crosshair within reach (FP.1): the eye's ray walked out a quarter of a metre at a time until it
+            // goes under the streamed water's surface, or under the ground first, which is the bank.
+            if (_water == null || _ground == null) return;
+            Vector3 origin = eye.position, direction = eye.forward;
+            for (float along = 0.25f; along <= (float)Hands.ReachM; along += 0.25f)
+            {
+                Vector3 p = origin + direction * along;
+                double ground = _ground.HeightAt(p.x, p.z);
+                double surface = _water.HeightAt(p.x, p.z);
+                if (!double.IsNaN(surface) && surface > ground + WorldState.StandingWaterM && p.y <= surface)
+                {
+                    WaterAt = new Vector3(p.x, (float)surface, p.z);
+                    return;
+                }
+                if (!double.IsNaN(ground) && p.y < ground) return;
+            }
         }
 
         /// <summary>
@@ -221,6 +253,7 @@ namespace EarthGame.Client
                 Definition kind = TargetLying.Value.Kind == StandLayout.Kind.Stick ? DefinitionCatalogue.Stick : DefinitionCatalogue.Cobble;
                 return kind.DisplayName + " — " + (full ? "your hands are full" : "pick up");
             }
+            if (WaterAt.HasValue) return "water — drink";
             if (Ground.HasValue && TryInHand(carrying, out CarriedThing held))
                 return "put down " + The(held.Definition.DisplayName);
             return string.Empty;
@@ -269,6 +302,8 @@ namespace EarthGame.Client
                 case VerbOutcome.HandsFull: return "your hands are full";
                 case VerbOutcome.NothingInHand: return "nothing in your hand";
                 case VerbOutcome.NoSuchPlace: return "no such place";
+                case VerbOutcome.Salt: return "the sea will not drink: salt";
+                case VerbOutcome.NoWater: return "nothing to drink there";
                 default: return "not now";
             }
         }

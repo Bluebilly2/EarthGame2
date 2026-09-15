@@ -13,6 +13,8 @@ namespace EarthGame.Engine
         PutDown = 2,
         /// <summary>Make a place the hand; place 0 is an empty hand.</summary>
         Hold = 3,
+        /// <summary>Drink from the water the founder is looking at (FP.1): fresh water gives, the sea refuses with its reason.</summary>
+        Drink = 4,
     }
 
     /// <summary>What came of an intent (M1.5a). Wire-visible and never renumbered.</summary>
@@ -26,6 +28,10 @@ namespace EarthGame.Engine
         NoSuchPlace = 5,
         /// <summary>The founder cannot act yet (no body, the snapshot still owed), the world is held, or the thing is between the world and the hands in this tick.</summary>
         NotNow = 6,
+        /// <summary>The water looked at is the sea (FP.1): the sea will not drink, and the reason is salt.</summary>
+        Salt = 7,
+        /// <summary>Nothing to drink where the founder is looking (FP.1): dry ground, or the wet ground of a swamp.</summary>
+        NoWater = 8,
     }
 
     /// <summary>A thing a founder carries: out of the world, in one of the hands' places, keeping the id it had lying down.</summary>

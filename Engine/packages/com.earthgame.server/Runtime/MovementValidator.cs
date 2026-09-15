@@ -50,7 +50,8 @@ namespace EarthGame.Server
         /// <summary>Null when the report is acceptable; otherwise the reason, in words a log can carry.</summary>
         /// <param name="stoodUp">The height of the last body this player reported standing on the ground; NaN before any.</param>
         public static string Check(in MoverState last, bool hasLast, in MoverState reported, double intervalSeconds,
-                                   Heightfield ground, double halfExtentM, MoverConfig mover, MovementRules rules, double stoodUp = double.NaN)
+                                   Heightfield ground, double halfExtentM, MoverConfig mover, MovementRules rules, double stoodUp = double.NaN,
+                                   double workCapacity01 = 1.0)
         {
             if (!reported.IsFinite) return "non-finite numbers in the report";
             if (Math.Abs(reported.East) > halfExtentM || Math.Abs(reported.North) > halfExtentM)
@@ -63,7 +64,7 @@ namespace EarthGame.Server
                 double de = reported.East - last.East;
                 double dn = reported.North - last.North;
                 double horizontal = Math.Sqrt(de * de + dn * dn) / dt;
-                double ceiling = HorizontalCeiling(reported, stoodUp, mover) * rules.SpeedTolerance;
+                double ceiling = HorizontalCeiling(reported, stoodUp, mover, workCapacity01) * rules.SpeedTolerance;
                 if (horizontal > ceiling)
                     return "speed " + F(horizontal) + " m/s exceeds the ceiling " + F(ceiling);
                 double vertical = Math.Abs(reported.Up - last.Up) / dt;
@@ -90,9 +91,10 @@ namespace EarthGame.Server
         /// gives nothing, and the allowance is measured from where the founder stood rather than from their last report, so
         /// it cannot grow report by report.
         /// </summary>
-        public static double HorizontalCeiling(in MoverState reported, double stoodUp, MoverConfig mover)
+        public static double HorizontalCeiling(in MoverState reported, double stoodUp, MoverConfig mover, double workCapacity01 = 1.0)
         {
-            double run = mover.MaxHorizontalSpeed;
+            // The run is the body's (FP.1): a thirsty founder is held to what their capacity allows, as their own mover is.
+            double run = mover.MaxHorizontalSpeedAt(workCapacity01);
             if (reported.Grounded || double.IsNaN(stoodUp)) return run;
             double drop = Math.Max(0.0, stoodUp - reported.Up);
             return Math.Sqrt(run * run + 2.0 * mover.Gravity * drop);

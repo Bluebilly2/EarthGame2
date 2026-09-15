@@ -51,6 +51,8 @@ namespace EarthGame.Protocol
         LooseTaken = 20,
         /// <summary>Client → server, reliable: a developer's setting by name and number (M1.D), taken by a development server alone.</summary>
         DevSetting = 21,
+        /// <summary>Server → its own client, reliable: the water in the founder's body (FP.1, protocol v13).</summary>
+        FounderState = 22,
     }
 
     /// <summary>One tile of one layer the client wants, with the checksum of the copy it already holds (zero for none).</summary>
@@ -393,6 +395,32 @@ namespace EarthGame.Protocol
             m.Value = r.ReadDouble();
             if (string.IsNullOrEmpty(m.Name)) throw new ProtocolException("a developer's setting has a name");
             if (!BodyWire.Finite(m.Value)) throw new ProtocolException("a developer's setting of " + m.Name + " is not a number");
+            return m;
+        }
+    }
+
+    /// <summary>
+    /// Server → its own client, reliable (protocol v13, FP.1): the water in the founder's body against normal, 1 full.
+    /// Sent once a second and at every change that matters (a drink, a developer's setting, the join). The client takes
+    /// the word and the work capacity from it by the engine's own tables (<see cref="Hydration"/>), so the wire carries
+    /// the one number and no reader can hold a different threshold.
+    /// </summary>
+    public struct FounderStateMessage
+    {
+        public double Water01;
+
+        public void Write(PacketWriter w)
+        {
+            w.WriteByte((byte)MessageKind.FounderState);
+            w.WriteDouble(Water01);
+        }
+
+        public static FounderStateMessage Read(PacketReader r)
+        {
+            FounderStateMessage m;
+            m.Water01 = r.ReadDouble();
+            if (!BodyWire.Finite(m.Water01) || m.Water01 < 0.0 || m.Water01 > 1.0)
+                throw new ProtocolException("a founder's water of " + m.Water01 + " is no fraction of a body");
             return m;
         }
     }
@@ -816,6 +844,7 @@ namespace EarthGame.Protocol
                     else throw new ProtocolException("a pick-up names a target of kind " + Target + ", which has no layout");
                     break;
                 case Verb.PutDown:
+                case Verb.Drink:
                     w.WriteDouble(East);
                     w.WriteDouble(Up);
                     w.WriteDouble(North);
@@ -851,11 +880,12 @@ namespace EarthGame.Protocol
                     else throw new ProtocolException("a pick-up names a target of kind " + m.Target + ", which this build does not know");
                     break;
                 case Verb.PutDown:
+                case Verb.Drink:
                     m.East = r.ReadDouble();
                     m.Up = r.ReadDouble();
                     m.North = r.ReadDouble();
                     if (!BodyWire.Finite(m.East) || !BodyWire.Finite(m.Up) || !BodyWire.Finite(m.North))
-                        throw new ProtocolException("a put-down names a point that is not a number");
+                        throw new ProtocolException("a put-down or a drink names a point that is not a number");
                     break;
                 case Verb.Hold:
                     m.Place = r.ReadByte();
@@ -885,7 +915,7 @@ namespace EarthGame.Protocol
             IntentResultMessage m;
             m.Sequence = r.ReadUInt32();
             m.Outcome = (VerbOutcome)r.ReadByte();
-            if ((byte)m.Outcome > (byte)VerbOutcome.NotNow) throw new ProtocolException("intent outcome " + (byte)m.Outcome + " is not one this build knows");
+            if ((byte)m.Outcome > (byte)VerbOutcome.NoWater) throw new ProtocolException("intent outcome " + (byte)m.Outcome + " is not one this build knows");
             return m;
         }
     }

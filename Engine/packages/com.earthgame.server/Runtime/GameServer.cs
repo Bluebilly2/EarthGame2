@@ -181,6 +181,7 @@ namespace EarthGame.Server
             {
                 if (Paused) continue;
                 World.Step(_accumulator.StepSeconds);
+                AdvanceFounders(_accumulator.StepSeconds);
                 Stepped?.Invoke(World, _accumulator.StepSeconds);
                 stepped = true;
             }
@@ -189,6 +190,7 @@ namespace EarthGame.Server
             {
                 BroadcastBodies();
                 ReplicateEntities();
+                SendFounderStates();
                 if (hostClockSeconds != null) _ticks.Record(hostClockSeconds() - started);
             }
         }
@@ -238,7 +240,60 @@ namespace EarthGame.Server
             p.Carried = new CarriedThing[s.Hands.Things.Count];
             for (int i = 0; i < p.Carried.Length; i++) p.Carried[i] = s.Hands.Things[i];
             p.Hand = s.Hands.Hand;
+            p.WaterLoss = s.Hydration.Loss;
             return p;
+        }
+
+        /// <summary>Every founder's body loses water for the step, on the world's clock (FP.1): a held clock holds the body too.</summary>
+        private void AdvanceFounders(double stepSeconds)
+        {
+            double days = World.Clock.DaysFor(stepSeconds);
+            if (days <= 0.0) return;
+            for (int i = 0; i < _sessions.Count; i++)
+                if (_sessions[i].HasBody) _sessions[i].Hydration.Advance(days);
+        }
+
+        /// <summary>Each founder's state to their own client once a second, by the tick rate (FP.1).</summary>
+        private void SendFounderStates()
+        {
+            for (int i = 0; i < _sessions.Count; i++)
+            {
+                PlayerSession s = _sessions[i];
+                if (!s.HasBody || s.SnapshotPending) continue;
+                if (World.Tick - s.FounderStateTick < _config.TickRate) continue;
+                SendFounderState(s);
+            }
+        }
+
+        /// <summary>The founder's state to their own client now, and the capacity it carries remembered for the ceiling.</summary>
+        private void SendFounderState(PlayerSession session)
+        {
+            session.FounderStateTick = World.Tick;
+            session.ToldCapacityBefore = session.ToldCapacity;
+            session.ToldCapacity = session.Hydration.WorkCapacity01;
+            FounderStateMessage m;
+            m.Water01 = session.Hydration.Water01;
+            _writer.Reset();
+            m.Write(_writer);
+            session.Connection.Send(_writer.Written, Delivery.Reliable);
+        }
+
+        /// <summary>
+        /// A drink (FP.1): the point is judged as a put-down's is, by the reach from the eye and the region, then the water
+        /// there by the world's own layer. A creek, a stream or a lake gives up to a visit's litre and a half; the sea answers
+        /// salt; anything else has nothing to drink.
+        /// </summary>
+        private VerbOutcome Drink(PlayerSession session, Double3 at, Double3 eye)
+        {
+            if (Double3.Distance(eye, at) > Hands.ReachM) return VerbOutcome.OutOfReach;
+            double half = World.Region.HalfExtentM;
+            if (Math.Abs(at.X) > half || Math.Abs(at.Z) > half) return VerbOutcome.OutOfReach;
+            WaterClass water = World.WaterAt(at.X, at.Z, out _);
+            if (water == WaterClass.Sea) return VerbOutcome.Salt;
+            if (!WorldLayers.IsFresh(water)) return VerbOutcome.NoWater;
+            session.Hydration.Drink(Hydration.MaxDrinkPerVisitL);
+            SendFounderState(session);
+            return VerbOutcome.Done;
         }
 
         private void HandleData(IConnection connection, byte[] data, int offset, int count)
@@ -381,6 +436,7 @@ namespace EarthGame.Server
                 session.LastMoveTick = World.Tick;
                 session.HasBody = true;
                 session.Hands.Restore(saved.Carried, saved.Hand);
+                session.Hydration.Restore(1.0 - saved.WaterLoss);
             }
             WelcomeMessage welcome;
             welcome.SessionId = session.SessionId;
@@ -453,6 +509,7 @@ namespace EarthGame.Server
                 // both are known too.
                 SendCarrying(joiner);
                 SendTaken(joiner);
+                SendFounderState(joiner);
                 SnapshotEndMessage end;
                 end.ServerTick = World.Tick;
                 _writer.Reset();
@@ -474,7 +531,7 @@ namespace EarthGame.Server
                 interval = Math.Min(bySequence, session.MoveCredit);
             }
             string reason = MovementValidator.Check(session.Body, session.HasBody, move.Body, interval, World.Terrain,
-                                                    World.Region.HalfExtentM, _config.Mover, _config.Movement, session.StoodUp);
+                                                    World.Region.HalfExtentM, _config.Mover, _config.Movement, session.StoodUp, session.CeilingCapacity);
             if (reason == null)
             {
                 session.MoveCredit = Math.Max(0.0, session.MoveCredit - interval);
@@ -584,6 +641,7 @@ namespace EarthGame.Server
             {
                 p.Carried = before.Carried;
                 p.Hand = before.Hand;
+                p.WaterLoss = before.WaterLoss;
             }
             _savedPlayers[name] = p;
             return p;
@@ -768,6 +826,9 @@ namespace EarthGame.Server
                     case Verb.Hold:
                         outcome = session.Hands.Hold(intent.Place);
                         break;
+                    case Verb.Drink:
+                        outcome = Drink(session, new Double3(intent.East, intent.Up, intent.North), eye);
+                        break;
                     default:
                         outcome = VerbOutcome.NotNow;
                         break;
@@ -779,7 +840,7 @@ namespace EarthGame.Server
             _writer.Reset();
             result.Write(_writer);
             session.Connection.Send(_writer.Written, Delivery.Reliable);
-            if (outcome == VerbOutcome.Done) SendCarrying(session);
+            if (outcome == VerbOutcome.Done && intent.Verb != Verb.Drink) SendCarrying(session);
         }
 
         /// <summary>Where a founder's eye is, as the server holds their body: a verb's reach is measured from here.</summary>
@@ -895,6 +956,10 @@ namespace EarthGame.Server
                 }
                 case DevSettings.ClockScale:
                     World.Clock.Scale = value;
+                    break;
+                case DevSettings.FounderWater:
+                    session.Hydration.Restore(value);
+                    SendFounderState(session);
                     break;
                 case DevSettings.SpawnStick:
                 case DevSettings.SpawnCobble:

@@ -67,7 +67,7 @@ namespace EarthGame.Client
         /// <summary>Whether a scenario is one of this recorder's, which write frames, rather than the runner's.</summary>
         public static bool IsKnown(string scenario) => scenario == Scenario || scenario == CarryScenario || scenario == LitterScenario
                                                        || scenario == WadeScenario || scenario == ControlsScenario || scenario == SwimScenario
-                                                       || scenario == TrunkScenario;
+                                                       || scenario == TrunkScenario || scenario == DrinkScenario;
         private static readonly (int Width, int Height, string Tag)[] Sizes = { (2560, 1440, "1440p"), (1920, 1080, "1080p") };
 
         private string _dir;
@@ -129,7 +129,8 @@ namespace EarthGame.Client
             _running = true;
             StartCoroutine(_scenario == CarryScenario ? RunCarry() : _scenario == LitterScenario ? RunLitter()
                 : _scenario == WadeScenario ? RunWade() : _scenario == SwimScenario ? RunSwim()
-                : _scenario == TrunkScenario ? RunTrunk() : _scenario == ControlsScenario ? RunControls() : Run());
+                : _scenario == TrunkScenario ? RunTrunk() : _scenario == ControlsScenario ? RunControls()
+                : _scenario == DrinkScenario ? RunDrink() : Run());
         }
 
         private double T => _clock.Elapsed.TotalSeconds;

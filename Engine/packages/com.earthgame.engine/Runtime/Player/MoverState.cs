@@ -138,9 +138,6 @@ namespace EarthGame.Engine
         public double WaterDragPerSecond = 4.0;
         /// <summary>How far under the float line a fall may carry a swimmer, m: less than the eye rides above it, so the eye never goes under.</summary>
         public double SwimSinkM = 0.08;
-        /// <summary>The body's work capacity fed to <see cref="Locomotion.SpeedMs"/>; physiology owns it later.</summary>
-        public double WorkCapacity = 1.0;
-
         public static readonly MoverConfig Default = new MoverConfig();
 
         public double EyeHeight(Stance stance) => stance == Stance.Crouching ? CrouchEyeHeight : StandingEyeHeight;
@@ -151,7 +148,13 @@ namespace EarthGame.Engine
         /// </summary>
         public double SwimDepth => StandingEyeHeight - SwimEyeAboveWaterM;
 
-        /// <summary>The fastest the mover can move horizontally on any ground: the validator's ceiling.</summary>
-        public double MaxHorizontalSpeed => Locomotion.SpeedMs(Locomotion.ToblerPeakSlope, Gait.Running, WorkCapacity);
+        /// <summary>
+        /// The fastest a body of a work capacity can move horizontally on any ground: the validator's ceiling. The capacity
+        /// is the body's, not the config's (FP.1): physiology owns it, and each founder has their own.
+        /// </summary>
+        public double MaxHorizontalSpeedAt(double workCapacity01) => Locomotion.SpeedMs(Locomotion.ToblerPeakSlope, Gait.Running, workCapacity01);
+
+        /// <summary>The fastest the mover can move horizontally on any ground at full capacity.</summary>
+        public double MaxHorizontalSpeed => MaxHorizontalSpeedAt(1.0);
     }
 }

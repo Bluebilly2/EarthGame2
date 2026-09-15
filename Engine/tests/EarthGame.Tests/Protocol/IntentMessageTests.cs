@@ -190,7 +190,8 @@ namespace EarthGame.Tests.Protocol
             w.Reset();
             w.WriteByte((byte)MessageKind.IntentResult);
             w.WriteUInt32(41);
-            w.WriteByte(7);
+            // Past the last outcome this build knows (8, NoWater, since FP.1): refused as unknown.
+            w.WriteByte(9);
             Assert.Throws<ProtocolException>(() => IntentResultMessage.Read(Reader(w)));
         }
 

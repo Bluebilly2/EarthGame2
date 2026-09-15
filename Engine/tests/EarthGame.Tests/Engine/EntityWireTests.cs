@@ -16,9 +16,9 @@ namespace EarthGame.Tests.Engine
         }
 
         [Test]
-        public void TheProtocolIsVersionTwelveAndItsKindsKeepTheirNumbers()
+        public void TheProtocolIsVersionThirteenAndItsKindsKeepTheirNumbers()
         {
-            Assert.That(ProtocolInfo.Version, Is.EqualTo((ushort)12), "4 carried the entities, 5 the layer on each tile message, 6 the verbs, 7 the taking of what lies, 8 the far forest's layers, 9 an animal's pose and the interest radius, 10 a developer's settings and the clock on the pong, 11 the clock's scale on the pong, 12 the fleeing pose");
+            Assert.That(ProtocolInfo.Version, Is.EqualTo((ushort)13), "4 carried the entities, 5 the layer on each tile message, 6 the verbs, 7 the taking of what lies, 8 the far forest's layers, 9 an animal's pose and the interest radius, 10 a developer's settings and the clock on the pong, 11 the clock's scale on the pong, 12 the fleeing pose, 13 the founder's water and the drink");
             Assert.That((byte)MessageKind.EntitySpawn, Is.EqualTo((byte)14));
             Assert.That((byte)MessageKind.EntityState, Is.EqualTo((byte)15));
             Assert.That((byte)MessageKind.EntityGone, Is.EqualTo((byte)16));

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using EarthGame.Engine;
 using EarthGame.Transport;
@@ -50,5 +51,16 @@ namespace EarthGame.Server
         public readonly Dictionary<ulong, long> Interest = new Dictionary<ulong, long>();
         /// <summary>What this founder carries and which place is the hand (M1.5a), taken over from the saved player at the join.</summary>
         public readonly Hands Hands = new Hands();
+        /// <summary>The water in this founder's body (FP.1), lost on the world's clock, restored from their save at the join.</summary>
+        public readonly Hydration Hydration = new Hydration();
+        /// <summary>The world tick the founder's state was last sent at: once a second, and at every change that matters.</summary>
+        public long FounderStateTick = long.MinValue;
+        /// <summary>
+        /// The work capacity this founder's client was last told, and the one before it. The validator's ceiling is the
+        /// greater (<see cref="CeilingCapacity"/>), so a client walking on the capacity it was told a moment ago is never
+        /// corrected for a number it has not yet received.
+        /// </summary>
+        public double ToldCapacity = 1.0, ToldCapacityBefore = 1.0;
+        public double CeilingCapacity => Math.Max(ToldCapacity, ToldCapacityBefore);
     }
 }

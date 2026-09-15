@@ -104,6 +104,9 @@ namespace EarthGame.ClientCore
         /// <summary>How many times faster than the game's rate the server's clock runs, as its newest Pong carried it; one until one arrives.</summary>
         public double LastClockScale { get; private set; } = 1.0;
 
+        /// <summary>The water in the founder's body as the server last told it (FP.1), 1 full; 1 before any word.</summary>
+        public double LastWater01 { get; private set; } = 1.0;
+
         /// <summary>How many ticks behind the estimated server tick a mirror is sampled, so a state is usually held either side.</summary>
         public int MirrorDelayTicks = 3;
 
@@ -147,6 +150,8 @@ namespace EarthGame.ClientCore
         public event Action<IntentResultMessage> IntentAnswered;
         /// <summary>What this founder carries changed, or was told at the join (M1.5a).</summary>
         public event Action<CarryingMessage> CarryingChanged;
+        /// <summary>The founder's state as the server tells it (FP.1): once a second, and at every change that matters.</summary>
+        public event Action<FounderStateMessage> FounderStateChanged;
         /// <summary>Something was taken from a cell of the loose layer, or the join told of it (M1.5b); the cell's takings as they now stand.</summary>
         public event Action<LooseTaken.Cell> LooseTakenChanged;
 
@@ -461,6 +466,14 @@ namespace EarthGame.ClientCore
                         reader.ExpectEnd();
                         Carrying = carrying;
                         CarryingChanged?.Invoke(carrying);
+                        break;
+                    }
+                    case MessageKind.FounderState:
+                    {
+                        FounderStateMessage founder = FounderStateMessage.Read(reader);
+                        reader.ExpectEnd();
+                        LastWater01 = founder.Water01;
+                        FounderStateChanged?.Invoke(founder);
                         break;
                     }
                     case MessageKind.LooseTaken:

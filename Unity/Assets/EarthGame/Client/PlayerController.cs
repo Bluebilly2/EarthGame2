@@ -30,6 +30,8 @@ namespace EarthGame.Client
         private IWorldCollision _collision;
         private GameClient _client;
         private MoverConfig _config;
+        /// <summary>What the founder's body can do, 0 to 1 (FP.1): the server's word, taken for the walk from the next step.</summary>
+        private double _workCapacity = 1.0;
         private Region _region;
         private Camera _camera;
         private Vector2 _move;
@@ -129,6 +131,12 @@ namespace EarthGame.Client
             taken.Crouch = _crouch;
             return taken;
         }
+
+        public double WorkCapacity => _workCapacity;
+
+        /// <summary>The body's work capacity as the server tells it (FP.1); anything outside 0..1 is clamped, NaN is full.</summary>
+        public void SetWorkCapacity(double capacity01) =>
+            _workCapacity = double.IsNaN(capacity01) ? 1.0 : System.Math.Min(1.0, System.Math.Max(0.0, capacity01));
 
         public void Attach(GameClient client, IWorldCollision collision, MoverConfig config, Region region, Camera camera,
                            IPlayerInputSource input, Double3 spawn, float yawDeg, float pitchDeg)
@@ -294,7 +302,7 @@ namespace EarthGame.Client
 
             // A flight with noclip off is stopped by what the walk is stopped by: the same collision, swept the same way (M1.D).
             State = Flying ? Flight.Step(State, _move.x, _move.y, _rise, _crouch, _sprint, YawDeg, PitchDeg, dt, Noclip ? null : _collision, _config)
-                           : Mover.Step(State, input, dt, _collision, _config);
+                           : Mover.Step(State, input, dt, _collision, _config, _workCapacity);
             if (_region != null)
             {
                 double edge = _region.HalfExtentM - EdgeMarginM;

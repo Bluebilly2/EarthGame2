@@ -22,6 +22,7 @@ namespace EarthGame.Client
         private Label _clock;
         private Label _verb;
         private Label _diagnostic;
+        private Label _condition;
         private VisualElement _carrying;
         private readonly Label[] _places = new Label[Hands.Places];
         private bool _carryingOpen;
@@ -62,6 +63,8 @@ namespace EarthGame.Client
             root.Add(crosshair);
 
             _clock = MakeLabel(root, 22, 18, 16);
+            // The word for the founder's state, under the clock (FP.1): nothing while there is nothing to say.
+            _condition = MakeLabel(root, 18, 18, 46);
             _verb = MakeLabel(root, 18, 0, 0);
             _verb.style.left = new Length(50, LengthUnit.Percent);
             _verb.style.top = new Length(56, LengthUnit.Percent);
@@ -130,6 +133,12 @@ namespace EarthGame.Client
         public void SetClock(string text)
         {
             if (_clock != null) _clock.text = text;
+        }
+
+        /// <summary>The word for the founder's state under the clock (FP.1), or nothing.</summary>
+        public void SetCondition(string text)
+        {
+            if (_condition != null) _condition.text = text ?? string.Empty;
         }
 
         public void SetVerb(string text)

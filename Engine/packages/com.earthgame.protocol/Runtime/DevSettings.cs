@@ -56,6 +56,8 @@ namespace EarthGame.Protocol
         public const string OystercatcherRunMs = "animals.oystercatcher.run_ms";
         /// <summary>A deed: the founder who asks is stood at the world's wake.</summary>
         public const string StandAtWake = "founder.stand_at_wake";
+        /// <summary>The water in the founder's body against normal, 1 full (FP.1): the founder who moves it, alone.</summary>
+        public const string FounderWater = "founder.water";
         /// <summary>A deed: a stick is set on the ground two metres ahead of the founder who asks.</summary>
         public const string SpawnStick = "spawn.stick";
         /// <summary>A deed: a cobble is set on the ground two metres ahead of the founder who asks.</summary>
@@ -64,6 +66,7 @@ namespace EarthGame.Protocol
         public static readonly IReadOnlyList<DevSetting> All = new[]
         {
             new DevSetting(StandAtWake, "Stand at the wake", 0.0, 0.0, 0.0, deed: true),
+            new DevSetting(FounderWater, "The founder's water, 1 full", 0.8, 1.0, 1.0),
             new DevSetting(ClockLocalHour, "Local hour", 0.0, 24.0, double.NaN),
             new DevSetting(ClockDayOfYear, "Day of the year", 1.0, 365.0, double.NaN),
             new DevSetting(ClockScale, "Clock runs at, times the game's rate", 0.0, 60.0, 1.0),

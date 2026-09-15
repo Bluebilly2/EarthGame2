@@ -160,17 +160,17 @@ namespace EarthGame.Server
     }
 
     /// <summary>
-    /// A player's resting place, format <c>eg2.player</c> version 3 (binary; version 2 is still read, and version 1,
-    /// JSON, too): the magic <c>EG2P</c>, u16 version, the name as a u16 UTF-8 byte length and the bytes, f64 east, up
+    /// A player's resting place, format <c>eg2.player</c> version 4 (binary; versions 2 and 3 are still read, and version
+    /// 1, JSON, too): the magic <c>EG2P</c>, u16 version, the name as a u16 UTF-8 byte length and the bytes, f64 east, up
     /// and north, f32 yaw, f32 pitch, u8 flags (1 grounded, 2 wading, 4 crouching, as <see cref="BodyWire"/> packs
     /// them), i64 saved tick; since version 3 (M1.5a) the hand's place as a u8, and what is carried as a u8 count and,
-    /// per thing, u8 place, u64 id, the key as a u16 UTF-8 byte length and the bytes, and i64 spawn tick; then u32
-    /// CRC-32 of everything before it. Version 1 dropped wading and stance, which the round trip's digest needs;
-    /// version 2 had no hands.
+    /// per thing, u8 place, u64 id, the key as a u16 UTF-8 byte length and the bytes, and i64 spawn tick; since version 4
+    /// (FP.1) f64 the fraction of body water lost; then u32 CRC-32 of everything before it. Version 1 dropped wading and
+    /// stance, which the round trip's digest needs; version 2 had no hands; version 3 no water.
     /// </summary>
     public static class PlayerFile
     {
-        public const ushort Version = 3;
+        public const ushort Version = 4;
         public const string Extension = ".egp";
         private static readonly byte[] Magic = { (byte)'E', (byte)'G', (byte)'2', (byte)'P' };
 
@@ -198,6 +198,7 @@ namespace EarthGame.Server
                 w.WriteString(t.Definition.Key);
                 w.WriteInt64(t.SpawnTick);
             }
+            w.WriteDouble(p.WaterLoss);
             byte[] body = w.Written.ToArray();
             byte[] file = new byte[body.Length + 4];
             Buffer.BlockCopy(body, 0, file, 0, body.Length);
@@ -220,7 +221,7 @@ namespace EarthGame.Server
             if (stated != actual) throw new InvalidDataException("player file CRC " + actual.ToString("x8") + " differs from the stated " + stated.ToString("x8"));
             PacketReader r = new PacketReader(bytes, 4, bodyLength - 4);
             ushort version = r.ReadUInt16();
-            if (version != Version && version != 2) throw new InvalidDataException("player file version " + version + "; this build reads 2 and " + Version);
+            if (version != Version && version != 3 && version != 2) throw new InvalidDataException("player file version " + version + "; this build reads 2, 3 and " + Version);
             SavedPlayer p = default;
             p.Name = r.ReadString();
             p.Body = MoverState.AtRest(r.ReadDouble(), r.ReadDouble(), r.ReadDouble());
@@ -249,6 +250,12 @@ namespace EarthGame.Server
                         throw new InvalidDataException("player " + p.Name + " carries a '" + key + "', which this build does not know");
                     p.Carried[i] = new CarriedThing { Id = id, Definition = definition, SpawnTick = spawnTick, Place = place };
                 }
+            }
+            if (version >= 4)
+            {
+                p.WaterLoss = r.ReadDouble();
+                if (!(p.WaterLoss >= 0.0 && p.WaterLoss <= 1.0))
+                    throw new InvalidDataException("player " + p.Name + " has lost " + p.WaterLoss + " of their water, which is no fraction");
             }
             r.ExpectEnd();
             return p;

@@ -248,7 +248,9 @@ namespace EarthGame.Tests.Server
                 new CarriedThing { Id = 3, Definition = DefinitionCatalogue.Cobble, SpawnTick = 50, Place = 1 },
                 new CarriedThing { Id = 11, Definition = DefinitionCatalogue.Stick, SpawnTick = 60, Place = 4 },
             };
+            p.WaterLoss = 0.0625;
             SavedPlayer back = PlayerFile.Decode(PlayerFile.Encode(p));
+            Assert.That(back.WaterLoss, Is.EqualTo(0.0625), "the water lost rides in the file since version 4 (FP.1)");
             Assert.That(back.Hand, Is.EqualTo((byte)4));
             Assert.That(back.Carried.Length, Is.EqualTo(2));
             Assert.That(back.Carried[1].Id, Is.EqualTo(11UL));

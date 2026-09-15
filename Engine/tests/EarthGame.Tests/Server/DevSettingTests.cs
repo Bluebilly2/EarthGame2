@@ -95,6 +95,21 @@ namespace EarthGame.Tests.Server
         }
 
         [Test]
+        public void TheFoundersWaterIsMovedByItsRowForTheOneWhoMovesItAndHeldToItsLeast()
+        {
+            Rig rig = Connect(true);
+            rig.World.Clock.Scale = 0.0;
+            Assert.That(rig.Session.Hydration.Water01, Is.EqualTo(1.0));
+            rig.Client.SendDevSetting(DevSettings.FounderWater, 0.9);
+            rig.Pump(2);
+            Assert.That(rig.Session.Hydration.Water01, Is.EqualTo(0.9));
+            Assert.That(rig.Client.LastWater01, Is.EqualTo(0.9), "told at once");
+            rig.Client.SendDevSetting(DevSettings.FounderWater, 0.2);
+            rig.Pump(2);
+            Assert.That(rig.Session.Hydration.Water01, Is.EqualTo(0.8), "held to the row's least, a fifth lost being past collapse");
+        }
+
+        [Test]
         public void TheLocalHourIsSetOnTheSameDayAndThePongCarriesTheClock()
         {
             Rig rig = Connect(true);

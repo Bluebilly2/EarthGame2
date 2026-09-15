@@ -94,6 +94,13 @@ namespace EarthGame.Engine
             TotalHours += realSeconds * Scale * (24.0 / RealSecondsPerDay);
         }
 
+        /// <summary>
+        /// The world's days that <paramref name="realSeconds"/> come to at the game's rate times <see cref="Scale"/>: a
+        /// founder's body runs on this clock (FP.1), so a held clock holds the body and a sped one dries it faster.
+        /// </summary>
+        public double DaysFor(double realSeconds) =>
+            realSeconds <= 0.0 || Scale <= 0.0 ? 0.0 : realSeconds * Scale / RealSecondsPerDay;
+
         /// <summary>Moves the clock to an absolute instant. For the dev tools, not for the game.</summary>
         public void SetTotalHours(double totalHours) => TotalHours = totalHours;
 

@@ -176,6 +176,7 @@ namespace EarthGame.Client
             _client.TileDropped += OnTileDropped;
             _client.PlayerLeft += OnPlayerLeft;
             _client.LooseTakenChanged += OnLooseTaken;
+            _client.FounderStateChanged += OnFounderState;
             Interactive = false;
             if (_player != null) _player.Frozen = true;
             Joins++;
@@ -197,6 +198,13 @@ namespace EarthGame.Client
         }
 
         /// <summary>A fresh transport and client over the same view; the tiles held on disk answer the join.</summary>
+        /// <summary>The founder's body as the server tells it (FP.1): the word under the clock, and the walk's capacity.</summary>
+        private void OnFounderState(FounderStateMessage founder)
+        {
+            _hud?.SetCondition(Hydration.WordFor(Hydration.LevelOf(founder.Water01)));
+            _player?.SetWorkCapacity(Hydration.CapacityOf(founder.Water01));
+        }
+
         public void Reconnect()
         {
             if (_client != null)
@@ -208,6 +216,7 @@ namespace EarthGame.Client
                 _client.TileDropped -= OnTileDropped;
                 _client.PlayerLeft -= OnPlayerLeft;
                 _client.LooseTakenChanged -= OnLooseTaken;
+                _client.FounderStateChanged -= OnFounderState;
             }
             _transport?.Dispose();
             Connect();
@@ -874,7 +883,7 @@ namespace EarthGame.Client
 
             // The verbs (M1.5a): what the crosshair is on, the verb line, the carrying window and the thing in hand.
             if (_stand != null) _hand = new HandView(_camera, _stand.LooseMaterial);
-            _verbs = new VerbController(_client, _entityViews, _player, _camera, _hud, _hand);
+            _verbs = new VerbController(_client, _entityViews, _player, _camera, _hud, _hand, _ground, _ground != null ? new StreamedWater(_ground, _depth) : null);
             // The developer's panel (M1.D): in a development game alone, on an object of its own, since an object holds one
             // UIDocument and the HUD's is on this one.
             if (_player.FlightAllowed)

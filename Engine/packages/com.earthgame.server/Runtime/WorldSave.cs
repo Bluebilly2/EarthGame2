@@ -19,6 +19,8 @@ namespace EarthGame.Server
         public CarriedThing[] Carried;
         /// <summary>The place that was their hand; 0 for none.</summary>
         public byte Hand;
+        /// <summary>The fraction of body water lost when saved (FP.1): 0 for a full body, which is what a file from before it says.</summary>
+        public double WaterLoss;
     }
 
     /// <summary>A cell's takings from the loose layer as a region file recorded them (M1.5b), with the 512 m cell of the file that held them.</summary>

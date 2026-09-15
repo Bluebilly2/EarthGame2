@@ -166,6 +166,58 @@ namespace EarthGame.Engine
             return Terrain.HeightAt(east, north);
         }
 
+        /// <summary>Water shallower than this stands nowhere a founder would call water, m: the one threshold for the server and the client's aim.</summary>
+        public const double StandingWaterM = 0.02;
+
+        private Heightfield _surface;
+
+        /// <summary>
+        /// The water standing at a point as the world's own layers have it (FP.1): its depth, the surface read between
+        /// posts as the client reads the depth it is streamed, so the two agree where water stands; and its class, the
+        /// nearest post's when that post is water, else the nearest water post at the corners of the point's cell, which
+        /// is where the water between posts comes from. The first drink run's founder looked at a creek's edge and was
+        /// told there was nothing there, the nearest post being dry. Dry where the surface stands no higher than the
+        /// ground, beyond the frame, and on a world made without water.
+        /// </summary>
+        public WaterClass WaterAt(double east, double north, out double depthM)
+        {
+            depthM = 0.0;
+            RegionRaster classes = Water?.Classes;
+            if (classes == null || Water.Surface == null) return WaterClass.Dry;
+            if (_surface == null) _surface = new Heightfield(Water.Surface);
+            if (!_surface.Contains(east, north)) return WaterClass.Dry;
+            double depth = _surface.HeightAt(east, north) - GroundAt(east, north);
+            if (depth <= StandingWaterM) return WaterClass.Dry;
+            depthM = depth;
+            double half = classes.ExtentM * 0.5;
+            double fc = (east + half) / classes.CellM, fr = (half - north) / classes.CellM;
+            WaterClass nearest = ClassAtPost(classes, (int)Math.Round(fr), (int)Math.Round(fc));
+            if (IsWater(nearest)) return nearest;
+            WaterClass best = WaterClass.Dry;
+            double bestD = double.PositiveInfinity;
+            int r0 = (int)Math.Floor(fr), c0 = (int)Math.Floor(fc);
+            for (int r = r0; r <= r0 + 1; r++)
+                for (int c = c0; c <= c0 + 1; c++)
+                {
+                    WaterClass wc = ClassAtPost(classes, r, c);
+                    if (!IsWater(wc)) continue;
+                    double d = (r - fr) * (r - fr) + (c - fc) * (c - fc);
+                    if (d < bestD)
+                    {
+                        bestD = d;
+                        best = wc;
+                    }
+                }
+            return best;
+        }
+
+        /// <summary>Open water a founder could stand in or drink from, as against damp ground, a trickle under the leaves or a swamp.</summary>
+        public static bool IsWater(WaterClass wc) =>
+            wc == WaterClass.Creek || wc == WaterClass.Stream || wc == WaterClass.Lake || wc == WaterClass.Sea;
+
+        private static WaterClass ClassAtPost(RegionRaster classes, int row, int col) =>
+            row < 0 || col < 0 || row >= classes.Height || col >= classes.Width ? WaterClass.Dry : (WaterClass)classes.Code(row, col);
+
         /// <summary>
         /// Drops an item at a point: on the ground when no height is given or the height is below it, else in the
         /// air from that height, falling from the next step. The server's console, and M1.5's verbs, come here.

@@ -25,7 +25,7 @@ namespace EarthGame.Engine
         /// <summary>How close to the ground airborne feet must be to count as resting on it, metres.</summary>
         private const double LandingTolerance = 0.02;
 
-        public static MoverState Step(MoverState s, MoverInput input, double dt, IWorldCollision world, MoverConfig cfg = null)
+        public static MoverState Step(MoverState s, MoverInput input, double dt, IWorldCollision world, MoverConfig cfg = null, double workCapacity01 = 1.0)
         {
             if (world == null) throw new ArgumentNullException(nameof(world));
             cfg = cfg ?? MoverConfig.Default;
@@ -85,7 +85,7 @@ namespace EarthGame.Engine
                 // Swum at the breaststroke's pace, or the crawl's when pushed, with the water turning the body's own rise
                 // or fall towards the float line; there is no jumping out of the water.
                 s.Grounded = false;
-                double swimSpeed = Locomotion.SwimmingSpeedMs(input.Sprint, cfg.WorkCapacity);
+                double swimSpeed = Locomotion.SwimmingSpeedMs(input.Sprint, workCapacity01);
                 double toward = (floatLine - feet.Y) * cfg.BuoyancyPerSecond;
                 double velUp = vel.Y + (toward - vel.Y) * Math.Min(1.0, cfg.WaterDragPerSecond * dt);
                 vel = new Double3(input.WishEast * swimSpeed, velUp, input.WishNorth * swimSpeed);
@@ -100,7 +100,7 @@ namespace EarthGame.Engine
                     double slopeAlong = 0.0;
                     if (wishLen > Epsilon)
                         slopeAlong = -(groundNormal.X * input.WishEast + groundNormal.Z * input.WishNorth) / (groundNormal.Y * wishLen);
-                    double speed = Locomotion.SpeedMs(slopeAlong, gait, cfg.WorkCapacity);
+                    double speed = Locomotion.SpeedMs(slopeAlong, gait, workCapacity01);
                     if (s.Stance == Stance.Crouching) speed *= cfg.CrouchSpeedFactor;
                     if (s.Wading) speed *= deep ? cfg.DeepWadeSpeedFactor : cfg.WadeSpeedFactor;
                     vel = new Double3(input.WishEast * speed, 0.0, input.WishNorth * speed);
@@ -122,7 +122,7 @@ namespace EarthGame.Engine
                     {
                         // In the air the wish only eases the horizontal velocity; on ground too steep to stand on there
                         // is no control at all: that is a slide, and gravity decides it.
-                        double airSpeed = Locomotion.SpeedMs(0.0, gait, cfg.WorkCapacity);
+                        double airSpeed = Locomotion.SpeedMs(0.0, gait, workCapacity01);
                         double k = Math.Min(1.0, cfg.AirControl * dt);
                         vel = new Double3(vel.X + (input.WishEast * airSpeed - vel.X) * k, vel.Y, vel.Z + (input.WishNorth * airSpeed - vel.Z) * k);
                     }
