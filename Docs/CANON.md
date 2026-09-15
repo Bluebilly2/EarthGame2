@@ -190,3 +190,11 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     Also, the text isn't very readable, make it coloured white." Time is controlled from the panel; the environment
     and the spawning of animals are shown as what is not yet built; every setting resets, singly and all at once; and
     the panel's text is white.
+
+### Rulings of 2026-09-15
+
+31. **The survival story comes first.** Asked, after the review of 2026-09-13 found no survival beat playable,
+    whether to turn to the survival story now (thirst, water, the first stone, fire, shelter, a bed: the Founder's
+    Path's first two acts) or to keep the order the agents had been working in (the animals' looks, then hunting):
+    "a survival story." The work turns to the Founder's Path from here, beat by beat; the animals' looks (ruling 29)
+    and hunting wait behind it.
