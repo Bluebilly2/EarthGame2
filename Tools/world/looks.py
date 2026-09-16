@@ -10,7 +10,7 @@ the frames, run.jsonl, the tile cache and the logs under Artefacts/frames/looks-
 Claude's tool: it runs the player and reports; whether a kangaroo reads as a kangaroo is the owner's to judge.
 
 Usage, from the repository root:
-    python Tools/world/looks.py [--build] [--player Build/Player-Looks/EarthGame2.exe] [--world Artefacts/worlds/gate]
+    python Tools/world/looks.py [--build] [--player Build/Harness/EarthGame2.exe] [--world Artefacts/worlds/gate]
 
 Exit 0 when the player exits 0 (both animals arrived, every frame was written, the fleeing pose took, and nothing was
 logged as an error); 1 otherwise.
@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from wade import HOSTS, UNITY, run  # noqa: E402  (one owner of the runner)
 
 ROOT = Path(__file__).resolve().parents[2]
-PLAYER = ROOT / "Build/Player-Looks/EarthGame2.exe"
+PLAYER = ROOT / "Build/Harness/EarthGame2.exe"
 
 
 def main():
@@ -41,11 +41,10 @@ def main():
     directory.mkdir(parents=True)
 
     if args.build:
-        code = run([UNITY, "-batchmode", "-nographics", "-projectPath", ROOT / "Unity", "-quit",
-                    "-executeMethod", "EarthGame.Editor.CIBuild.BuildWindows", "-buildOut", player.parent,
-                    "-logFile", directory / "build.log"], 900)
+        # The build lands through the one install tool (M1.Bb): staged, versioned, never over a running player.
+        code = run([sys.executable, ROOT / "Tools/build/install.py", "--into", "harness", "--label", "looks"], 1200)
         if code != 0:
-            raise RuntimeError("Unity build exit %d: %s" % (code, directory / "build.log"))
+            raise RuntimeError("install exit %d" % code)
     if not player.is_file():
         raise RuntimeError("no player at %s; run with --build" % player)
     if not (world / "world.json").is_file():

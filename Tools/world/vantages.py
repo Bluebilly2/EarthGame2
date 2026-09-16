@@ -13,7 +13,7 @@ region's edge, which from the ground inside the forest the trees hide.
 Claude's tool: it runs the player and reports what the run reported. The frames are the owner's to judge.
 
 Usage, from the repository root:
-    python Tools/world/vantages.py [--build] [--player Build/Player-Vantages/EarthGame2.exe]
+    python Tools/world/vantages.py [--build] [--player Build/Harness/EarthGame2.exe]
                                    [--world Artefacts/worlds/gate] [--hold 20] [--hide understorey] [--lookout 150]
                                    [--only wake,shore,windermere,new-wake] [--out Artefacts/frames/vantages-<stamp>]
 Exit 0 when every vantage's player exited 0; 1 otherwise.
@@ -31,7 +31,7 @@ EDITOR_VERSION = next(line.split(":", 1)[1].strip()
                       for line in (ROOT / "Unity/ProjectSettings/ProjectVersion.txt").read_text().splitlines()
                       if line.startswith("m_EditorVersion:"))
 UNITY = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Unity/Hub/Editor" / EDITOR_VERSION / "Editor/Unity.exe"
-PLAYER = ROOT / "Build/Player-Vantages/EarthGame2.exe"
+PLAYER = ROOT / "Build/Harness/EarthGame2.exe"
 HOSTS = [ROOT / "Engine/.build/bin/EarthGame.ServerHost/Release/net10.0/EarthGame.ServerHost.dll",
          ROOT / "Engine/.build/bin/EarthGame.ServerHost/Debug/net10.0/EarthGame.ServerHost.dll"]
 
@@ -81,11 +81,10 @@ def main():
     directory.mkdir(parents=True, exist_ok=True)
 
     if args.build:
-        code = run([UNITY, "-batchmode", "-nographics", "-projectPath", ROOT / "Unity", "-quit",
-                    "-executeMethod", "EarthGame.Editor.CIBuild.BuildWindows", "-buildOut", player.parent,
-                    "-logFile", directory / "build.log"], 900)
+        # The build lands through the one install tool (M1.Bb): staged, versioned, never over a running player.
+        code = run([sys.executable, ROOT / "Tools/build/install.py", "--into", "harness", "--label", "vantages"], 1200)
         if code != 0:
-            raise RuntimeError("Unity build exit %d: %s" % (code, directory / "build.log"))
+            raise RuntimeError("install exit %d" % code)
     if not player.is_file():
         raise RuntimeError("no player at %s; run with --build" % player)
     if not (world / "world.json").is_file():

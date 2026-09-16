@@ -44,8 +44,9 @@ program, and since 2026-09-08 the agent writes everything, checks included (ruli
   frames, once there is enough on screen to judge (he declined to judge the ground's colour on a bare plane).
   **What is not:** the code and the checks (ruling 17), and whether the world matches the real peninsula
   (ruling 21) — he does not know the place well, so that is researched from published sources.
-- He often has his built game open: never close it, never open a window on his screen (STANDARDS 14), and build
-  elsewhere with `-buildOut Build/Player-<slice>`.
+- He often has his built game open: never close it, never open a window on his screen (STANDARDS 14). His game is
+  `Build/Player` and the runs' is `Build/Harness`; `Tools/build/install.py --into player` refuses to replace his while
+  it runs, so a build for him waits until he has closed it.
 - When he says "continue", carry on with the work in flight by the plan; state anything pending on him rather
   than assuming it. Finish the job he asked for before proposing the next one, and propose it rather than start
   it.
@@ -106,8 +107,15 @@ other's way:
   before one starts: neither the owner's editor nor the other agent's run.
 - **A running `EarthGame2.exe` may be the other's timing run.** Frame costs are measured with the machine quiet;
   builds, world creation and suites beside one make its numbers lie, so they wait until it ends.
-- **Output under a name of one's own:** fresh folders under `Artefacts/`, players built into a fresh
-  `Build/Player-<name>`, and no deletes in an automated run.
+- **Output under a name of one's own:** fresh folders under `Artefacts/`, and no deletes in an automated run. Players
+  are not output under a name of one's own: they go through `Tools/build/install.py` into `Build/Harness` (the runs')
+  or `Build/Player` (the owner's), replaced in place and told apart by their `version.json` and the log's first line.
+  Every new folder an exe runs from is a permission prompt in the harness and, if it opens a socket, a firewall box on
+  the owner's screen; by 2026-09-16 there were forty-one such folders (M1.Bb).
+- **The suite binds no socket on every address.** M1.Ba's two contrast tests did, to read the system's table, and
+  every new path the suite ran from (a temporary checkout, a scratch harness) was a firewall box on the owner's
+  screen: three in ten minutes on 2026-09-16. The transport's choice of address is read (`BindAddressFor`,
+  `BindsLocalOnlyFor`), never exercised, and every socket is closed unless opened.
 - **Main can move under you.** It lives in one checkout, and either agent may merge into it and push at any time:
   `git log --oneline -5` before building on main shows what the other has landed, to be reviewed first, and
   `git log origin/main..main` before a push names every commit that push carries. On 2026-09-13 Codex merged and
@@ -142,8 +150,10 @@ other's way:
   from one batch import.
 - Unity batch runs need the owner's editor closed (`tasklist | findstr Unity`). Edit-mode tests:
   `"C:/Program Files/Unity/Hub/Editor/6000.3.22f1/Editor/Unity.exe" -batchmode -nographics -projectPath Unity
-  -runTests -testPlatform EditMode -testResults <xml> -logFile <log>`. A player build:
-  `-executeMethod EarthGame.Editor.CIBuild.BuildWindows -buildOut Build/Player-<slice> -quit`. About three minutes.
+  -runTests -testPlatform EditMode -testResults <xml> -logFile <log>`. A player build: `python
+  Tools/build/install.py --into harness --label <slice>` (Unity into `Build/.staging`, then installed with its
+  `version.json`; `--into player` for the owner's copy, refused while it runs; `--show` names what is installed
+  where). About three minutes.
 - Frames: the built exe with `-batchmode -eg-record <dir> -eg-saves <fresh> -eg-tiles <fresh>` and no
   `-nographics`, or nothing renders; it writes `frames/*_1440p.png`, `*_1080p.png` and `run.jsonl`. The host's
   `stand <name> <east> <north>` then `save` puts the founder where the thing being judged is. `-eg-items N` drops

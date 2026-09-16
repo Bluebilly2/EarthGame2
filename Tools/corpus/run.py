@@ -41,7 +41,7 @@ import threading
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLAYER_EXE = os.path.join(ROOT, "Build", "Player", "EarthGame2.exe")
+PLAYER_EXE = os.path.join(ROOT, "Build", "Harness", "EarthGame2.exe")
 SERVER_DLL_RELEASE = os.path.join(ROOT, "Engine", ".build", "bin", "EarthGame.ServerHost", "Release", "net10.0", "EarthGame.ServerHost.dll")
 SERVER_DLL_DEBUG = os.path.join(ROOT, "Engine", ".build", "bin", "EarthGame.ServerHost", "Debug", "net10.0", "EarthGame.ServerHost.dll")
 BASE_PORT = 28115
@@ -325,7 +325,7 @@ def main(argv):
     parser.add_argument("--quick", action="store_true", help="short durations and two rejoin cycles: a smoke run, never the numbers")
     parser.add_argument("--out", default=None, help="output folder (default Artefacts/corpus/<stamp>)")
     parser.add_argument("--port", type=int, default=BASE_PORT)
-    parser.add_argument("--player", default=PLAYER_EXE, help="the built player (default Build/Player/EarthGame2.exe)")
+    parser.add_argument("--player", default=PLAYER_EXE, help="the built player (default Build/Harness/EarthGame2.exe, the runs' copy installed by Tools/build/install.py)")
     args = parser.parse_args(argv[1:])
 
     PLAYER_EXE = os.path.abspath(args.player)

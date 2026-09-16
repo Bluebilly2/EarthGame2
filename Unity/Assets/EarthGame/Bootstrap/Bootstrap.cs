@@ -87,6 +87,8 @@ namespace EarthGame.Bootstrap
             Application.runInBackground = true;
             if (Application.isBatchMode) AudioListener.volume = 0f;
             ReadCommandLine();
+            // The first line of every log names the build (M1.Bb): the game lives in one folder, replaced in place.
+            Debug.Log("[bootstrap] build " + BuildInfo.Describe());
             bool fromCommandLine = LaunchArgs.Has("mode") || LaunchArgs.Has("record");
 #if UNITY_SERVER
             _mode = LaunchMode.Dedicated;

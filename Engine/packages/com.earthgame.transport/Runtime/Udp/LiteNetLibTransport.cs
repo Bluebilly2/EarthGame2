@@ -39,11 +39,12 @@ namespace EarthGame.Transport
         /// off the machine can reach the socket and Windows' firewall has nothing to ask about: a socket bound to
         /// every address raises its "Security Alert" once for each new program path, and by 2026-09-14 the owner
         /// had answered it for eight test builds and the test suite twice, each corpus run's players joining
-        /// 127.0.0.1 from a fresh build folder. The harness's hosts run with it (<c>+server.local 1</c>,
-        /// <c>-eg-local</c>); a joining client takes it by itself when the address it joins is loopback; a game
-        /// hosted for friends binds every address, and asks once.
+        /// 127.0.0.1 from a fresh build folder. Closed unless opened, since M1.Bb (2026-09-16): true by default, so no
+        /// test, tool or forgotten flag opens a socket to the world; the host's <c>+server.local 0</c> and a game hosted
+        /// for friends (<c>-eg-mode host</c> without <c>-eg-local</c>) open one, and the firewall asks once for that; a
+        /// joining client takes loopback by itself when the address it joins is loopback.
         /// </summary>
-        public bool LocalOnly = false;
+        public bool LocalOnly = true;
     }
 
     public sealed class UdpConnection : IConnection
@@ -171,14 +172,21 @@ namespace EarthGame.Transport
         public bool BoundLocalOnly { get; private set; }
 
         /// <summary>
-        /// Binds the socket: the loopback address alone when this end is for this machine, else every address, which
-        /// is LiteNetLib's own Start(port) and the firewall's question.
+        /// The IPv4 address an end binds: the loopback address for this machine alone, else every address, which is
+        /// LiteNetLib's own Start(port) and the firewall's question. One owner with <see cref="Start"/>, so a test reads
+        /// the choice without making it (M1.Bb): a socket bound on every address is a box on the owner's screen once for
+        /// every path the suite runs from.
         /// </summary>
+        public static IPAddress BindAddressFor(bool localOnly) => localOnly ? IPAddress.Loopback : IPAddress.Any;
+
+        /// <summary>The IPv6 address an end binds, by the same rule.</summary>
+        public static IPAddress BindAddress6For(bool localOnly) => localOnly ? IPAddress.IPv6Loopback : IPAddress.IPv6Any;
+
+        /// <summary>Binds the socket at the addresses the rule above chooses.</summary>
         protected bool Start(bool localOnly, int port)
         {
             BoundLocalOnly = localOnly;
-            return Manager.Start(localOnly ? IPAddress.Loopback : IPAddress.Any,
-                                 localOnly ? IPAddress.IPv6Loopback : IPAddress.IPv6Any, port);
+            return Manager.Start(BindAddressFor(localOnly), BindAddress6For(localOnly), port);
         }
 
         /// <summary>The addresses that name this machine: 127.0.0.0/8, ::1 and "localhost".</summary>
@@ -296,10 +304,15 @@ namespace EarthGame.Transport
 
         public IConnection Connection => _connection;
 
+        /// <summary>
+        /// Whether joining an address binds this machine's loopback address alone: when told to, or when the address is
+        /// this machine's (the harness's players, and a hosted game's own client). One owner with <see cref="Connect"/>.
+        /// </summary>
+        public bool BindsLocalOnlyFor(string address) => Options.LocalOnly || IsLoopback(address);
+
         public void Connect(string address, int port)
         {
-            // A client joining this machine binds to it alone: the harness's players, and a hosted game's own client.
-            if (!Manager.IsRunning && !Start(Options.LocalOnly || IsLoopback(address), 0))
+            if (!Manager.IsRunning && !Start(BindsLocalOnlyFor(address), 0))
                 throw new InvalidOperationException("could not open a UDP socket");
             NetPeer peer = Manager.Connect(address, port, Options.ConnectionKey);
             if (peer == null) throw new InvalidOperationException("connect refused locally for " + address + ":" + port);

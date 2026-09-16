@@ -23,8 +23,9 @@ namespace EarthGame.ServerHost
     ///   +server.world Saves/world-1347  (the world folder: created with its layers, wake and census when absent, continued
     ///   when present, saved at stop)
     ///   +server.dev 1  (a development server: a founder may fly, M1.5e, and a developer's settings are taken, M1.D)
-    ///   +server.local 1  (a socket for this machine alone, the harness's; nothing off the machine can join and the
-    ///   firewall has nothing to ask, M1.Ba)
+    ///   +server.local 0  (a socket on every address, for players off this machine, which the firewall asks about once;
+    ///   the default is 1, this machine alone, the harness's: nothing off the machine can join and the firewall has
+    ///   nothing to ask, M1.Ba and M1.Bb)
     ///   +server.bridge 0  (the beta arc's bridge down: the cold can kill; on by default, FP.2 and CANON ruling 33)
     /// Console commands: status, pause, resume, digest, stop.
     ///
@@ -83,7 +84,7 @@ namespace EarthGame.ServerHost
                 SimulatedMaxLatencyMs = latency + jitter,
                 SimulatedPacketLossPercent = loss,
                 SendCapBytesPerSecond = sendCap,
-                LocalOnly = Int(a, "server.local", 0) != 0,
+                LocalOnly = Int(a, "server.local", 1) != 0,
             };
             int stopAfter = Int(a, "server.seconds", 0);
 

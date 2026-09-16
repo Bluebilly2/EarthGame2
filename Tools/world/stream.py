@@ -28,7 +28,7 @@ EDITOR_VERSION = next(line.split(":", 1)[1].strip()
                       for line in (ROOT / "Unity/ProjectSettings/ProjectVersion.txt").read_text().splitlines()
                       if line.startswith("m_EditorVersion:"))
 UNITY = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Unity/Hub/Editor" / EDITOR_VERSION / "Editor/Unity.exe"
-PLAYER = ROOT / "Build/Player-Streaming/EarthGame2.exe"
+PLAYER = ROOT / "Build/Harness/EarthGame2.exe"
 PORT = 28297
 # CANON ruling 11's first condition, one way on each end's socket.
 LATENCY_MS, JITTER_MS, LOSS_PERCENT, CAP_BYTES = 50, 10, 2, 1250000
@@ -60,11 +60,10 @@ def main():
                        cwd=ROOT, stdout=open(directory / "host-build.log", "w"), stderr=subprocess.STDOUT) != 0:
         raise RuntimeError("the host would not build: %s" % (directory / "host-build.log"))
     if args.build:
-        code = run([UNITY, "-batchmode", "-nographics", "-projectPath", ROOT / "Unity", "-quit",
-                    "-executeMethod", "EarthGame.Editor.CIBuild.BuildWindows", "-buildOut", PLAYER.parent,
-                    "-logFile", directory / "build.log"], 900)
+        # The build lands through the one install tool (M1.Bb): staged, versioned, never over a running player.
+        code = run([sys.executable, ROOT / "Tools/build/install.py", "--into", "harness", "--label", "stream"], 1200)
         if code != 0:
-            raise RuntimeError("Unity build exit %d: %s" % (code, directory / "build.log"))
+            raise RuntimeError("install exit %d" % code)
     if not PLAYER.is_file():
         raise RuntimeError("no player at %s; run with --build" % PLAYER)
     if not (ROOT / args.world / "world.json").is_file():

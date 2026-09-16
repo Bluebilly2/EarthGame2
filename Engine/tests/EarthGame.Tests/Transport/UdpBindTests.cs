@@ -41,22 +41,28 @@ namespace EarthGame.Tests.Transport
             }
         }
 
+        /// <summary>
+        /// A server left open for friends would bind every address, read from the transport's choice and not from a
+        /// socket: a socket bound on every address is the firewall's box on the owner's screen once for every path the
+        /// suite runs from, and on 2026-09-16 the suite ran from three new paths in ten minutes and raised three (M1.Bb).
+        /// Until then this test bound one to read the system's table. The default is closed.
+        /// </summary>
         [Test]
-        public void AServerLeftOpenForFriendsIsOnEveryAddress()
+        public void AServerLeftOpenForFriendsWouldBindEveryAddressAndTheDefaultIsClosed()
         {
-            using (UdpServerTransport st = new UdpServerTransport())
-            {
-                st.Listen(0);
-                Assert.That(st.BoundLocalOnly, Is.False);
-                Assert.That(BoundOn(st.Port), Does.Contain(IPAddress.Any), "bound on " + string.Join(", ", BoundOn(st.Port)));
-            }
+            Assert.That(new UdpOptions().LocalOnly, Is.True, "closed unless opened");
+            Assert.That(UdpTransportBase.BindAddressFor(false), Is.EqualTo(IPAddress.Any));
+            Assert.That(UdpTransportBase.BindAddress6For(false), Is.EqualTo(IPAddress.IPv6Any));
+            Assert.That(UdpTransportBase.BindAddressFor(true), Is.EqualTo(IPAddress.Loopback));
+            Assert.That(UdpTransportBase.BindAddress6For(true), Is.EqualTo(IPAddress.IPv6Loopback));
         }
 
         [TestCase("127.0.0.1")]
         [TestCase("localhost")]
         public void AClientJoiningThisMachineIsOnItsAddressAlone(string address)
         {
-            using (UdpClientTransport ct = new UdpClientTransport())
+            // Told nothing about locality: the address it joins decides.
+            using (UdpClientTransport ct = new UdpClientTransport(new UdpOptions { LocalOnly = false }))
             {
                 ct.Connect(address, 28917);
                 Assert.That(ct.LocalPort, Is.GreaterThan(0), "no port was bound");
@@ -67,15 +73,17 @@ namespace EarthGame.Tests.Transport
             }
         }
 
+        /// <summary>A client joining another machine would bind every address unless told local only; read, not bound (M1.Bb).</summary>
         [Test]
-        public void AClientJoiningAnotherMachineIsOnEveryAddress()
+        public void AClientJoiningAnotherMachineWouldBindEveryAddressUnlessToldLocalOnly()
         {
-            // 192.0.2.1 is documentation's address (RFC 5737), routed nowhere; the request goes to no one.
-            using (UdpClientTransport ct = new UdpClientTransport())
+            // 192.0.2.1 is documentation's address (RFC 5737); nothing is sent to it and nothing is bound.
+            using (UdpClientTransport open = new UdpClientTransport(new UdpOptions { LocalOnly = false }))
+            using (UdpClientTransport closed = new UdpClientTransport())
             {
-                ct.Connect("192.0.2.1", 28918);
-                Assert.That(ct.BoundLocalOnly, Is.False);
-                Assert.That(BoundOn(ct.LocalPort), Does.Contain(IPAddress.Any), "bound on " + string.Join(", ", BoundOn(ct.LocalPort)));
+                Assert.That(open.BindsLocalOnlyFor("192.0.2.1"), Is.False);
+                Assert.That(open.BindsLocalOnlyFor("127.0.0.1"), Is.True, "this machine's address decides by itself");
+                Assert.That(closed.BindsLocalOnlyFor("192.0.2.1"), Is.True, "the default is closed");
             }
         }
 

@@ -926,6 +926,7 @@ namespace EarthGame.Client
                     .With("spawn_east", welcome.SpawnEast).With("spawn_up", welcome.SpawnUp).With("spawn_north", welcome.SpawnNorth)
                     .With("world_total_hours", welcome.TotalHours)
                     .With("unity", Application.unityVersion).With("product_version", Application.version)
+                    .With("build_label", BuildInfo.Label).With("build_commit", BuildInfo.Commit).With("build_dirty", BuildInfo.Dirty).With("build_utc", BuildInfo.BuiltUtc)
                     .With("started_utc", DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture))
                     .With("terrain", _bakedRegion != null);
                 Recorder recorder = gameObject.AddComponent<Recorder>();

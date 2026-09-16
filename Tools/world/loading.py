@@ -32,7 +32,7 @@ def run(args, timeout):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build", action="store_true")
-    parser.add_argument("--player", type=Path, default=ROOT / "Build/Player-Loading/EarthGame2.exe")
+    parser.add_argument("--player", type=Path, default=ROOT / "Build/Harness/EarthGame2.exe")
     parser.add_argument("--unity", type=Path, default=UNITY)
     args = parser.parse_args()
     directory = ROOT / "Artefacts/loading" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
@@ -43,10 +43,10 @@ def main():
                             directory / "editmode.xml", "-logFile", directory / "editmode.log"], 600)
         if code != 0:
             raise RuntimeError(f"Unity edit tests exit {code}: {directory}")
-        code = run(editor + ["-quit", "-executeMethod", "EarthGame.Editor.CIBuild.BuildWindows",
-                            "-buildOut", args.player.resolve().parent, "-logFile", directory / "build.log"], 900)
+        # The build lands through the one install tool (M1.Bb): staged, versioned, never over a running player.
+        code = run([sys.executable, ROOT / "Tools/build/install.py", "--into", "harness", "--label", "loading"], 1200)
         if code != 0:
-            raise RuntimeError(f"Unity build exit {code}: {directory}")
+            raise RuntimeError(f"install exit {code}")
     for scenario in ("new", "continue", "missing"):
         output = directory / scenario
         output.mkdir()

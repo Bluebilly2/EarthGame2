@@ -16,7 +16,7 @@ Claude's tool: it runs the player and holds one number the run reports against t
 frames are the owner's to judge.
 
 Usage, from the repository root:
-    python Tools/world/wade.py [--build] [--swim] [--player Build/Player-Wade/EarthGame2.exe]
+    python Tools/world/wade.py [--build] [--swim] [--player Build/Harness/EarthGame2.exe]
                                [--world Artefacts/worlds/gate] [--lake 16.2]
 Exit 0 when the player exits 0 (the founder waded and went slower in the water than on land, or swam with the camera
 never under the water; every frame was written and nothing was logged as an error) and the layers put water deeper
@@ -39,7 +39,7 @@ EDITOR_VERSION = next(line.split(":", 1)[1].strip()
                       for line in (ROOT / "Unity/ProjectSettings/ProjectVersion.txt").read_text().splitlines()
                       if line.startswith("m_EditorVersion:"))
 UNITY = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Unity/Hub/Editor" / EDITOR_VERSION / "Editor/Unity.exe"
-PLAYER = ROOT / "Build/Player-Wade/EarthGame2.exe"
+PLAYER = ROOT / "Build/Harness/EarthGame2.exe"
 HOSTS = [ROOT / "Engine/.build/bin/EarthGame.ServerHost/Release/net10.0/EarthGame.ServerHost.dll",
          ROOT / "Engine/.build/bin/EarthGame.ServerHost/Debug/net10.0/EarthGame.ServerHost.dll"]
 NP_DTYPES = {"u8": "u1", "u16": "<u2", "i16": "<i2", "u32": "<u4", "f32": "<f4"}
@@ -145,11 +145,10 @@ def main():
     directory.mkdir(parents=True)
 
     if args.build:
-        code = run([UNITY, "-batchmode", "-nographics", "-projectPath", ROOT / "Unity", "-quit",
-                    "-executeMethod", "EarthGame.Editor.CIBuild.BuildWindows", "-buildOut", player.parent,
-                    "-logFile", directory / "build.log"], 900)
+        # The build lands through the one install tool (M1.Bb): staged, versioned, never over a running player.
+        code = run([sys.executable, ROOT / "Tools/build/install.py", "--into", "harness", "--label", "wade"], 1200)
         if code != 0:
-            raise RuntimeError("Unity build exit %d: %s" % (code, directory / "build.log"))
+            raise RuntimeError("install exit %d" % code)
     if not player.is_file():
         raise RuntimeError("no player at %s; run with --build" % player)
     if not (world / "world.json").is_file():

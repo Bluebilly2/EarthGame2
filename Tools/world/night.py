@@ -15,7 +15,7 @@ folder>` holds the records to the physiology they claim.
 Claude's tool: it runs the player and reports; the frames are the owner's to judge, the numbers the check's.
 
 Usage, from the repository root:
-    python Tools/world/night.py [--build] [--player Build/Player-Night/EarthGame2.exe] [--world Artefacts/worlds/gate]
+    python Tools/world/night.py [--build] [--player Build/Harness/EarthGame2.exe] [--world Artefacts/worlds/gate]
 
 Exit 0 when the player exits 0 (cold in time, the dawn seen or the night itself deadly, died, woke at the wake, the stick
 where they fell, every frame written and nothing logged as an error); 1 otherwise.
@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from wade import HOSTS, UNITY, number, run  # noqa: E402  (one owner of the runner and the number)
 
 ROOT = Path(__file__).resolve().parents[2]
-PLAYER = ROOT / "Build/Player-Night/EarthGame2.exe"
+PLAYER = ROOT / "Build/Harness/EarthGame2.exe"
 
 
 def main():
@@ -46,11 +46,10 @@ def main():
     directory.mkdir(parents=True)
 
     if args.build:
-        code = run([UNITY, "-batchmode", "-nographics", "-projectPath", ROOT / "Unity", "-quit",
-                    "-executeMethod", "EarthGame.Editor.CIBuild.BuildWindows", "-buildOut", player.parent,
-                    "-logFile", directory / "build.log"], 900)
+        # The build lands through the one install tool (M1.Bb): staged, versioned, never over a running player.
+        code = run([sys.executable, ROOT / "Tools/build/install.py", "--into", "harness", "--label", "night"], 1200)
         if code != 0:
-            raise RuntimeError("Unity build exit %d: %s" % (code, directory / "build.log"))
+            raise RuntimeError("install exit %d" % code)
     if not player.is_file():
         raise RuntimeError("no player at %s; run with --build" % player)
     if not (world / "world.json").is_file():
