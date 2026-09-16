@@ -57,7 +57,7 @@ Data/*
 
 # Worlds, builds, run artefacts
 Saves/
-Build/
+/Build/
 Runs/
 *.log
 
