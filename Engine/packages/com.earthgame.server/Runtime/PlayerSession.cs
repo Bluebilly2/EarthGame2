@@ -53,8 +53,18 @@ namespace EarthGame.Server
         public readonly Hands Hands = new Hands();
         /// <summary>The water in this founder's body (FP.1), lost on the world's clock, restored from their save at the join.</summary>
         public readonly Hydration Hydration = new Hydration();
-        /// <summary>The world tick the founder's state was last sent at: once a second, and at every change that matters.</summary>
-        public long FounderStateTick = long.MinValue;
+        /// <summary>The warmth of this founder's body (FP.2): its core and the heat balance, run every step in the surroundings below.</summary>
+        public readonly Warmth Warmth = new Warmth();
+        /// <summary>The air, sky and sun at this founder's body, read once a second: the weather at a point is cheap, the ground's openness less so.</summary>
+        public Surroundings Surroundings;
+        /// <summary>The world tick the surroundings were last read at; negative before any (see <see cref="FounderStateTick"/>).</summary>
+        public long SurroundingsTick = -1;
+        /// <summary>
+        /// The world tick the founder's state was last sent at: once a second, and at every change that matters. Negative
+        /// before any: a sentinel, not the smallest long, since a tick less the smallest long overflows and reads as "recent"
+        /// (FP.2's first cooling test found the surroundings never read for that reason).
+        /// </summary>
+        public long FounderStateTick = -1;
         /// <summary>
         /// The work capacity this founder's client was last told, and the one before it. The validator's ceiling is the
         /// greater (<see cref="CeilingCapacity"/>), so a client walking on the capacity it was told a moment ago is never

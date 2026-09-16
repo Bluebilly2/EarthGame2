@@ -21,6 +21,13 @@ namespace EarthGame.Engine
     /// along a shore or the edge and stopping where it cannot turn; having run its length it stands a while, then walks back
     /// to where presence puts it, and from there presence has it again. What a group is doing is held here while it stands,
     /// as its offset from presence's place, and forgotten when it is taken away; nothing of it is saved or digested.</para>
+    ///
+    /// <para>Since M1.7b a developer's hand can set one animal down to be looked at (<see cref="SetDown"/>, the panel's
+    /// deed under CANON ruling 30). It is of the reserved range like any other, under an id that names no kind
+    /// (<see cref="ByHandKind"/>), so it can never take the id presence would give a member of a group; the refresh keeps
+    /// it where it was put instead of taking it away; and it is a thing to look at rather than an animal of the country:
+    /// presence does not own it, it never wanders and it never takes flight of its own, and its pose is whatever the panel
+    /// last asked for (<see cref="PoseSetDown"/>). It is transient like the rest, so it is gone when the game closes.</para>
     /// </summary>
     public sealed class AnimalStandUp : IFastSystem
     {
@@ -65,6 +72,17 @@ namespace EarthGame.Engine
         /// <summary>What a square's index is moved by before it is packed into an id, so a square west or south of the centre packs.</summary>
         private const long SquareOffset = 1L << 23;
 
+        /// <summary>
+        /// The kind an id names when nothing of the country put the animal there (M1.7b): nought, which
+        /// <see cref="IdOf"/> never writes, because a kind is its place in <see cref="AnimalSpecies.All"/> counting from
+        /// one. So the whole of the reserved range with no kind in it belongs to the animals set down by hand, and their
+        /// ids and presence's cannot meet.
+        /// </summary>
+        public const int ByHandKind = 0;
+
+        /// <summary>How many animals one world can have set down by hand before the ids run out: everything an id holds below the kind.</summary>
+        private const ulong MostByHand = 1UL << 56;
+
         /// <summary>The turns a running group tries, in order, when the way ahead is wet or off the region, degrees either way.</summary>
         private static readonly double[] Turns = { 45.0, -45.0, 90.0, -90.0, 135.0, -135.0 };
 
@@ -75,6 +93,9 @@ namespace EarthGame.Engine
         /// <summary>What each group that has taken flight is doing (M1.7c), by the id of its first member; none for a group presence has.</summary>
         private readonly Dictionary<ulong, Flight> _flights = new Dictionary<ulong, Flight>();
         private readonly Dictionary<AnimalSpecies, AnimalFlightRules> _rules = new Dictionary<AnimalSpecies, AnimalFlightRules>();
+        /// <summary>Every animal a developer's hand has set down (M1.7b), in the order it was set down, by its id.</summary>
+        private readonly List<ulong> _byHand = new List<ulong>();
+        private ulong _nextByHand = 1;
         private readonly List<ulong> _gone = new List<ulong>();
         private AnimalPresence _presence;
         private ulong _memberSalt;
@@ -100,6 +121,52 @@ namespace EarthGame.Engine
         /// <summary>Whether a group is running now.</summary>
         public bool IsRunning(AnimalSpecies species, int cellX, int cellZ)
             => _flights.TryGetValue(IdOf(species, cellX, cellZ, 0), out Flight flight) && flight.Phase == Phase.Running;
+
+        /// <summary>
+        /// The pose the animals set down by hand are shown in (M1.7b), one of <see cref="AnimalPose"/>'s: resting as built,
+        /// until a developer's panel asks for another (<see cref="PoseSetDown"/>). The country's own animals take their pose
+        /// from the hour and from whether they are running, and never from this.
+        /// </summary>
+        public byte SetDownPose { get; private set; } = AnimalPose.Resting;
+
+        /// <summary>The animals a developer's hand has set down, by id, oldest first.</summary>
+        public IReadOnlyList<ulong> SetDownIds => _byHand;
+
+        /// <summary>
+        /// Sets one animal of a kind down on the ground for a developer to look at (M1.7b), facing the yaw asked for, in
+        /// the pose <see cref="SetDownPose"/> names. Its id names no kind (<see cref="ByHandKind"/>), so it cannot be an id
+        /// presence would give; the refresh keeps it where it was put; and it is transient like every animal, so nothing of
+        /// it is saved or named by the world's digest.
+        /// </summary>
+        public Entity SetDown(WorldState world, AnimalSpecies species, double east, double north, float yawDeg)
+        {
+            if (world == null) throw new ArgumentNullException(nameof(world));
+            if (species == null) throw new ArgumentNullException(nameof(species));
+            if (_nextByHand >= MostByHand) throw new InvalidOperationException("this world has set down every animal an id of no kind can name");
+            ulong id = EntityId.TransientBit | _nextByHand++;
+            AnimalComponent animal;
+            animal.Pose = SetDownPose;
+            Double3 at = new Double3(east, world.GroundAt(east, north), north);
+            Entity set = world.Entities.StandUp(id, DefinitionCatalogue.AnimalOf(species), at, yawDeg, animal, world.Tick);
+            _byHand.Add(id);
+            return set;
+        }
+
+        /// <summary>
+        /// Shows every animal set down by hand in a pose (M1.7b), and gives it to the ones set down after. A pose this build
+        /// has no meaning for is refused, so a panel cannot ask for one nothing can draw.
+        /// </summary>
+        public void PoseSetDown(WorldState world, byte pose)
+        {
+            if (world == null) throw new ArgumentNullException(nameof(world));
+            if (pose != AnimalPose.Resting && pose != AnimalPose.Grazing && pose != AnimalPose.Fleeing)
+                throw new ArgumentOutOfRangeException(nameof(pose), "pose " + pose + " is not one this build knows");
+            SetDownPose = pose;
+            AnimalComponent animal;
+            animal.Pose = pose;
+            for (int i = 0; i < _byHand.Count; i++)
+                if (world.Entities.TryGet(_byHand[i], out Entity set) && !set.Killed && set.Animal.Pose != pose) set.SetAnimal(animal, world.Tick);
+        }
 
         /// <summary>Refreshes the animals on the first step of each second, and every step moves the groups that have taken flight.</summary>
         public void Step(WorldState world, double dt)
@@ -139,6 +206,9 @@ namespace EarthGame.Engine
         {
             if (world == null) throw new ArgumentNullException(nameof(world));
             _refreshed.Clear();
+            // An animal a developer set down by hand (M1.7b) stays where it was put: it is nobody's group, so the sweep
+            // below would take it away the second after it appeared.
+            for (int i = 0; i < _byHand.Count; i++) _refreshed.Add(_byHand[i]);
             IReadOnlyList<Double3> founders = world.InterestPoints;
             CapacitySquares capacity = world.Capacity;
             _standing.Clear();

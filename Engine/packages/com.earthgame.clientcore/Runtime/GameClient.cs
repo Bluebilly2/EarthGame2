@@ -107,6 +107,12 @@ namespace EarthGame.ClientCore
         /// <summary>The water in the founder's body as the server last told it (FP.1), 1 full; 1 before any word.</summary>
         public double LastWater01 { get; private set; } = 1.0;
 
+        /// <summary>The core's temperature as the server last told it (FP.2), °C; normal before any word.</summary>
+        public double LastCoreC { get; private set; } = Warmth.NormalCoreC;
+
+        /// <summary>The last death the server told of (FP.2), or null.</summary>
+        public Death? LastDeath { get; private set; }
+
         /// <summary>How many ticks behind the estimated server tick a mirror is sampled, so a state is usually held either side.</summary>
         public int MirrorDelayTicks = 3;
 
@@ -152,6 +158,8 @@ namespace EarthGame.ClientCore
         public event Action<CarryingMessage> CarryingChanged;
         /// <summary>The founder's state as the server tells it (FP.1): once a second, and at every change that matters.</summary>
         public event Action<FounderStateMessage> FounderStateChanged;
+        /// <summary>The founder died (FP.2): what killed them and the numbers, for the sentence the screen shows.</summary>
+        public event Action<Death> Died;
         /// <summary>Something was taken from a cell of the loose layer, or the join told of it (M1.5b); the cell's takings as they now stand.</summary>
         public event Action<LooseTaken.Cell> LooseTakenChanged;
 
@@ -473,7 +481,16 @@ namespace EarthGame.ClientCore
                         FounderStateMessage founder = FounderStateMessage.Read(reader);
                         reader.ExpectEnd();
                         LastWater01 = founder.Water01;
+                        LastCoreC = founder.CoreC;
                         FounderStateChanged?.Invoke(founder);
+                        break;
+                    }
+                    case MessageKind.Died:
+                    {
+                        DiedMessage died = DiedMessage.Read(reader);
+                        reader.ExpectEnd();
+                        LastDeath = died.Death;
+                        Died?.Invoke(died.Death);
                         break;
                     }
                     case MessageKind.LooseTaken:

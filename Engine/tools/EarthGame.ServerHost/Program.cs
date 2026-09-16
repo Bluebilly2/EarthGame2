@@ -25,6 +25,7 @@ namespace EarthGame.ServerHost
     ///   +server.dev 1  (a development server: a founder may fly, M1.5e, and a developer's settings are taken, M1.D)
     ///   +server.local 1  (a socket for this machine alone, the harness's; nothing off the machine can join and the
     ///   firewall has nothing to ask, M1.Ba)
+    ///   +server.bridge 0  (the beta arc's bridge down: the cold can kill; on by default, FP.2 and CANON ruling 33)
     /// Console commands: status, pause, resume, digest, stop.
     ///
     /// <para>The host is the server's clock and its instruments: it times each update for the tick statistics,
@@ -43,6 +44,7 @@ namespace EarthGame.ServerHost
                 MaxPlayers = Int(a, "server.maxplayers", 8),
                 Password = Str(a, "server.password", string.Empty),
                 Movement = new MovementRules { AllowFlight = Int(a, "server.dev", 0) != 0 },
+                BetaArcBridge = Int(a, "server.bridge", 1) != 0,
             };
             if (config.Movement.AllowFlight) Log("a development server: a founder may fly, and a developer's settings are taken");
             ulong seed = ULong(a, "server.seed", 1347UL);
@@ -176,6 +178,11 @@ namespace EarthGame.ServerHost
                 Log("flight " + flight.Species.Name + " square " + flight.CellX + ", " + flight.CellZ + " from a founder " + flight.DistanceM.ToString("0.0", CultureInfo.InvariantCulture)
                     + " m off, bearing " + flight.BearingDeg.ToString("0", CultureInfo.InvariantCulture));
                 instruments.Flight(flight);
+            };
+            server.FounderDied += (s, death) =>
+            {
+                Log("death " + s.Name + ": " + death.Explain());
+                instruments.Death(s, death);
             };
             server.Stepped += (w, dt) => instruments.Stepped();
 
@@ -359,6 +366,15 @@ namespace EarthGame.ServerHost
                 _log?.Record(T, _server.World.Tick, "flight", new JsonObject().With("kind", KindOf(flight.Species)).With("cell_x", flight.CellX).With("cell_z", flight.CellZ)
                     .With("east", flight.GroupEastM).With("north", flight.GroupNorthM).With("founder_east", flight.FounderEastM).With("founder_north", flight.FounderNorthM)
                     .With("distance_m", flight.DistanceM).With("bearing_deg", flight.BearingDeg));
+            }
+
+            /// <summary>A founder died (FP.2): who, what killed them and the numbers the sentence is made of, for cold_check.</summary>
+            public void Death(PlayerSession session, Death death)
+            {
+                _log?.Record(T, _server.World.Tick, "death", new JsonObject().With("session", session.SessionId).With("name", session.Name)
+                    .With("cause", death.Cause.ToString()).With("local_hour", death.LocalHour).With("air_c", death.AirC).With("wind_ms", death.WindMs)
+                    .With("loss_w", death.LossW).With("production_w", death.ProductionW).With("core_c", death.CoreC).With("water_loss", death.WaterLoss)
+                    .With("east", death.East).With("north", death.North).With("sentence", death.Explain()));
             }
 
             /// <summary>A kind's number as an animal's id carries it: its place in the species table, counting from one.</summary>

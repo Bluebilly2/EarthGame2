@@ -161,6 +161,26 @@ namespace EarthGame.Engine
             return VerbOutcome.Done;
         }
 
+        /// <summary>
+        /// Everything let go at once where the founder fell (FP.2, the Standard death): each thing returns to the world with
+        /// the id it always had, a little above the ground at the point, falling; the hands are empty and no place is the
+        /// hand. A thing picked up in this very tick is still in the store and is simply left there.
+        /// </summary>
+        public void LetGoOfEverything(WorldState world, Double3 at, float yawDeg)
+        {
+            double ground = world.GroundAt(at.X, at.Z);
+            Double3 place = new Double3(at.X, Math.Max(at.Y, ground) + ReleaseM, at.Z);
+            for (int i = 0; i < _things.Count; i++)
+            {
+                CarriedThing thing = _things[i];
+                if (world.Entities.TryGet(thing.Id, out _)) continue;
+                Entity e = world.Entities.Return(thing.Id, thing.Definition, place, yawDeg, thing.SpawnTick, world.Tick);
+                e.SetItem(new ItemComponent { Resting = false, FallSpeed = 0f }, world.Tick);
+            }
+            _things.Clear();
+            Hand = 0;
+        }
+
         /// <summary>Makes a place the hand; 0 empties the hand.</summary>
         public VerbOutcome Hold(byte place)
         {

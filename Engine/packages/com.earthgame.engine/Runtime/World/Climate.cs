@@ -65,6 +65,43 @@ namespace EarthGame.Engine
         /// <summary>How long after sunrise the night's coldest moment falls, hours: negative, a few minutes before it.</summary>
         public const double MinimumAfterSunriseHours = -0.17;
 
+        /// <summary>
+        /// How far below the air a clear night sky radiates, K (FP.2, v1's figure): the sky the body loses heat to. One
+        /// figure for the body's sky term and any forecast's; v1 once declared it twice and the two skies drifted apart.
+        /// </summary>
+        public const double ClearSkyDepressionK = 16.0;
+
+        /// <summary>Solar constant at the top of the atmosphere, W/m².</summary>
+        public const double SolarConstantWm2 = 1361.0;
+
+        /// <summary>
+        /// Direct-beam solar irradiance reaching the ground, W/m², by the Meinel approximation I = 1.353 · 0.7^(AM^0.678)
+        /// kW/m² with the air mass from the sun's elevation (FP.2, v1's). At a winter noon here the sun is about 32° up,
+        /// an air mass near two, around 780 W/m²: the 600-800 that is measured. Cloud kills the beam long before the light.
+        /// </summary>
+        public static double DirectSolarWm2(double solarElevationDeg, double cloudCover01)
+        {
+            if (solarElevationDeg <= 0.5) return 0.0;
+            double sinE = Math.Sin(solarElevationDeg * Math.PI / 180.0);
+            double airMass = 1.0 / Math.Max(0.05, sinE);
+            double clear = 1353.0 * Math.Pow(0.7, Math.Pow(airMass, 0.678));
+            return clear * (1.0 - 0.85 * SimMath.Clamp01(cloudCover01));
+        }
+
+        /// <summary>
+        /// Diffuse sky irradiance on the ground, W/m²: small under a clear sky and most of what is left under an overcast
+        /// one, which is why an overcast day is bright and not warm (FP.2, v1's).
+        /// </summary>
+        public static double DiffuseSolarWm2(double solarElevationDeg, double cloudCover01)
+        {
+            if (solarElevationDeg <= 0.5) return 0.0;
+            double sinE = Math.Sin(solarElevationDeg * Math.PI / 180.0);
+            double cloud = SimMath.Clamp01(cloudCover01);
+            double clearSky = 0.10 * DirectSolarWm2(solarElevationDeg, 0.0) * sinE;
+            double overcast = 0.28 * SolarConstantWm2 * sinE;
+            return clearSky * (1.0 - cloud) + overcast * cloud;
+        }
+
         // ---- the stations ----
 
         private static readonly int[] DaysInMonth = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
@@ -171,10 +208,14 @@ namespace EarthGame.Engine
         public static Climate ForRegion(Region region)
         {
             if (region == null) throw new ArgumentNullException(nameof(region));
-            if (!string.Equals(region.Id, Region.Bherwerre.Id, StringComparison.Ordinal))
+            if (!HasRecordFor(region))
                 throw new ArgumentException("this build holds no weather station's record for region '" + region.Id + "'", nameof(region));
             return new Climate(PointPerpendicular, region.CentreLatitudeDeg);
         }
+
+        /// <summary>Whether this build holds a station's record for the region: the one question, asked before the refusal above.</summary>
+        public static bool HasRecordFor(Region region) =>
+            region != null && string.Equals(region.Id, Region.Bherwerre.Id, StringComparison.Ordinal);
 
         /// <summary>The height above the sea of the weather station this climate stands on, metres: where the lapse rate takes nothing off.</summary>
         public double StationElevationM => _station.ElevationM;

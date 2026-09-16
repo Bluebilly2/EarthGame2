@@ -103,6 +103,12 @@ namespace EarthGame.Engine
         public CapacitySquares Capacity { get; }
 
         /// <summary>
+        /// Metres to the sea from each cell (M1.2's layer), for the salt wind's floor under a founder's exposure (FP.2); null
+        /// on a world made without it, whose shore then blows as its ground's openness alone says.
+        /// </summary>
+        public RegionRaster ShoreDistance { get; }
+
+        /// <summary>
         /// The world's climate (M1.8a), from the weather station's record this build holds for its region. Built when first
         /// asked for rather than with the world, so that a world of a region no record is held for (a test's fixture) is
         /// refused only by what asks it about the weather.
@@ -119,7 +125,8 @@ namespace EarthGame.Engine
         private Synoptic _synoptic;
 
         public WorldState(ulong seed, Region region, WorldClock clock, Heightfield terrain = null, long tick = 0, Double3? wake = null, WorldWater water = null, RegionRaster cover = null,
-                          RegionRaster stand = null, RegionRaster loose = null, RegionRaster stone = null, CapacitySquares capacity = null)
+                          RegionRaster stand = null, RegionRaster loose = null, RegionRaster stone = null, CapacitySquares capacity = null,
+                          RegionRaster shoreDistance = null)
         {
             Seed = seed;
             Region = region ?? throw new ArgumentNullException(nameof(region));
@@ -143,6 +150,7 @@ namespace EarthGame.Engine
                 throw new ArgumentException("the capacity squares cover " + capacity.ExtentM + " m but the region is " + region.ExtentM
                                             + " m; one of them is not this world's", nameof(capacity));
             Capacity = capacity;
+            ShoreDistance = shoreDistance;
         }
 
         /// <summary>
@@ -217,6 +225,69 @@ namespace EarthGame.Engine
 
         private static WaterClass ClassAtPost(RegionRaster classes, int row, int col) =>
             row < 0 || col < 0 || row >= classes.Height || col >= classes.Width ? WaterClass.Dry : (WaterClass)classes.Code(row, col);
+
+        /// <summary>How many samples across the openness's radius the runtime reading takes each way; the layer takes every cell.</summary>
+        private const int ExposureSamples = 12;
+
+        private Heightfield _shore;
+
+        /// <summary>
+        /// How open the ground is at a point, 0 sheltered to 1 open (FP.2): the layer's own rule (<see cref="WorldLayers.SiteAt"/>),
+        /// height above the mean of the surroundings within <see cref="WorldLayers.ExposureRadiusM"/> over
+        /// <see cref="WorldLayers.ExposureFullAtM"/>, read from the terrain at a coarse grid of samples because the openness
+        /// itself is not saved with a world, and floored by the salt wind within <see cref="WorldLayers.CoastWindReachM"/> of
+        /// the sea from the shore-distance layer, which is: a beach lies below the mean of its dunes and would otherwise blow
+        /// as a hollow (the first night run's founder, on the wake beach, stood in a third of the open's wind). Half open on a
+        /// world without terrain.
+        /// </summary>
+        public double ExposureAt(double east, double north)
+        {
+            if (Terrain == null || !Terrain.Contains(east, north)) return 0.5;
+            double coast = 0.0;
+            if (ShoreDistance != null)
+            {
+                if (_shore == null) _shore = new Heightfield(ShoreDistance);
+                if (_shore.Contains(east, north)) coast = SimMath.Clamp01(1.0 - _shore.HeightAt(east, north) / WorldLayers.CoastWindReachM);
+            }
+            double here = Terrain.HeightAt(east, north);
+            double step = 2.0 * WorldLayers.ExposureRadiusM / ExposureSamples;
+            double sum = 0.0;
+            int n = 0;
+            for (int i = 0; i <= ExposureSamples; i++)
+                for (int j = 0; j <= ExposureSamples; j++)
+                {
+                    double de = -WorldLayers.ExposureRadiusM + i * step, dn = -WorldLayers.ExposureRadiusM + j * step;
+                    if (de * de + dn * dn > WorldLayers.ExposureRadiusM * WorldLayers.ExposureRadiusM) continue;
+                    double e = east + de, nn = north + dn;
+                    if (!Terrain.Contains(e, nn)) continue;
+                    sum += Terrain.HeightAt(e, nn);
+                    n++;
+                }
+            if (n == 0) return Math.Max(0.5, coast);
+            return Math.Max(SimMath.Clamp01((here - sum / n) / WorldLayers.ExposureFullAtM), coast);
+        }
+
+        /// <summary>
+        /// The air, sky and sun at a founder's body (FP.2): the world's own weather (<see cref="Weather.At"/>) at the
+        /// point's height, with the wind for the ground's openness there and the sun's elevation from the world's clock at
+        /// the region's longitude, for a body standing in the open. One reading, so the body and any forecast agree.
+        /// </summary>
+        public Surroundings SurroundingsAt(double east, double up, double north)
+        {
+            SolarClock sun = SolarClock.ForRegion(Region, Clock);
+            // A region this build holds no weather record for (a test's fixture) has no weather: the body lives in still air at
+            // the temperature a naked body at rest neither cools nor sweats in, under no sky and no sun. Asking the climate
+            // would refuse, as it should.
+            if (!Climate.HasRecordFor(Region)) return new Surroundings(NoWeatherAirC, 0.0, 1.0, 0.7, -90.0, 0.0);
+            Weather weather = Weather.At(Climate, Synoptic, sun, Math.Max(0.0, up), ExposureAt(east, north));
+            return Surroundings.Of(weather, sun.SolarElevationDeg);
+        }
+
+        /// <summary>
+        /// The air a body lives in on a world with no weather record, °C: what a naked body at rest makes (80 W) it loses to
+        /// still air at about this, so nothing about it chills, cooks or sweats.
+        /// </summary>
+        public const double NoWeatherAirC = 30.0;
 
         /// <summary>
         /// Drops an item at a point: on the ground when no height is given or the height is below it, else in the

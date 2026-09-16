@@ -14,8 +14,9 @@ namespace EarthGame.Client
     /// game and frees the mouse, as the carrying window's Tab does, and the founder's hands rest while it is open. Its
     /// sections: the founder (the flight switch with the noclip switch under it, and standing at the wake); time (the local
     /// hour and the day of the year, read and set, and how fast the clock runs); the animals (how near they are stood up and
-    /// taken away; their wariness and running come with M1.7c); spawning (a stick or a cobble two metres ahead; animals
-    /// wait for their looks and their fleeing, and stand greyed); the environment (the sky is worked out from the seed and
+    /// taken away, how wary they are and how far and fast they run, and what pose an animal set down by hand is shown in);
+    /// spawning (a stick, a cobble, a kangaroo or an oystercatcher two metres ahead, the animals since M1.7b gave them
+    /// looks to judge); the environment (the sky is worked out from the seed and
     /// the clock, M1.8a, so a hand on it waits for the weather drawn, M1.8b, and its controls stand greyed); and the world
     /// as this client reads it. Every setting the server takes is a row of <see cref="DevSettings.All"/>, the one table the
     /// server reads too, drawn by its name's prefix into its section; a row that has a start has a reset of its own, and one
@@ -120,12 +121,7 @@ namespace EarthGame.Client
             Section("animals", "The animals");
             VisualElement spawning = Section("spawn", "Spawning");
             foreach (DevSetting setting in DevSettings.All) AddRow(setting);
-            spawning.Add(Note("Kangaroos and oystercatchers are stood up by the country itself (M1.7a); one set down by hand waits for their looks and their fleeing (M1.7b, M1.7c)."));
-            VisualElement animalsToCome = Row();
-            animalsToCome.Add(Stub(MakeButton("A kangaroo", null)));
-            animalsToCome.Add(Stub(MakeButton("An oystercatcher", null)));
-            spawning.Add(animalsToCome);
-            spawning.Add(Note("The animals' wariness, and how far and how fast they run, come with M1.7c as rows here."));
+            spawning.Add(Note("Kangaroos and oystercatchers are stood up by the country itself (M1.7a). One set down here is yours to look at: two metres ahead and broadside, in the pose chosen under The animals, and it stays where it is put until the game closes (M1.7b)."));
 
             VisualElement environment = Section("environment", "The environment");
             environment.Add(Note("The sky is worked out from the world's seed and its clock (M1.8a); a hand on it waits for the weather drawn (M1.8b). Until then these do nothing."));

@@ -319,13 +319,16 @@ namespace EarthGame.Bootstrap
         {
             _serverTransport = transport;
             // -eg-dev: a SOLO game for development, whose server lets a founder fly (M1.5e).
-            _server = new GameServer(new ServerConfig { Password = _password, Movement = new MovementRules { AllowFlight = LaunchArgs.Has("dev") } },
+            // -eg-no-bridge: the beta arc's bridge down, so the cold can kill (the scenario that proves death; ServerConfig.BetaArcBridge).
+            _server = new GameServer(new ServerConfig { Password = _password, Movement = new MovementRules { AllowFlight = LaunchArgs.Has("dev") },
+                                                        BetaArcBridge = !LaunchArgs.Has("no-bridge") },
                                      transport, world);
             if (saved != null) _server.RememberPlayers(saved.Players.Values);
             _server.SessionJoined += s => Debug.Log("[server] join  " + s.Name + " (session " + s.SessionId + ") at tick " + s.JoinedTick + (s.HasBody ? ", remembered" : ""));
             _server.SessionLeft += (s, reason) => Debug.Log("[server] leave " + s.Name + ": " + reason);
             _server.MoveCorrected += (s, reason) => Debug.Log("[server] correct " + s.Name + ": " + reason);
             _server.DevSettingApplied += (s, setting) => Debug.Log("[server] dev   " + s.Name + " set " + setting.Name + " to " + setting.Value.ToString("0.###", CultureInfo.InvariantCulture));
+            _server.FounderDied += (s, death) => Debug.Log("[server] death " + s.Name + ": " + death.Explain());
             EarthGame.Engine.AnimalStandUp animals = _server.Animals();
             if (animals != null) animals.Fled += flight => Debug.Log("[server] flight " + flight.Species.Name + " from a founder " + flight.DistanceM.ToString("0.0", CultureInfo.InvariantCulture)
                                                                      + " m off, bearing " + flight.BearingDeg.ToString("0", CultureInfo.InvariantCulture));

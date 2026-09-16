@@ -21,6 +21,8 @@ namespace EarthGame.Server
         public byte Hand;
         /// <summary>The fraction of body water lost when saved (FP.1): 0 for a full body, which is what a file from before it says.</summary>
         public double WaterLoss;
+        /// <summary>How far below normal the core was when saved, °C (FP.2): 0 for a normal body, which is what a file from before it says.</summary>
+        public double CoreDeficitC;
     }
 
     /// <summary>A cell's takings from the loose layer as a region file recorded them (M1.5b), with the 512 m cell of the file that held them.</summary>
@@ -345,11 +347,12 @@ namespace EarthGame.Server
         /// <summary>The world as it was, with the terrain the host loaded for it and every entity restored. The region must still be known to this build.</summary>
         /// <param name="region">The region the host runs, when it is not one <see cref="Region.ById"/> knows (a test's fixture); else looked up by the save's id.</param>
         public static WorldState Restore(WorldSaveInfo info, Heightfield terrain, Region region = null, WorldWater water = null, RegionRaster cover = null,
-                                         RegionRaster stand = null, RegionRaster loose = null, RegionRaster stone = null, CapacitySquares capacity = null)
+                                         RegionRaster stand = null, RegionRaster loose = null, RegionRaster stone = null, CapacitySquares capacity = null,
+                                         RegionRaster shoreDistance = null)
         {
             if (region == null) region = Region.ById(info.RegionId);
             if (region == null) throw new InvalidDataException("the save is set in region '" + info.RegionId + "', which this build does not know");
-            WorldState world = new WorldState(info.Seed, region, WorldClock.Restore(info.TotalHours, info.StartedAtHours), terrain, info.Tick, info.Wake, water, cover, stand, loose, stone, capacity);
+            WorldState world = new WorldState(info.Seed, region, WorldClock.Restore(info.TotalHours, info.StartedAtHours), terrain, info.Tick, info.Wake, water, cover, stand, loose, stone, capacity, shoreDistance);
             foreach (SavedTaking taking in info.Taken) world.Taken.Merge(CheckTaking(world, taking));
             foreach (SavedEntity s in info.Entities)
             {

@@ -17,8 +17,8 @@ namespace EarthGame.Engine
     /// it goes on the world's clock, what thirst leaves of them and what a drink gives back. Ported from the water
     /// part of v1's <c>BodyState</c> (Assets/EarthGame/Sim/Body/BodyState.cs), whose numbers are published human
     /// physiology restated in code; the sweat, heat and illness that v1 charged water for come with the thermal
-    /// model, so for now the body loses water at rest alone. The three needs run on different clocks, and that is
-    /// the lesson: warmth kills in hours, thirst in days, hunger in weeks.
+    /// model, so for now the body loses water at rest alone. The three needs run on different clocks: warmth kills in
+    /// hours, thirst in days, hunger in weeks.
     /// </summary>
     public sealed class Hydration
     {
@@ -118,14 +118,21 @@ namespace EarthGame.Engine
             return CapacityPoints[CapacityPoints.Length - 1];
         }
 
+        /// <summary>The last day's rate of loss, litres a day, for the screen and the log.</summary>
+        public double LossLPerDay { get; private set; } = BaseWaterLossLPerDay;
+
         /// <summary>
-        /// The body's day going by: <paramref name="days"/> of the world's clock at rest. The clock is the caller's
-        /// (<see cref="WorldClock.DaysFor"/>), so a held clock holds the body and a sped one dries it faster.
+        /// The body's day going by: <paramref name="days"/> of the world's clock, at rest or working. The clock is the
+        /// caller's (<see cref="WorldClock.DaysFor"/>), so a held clock holds the body and a sped one dries it faster.
+        /// Exertion raises the resting loss as a multiple of basal (<see cref="Warmth.ExertionFactor"/>, v1's pricing:
+        /// walking 3.25 times, running 6.25), and the sweat the heat balance shed is charged in litres (FP.2); at rest in
+        /// the shade the loss is the resting 2.4 a day alone (FP.1). Illness, which v1 also charged, waits for illness.
         /// </summary>
-        public void Advance(double days)
+        public void Advance(double days, double exertionFactor = 1.0, double sweatLPerHour = 0.0)
         {
             if (!(days > 0.0)) return;
-            Water01 = Math.Max(0.0, Water01 - BaseWaterLossLPerDay * days / TotalBodyWaterL);
+            LossLPerDay = BaseWaterLossLPerDay * Math.Max(1.0, exertionFactor) + Math.Max(0.0, sweatLPerHour) * 24.0;
+            Water01 = Math.Max(0.0, Water01 - LossLPerDay * days / TotalBodyWaterL);
         }
 
         /// <summary>A drink: up to <see cref="MaxDrinkPerVisitL"/> of what is offered, and never past full. Returns the litres taken.</summary>

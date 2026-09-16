@@ -58,15 +58,28 @@ namespace EarthGame.Protocol
         public const string StandAtWake = "founder.stand_at_wake";
         /// <summary>The water in the founder's body against normal, 1 full (FP.1): the founder who moves it, alone.</summary>
         public const string FounderWater = "founder.water";
+        /// <summary>The founder's core temperature, °C (FP.2), for the founder who moves it: below 28 the next step is a death.</summary>
+        public const string FounderCoreC = "founder.core_c";
         /// <summary>A deed: a stick is set on the ground two metres ahead of the founder who asks.</summary>
         public const string SpawnStick = "spawn.stick";
         /// <summary>A deed: a cobble is set on the ground two metres ahead of the founder who asks.</summary>
         public const string SpawnCobble = "spawn.cobble";
+        /// <summary>A deed: one kangaroo is stood two metres ahead of the founder who asks, broadside (M1.7b), to be looked at.</summary>
+        public const string SpawnKangaroo = "spawn.kangaroo";
+        /// <summary>A deed: one oystercatcher, the same way.</summary>
+        public const string SpawnOystercatcher = "spawn.oystercatcher";
+        /// <summary>
+        /// What pose the animals set down by hand are shown in (M1.7b): 1 resting, 2 grazing, 3 fleeing, as
+        /// <see cref="AnimalPose"/> numbers them. A hand-set animal is not presence's and never takes flight of its own, so
+        /// without this the hop and the wingbeat — the looks that most need judging — could not be seen at all.
+        /// </summary>
+        public const string AnimalsSetDownPose = "animals.set_down_pose";
 
         public static readonly IReadOnlyList<DevSetting> All = new[]
         {
             new DevSetting(StandAtWake, "Stand at the wake", 0.0, 0.0, 0.0, deed: true),
             new DevSetting(FounderWater, "The founder's water, 1 full", 0.8, 1.0, 1.0),
+            new DevSetting(FounderCoreC, "The founder's core, °C (28 is death)", 26.0, 37.0, Warmth.NormalCoreC),
             new DevSetting(ClockLocalHour, "Local hour", 0.0, 24.0, double.NaN),
             new DevSetting(ClockDayOfYear, "Day of the year", 1.0, 365.0, double.NaN),
             new DevSetting(ClockScale, "Clock runs at, times the game's rate", 0.0, 60.0, 1.0),
@@ -78,8 +91,11 @@ namespace EarthGame.Protocol
             new DevSetting(OystercatcherFleeWithinM, "Oystercatchers fly when a founder is within, m", 5.0, 400.0, AnimalFlightRules.OystercatcherFleeWithinM),
             new DevSetting(OystercatcherRunM, "Oystercatchers fly for, m", 10.0, 1000.0, AnimalFlightRules.OystercatcherRunM),
             new DevSetting(OystercatcherRunMs, "Oystercatchers fly at, m/s", 1.0, 30.0, AnimalFlightRules.OystercatcherRunMs),
+            new DevSetting(AnimalsSetDownPose, "Animals set down are: 1 resting, 2 grazing, 3 fleeing", AnimalPose.Resting, AnimalPose.Fleeing, AnimalPose.Resting),
             new DevSetting(SpawnStick, "A stick, two metres ahead", 0.0, 0.0, 0.0, deed: true),
             new DevSetting(SpawnCobble, "A cobble, two metres ahead", 0.0, 0.0, 0.0, deed: true),
+            new DevSetting(SpawnKangaroo, "A kangaroo, two metres ahead", 0.0, 0.0, 0.0, deed: true),
+            new DevSetting(SpawnOystercatcher, "An oystercatcher, two metres ahead", 0.0, 0.0, 0.0, deed: true),
         };
 
         /// <summary>The setting of a name, or null for a name this build's table lacks.</summary>

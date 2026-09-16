@@ -23,6 +23,8 @@ namespace EarthGame.Client
         private Label _verb;
         private Label _diagnostic;
         private Label _condition;
+        private Label _notice;
+        private float _noticeUntil;
         private VisualElement _carrying;
         private readonly Label[] _places = new Label[Hands.Places];
         private bool _carryingOpen;
@@ -65,6 +67,10 @@ namespace EarthGame.Client
             _clock = MakeLabel(root, 22, 18, 16);
             // The word for the founder's state, under the clock (FP.1): nothing while there is nothing to say.
             _condition = MakeLabel(root, 18, 18, 46);
+            // A notice under it (FP.2): what killed the founder, in the one sentence, for a while.
+            _notice = MakeLabel(root, 16, 18, 76);
+            _notice.style.maxWidth = new Length(60, LengthUnit.Percent);
+            _notice.style.whiteSpace = WhiteSpace.Normal;
             _verb = MakeLabel(root, 18, 0, 0);
             _verb.style.left = new Length(50, LengthUnit.Percent);
             _verb.style.top = new Length(56, LengthUnit.Percent);
@@ -139,6 +145,23 @@ namespace EarthGame.Client
         public void SetCondition(string text)
         {
             if (_condition != null) _condition.text = text ?? string.Empty;
+        }
+
+        /// <summary>A notice under the words for a while (FP.2): a death's explanation.</summary>
+        public void SetNotice(string text, float seconds)
+        {
+            if (_notice == null) return;
+            _notice.text = text ?? string.Empty;
+            _noticeUntil = Time.time + Mathf.Max(0f, seconds);
+        }
+
+        private void Update()
+        {
+            if (_notice != null && _noticeUntil > 0f && Time.time > _noticeUntil)
+            {
+                _notice.text = string.Empty;
+                _noticeUntil = 0f;
+            }
         }
 
         public void SetVerb(string text)

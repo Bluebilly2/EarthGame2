@@ -118,11 +118,13 @@ namespace EarthGame.Server
                 RegionRaster stand = layers.Read("stand");
                 RegionRaster loose = layers.Read("loose");
                 RegionRaster stone = layers.Read("stone");
+                // The shore's distance, for the salt wind at a founder (FP.2); a world from before the layer blows by its openness alone.
+                RegionRaster shore = layers.Read("shore_distance");
                 Report("Reading what the ground feeds");
                 CapacitySquares feeds = ReadCapacity(layers, region.ExtentM);
                 Report("Restoring the world");
                 layers.VerifyRemaining();
-                WorldState world = WorldSave.Restore(saved, terrain, region, water, cover, stand, loose, stone, feeds);
+                WorldState world = WorldSave.Restore(saved, terrain, region, water, cover, stand, loose, stone, feeds, shore);
                 Report("World ready");
                 return new Result { World = world, Saved = saved, Checksums = saved.Layers };
             }
@@ -140,7 +142,7 @@ namespace EarthGame.Server
             CapacitySquares capacity = ReadCapacity(createdLayers, region.ExtentM);
             WorldState made = new WorldState(seed, region, region.WakeClock(), ground, 0,
                 new Double3(created.Wake.East, 0, created.Wake.North), ReadWater(createdLayers), createdLayers.Read("cover"),
-                createdLayers.Read("stand"), createdLayers.Read("loose"), createdLayers.Read("stone"), capacity);
+                createdLayers.Read("stand"), createdLayers.Read("loose"), createdLayers.Read("stone"), capacity, createdLayers.Read("shore_distance"));
             Report("Saving the world");
             WorldSave.Write(worldDir, made, null, nowUtc, created.Checksums);
             Report("World ready");

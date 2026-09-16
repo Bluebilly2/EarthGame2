@@ -25,6 +25,15 @@ namespace EarthGame.Server
 
         /// <summary>How far a client's reported movement may stray from what the mover allows before it is corrected.</summary>
         public MovementRules Movement = new MovementRules();
+        /// <summary>
+        /// The beta arc's bridge (the owner, 2026-09-16, CANON ruling 33): the first night is a night like any other, and a
+        /// founder must do things to live through it; those things (fire, shelter) are not yet in the game, so while they are
+        /// not, the cold does not kill. The body still cools and the words still come, down to severely hypothermic; the core
+        /// is held just above the lethal and the sun brings it back at dawn. Thirst still kills, since water can be drunk. On
+        /// for every game until the bridge is taken down (DEBTS); off for the scenario that proves death (<c>-eg-no-bridge</c>,
+        /// <c>+server.bridge 0</c>).
+        /// </summary>
+        public bool BetaArcBridge = true;
 
         /// <summary>
         /// A player's state is sent only to sessions within this distance of them (horizontal metres). A session

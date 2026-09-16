@@ -95,6 +95,12 @@ namespace EarthGame.Server
         /// <summary>Raised when a developer's setting has been applied (M1.D), for the host's log.</summary>
         public event Action<PlayerSession, DevSettingMessage> DevSettingApplied;
 
+        /// <summary>A founder died (FP.2): who, and the death with its numbers, for the host's record and the game's log.</summary>
+        public event Action<PlayerSession, Death> FounderDied;
+
+        /// <summary>Where the beta arc's bridge holds a freezing founder's core, °C: a hair above the lethal, severely hypothermic, alive.</summary>
+        public const double BridgeCoreC = Warmth.LethalCoreC + 0.5;
+
         /// <summary>
         /// Players a previous run left in this world, by name: one who joins with a saved name wakes where they
         /// were, not at the region's wake point. Read by the host from the world folder before listening; added
@@ -241,16 +247,80 @@ namespace EarthGame.Server
             for (int i = 0; i < p.Carried.Length; i++) p.Carried[i] = s.Hands.Things[i];
             p.Hand = s.Hands.Hand;
             p.WaterLoss = s.Hydration.Loss;
+            p.CoreDeficitC = Warmth.NormalCoreC - s.Warmth.CoreC;
             return p;
         }
 
-        /// <summary>Every founder's body loses water for the step, on the world's clock (FP.1): a held clock holds the body too.</summary>
+        /// <summary>
+        /// Every founder's body lives the step on the world's clock (FP.1, FP.2): a held clock holds the body too. The
+        /// surroundings are read once a second (the ground's openness is the costly part); the warmth runs every step in
+        /// them, doing what the body's speed says the founder is doing; the water goes at the exertion's rate plus the sweat.
+        /// A body past the lethal core or the lethal loss dies here, in the step, whatever moved it there.
+        /// </summary>
         private void AdvanceFounders(double stepSeconds)
         {
             double days = World.Clock.DaysFor(stepSeconds);
             if (days <= 0.0) return;
-            for (int i = 0; i < _sessions.Count; i++)
-                if (_sessions[i].HasBody) _sessions[i].Hydration.Advance(days);
+            double worldSeconds = days * 86400.0;
+            for (int i = _sessions.Count - 1; i >= 0; i--)
+            {
+                PlayerSession s = _sessions[i];
+                if (!s.HasBody) continue;
+                if (s.SurroundingsTick < 0 || World.Tick - s.SurroundingsTick >= _config.TickRate)
+                {
+                    s.Surroundings = World.SurroundingsAt(s.Body.East, s.Body.Up, s.Body.North);
+                    s.SurroundingsTick = World.Tick;
+                }
+                Exertion exertion = Warmth.ExertionOf(s.Body.HorizontalSpeed);
+                s.Warmth.Tick(worldSeconds, s.Surroundings, exertion, s.Hydration.WorkCapacity01, 1.0 - s.Hydration.Loss / Hydration.LethalWaterLoss);
+                s.Hydration.Advance(days, Warmth.ExertionFactor(exertion), s.Warmth.SweatRateLPerHour);
+                if (!s.Warmth.IsAlive)
+                {
+                    // The beta arc's bridge (ServerConfig.BetaArcBridge): the cold reaches the edge of death and no further.
+                    if (_config.BetaArcBridge) s.Warmth.Restore(BridgeCoreC);
+                    else Die(s, CauseOfDeath.Cold);
+                }
+                else if (!s.Hydration.IsAlive) Die(s, CauseOfDeath.Thirst);
+            }
+        }
+
+        /// <summary>
+        /// The Standard death (the owner, 2026-09-01; FP.2): everything carried is let go where the founder fell, a new
+        /// founder wakes at the wake with a full body, stood as a correction stands them, and their client is told what
+        /// killed them and the numbers of it, then their new state and their empty hands. The world persists. The Hardcore
+        /// mode, one life, waits for a choice at new game (DEBTS).
+        /// </summary>
+        private void Die(PlayerSession session, CauseOfDeath cause)
+        {
+            Double3 fell = session.Body.Feet;
+            Warmth warmth = session.Warmth;
+            Death death = new Death(cause, World.Clock.LocalHourOfDay(World.Region.CentreLongitudeDeg), session.Surroundings.AirC,
+                                    session.Surroundings.WindAtBodyMs, warmth.SensibleLossW + warmth.SkyLossW + warmth.RespiratoryLossW,
+                                    warmth.ProductionW, warmth.CoreC, session.Hydration.Loss, fell.X, fell.Z);
+            session.Hands.LetGoOfEverything(World, fell, session.YawDeg);
+            warmth.Reset();
+            session.Hydration.Restore(1.0);
+            Double3 wake = World.SpawnPoint();
+            session.Body = MoverState.AtRest(wake.X, wake.Y, wake.Z);
+            session.Body.Grounded = true;
+            session.StoodUp = wake.Y;
+            session.LastMoveTick = World.Tick;
+            CorrectionMessage stood;
+            stood.Sequence = session.LastSequence;
+            stood.ServerTick = World.Tick;
+            stood.Body = session.Body;
+            stood.Reason = "a new founder wakes: the last died of " + (cause == CauseOfDeath.Cold ? "the cold" : "thirst");
+            _writer.Reset();
+            stood.Write(_writer);
+            session.Connection.Send(_writer.Written, Delivery.Reliable);
+            DiedMessage died;
+            died.Death = death;
+            _writer.Reset();
+            died.Write(_writer);
+            session.Connection.Send(_writer.Written, Delivery.Reliable);
+            SendFounderState(session);
+            SendCarrying(session);
+            FounderDied?.Invoke(session, death);
         }
 
         /// <summary>Each founder's state to their own client once a second, by the tick rate (FP.1).</summary>
@@ -260,7 +330,7 @@ namespace EarthGame.Server
             {
                 PlayerSession s = _sessions[i];
                 if (!s.HasBody || s.SnapshotPending) continue;
-                if (World.Tick - s.FounderStateTick < _config.TickRate) continue;
+                if (s.FounderStateTick >= 0 && World.Tick - s.FounderStateTick < _config.TickRate) continue;
                 SendFounderState(s);
             }
         }
@@ -273,6 +343,7 @@ namespace EarthGame.Server
             session.ToldCapacity = session.Hydration.WorkCapacity01;
             FounderStateMessage m;
             m.Water01 = session.Hydration.Water01;
+            m.CoreC = session.Warmth.CoreC;
             _writer.Reset();
             m.Write(_writer);
             session.Connection.Send(_writer.Written, Delivery.Reliable);
@@ -437,6 +508,7 @@ namespace EarthGame.Server
                 session.HasBody = true;
                 session.Hands.Restore(saved.Carried, saved.Hand);
                 session.Hydration.Restore(1.0 - saved.WaterLoss);
+                session.Warmth.Restore(Warmth.NormalCoreC - saved.CoreDeficitC);
             }
             WelcomeMessage welcome;
             welcome.SessionId = session.SessionId;
@@ -642,6 +714,7 @@ namespace EarthGame.Server
                 p.Carried = before.Carried;
                 p.Hand = before.Hand;
                 p.WaterLoss = before.WaterLoss;
+                p.CoreDeficitC = before.CoreDeficitC;
             }
             _savedPlayers[name] = p;
             return p;
@@ -961,20 +1034,37 @@ namespace EarthGame.Server
                     session.Hydration.Restore(value);
                     SendFounderState(session);
                     break;
+                case DevSettings.FounderCoreC:
+                    // Below the lethal core, the next step's AdvanceFounders is the death: one place decides it.
+                    session.Warmth.Restore(value);
+                    SendFounderState(session);
+                    break;
                 case DevSettings.SpawnStick:
                 case DevSettings.SpawnCobble:
                 {
-                    // Two metres ahead of the founder who asks, on the ground; at the founder when that is off the region.
                     Definition definition = setting.Name == DevSettings.SpawnStick ? DefinitionCatalogue.Stick : DefinitionCatalogue.Cobble;
-                    Double3 at = session.HasBody ? session.Body.Feet : World.SpawnPoint();
-                    double yaw = session.YawDeg * GeoMath.DegToRad;
-                    double east = at.X + SpawnAheadM * Math.Sin(yaw), north = at.Z + SpawnAheadM * Math.Cos(yaw);
-                    if (Math.Abs(east) > World.Region.HalfExtentM || Math.Abs(north) > World.Region.HalfExtentM)
-                    {
-                        east = at.X;
-                        north = at.Z;
-                    }
+                    Ahead(session, out double east, out double north);
                     World.SpawnItem(definition, east, north, null, session.YawDeg);
+                    break;
+                }
+                case DevSettings.SpawnKangaroo:
+                case DevSettings.SpawnOystercatcher:
+                {
+                    // One animal to look at (M1.7b): stood the same two metres ahead as a stick, but broadside to the
+                    // founder, because what names a kangaroo is its flank and not its face.
+                    AnimalStandUp animals = Animals();
+                    if (animals == null) break;
+                    AnimalSpecies species = setting.Name == DevSettings.SpawnKangaroo
+                        ? AnimalSpecies.EasternGreyKangaroo
+                        : AnimalSpecies.PiedOystercatcher;
+                    Ahead(session, out double east, out double north);
+                    animals.SetDown(World, species, east, north, (float)Mod(session.YawDeg + 90.0, 360.0));
+                    break;
+                }
+                case DevSettings.AnimalsSetDownPose:
+                {
+                    AnimalStandUp animals = Animals();
+                    animals?.PoseSetDown(World, (byte)Math.Round(value));
                     break;
                 }
                 case DevSettings.StandAtWake:
@@ -1002,6 +1092,28 @@ namespace EarthGame.Server
 
         /// <summary>How far ahead of a founder a developer's spawn is set down, m.</summary>
         private const double SpawnAheadM = 2.0;
+
+        /// <summary>
+        /// Where a developer's spawn goes: <see cref="SpawnAheadM"/> ahead of the founder who asked, and at the founder
+        /// when that would be off the region. One owner for the two deeds that set something down (M1.7b took the second).
+        /// </summary>
+        private void Ahead(PlayerSession session, out double east, out double north)
+        {
+            Double3 at = session.HasBody ? session.Body.Feet : World.SpawnPoint();
+            double yaw = session.YawDeg * GeoMath.DegToRad;
+            east = at.X + SpawnAheadM * Math.Sin(yaw);
+            north = at.Z + SpawnAheadM * Math.Cos(yaw);
+            if (Math.Abs(east) <= World.Region.HalfExtentM && Math.Abs(north) <= World.Region.HalfExtentM) return;
+            east = at.X;
+            north = at.Z;
+        }
+
+        /// <summary>A number folded onto [0, period): a bearing that stays a bearing however it is added to.</summary>
+        private static double Mod(double v, double period)
+        {
+            double r = v % period;
+            return r < 0.0 ? r + period : r;
+        }
 
         /// <summary>The system that stands the animals up, for a developer's setting to move and a host to hear its flights; null on a world without one.</summary>
         public AnimalStandUp Animals()

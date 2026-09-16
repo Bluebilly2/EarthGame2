@@ -199,3 +199,20 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     survival story." The work turns to the Founder's Path from here, beat by beat; the animals' looks (ruling 29)
     and hunting wait behind it. The same day, of the agent's phrase for it: "make sure the name 'survival story'
     doesnt catch on" — the work is called by the path's own name, the Founder's Path, and its beats by theirs.
+
+### Rulings of 2026-09-16
+
+32. **Fresh water near the wake is whatever the spawn gives.** Asked whether the wake should keep fresh water at a short
+    walk, the scorer having put this world's four metres from a creek where the path's first beat has it 174 m inland:
+    "there might be fresh water, it depends on the spawn you get." The wake stays where the world puts it; no rule holds
+    water near it or away from it.
+
+33. **No lesson anywhere; the first night is a night like any other; a beta-arc bridge until the answers exist.** Told
+    that the physiology leaves a standing founder a hair from death on an ordinary night and asked whether the night
+    should be deadlier or "keep moving, or make fire" was the lesson wanted: "i dont want there to be a lesson anywhere,
+    thats not the aim. the first night is no different to any other night, the only difference is that the player will
+    need to do things to avoid dying. those things are just not in the game/beta arc. maybe a 'beta arc mode' to bridge
+    the unsurvivable night (unsurvivable right now because the things to help survive the night are not yet
+    implemented)." The game teaches nothing on purpose: the body does what a body does and the world what a world does.
+    While fire and shelter do not exist, a bridge keeps the cold from killing (the core held a hair above the lethal, the
+    words still shown); it comes down when they do.

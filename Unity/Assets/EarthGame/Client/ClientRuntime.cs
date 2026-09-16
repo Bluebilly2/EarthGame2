@@ -177,6 +177,7 @@ namespace EarthGame.Client
             _client.PlayerLeft += OnPlayerLeft;
             _client.LooseTakenChanged += OnLooseTaken;
             _client.FounderStateChanged += OnFounderState;
+            _client.Died += OnDied;
             Interactive = false;
             if (_player != null) _player.Frozen = true;
             Joins++;
@@ -201,8 +202,18 @@ namespace EarthGame.Client
         /// <summary>The founder's body as the server tells it (FP.1): the word under the clock, and the walk's capacity.</summary>
         private void OnFounderState(FounderStateMessage founder)
         {
-            _hud?.SetCondition(Hydration.WordFor(Hydration.LevelOf(founder.Water01)));
+            // The cold's word and the thirst's, together when both have one (FP.2).
+            string cold = Warmth.WordFor(Warmth.LevelOf(founder.CoreC)), thirst = Hydration.WordFor(Hydration.LevelOf(founder.Water01));
+            _hud?.SetCondition(cold.Length > 0 && thirst.Length > 0 ? cold + ", " + thirst : cold + thirst);
             _player?.SetWorkCapacity(Hydration.CapacityOf(founder.Water01));
+        }
+
+        /// <summary>The founder died (FP.2): the one sentence, on the screen for a while and in the log; the new body comes by the server's correction.</summary>
+        private void OnDied(Death death)
+        {
+            string sentence = death.Explain();
+            _hud?.SetNotice(sentence, 20f);
+            Debug.Log("[founder] " + sentence);
         }
 
         public void Reconnect()
@@ -217,6 +228,7 @@ namespace EarthGame.Client
                 _client.PlayerLeft -= OnPlayerLeft;
                 _client.LooseTakenChanged -= OnLooseTaken;
                 _client.FounderStateChanged -= OnFounderState;
+                _client.Died -= OnDied;
             }
             _transport?.Dispose();
             Connect();
@@ -917,9 +929,16 @@ namespace EarthGame.Client
                     .With("started_utc", DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture))
                     .With("terrain", _bakedRegion != null);
                 Recorder recorder = gameObject.AddComponent<Recorder>();
+                // The sky and the sun as this client works them out (M1.8a: a function of the seed and the clock), for the
+                // records the night scenario keeps beside the body's words (FP.2); the wind in the open, the ground's openness
+                // being the server's to read.
+                Climate climate = Climate.ForRegion(_region);
+                Synoptic synoptic = new Synoptic(welcome.Seed);
                 recorder.Begin(_recordDir, _camera, _player, script, _hud, () => _client.LastServerTick, header, StandSettled,
                                () => _stand != null ? _stand.TreeCount : -1, () => _stand != null ? _stand.LastDrawMs : 0.0,
-                               _scenario ?? Recorder.Scenario, _client, _verbs, _devPanel);
+                               _scenario ?? Recorder.Scenario, _client, _verbs, _devPanel,
+                               () => Weather.At(climate, synoptic, _solar, Math.Max(0.0, _player.State.Up), 1.0), () => _solar.SolarElevationDeg,
+                               () => _clock.TotalHours);
                 TileBuilt += recorder.RecordBuild;
             }
         }

@@ -67,7 +67,8 @@ namespace EarthGame.Client
         /// <summary>Whether a scenario is one of this recorder's, which write frames, rather than the runner's.</summary>
         public static bool IsKnown(string scenario) => scenario == Scenario || scenario == CarryScenario || scenario == LitterScenario
                                                        || scenario == WadeScenario || scenario == ControlsScenario || scenario == SwimScenario
-                                                       || scenario == TrunkScenario || scenario == DrinkScenario;
+                                                       || scenario == TrunkScenario || scenario == DrinkScenario || scenario == NightScenario
+                                                       || scenario == LooksScenario;
         private static readonly (int Width, int Height, string Tag)[] Sizes = { (2560, 1440, "1440p"), (1920, 1080, "1080p") };
 
         private string _dir;
@@ -84,6 +85,10 @@ namespace EarthGame.Client
         private string _scenario = Scenario;
         private GameClient _client;
         private VerbController _verbs;
+        /// <summary>The sky and the sun where the founder stands, as the client works them out (FP.2): the night scenario records them beside the body's words.</summary>
+        private Func<Weather> _sky;
+        private Func<double> _sun;
+        private Func<double> _hours;
         private readonly List<string> _answers = new List<string>();
 
         /// <summary>What one tile cost to make ready to draw (M1.4e); the runtime reports each one as it lands.</summary>
@@ -107,12 +112,16 @@ namespace EarthGame.Client
         private Func<double> _standCpu;
 
         public void Begin(string dir, Camera camera, PlayerController player, ScriptedInputSource script, HudController hud, Func<long> serverTick, JsonObject header, Func<bool> ready = null, Func<int> trees = null, Func<double> standCpu = null,
-                          string scenario = Scenario, GameClient client = null, VerbController verbs = null, DevPanelController devPanel = null)
+                          string scenario = Scenario, GameClient client = null, VerbController verbs = null, DevPanelController devPanel = null,
+                          Func<Weather> sky = null, Func<double> sunElevationDeg = null, Func<double> worldHours = null)
         {
             _scenario = IsKnown(scenario) ? scenario : Scenario;
             _client = client;
             _verbs = verbs;
             _devPanel = devPanel;
+            _sky = sky;
+            _sun = sunElevationDeg;
+            _hours = worldHours;
             _ready = ready;
             _trees = trees;
             _standCpu = standCpu;
@@ -130,7 +139,8 @@ namespace EarthGame.Client
             StartCoroutine(_scenario == CarryScenario ? RunCarry() : _scenario == LitterScenario ? RunLitter()
                 : _scenario == WadeScenario ? RunWade() : _scenario == SwimScenario ? RunSwim()
                 : _scenario == TrunkScenario ? RunTrunk() : _scenario == ControlsScenario ? RunControls()
-                : _scenario == DrinkScenario ? RunDrink() : Run());
+                : _scenario == DrinkScenario ? RunDrink() : _scenario == NightScenario ? RunNight()
+                : _scenario == LooksScenario ? RunLooks() : Run());
         }
 
         private double T => _clock.Elapsed.TotalSeconds;

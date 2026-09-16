@@ -12,8 +12,15 @@ namespace EarthGame.Client
     /// delay ago, between the positions it stated, so a thing let fall is drawn falling as a remote body is drawn walking
     /// rather than stepping twenty times a second, and each is destroyed when the entity is gone. A definition with no
     /// look is drawn as a small magenta cube and logged once: a hole in the table is meant to be seen, and the edit-mode
-    /// test is meant to catch it first. An animal is mirrored and not drawn (M1.7a): no cube, and nothing for the crosshair
-    /// to meet, until M1.7b gives it a look.
+    /// test is meant to catch it first.
+    ///
+    /// <para><b>An animal is drawn as its kind in its pose</b> (M1.7b, CANON ruling 29). It is kept apart from the things:
+    /// an object of its own with a child for each rigid piece <see cref="AnimalShapes"/> names, each child holding the mesh
+    /// <see cref="AnimalLooks"/> grew for that piece, and every frame the pieces are placed again for the pose the server
+    /// last gave it and the moment it is at, so a mob grazes and a startled one bounds. Animals are held in their own list
+    /// and never offered to the crosshair (<see cref="Pick"/>): a kangaroo is not a thing to pick up, as M1.7a promised.
+    /// A device that draws nothing instanced has no stand material and so draws no animals either, as it draws no
+    /// trees.</para>
     ///
     /// <para>The crosshair asks what a ray meets (<see cref="Pick"/>) of each thing's own bounds rather than of a
     /// collider: nothing lying is a collider, so a founder never stumbles on a stick the server's ground does not
@@ -39,22 +46,37 @@ namespace EarthGame.Client
             public long LandedTick = -1;
         }
 
+        /// <summary>One animal drawn (M1.7b): the object its pieces hang from, a transform for each piece, and where in its own hop it is.</summary>
+        private sealed class Beast
+        {
+            public EntityView View;
+            public AnimalSpecies Species;
+            public Transform Root;
+            public Transform[] Pieces;
+            /// <summary>Where this animal starts in its own cycle, s, so a mob does not bound as one machine.</summary>
+            public double Start;
+        }
+
         /// <summary>A thing came down (M1.5c): what it is, where it rests, and the energy it came down with, J.</summary>
         public event System.Action<Definition, Vector3, double> Landed;
 
         private readonly EntityMirror _mirror;
         private readonly Material _material;
         private readonly Dictionary<ulong, Drawn> _drawn = new Dictionary<ulong, Drawn>();
+        private readonly Dictionary<ulong, Beast> _beasts = new Dictionary<ulong, Beast>();
+        private readonly List<AnimalPart> _parts = new List<AnimalPart>();
         private readonly HashSet<string> _unbound = new HashSet<string>();
         private Material _unboundMaterial;
+        private Material _animalMaterial;
 
         public int Count => _drawn.Count;
 
-        /// <param name="material">The stand's loose material; without one (a device that draws nothing instanced) the things are placed and picked but not drawn.</param>
+        /// <param name="material">The stand's loose material; without one (a device that draws nothing instanced) the things are placed and picked but not drawn, and no animal is made at all.</param>
         public EntityViews(EntityMirror mirror, Material material)
         {
             _mirror = mirror;
             _material = material;
+            if (material != null) _animalMaterial = AnimalLooks.MaterialFrom(material);
             _mirror.Spawned += OnSpawned;
             _mirror.Updated += OnUpdated;
             _mirror.Gone += OnGone;
@@ -69,12 +91,20 @@ namespace EarthGame.Client
             foreach (Drawn d in _drawn.Values)
                 if (d.Transform != null) Object.Destroy(d.Transform.gameObject);
             _drawn.Clear();
+            foreach (Beast b in _beasts.Values)
+                if (b.Root != null) Object.Destroy(b.Root.gameObject);
+            _beasts.Clear();
             if (_unboundMaterial != null) Object.Destroy(_unboundMaterial);
+            if (_animalMaterial != null) Object.Destroy(_animalMaterial);
         }
 
         private void OnSpawned(EntityView view)
         {
-            if (view.Definition.Kind == DefinitionKind.Animal) return;
+            if (view.Definition.Kind == DefinitionKind.Animal)
+            {
+                StandUp(view);
+                return;
+            }
             if (_drawn.TryGetValue(view.Id.Value, out Drawn old) && old.Transform != null) Object.Destroy(old.Transform.gameObject);
             Drawn d = new Drawn { View = view };
             GameObject go;
@@ -133,9 +163,57 @@ namespace EarthGame.Client
         {
             if (_drawn.TryGetValue(view.Id.Value, out Drawn d) && d.Transform != null) Object.Destroy(d.Transform.gameObject);
             _drawn.Remove(view.Id.Value);
+            if (_beasts.TryGetValue(view.Id.Value, out Beast b) && b.Root != null) Object.Destroy(b.Root.gameObject);
+            _beasts.Remove(view.Id.Value);
         }
 
-        /// <summary>Places every thing where it was at a server tick: the estimated tick less the mirrors' delay, as the other bodies are sampled.</summary>
+        /// <summary>
+        /// Stands one animal up to be drawn (M1.7b): an object with a child for each piece its kind is made of, each
+        /// holding that piece's own mesh, in the animals' material. Nothing here is a collider and nothing is offered to
+        /// the crosshair.
+        /// </summary>
+        private void StandUp(EntityView view)
+        {
+            if (_animalMaterial == null) return;
+            AnimalSpecies species = AnimalLooks.SpeciesOf(view.Definition);
+            if (species == null)
+            {
+                if (_unbound.Add(view.Definition.Key)) Debug.LogWarning("[client] no look for " + view.Definition.Key + "; it is not drawn");
+                return;
+            }
+            if (_beasts.TryGetValue(view.Id.Value, out Beast old) && old.Root != null) Object.Destroy(old.Root.gameObject);
+            AnimalShapes.PartsOf(species, _parts);
+            GameObject root = new GameObject(view.Definition.Key + " " + view.Id);
+            Beast beast = new Beast
+            {
+                View = view,
+                Species = species,
+                Root = root.transform,
+                Pieces = new Transform[_parts.Count],
+                Start = AnimalLooks.StartOf(view.Id.Value),
+            };
+            for (int i = 0; i < _parts.Count; i++)
+            {
+                GameObject piece = new GameObject(_parts[i].Name);
+                piece.transform.SetParent(root.transform, false);
+                piece.AddComponent<MeshFilter>().sharedMesh = AnimalLooks.Piece(species, i, _parts[i]);
+                MeshRenderer renderer = piece.AddComponent<MeshRenderer>();
+                renderer.sharedMaterial = _animalMaterial;
+                // An animal casts: a kangaroo without a shadow floats over the ground it stands on.
+                renderer.shadowCastingMode = ShadowCastingMode.On;
+                renderer.lightProbeUsage = LightProbeUsage.Off;
+                renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
+                beast.Pieces[i] = piece.transform;
+            }
+            _beasts[view.Id.Value] = beast;
+            Pose(beast, view.Position, 0.0);
+        }
+
+        /// <summary>
+        /// Places every thing where it was at a server tick: the estimated tick less the mirrors' delay, as the other
+        /// bodies are sampled; and poses every animal for the same instant, on the client's own clock, so a hop runs at
+        /// the frame rate rather than at the twenty states a second the server sends.
+        /// </summary>
         public void Draw(double tick)
         {
             foreach (Drawn d in _drawn.Values)
@@ -148,6 +226,28 @@ namespace EarthGame.Client
                 d.LandedTick = -1;
                 d.FellFromUp = double.NaN;
                 Landed?.Invoke(d.View.Definition, new Vector3((float)rest.X, (float)rest.Y, (float)rest.Z), joules);
+            }
+            if (_beasts.Count == 0) return;
+            double now = Time.timeAsDouble;
+            foreach (Beast b in _beasts.Values) Pose(b, b.View.PositionAt(tick), now);
+        }
+
+        /// <summary>
+        /// Puts an animal where the server said it was and turns it to its yaw, then places each of its pieces for the pose
+        /// it was last given at the moment it has reached in its own cycle.
+        /// </summary>
+        private void Pose(Beast beast, Double3 at, double now)
+        {
+            if (beast.Root == null) return;
+            beast.Root.SetPositionAndRotation(new Vector3((float)at.X, (float)at.Y, (float)at.Z), Quaternion.Euler(0f, beast.View.YawDeg, 0f));
+            AnimalShapes.Build(beast.Species, beast.View.Animal.Pose, now + beast.Start, _parts);
+            int pieces = System.Math.Min(beast.Pieces.Length, _parts.Count);
+            for (int i = 0; i < pieces; i++)
+            {
+                if (beast.Pieces[i] == null) continue;
+                AnimalPart part = _parts[i];
+                beast.Pieces[i].SetLocalPositionAndRotation(new Vector3(part.X, part.Y, part.Z),
+                                                            Quaternion.Euler(part.PitchDeg, part.YawDeg, part.RollDeg));
             }
         }
 

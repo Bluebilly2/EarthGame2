@@ -11,7 +11,7 @@ drink, and the water that will. The path's own name is used for this work and it
   pattern: every "no" carries its mechanism.
 - **Water.** "The creek, 174 m inland — findable by reading the land (the gully, the green). Drink."
 - **Kill conditions** of Act I: cold, dehydration, "both fully explained on death".
-- The lesson the body's clocks teach (v1's `BodyState`): warmth kills in hours, thirst in days, hunger in weeks.
+- The body's clocks (v1's `BodyState`): warmth kills in hours, thirst in days, hunger in weeks.
 
 ## What this slice promises
 

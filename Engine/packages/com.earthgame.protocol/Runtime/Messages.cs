@@ -51,8 +51,10 @@ namespace EarthGame.Protocol
         LooseTaken = 20,
         /// <summary>Client → server, reliable: a developer's setting by name and number (M1.D), taken by a development server alone.</summary>
         DevSetting = 21,
-        /// <summary>Server → its own client, reliable: the water in the founder's body (FP.1, protocol v13).</summary>
+        /// <summary>Server → its own client, reliable: the water in the founder's body (FP.1, protocol v13) and its core (FP.2, v14).</summary>
         FounderState = 22,
+        /// <summary>Server → its own client, reliable: the founder died, what killed them and the numbers of it (FP.2, protocol v14).</summary>
+        Died = 23,
     }
 
     /// <summary>One tile of one layer the client wants, with the checksum of the copy it already holds (zero for none).</summary>
@@ -408,19 +410,66 @@ namespace EarthGame.Protocol
     public struct FounderStateMessage
     {
         public double Water01;
+        /// <summary>The core's temperature, °C (FP.2, protocol v14): the client takes the cold's word from it by the engine's table.</summary>
+        public double CoreC;
 
         public void Write(PacketWriter w)
         {
             w.WriteByte((byte)MessageKind.FounderState);
             w.WriteDouble(Water01);
+            w.WriteDouble(CoreC);
         }
 
         public static FounderStateMessage Read(PacketReader r)
         {
             FounderStateMessage m;
             m.Water01 = r.ReadDouble();
+            m.CoreC = r.ReadDouble();
             if (!BodyWire.Finite(m.Water01) || m.Water01 < 0.0 || m.Water01 > 1.0)
                 throw new ProtocolException("a founder's water of " + m.Water01 + " is no fraction of a body");
+            if (!BodyWire.Finite(m.CoreC) || m.CoreC < 20.0 || m.CoreC > 41.0)
+                throw new ProtocolException("a founder's core of " + m.CoreC + " is no temperature a body has");
+            return m;
+        }
+    }
+
+    /// <summary>
+    /// Server → its own client, reliable (protocol v14, FP.2): the founder died. What killed them, when by the local clock,
+    /// the air and the wind, the body's last balance, the core and the water, and where they fell: the numbers the one
+    /// sentence (<see cref="Death.Explain"/>) is made of, so the screen and the log tell the same story.
+    /// </summary>
+    public struct DiedMessage
+    {
+        public Death Death;
+
+        public void Write(PacketWriter w)
+        {
+            w.WriteByte((byte)MessageKind.Died);
+            w.WriteByte((byte)Death.Cause);
+            w.WriteDouble(Death.LocalHour);
+            w.WriteDouble(Death.AirC);
+            w.WriteDouble(Death.WindMs);
+            w.WriteDouble(Death.LossW);
+            w.WriteDouble(Death.ProductionW);
+            w.WriteDouble(Death.CoreC);
+            w.WriteDouble(Death.WaterLoss);
+            w.WriteDouble(Death.East);
+            w.WriteDouble(Death.North);
+        }
+
+        public static DiedMessage Read(PacketReader r)
+        {
+            byte cause = r.ReadByte();
+            if (cause != (byte)CauseOfDeath.Cold && cause != (byte)CauseOfDeath.Thirst)
+                throw new ProtocolException("a death of cause " + cause + " is not one this build knows");
+            double hour = r.ReadDouble(), air = r.ReadDouble(), wind = r.ReadDouble(), loss = r.ReadDouble(), production = r.ReadDouble();
+            double core = r.ReadDouble(), water = r.ReadDouble(), east = r.ReadDouble(), north = r.ReadDouble();
+            if (!BodyWire.Finite(hour) || !BodyWire.Finite(air) || !BodyWire.Finite(wind) || !BodyWire.Finite(loss) || !BodyWire.Finite(production)
+                || !BodyWire.Finite(core) || !BodyWire.Finite(water) || !BodyWire.Finite(east) || !BodyWire.Finite(north))
+                throw new ProtocolException("a death names a number that is not one");
+            if (hour < 0.0 || hour >= 24.0) throw new ProtocolException("a death at hour " + hour + " is at no hour of a day");
+            DiedMessage m;
+            m.Death = new Death((CauseOfDeath)cause, hour, air, wind, loss, production, core, water, east, north);
             return m;
         }
     }
