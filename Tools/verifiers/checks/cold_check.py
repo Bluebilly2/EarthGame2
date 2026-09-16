@@ -4,8 +4,9 @@
 Reference: v1's BodyState (Assets/EarthGame/Sim/Body/BodyState.cs) and its calibration (CALIBRATION_B1_DAY_ONE.md), whose
 numbers are published human physiology: 70 kg, 1.8 m² of skin, tissue at 3,500 J/(kg·K), 80 W at rest, 350 W of shivering
 for three hours' worth, 0.7 clo of still air on bare skin thinned by the root of the wind, tissue 0.3 to 0.9 clo as the
-cold constricts it, a clear sky 16 K colder than the air, Fanger's breath, the Meinel beam; the words at 36.7, 36, 35 and
-32 °C; death at 28. Source: the run's run.jsonl (eg2.run, ARCHITECTURE section 10) alone, read with the standard library:
+cold constricts it, a clear sky 16 K colder than the air, Fanger's breath, the Meinel beam with the site's shares under
+cloud (M1.8c: a covered sky leaves a quarter of the beam, a clear one scatters fifteen hundredths of its fall); the words
+at 36.7, 36, 35 and 32 °C; death at 28. Source: the run's run.jsonl (eg2.run, ARCHITECTURE section 10) alone, read with the standard library:
 the `warmth` records carry the core the server told, the sky the client worked out (air, the wind in the open, cloud,
 humidity, the sun's elevation) and the server's tick the word was told on, and this check lives the same night again in
 Python from those and compares the core it reaches with the core recorded, every word along the way. The time base is
@@ -83,14 +84,14 @@ def direct_wm2(elev, cloud):
     if elev <= 0.5:
         return 0.0
     air_mass = 1.0 / max(0.05, math.sin(math.radians(elev)))
-    return 1353.0 * 0.7 ** (air_mass ** 0.678) * (1.0 - 0.85 * clamp01(cloud))
+    return 1353.0 * 0.7 ** (air_mass ** 0.678) * (1.0 - 0.75 * clamp01(cloud))
 
 
 def diffuse_wm2(elev, cloud):
     if elev <= 0.5:
         return 0.0
     s = math.sin(math.radians(elev))
-    return 0.10 * direct_wm2(elev, 0.0) * s * (1.0 - clamp01(cloud)) + 0.28 * 1361.0 * s * clamp01(cloud)
+    return 0.15 * direct_wm2(elev, 0.0) * s * (1.0 - clamp01(cloud)) + 0.28 * 1361.0 * s * clamp01(cloud)
 
 
 class Body:

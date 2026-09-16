@@ -12,13 +12,16 @@ namespace EarthGame.Almanac
     /// +lon with +hour for the wake reading; +day N, optionally +to M for a range of days. With +weather and a folder it
     /// writes years of the engine's weather at the region's centre there instead, as eg2.weather (M1.8a): +first the
     /// first world seed (1000), +seeds how many (256), +days (365), +steps a day (48), +altitude metres (the height of the
-    /// weather station the region's climate stands on) and +exposure 0 to 1 (1, open ground). Exit 2 on a bad argument.
+    /// weather station the region's climate stands on) and +exposure 0 to 1 (1, open ground). With +fit rain|cloud|depth|
+    /// widening|all it fits the weather's settings to the lighthouse's record and prints them (<see cref="Fit"/>, M1.8c), on
+    /// +first and +seeds world seeds (5000, 128). Exit 2 on a bad argument.
     /// </summary>
     public static class Program
     {
         public static int Main(string[] args)
         {
             Dictionary<string, string> a = ParseArgs(args);
+            if (a.ContainsKey("fit")) return Fit.Run(a, ULong(a, "first", 5000UL), Int(a, "seeds", 128));
             if (a.ContainsKey("weather")) return WriteWeather(a);
             Region region = Region.ById(Str(a, "region", Region.Bherwerre.Id));
             if (region == null && !(a.ContainsKey("lat") && a.ContainsKey("lon")))

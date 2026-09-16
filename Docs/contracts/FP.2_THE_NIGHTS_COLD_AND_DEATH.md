@@ -100,8 +100,9 @@ visual changes: frames, or William's eyes.
   after the panel changes the rate).
 - **What this world's night is.** Standing still and naked in the forest behind the wake beach, a founder dies of the
   cold before dawn on an ordinary late-winter night here (air 6 °C by morning, 1.4 m/s at the body); in the engine's
-  test of the shore itself the same night leaves a standing founder at 28.7 °C and alive. Under the beta arc's bridge
-  (every game until fire and shelter exist, ruling 33) the same founder would have been held at 28.5 °C, severely
+  test of the shore itself the same night left a standing founder at 28.7 °C and alive under M1.8a's weather, and kills
+  them at about dawn under the lighthouse's own record, whose night wind is the coast's (M1.8c, 2026-09-16). Under the
+  beta arc's bridge (every game until fire and shelter exist, ruling 33) the same founder is held at 28.5 °C, severely
   hypothermic, and warmed by the sun; walking, they are never cold.
 - **Owed** (DEBTS): the bridge's removal when fire and shelter exist; the Hardcore mode and the choice at new game;
   the body's missing terms (shelter, fire, clothing, bedding, the ground, sleep, canopy); illness; the client's clock

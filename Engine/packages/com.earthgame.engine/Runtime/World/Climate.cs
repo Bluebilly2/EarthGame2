@@ -15,7 +15,9 @@ namespace EarthGame.Engine
     /// <para><b>The station's own year, not a formula of latitude.</b> v1 worked a day's mean temperature out of latitude
     /// alone, which put Moss Vale within half a degree and puts no particular coast anywhere near. Here the record is the
     /// station's own table of monthly means of the day's highest and lowest readings, each month read as the average over
-    /// its own days, which is what a station's monthly figure is. The day's mean is one yearly wave fitted to the twelve
+    /// its own days, which is what a station's monthly figure is: since M1.8c (2026-09-16) the Bureau's own all-years table,
+    /// read in the owner's browser and kept under <c>Data/stations/</c>, in place of the fourteen-year reproduction M1.8a
+    /// stood on. The day's mean is one yearly wave fitted to the twelve
     /// months, which leaves the worst months 0.7 °C from their own and August 0.1. The day's range is each month's own,
     /// eased from one mid-month to the next and solved so that every month's average is the one asked for: the yearly wave
     /// for the range this class first had (2026-09-13) left August's half a degree narrow, because the lighthouse's range
@@ -48,6 +50,52 @@ namespace EarthGame.Engine
         /// </summary>
         public const double AnthropogenicWarmingSinceRecordsC = 1.51;
 
+        /// <summary>
+        /// The years the warming figure spans: national records began in 1910, and <i>State of the Climate 2024</i> reads to
+        /// 2023. The figure is a trend across those years, so what of it lies inside a station's table is the trend's value at
+        /// the table's middle year (<see cref="WarmingInsideRecordC"/>).
+        /// </summary>
+        public const int WarmingTrendFromYear = 1910, WarmingTrendToYear = 2023;
+
+        /// <summary>
+        /// How much of a station's table is humanity's, °C: the warming trend's value at the middle of the years the table
+        /// averages over (M1.8c, 2026-09-16). The lighthouse's 1907–2004 table stands 0.61 °C above the pre-human coast, and a
+        /// 1991–2004 table 1.17; M1.8a took the whole 1.51 off a fourteen-year table, a third of a degree too much. The trend is
+        /// read as its source states it, straight; the century's warming was slower at first and faster of late, which would
+        /// make an old table's share smaller still, and no series for this coast has been read to say by how much (DEBTS).
+        /// </summary>
+        public static double WarmingInsideRecordC(int firstYear, int lastYear)
+        {
+            double middle = 0.5 * (firstYear + lastYear);
+            return AnthropogenicWarmingSinceRecordsC * SimMath.Clamp01((middle - WarmingTrendFromYear) / (WarmingTrendToYear - WarmingTrendFromYear));
+        }
+
+        // ---- the wind and the moisture at a founder ----
+
+        /// <summary>
+        /// How much of a station's wind, read at the anemometer's 10 m, blows at a founder's height of 1.5 m over open ground:
+        /// the logarithmic profile over short grass, ln(1.5 / 0.03) over ln(10 / 0.03), about two thirds; sand and short
+        /// heath are smoother and would give 0.72. Grass is taken, and the tests restate the same line.
+        /// </summary>
+        public static readonly double BodyHeightWindShare = Math.Log(1.5 / 0.03) / Math.Log(10.0 / 0.03);
+
+        /// <summary>How much of the open's wind blows on ground with no openness at all, and the rest scales with the openness: v1's shelter.</summary>
+        public const double ShelteredWindShare = 0.35;
+
+        /// <summary>
+        /// The wind's day: a floor through the night, a rise from this hour to a peak at <see cref="WindPeakHour"/> and back to
+        /// the floor by midnight, as a half sine, so that a station's two readings a day fix it: at nine in the morning the
+        /// rise is half made, at three in the afternoon whole.
+        /// </summary>
+        public const double WindRiseFromHour = 6.0, WindPeakHour = 15.0;
+
+        /// <summary>
+        /// The pressure of water vapour that saturates air at a temperature, kPa: the Magnus form with Alduchov and Eskridge's
+        /// constants (1996, <i>Journal of Applied Meteorology</i> 35: 601–609). One owner for the humidity (M1.8c) and the
+        /// breath's latent loss (FP.2), which had its own copy of the same line.
+        /// </summary>
+        public static double SaturationVapourKPa(double airC) => 0.61094 * Math.Exp(17.625 * airC / (airC + 243.04));
+
         /// <summary>How much colder the air is a kilometre higher, °C: the standard atmosphere's lapse rate.</summary>
         public const double LapseRateCPerKm = 6.5;
 
@@ -75,9 +123,20 @@ namespace EarthGame.Engine
         public const double SolarConstantWm2 = 1361.0;
 
         /// <summary>
+        /// How much of the direct beam a wholly covered sky takes, how much diffuse light a clear sky adds as a share of the
+        /// beam's fall on level ground, and how much of the sun above the atmosphere an overcast sky lets through as diffuse
+        /// light. v1 had 0.85, 0.10 and 0.28, and under the weather's own cloud they left every month's energy on the ground
+        /// 5 to 14 per cent short of the Bureau's satellite figure for the site; these three (M1.8c, 2026-09-16) hold all
+        /// twelve months within a fifteenth, the cloud an observer reads in oktas not taking the whole beam on average and a
+        /// clear sky scattering more than a tenth.
+        /// </summary>
+        public const double BeamLostToFullCloud = 0.75, ClearSkyDiffuseShare = 0.15, OvercastTransmission = 0.28;
+
+        /// <summary>
         /// Direct-beam solar irradiance reaching the ground, W/m², by the Meinel approximation I = 1.353 · 0.7^(AM^0.678)
         /// kW/m² with the air mass from the sun's elevation (FP.2, v1's). At a winter noon here the sun is about 32° up,
-        /// an air mass near two, around 780 W/m²: the 600-800 that is measured. Cloud kills the beam long before the light.
+        /// an air mass near two, around 780 W/m²: the 600-800 that is measured. Cloud cuts the beam (<see cref="BeamLostToFullCloud"/>)
+        /// long before the light.
         /// </summary>
         public static double DirectSolarWm2(double solarElevationDeg, double cloudCover01)
         {
@@ -85,20 +144,20 @@ namespace EarthGame.Engine
             double sinE = Math.Sin(solarElevationDeg * Math.PI / 180.0);
             double airMass = 1.0 / Math.Max(0.05, sinE);
             double clear = 1353.0 * Math.Pow(0.7, Math.Pow(airMass, 0.678));
-            return clear * (1.0 - 0.85 * SimMath.Clamp01(cloudCover01));
+            return clear * (1.0 - BeamLostToFullCloud * SimMath.Clamp01(cloudCover01));
         }
 
         /// <summary>
-        /// Diffuse sky irradiance on the ground, W/m²: small under a clear sky and most of what is left under an overcast
-        /// one, which is why an overcast day is bright and not warm (FP.2, v1's).
+        /// Diffuse sky irradiance on the ground, W/m²: a share of the beam's fall under a clear sky and most of what is left
+        /// under an overcast one, which is why an overcast day is bright and not warm (FP.2, v1's shape; M1.8c's shares).
         /// </summary>
         public static double DiffuseSolarWm2(double solarElevationDeg, double cloudCover01)
         {
             if (solarElevationDeg <= 0.5) return 0.0;
             double sinE = Math.Sin(solarElevationDeg * Math.PI / 180.0);
             double cloud = SimMath.Clamp01(cloudCover01);
-            double clearSky = 0.10 * DirectSolarWm2(solarElevationDeg, 0.0) * sinE;
-            double overcast = 0.28 * SolarConstantWm2 * sinE;
+            double clearSky = ClearSkyDiffuseShare * DirectSolarWm2(solarElevationDeg, 0.0) * sinE;
+            double overcast = OvercastTransmission * SolarConstantWm2 * sinE;
             return clearSky * (1.0 - cloud) + overcast * cloud;
         }
 
@@ -110,19 +169,39 @@ namespace EarthGame.Engine
         private static readonly double[] MidMonthDay = MidMonths();
 
         /// <summary>
-        /// A weather station's record, its height and its monthly means of the day's highest and lowest readings, and how far
-        /// the weather's fronts widen those means beyond the day under them; from these the curve's mean and range are worked
-        /// out for every day of the year when the station is made.
+        /// A weather station's record: its height; its monthly means of the day's highest and lowest readings with the years
+        /// they average over, and how far the weather's fronts widen those means beyond the day under them, from which the
+        /// curve's mean and range are worked out for every day of the year when the station is made; its 9 am and 3 pm dew
+        /// points by month; and its 9 am and 3 pm wind speeds by month, km/h at the anemometer's 10 m.
         /// </summary>
         private sealed class Station
         {
             public readonly double ElevationM;
+            /// <summary>What of the temperature table is humanity's, °C: the trend's share inside its years.</summary>
+            public readonly double WarmingC;
             private readonly double[] _meanByDayC = new double[366];
             private readonly double[] _rangeByDayC = new double[366];
+            private readonly double[] _dewPointC = new double[12];
+            private readonly double[] _windFloorMs = new double[12];
+            private readonly double[] _windPeakMs = new double[12];
 
-            public Station(double elevationM, double[] meanMaxC, double[] meanMinC, double[] frontsRaiseMaxC, double[] frontsLowerMinC)
+            public Station(double elevationM, int firstYear, int lastYear, double[] meanMaxC, double[] meanMinC, double[] frontsRaiseMaxC, double[] frontsLowerMinC,
+                           double[] dewPoint9amC, double[] dewPoint3pmC, double[] wind9amKmh, double[] wind3pmKmh)
             {
                 ElevationM = elevationM;
+                WarmingC = WarmingInsideRecordC(firstYear, lastYear);
+                for (int m = 0; m < 12; m++)
+                {
+                    // The dew point comes down with the air by the same amount, which keeps the humidity the record's: the
+                    // moisture the pre-human air held is what gave the same dampness at a cooler temperature.
+                    _dewPointC[m] = 0.5 * (dewPoint9amC[m] + dewPoint3pmC[m]) - WarmingC;
+                    // Two readings a day fix the day's floor and peak (WindRiseFromHour, WindPeakHour): at nine the rise is
+                    // half made, so the floor is twice the nine o'clock reading less the three o'clock one; a floor under a
+                    // quarter of the peak is not a coast's night, and is held there.
+                    double at9 = wind9amKmh[m] / 3.6 * BodyHeightWindShare, at15 = wind3pmKmh[m] / 3.6 * BodyHeightWindShare;
+                    _windPeakMs[m] = at15;
+                    _windFloorMs[m] = Math.Max(0.25 * at15, 2.0 * at9 - at15);
+                }
                 double[,] waveNormal = new double[3, 3];
                 double[] waveTarget = new double[3];
                 double[,] easing = new double[12, 12];
@@ -165,32 +244,61 @@ namespace EarthGame.Engine
                 }
             }
 
-            /// <summary>The mean of the day under the weather at the station, °C.</summary>
+            /// <summary>The mean of the day under the weather at the station, °C, as the table has it: the warming still in it.</summary>
             public double MeanC(int day) => _meanByDayC[day];
 
             /// <summary>The range of the day under the weather, from its lowest to its highest, °C.</summary>
             public double RangeC(int day) => _rangeByDayC[day];
+
+            /// <summary>The month's dew point, pre-human, °C, eased between mid-months.</summary>
+            public double DewPointC(int day) => Eased(_dewPointC, day);
+
+            /// <summary>The night's wind in the open at a founder's height on a day, m/s, eased between mid-months.</summary>
+            public double WindFloorMs(int day) => Eased(_windFloorMs, day);
+
+            /// <summary>The afternoon's peak wind in the open at a founder's height on a day, m/s, eased between mid-months.</summary>
+            public double WindPeakMs(int day) => Eased(_windPeakMs, day);
+
+            /// <summary>A monthly figure read on a day of the year: straight between the two mid-months around it. Good to a few per cent of a smooth year; the temperature's range, held to a tenth of a degree, is solved for its exact monthly averages instead.</summary>
+            private static double Eased(double[] byMonth, int day)
+            {
+                MidMonthsAround(day, out int before, out int after, out double towardsAfter);
+                return byMonth[before] * (1.0 - towardsAfter) + byMonth[after] * towardsAfter;
+            }
         }
 
         /// <summary>
         /// Point Perpendicular Lighthouse, Bureau of Meteorology station 068034, 85 m up on the Beecroft Peninsula across
-        /// Jervis Bay from Bherwerre, 1899–2004: its 1991–2004 monthly means of the day's highest and lowest readings, °C, as
-        /// Wikipedia's Jervis Bay Village page reproduces them (the Bureau's own pages refuse scripts; DEBTS, "station
-        /// normals are hand-pulled").
+        /// Jervis Bay from Bherwerre, 1899–2004. Its monthly means of the day's highest and lowest readings, °C, over
+        /// 1907–2004, from the Bureau's own "Climate statistics for Australian locations" table (product IDCJCM0037, all years
+        /// of record), read in the owner's browser on 2026-09-16 and kept under <c>Data/stations/</c> (M1.8c; the Bureau
+        /// serves browsers and refuses scripts). Until then the station stood on the 1991–2004 means as Wikipedia's Jervis Bay
+        /// Village page reproduced them (M1.8a): August's day 16.8 °C against these 16.1, a short warm record's.
         ///
         /// <para>Then, month by month, how far the weather's fronts lift the mean of the day's highest reading above the day
         /// under them and lower the mean of the lowest below its dawn, °C, read as the Bureau reads its extremes: the highest
         /// in the 24 hours from 9 am, the lowest in the 24 hours to 9 am. A front that comes or goes between an afternoon and
         /// the next morning, or between an evening and the dawn after it, moves the air further than the day under it stands
         /// between those hours. Fitted to the lighthouse's extremes themselves, the curve left the weather's August range a
-        /// quarter of a degree wide (2026-09-13). Measured on many world seeds' weather at the lighthouse's height;
-        /// WeatherTests hold the weather's months to the lighthouse's, which keeps these honest if the fronts change.</para>
+        /// quarter of a degree wide (2026-09-13). Measured on many world seeds' weather at the lighthouse's height by the
+        /// almanac tool's <c>+fit widening</c>, and measured again whenever the cold snap's depth changes (M1.8c set it from
+        /// the record's deciles); WeatherTests hold the weather's months to the lighthouse's, which keeps these honest.</para>
+        ///
+        /// <para>Then the 9 am and the 3 pm mean dew points by month, °C (1957–2004; the air table's warming comes off
+        /// them, so the humidity stays the record's), and the 9 am and the 3 pm mean wind speeds by month, km/h at 10 m,
+        /// 1957–2004, from the same table. Nowra RAN Air Station AWS (068072), 29 km inland at
+        /// 109 m, reads the same open wind within a few tenths of a metre a second (9 am 14.3 and 3 pm 20.0 km/h over the year
+        /// against the lighthouse's 15.8 and 20.0), so this is the region's open wind and not a headland's alone.</para>
         /// </summary>
-        private static readonly Station PointPerpendicular = new Station(85.0,
-            new[] { 24.2, 24.4, 23.0, 21.1, 18.6, 16.6, 15.6, 16.8, 18.5, 20.1, 21.0, 23.1 },
-            new[] { 17.9, 18.4, 17.1, 14.9, 12.8, 10.6, 9.5, 9.5, 11.4, 13.0, 14.3, 16.6 },
-            new[] { 0.39, 0.38, 0.33, 0.23, 0.24, 0.21, 0.19, 0.18, 0.24, 0.26, 0.39, 0.41 },
-            new[] { 0.13, 0.12, 0.16, 0.21, 0.31, 0.32, 0.31, 0.15, 0.09, 0.13, 0.09, 0.10 });
+        private static readonly Station PointPerpendicular = new Station(85.0, 1907, 2004,
+            new[] { 23.8, 23.9, 23.0, 20.7, 18.2, 15.9, 15.1, 16.1, 17.9, 19.8, 21.2, 22.9 },
+            new[] { 17.5, 18.0, 17.1, 14.9, 12.4, 10.4, 9.2, 9.6, 11.2, 12.9, 14.5, 16.3 },
+            new[] { 0.16, 0.15, 0.09, 0.07, 0.06, 0.05, 0.06, 0.05, 0.07, 0.09, 0.13, 0.16 },
+            new[] { 0.02, 0.03, 0.06, 0.07, 0.06, 0.14, 0.08, 0.05, 0.02, 0.04, 0.02, 0.01 },
+            new[] { 16.2, 16.8, 15.5, 12.9, 10.2, 8.1, 6.6, 6.9, 8.5, 10.6, 12.8, 14.7 },
+            new[] { 16.8, 17.3, 16.0, 13.3, 10.7, 8.4, 6.9, 7.3, 9.1, 11.3, 13.4, 15.3 },
+            new[] { 14.2, 14.0, 13.5, 15.0, 16.8, 19.1, 17.7, 17.1, 16.2, 15.2, 15.6, 14.8 },
+            new[] { 20.5, 19.3, 18.3, 17.9, 17.9, 19.1, 19.4, 20.5, 21.3, 21.2, 22.5, 21.9 });
 
         private readonly Station _station;
         private readonly double _latitudeDeg;
@@ -251,17 +359,38 @@ namespace EarthGame.Engine
         }
 
         /// <summary>
-        /// The wind in the open, m/s: gentle at night, freshening through the afternoon as the ground heats, and more of it on
-        /// open ground than in shelter. v1's shape, carried unchanged until a wind record for this coast is read (M1.8a, owed).
+        /// The wind in the open at a founder's height, m/s, on a day of the year and a local solar hour (M1.8c): the station's
+        /// 9 am and 3 pm means by month brought from the anemometer's 10 m to 1.5 m (<see cref="BodyHeightWindShare"/>), read
+        /// through the day as a floor through the night and a half-sine rise from six in the morning to a peak at three in the
+        /// afternoon and back by midnight (<see cref="WindRiseFromHour"/>, <see cref="WindPeakHour"/>), which the two readings
+        /// fix. In winter the lighthouse's mornings blow as hard as its afternoons and the floor is the peak; in summer the
+        /// afternoon's sea breeze stands well over a quieter night. Less of it on sheltered ground (<see cref="ShelteredWindShare"/>).
+        /// v1's shape, carried through M1.8a, peaked at noon at four metres a second and fell to one and a half by night: a
+        /// third low against the record in the afternoon and early.
         /// </summary>
-        public double WindSpeedMs(double hourOfDay, double exposure01)
+        public double WindSpeedMs(int dayOfYear, double hourOfDay, double exposure01)
         {
-            double diurnal = 1.5 + 2.5 * Math.Max(0.0, Math.Sin(Math.PI * (hourOfDay - 6.0) / 12.0));
-            return diurnal * (0.35 + 0.65 * SimMath.Clamp01(exposure01));
+            int day = WrapDay(dayOfYear);
+            double floor = _station.WindFloorMs(day), peak = _station.WindPeakMs(day);
+            double rise = hourOfDay <= WindRiseFromHour ? 0.0
+                : Math.Max(0.0, Math.Sin(Math.PI * (hourOfDay - WindRiseFromHour) / (2.0 * (WindPeakHour - WindRiseFromHour))));
+            double open = floor + (peak - floor) * rise;
+            return open * (ShelteredWindShare + (1.0 - ShelteredWindShare) * SimMath.Clamp01(exposure01));
         }
 
-        /// <summary>The day's mean at the station's height, pre-human, °C.</summary>
-        private double MeanC(int day) => _station.MeanC(day) - AnthropogenicWarmingSinceRecordsC;
+        /// <summary>
+        /// The dew point of the settled air on a day of the year, pre-human, °C (M1.8c): the station's month, the mean of its
+        /// 9 am and 3 pm readings, which stand within half a degree of each other in every month because the air's moisture
+        /// does not follow the day's heat as its temperature does. The fronts move it (<see cref="Synoptic.DewPointShiftC"/>)
+        /// and the humidity follows from it and the air (<see cref="Synoptic.RelativeHumidity01"/>).
+        /// </summary>
+        public double DewPointC(int dayOfYear) => _station.DewPointC(WrapDay(dayOfYear));
+
+        /// <summary>The day's mean at the station's height, pre-human, °C: the table's less the warming inside its years.</summary>
+        private double MeanC(int day) => _station.MeanC(day) - _station.WarmingC;
+
+        /// <summary>What of this climate's station table is humanity's, °C: what the tests and the check take off the table to reach the world's level.</summary>
+        public double WarmingInsideStationRecordC => _station.WarmingC;
 
         /// <summary>The day's range from its lowest to its highest, °C; a shape, which the pre-human offset leaves alone.</summary>
         private double RangeC(int day) => _station.RangeC(day);

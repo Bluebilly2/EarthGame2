@@ -8,9 +8,11 @@ namespace EarthGame.Engine
     /// <summary>
     /// Years of the engine's weather at a place, written out for someone who does not trust the engine (M1.8a). The owner's
     /// <c>weather_check.py</c> reads them and works a weather station's monthly figures out of the raw samples with its own
-    /// arithmetic. Format <c>eg2.weather</c>, version 1, contracted under ARCHITECTURE.md §10: a JSON sidecar and a raw file
+    /// arithmetic. Format <c>eg2.weather</c>, version 2, contracted under ARCHITECTURE.md §10: a JSON sidecar and a raw file
     /// of 32-bit little-endian floats, a year for each world seed in turn, each step of each day, each field in the
-    /// sidecar's order.
+    /// sidecar's order. Version 2 (M1.8c, 2026-09-16) adds the wind, the cloud and the humidity after version 1's air and
+    /// rain, so the check can hold them to the lighthouse's 9 am and 3 pm readings; a reader must take the fields from the
+    /// sidecar, since the stride changed.
     ///
     /// <para>Each sample is taken at the middle of its step, so that none falls on midnight, where an instant worked back
     /// from local solar hours to the world's universal clock and forward again can land a hair's breadth inside the day
@@ -19,12 +21,12 @@ namespace EarthGame.Engine
     public static class WeatherYears
     {
         public const string Format = "eg2.weather";
-        public const int Version = 1;
+        public const int Version = 2;
         public const string SidecarFile = "weather.json";
         public const string RawFile = "weather.f32";
 
-        /// <summary>What each sample holds, in the order it is written: the air's temperature, °C, and the rain, mm/h.</summary>
-        public static readonly string[] Fields = { "air_c", "rain_mm_per_hour" };
+        /// <summary>What each sample holds, in the order it is written: the air's temperature, °C; the rain, mm/h; the wind at a founder's height, m/s; the cloud, 0 to 1; the relative humidity, 0 to 1.</summary>
+        public static readonly string[] Fields = { "air_c", "rain_mm_per_hour", "wind_ms", "cloud_01", "humidity_01" };
 
         /// <summary>
         /// Writes <paramref name="days"/> days of <paramref name="stepsPerDay"/> samples from the first local solar day of the
@@ -57,6 +59,9 @@ namespace EarthGame.Engine
                             Weather weather = Weather.At(climate, synoptic, sun, altitudeM, exposure01);
                             raw.Write((float)weather.AirC);
                             raw.Write((float)weather.RainRateMmPerHour);
+                            raw.Write((float)weather.WindMs);
+                            raw.Write((float)weather.CloudCover01);
+                            raw.Write((float)weather.RelativeHumidity01);
                         }
                 }
             }

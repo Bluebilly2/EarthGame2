@@ -9,6 +9,11 @@ this file; everything else is produced by the tools under `Tools/data/` and can 
 - `regions/<id>/` — the region rasters (`heights.r32` and its sidecar, later every baked layer) produced by
   `Tools/data/bake_region.py`. The first region is `bherwerre` (§4.2 of the plan).
 - `cache/` — raw tiles as downloaded, so a re-bake needs no network.
+- `stations/` — committed, the exception: the Bureau of Meteorology's climate statistics for the two stations the
+  region's weather stands on, Point Perpendicular Lighthouse (068034) and Nowra RAN Air Station AWS (068072), all
+  years of record, copied as text from the Bureau's pages in William's browser on 2026-09-16 (the Bureau serves
+  browsers and refuses scripts). `Climate`'s station record, `WeatherTests` and `weather_check.py` each restate the
+  numbers they use from these files, which are the source; nothing reads the files at run time.
 
 A world folder embeds what it derived from these inputs; a client never reads `Data/`. Attribution for every
 source is in `THIRD_PARTY_NOTICES.md`.

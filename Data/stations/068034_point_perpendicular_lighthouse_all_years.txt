@@ -1,0 +1,138 @@
+Bureau of Meteorology — Climate statistics for Australian locations — all years of record, "All available" view
+Copied from http://www.bom.gov.au/climate/averages/tables/cw_068034_All.shtml in William's browser, 2026-09-16
+(the Bureau serves browsers and refuses scripts). Product IDCJCM0037. © Commonwealth of Australia 2026, Bureau of
+Meteorology. See THIRD_PARTY_NOTICES.md. Text as the page gave it; each statistic's row is Jan..Dec, Annual, Years,
+then the record's first and last year.
+
+JERVIS BAY (POINT PERPENDICULAR LIGHTHOU
+An extended list of climate statistics recorded is provided below. There is also a summary table for printing with the commonly requested statistics and a map showing the location of this site. Monthly statistics are only included if there are more than 10 years of suitable data.
+
+Note: Many statistics are updated quarterly and recent weather events may not be represented in the statistics below. For more current information on recent extreme values, please refer to the corresponding Daily rainfall, Maximum temperature and Minimum temperature data tables for this site, and our Australian Climate and Weather Extremes Monitoring System. Missing observations associated with the observer being unavailable (where observations are undertaken manually), a failure in the observing equipment, or when an event has produced suspect data may result in an extreme event not being recorded.
+
+Site details
+Site name: JERVIS BAY (POINT PERPENDICULAR LIGHTHOU	Site number: 068034	Commenced: 1899
+Latitude:  35.09° S	Longitude:  150.80° E	Elevation:  85 m	Operational status: Closed 02 Jul 2004
+Period: Use all years of data
+
+Statistics	Jan	Feb	Mar	Apr	May	Jun	Jul	Aug	Sep	Oct	Nov	Dec	Annual	Years
+Temperature
+Maximum temperature
+Mean maximum temperature (°C)
+23.8	23.9	23.0	20.7	18.2	15.9	15.1	16.1	17.9	19.8	21.2	22.9	19.9	95	1907 2004
+Highest temperature (°C)
+40.6	39.7	36.7	31.2	27.2	23.0	24.5	27.9	32.8	35.6	38.3	39.1	40.6	57	1946 2004
+Date
+26 Jan 1960	14 Feb 1991	09 Mar 1983	04 Apr 1986	13 May 1957	01 Jun 1976	31 Jul 1975	26 Aug 1995	26 Sep 1965	13 Oct 1946	26 Nov 1964	05 Dec 1981	26 Jan 1960
+Lowest maximum temperature (°C)
+16.1	16.1	16.1	13.9	11.0	10.7	8.9	9.4	10.6	11.1	13.2	15.0	8.9	57	1946 2004
+Date
+17 Jan 1949	23 Feb 1949	26 Mar 1953	29 Apr 1952	31 May 1977	26 Jun 1983	20 Jul 1951	17 Aug 1970	05 Sep 1951	03 Oct 1967	11 Nov 1978	04 Dec 1967	20 Jul 1951
+Decile 1 maximum temperature (°C)
+19.9	20.4	19.5	17.4	15.5	13.6	12.8	13.3	14.1	15.6	16.9	18.9	 	58	1946 2004
+Decile 9 maximum temperature(°C)
+28.0	27.8	26.7	24.4	21.5	18.9	17.9	19.4	22.6	24.8	25.8	27.5	 	58	1946 2004
+Mean number of days ≥ 30 °C
+1.6	1.2	0.6	0.1	0.0	0.0	0.0	0.0	0.1	0.5	1.0	1.6	6.7	57	1946 2004
+Mean number of days ≥ 35 °C
+0.2	0.2	0.1	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.2	0.2	0.9	57	1946 2004
+Mean number of days ≥ 40 °C
+0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	57	1946 2004
+Minimum temperature
+Mean minimum temperature (°C)
+17.5	18.0	17.1	14.9	12.4	10.4	9.2	9.6	11.2	12.9	14.5	16.3	13.7	95	1907 2004
+Lowest temperature (°C)
+9.5	8.0	7.8	5.6	5.0	-0.5	1.5	-0.4	1.7	5.0	2.7	7.8	-0.5	57	1946 2004
+Date
+06 Jan 1977	26 Feb 1985	11 Mar 1946	09 Apr 1946	29 May 1957	17 Jun 1976	27 Jul 1976	25 Aug 1997	19 Sep 2002	26 Oct 1958	08 Nov 2001	04 Dec 1955	17 Jun 1976
+Highest minimum temperature (°C)
+23.7	23.5	22.2	23.0	18.8	16.5	15.7	17.4	18.4	22.8	23.4	23.9	23.9	57	1946 2004
+Date
+09 Jan 1983	04 Feb 1973	04 Mar 1956	05 Apr 1986	04 May 1996	03 Jun 1991	25 Jul 1990	31 Aug 1980	25 Sep 2001	27 Oct 1948	25 Nov 1982	21 Dec 1953	21 Dec 1953
+Decile 1 minimum temperature (°C)
+15.0	15.6	14.6	12.2	9.6	7.8	6.7	7.0	8.3	10.0	11.7	13.6	 	57	1946 2004
+Decile 9 minimum temperature (°C)
+20.0	20.5	19.5	17.7	15.4	13.0	11.7	12.2	14.1	16.0	17.2	18.9	 	57	1946 2004
+Mean number of days ≤ 2 °C
+0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.1	0.0	0.0	0.0	0.0	0.1	57	1946 2004
+Mean number of days ≤ 0 °C
+0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.1	0.0	0.0	0.0	0.0	0.1	57	1946 2004
+Ground surface temperature
+Mean daily ground minimum temperature (°C): no data
+Lowest ground temperature (°C): no data
+Mean number of days ground min. temp. ≤ -1 °C: no data
+
+Rainfall
+Mean rainfall (mm)
+97.2	98.5	122.4	131.8	134.1	128.8	107.2	89.7	79.2	85.3	84.3	83.1	1241.8	105	1899 2004
+Highest rainfall (mm)
+378.6	426.7	572.3	566.0	515.9	422.6	483.8	436.9	329.2	539.8	667.1	260.6	2493.6	105	1899 2004
+Date
+1918	1958	1914	1989	1925	1991	1918	1952	1976	1959	1961	1920	1961
+Lowest rainfall (mm)
+3.8	2.0	10.6	0.8	2.0	5.4	0.6	1.4	2.6	2.4	3.8	0.0	585.9	105	1899 2004
+Date
+1919	1979	1940	1957	1982	1962	1970	1995	1972	1988	1915	1901	1940
+Decile 1 rainfall (mm)
+24.7	20.0	27.0	34.3	33.1	30.7	29.6	15.7	19.1	21.0	24.7	18.3	 	105	n/a
+Decile 5 (median) rainfall (mm)
+79.7	65.6	98.8	88.7	107.2	105.2	79.5	56.1	71.3	66.2	69.7	72.9	 	105	n/a
+Decile 9 rainfall (mm)
+190.7	217.4	216.0	309.3	281.7	296.4	209.5	208.8	153.5	159.7	154.5	174.3	 	105	n/a
+Highest daily rainfall (mm)
+198.6	151.6	316.7	206.2	146.8	129.5	154.9	163.0	132.6	158.0	175.5	104.1	316.7	105	1899 2004
+Date
+08 Jan 1934	10 Feb 1958	26 Mar 1961	09 Apr 1973	26 May 1913	10 Jun 1915	24 Jul 1918	19 Aug 1998	20 Sep 1985	21 Oct 1959	20 Nov 1961	28 Dec 1914	26 Mar 1961
+Mean number of days of rain
+11.7	11.5	12.7	11.9	12.2	11.6	10.6	10.1	10.4	11.2	11.3	11.3	136.5	105	1899 2004
+Mean number of days of rain ≥ 1 mm
+9.2	9.1	10.1	9.5	10.2	9.8	8.9	8.3	8.6	9.1	9.1	8.6	110.5	105	1899 2004
+Mean number of days of rain ≥ 10 mm
+2.7	2.5	3.2	3.4	3.5	3.6	3.2	2.5	2.1	2.5	2.4	2.4	34.0	105	1899 2004
+Mean number of days of rain ≥ 25 mm
+0.9	0.9	1.3	1.3	1.5	1.4	1.2	0.8	0.7	0.7	0.7	0.8	12.2	105	1899 2004
+
+Other daily elements
+Mean daily wind run (km): no data
+Maximum wind gust speed (km/h): no data
+Mean daily sunshine (hours): no data
+Mean daily solar exposure (MJ/m2)
+22.9	20.2	16.8	13.2	9.8	8.1	9.3	12.6	16.6	20.1	21.8	23.5	16.2	36	1990 2026
+Mean number of clear days
+6.9	5.7	6.8	8.3	8.4	8.5	10.6	11.7	9.3	7.6	6.2	6.8	96.8	47	1957 2004
+Mean number of cloudy days
+13.5	12.2	12.1	10.8	11.5	11.1	9.2	8.5	8.9	11.7	12.0	12.4	133.9	47	1957 2004
+Mean daily evaporation (mm): no data
+
+9 am conditions
+Mean 9am temperature (°C)
+20.6	20.8	19.7	17.5	14.8	12.5	11.4	12.3	14.4	16.5	18.0	19.7	16.5	86	1907 2004
+Mean 9am wet-bulb temperature (°C)
+17.9	18.3	17.2	14.9	12.4	10.4	9.2	9.8	11.5	13.5	15.2	16.8	13.9	85	1907 2004
+Mean 9am dew-point temperature (°C)
+16.2	16.8	15.5	12.9	10.2	8.1	6.6	6.9	8.5	10.6	12.8	14.7	11.6	46	1957 2004
+Mean 9am relative humidity (%)
+76	77	77	74	75	75	74	71	69	70	72	74	74	85	1907 2004
+Mean 9am cloud cover (oktas)
+5.0	5.0	4.8	4.4	4.3	4.3	3.8	3.7	3.9	4.4	4.7	4.9	4.4	86	1907 2004
+Mean 9am wind speed (km/h)
+14.2	14.0	13.5	15.0	16.8	19.1	17.7	17.1	16.2	15.2	15.6	14.8	15.8	45	1957 2004
+9am wind speed vs direction plot: monthly windrose PDFs on the page, not copied
+
+3 pm conditions
+Mean 3pm temperature (°C)
+22.3	22.7	21.7	19.6	17.2	15.1	14.3	15.1	16.6	18.0	19.5	21.2	18.6	84	1909 2004
+Mean 3pm wet-bulb temperature (°C)
+18.9	19.4	18.3	16.0	13.8	11.8	10.8	11.4	12.8	14.5	16.1	17.8	15.1	83	1909 2004
+Mean 3pm dew-point temperature (°C)
+16.8	17.3	16.0	13.3	10.7	8.4	6.9	7.3	9.1	11.3	13.4	15.3	12.2	46	1957 2004
+Mean 3pm relative humidity (%)
+71	72	71	68	67	65	63	61	64	66	69	70	67	83	1909 2004
+Mean 3pm cloud cover (oktas)
+4.6	4.5	4.3	4.2	4.4	4.2	3.9	3.8	3.8	4.3	4.6	4.5	4.3	81	1912 2004
+Mean 3pm wind speed (km/h)
+20.5	19.3	18.3	17.9	17.9	19.1	19.4	20.5	21.3	21.2	22.5	21.9	20.0	45	1957 2004
+3pm wind speed vs direction plot: monthly windrose PDFs on the page, not copied
+
+Summary page (cw_068034.shtml) site information, the same day: Commenced 1899, Status Closed 02 Jul 2004, Latest
+available data 30 Jun 2004. Nearest alternative sites: 068151 POINT PERPENDICULAR AWS (0.0 km), 068076 NOWRA RAN AIR
+STATION (28.7 km), 068072 NOWRA RAN AIR STATION AWS (29.3 km).

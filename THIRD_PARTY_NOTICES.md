@@ -61,6 +61,18 @@ sidecar names every way used. Data (c) OpenStreetMap contributors, made availabl
 Licence 1.0: https://www.openstreetmap.org/copyright and https://opendatacommons.org/licenses/odbl/1-0/. Any
 world folder that carries layers derived from it carries this attribution in the layer's sidecar.
 
+## Bureau of Meteorology climate statistics — CC BY 3.0 AU
+
+`Data/stations/068034_point_perpendicular_lighthouse_all_years.txt` and
+`Data/stations/068072_nowra_ran_air_station_aws_all_years.txt` are the text of the Bureau of Meteorology's "Climate
+statistics for Australian locations" pages (product IDCJCM0037) for the two stations, all years of record, copied from
+http://www.bom.gov.au/climate/averages/tables/cw_068034_All.shtml and
+http://www.bom.gov.au/climate/averages/tables/cw_068072_All.shtml in the owner's browser on 2026-09-16. © Commonwealth
+of Australia 2026, Bureau of Meteorology. Reproduced under the Creative Commons Attribution 3.0 Australia licence the
+Bureau's copyright notice (http://www.bom.gov.au/other/copyright.shtml) applies to material on its website unless a
+product states otherwise; the monthly figures `Climate` carries as constants are derived from them and carry the same
+attribution in their doc comments. Nothing in a world or a build reproduces the tables.
+
 ## Atlas of Living Australia occurrence records — each record under its resource's licence
 
 Where Bherwerre's twelve plants have been recorded is fetched from the Atlas of Living Australia's occurrence web

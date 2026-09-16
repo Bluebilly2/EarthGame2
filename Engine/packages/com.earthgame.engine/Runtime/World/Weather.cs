@@ -44,8 +44,11 @@ namespace EarthGame.Engine
         /// <summary>The air's relative humidity, 0 to 1.</summary>
         public readonly double RelativeHumidity01;
 
+        /// <summary>The dew point, °C (M1.8c): the moisture in the air, which the humidity is read from against the air's temperature; never above the air's.</summary>
+        public readonly double DewPointC;
+
         private Weather(double airC, double anomalyC, double windMs, double windFromDeg, double cloudCover01,
-                        double rainRateMmPerHour, double relativeHumidity01)
+                        double rainRateMmPerHour, double relativeHumidity01, double dewPointC)
         {
             AirC = airC;
             AnomalyC = anomalyC;
@@ -54,6 +57,7 @@ namespace EarthGame.Engine
             CloudCover01 = SimMath.Clamp01(cloudCover01);
             RainRateMmPerHour = Math.Max(0.0, rainRateMmPerHour);
             RelativeHumidity01 = SimMath.Clamp01(relativeHumidity01);
+            DewPointC = Math.Min(dewPointC, airC);
         }
 
         /// <summary>Whether rain is reaching the ground at all.</summary>
@@ -74,9 +78,12 @@ namespace EarthGame.Engine
             // everything that reads the air inherits it.
             double anomaly = synoptic.AirAnomalyC(day);
             double air = climate.AirTemperatureC(sun.DayOfYear, sun.HourOfDay, altitudeM) + anomaly;
-            double wind = climate.WindSpeedMs(sun.HourOfDay, exposure01) * synoptic.WindFactor(day);
+            double wind = climate.WindSpeedMs(sun.DayOfYear, sun.HourOfDay, exposure01) * synoptic.WindFactor(day);
+            // The air mass's moisture moves with its temperature, and a front brings its own: the dew point is the month's,
+            // shifted by the cold snap and by the index, and the humidity is read from it against the air (M1.8c).
+            double dewPoint = Math.Min(air, climate.DewPointC(sun.DayOfYear) + anomaly + synoptic.DewPointShiftC(day));
             return new Weather(air, anomaly, wind, synoptic.WindFromDeg(day), synoptic.CloudCover01(day),
-                               synoptic.RainRateMmPerHour(day), synoptic.RelativeHumidity01(day));
+                               synoptic.RainRateMmPerHour(day), synoptic.RelativeHumidity01(day, air, dewPoint), dewPoint);
         }
     }
 }

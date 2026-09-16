@@ -52,6 +52,8 @@ __pycache__/
 Data/*
 !Data/fixtures/
 !Data/README.md
+# The two Bureau station tables the weather stands on, copied by hand from the owner's browser (M1.8c).
+!Data/stations/
 
 # Worlds, builds, run artefacts
 Saves/

@@ -25,13 +25,13 @@ namespace EarthGame.Tests.Engine
                 WeatherYears.Write(dir, Region.Bherwerre, FirstSeed, Seeds, Days, Steps, AltitudeM, Exposure);
 
                 string sidecar = File.ReadAllText(Path.Combine(dir, "weather.json"));
-                Assert.That(sidecar, Does.Contain("{\"format\":\"eg2.weather\",\"version\":1,\"region\":\"bherwerre\",\"latitude_deg\":-35.14,\"longitude_deg\":150.675"));
+                Assert.That(sidecar, Does.Contain("{\"format\":\"eg2.weather\",\"version\":2,\"region\":\"bherwerre\",\"latitude_deg\":-35.14,\"longitude_deg\":150.675"));
                 Assert.That(sidecar, Does.Contain("\"altitude_m\":120,\"exposure\":0.5,\"first_seed\":41,\"seeds\":2,\"first_local_day\":0,\"days\":30,\"steps_per_day\":4"));
                 Assert.That(sidecar, Does.Contain("\"sampled_at\":\"the middle of each step\""));
-                Assert.That(sidecar, Does.Contain("\"fields\":[\"air_c\",\"rain_mm_per_hour\"],\"dtype\":\"f32\",\"byte_order\":\"little\",\"raw\":\"weather.f32\"}"));
+                Assert.That(sidecar, Does.Contain("\"fields\":[\"air_c\",\"rain_mm_per_hour\",\"wind_ms\",\"cloud_01\",\"humidity_01\"],\"dtype\":\"f32\",\"byte_order\":\"little\",\"raw\":\"weather.f32\"}"));
 
                 byte[] raw = File.ReadAllBytes(Path.Combine(dir, "weather.f32"));
-                Assert.That(raw.Length, Is.EqualTo(Seeds * Days * Steps * 2 * 4), "four bytes for each field of each step of each day of each seed");
+                Assert.That(raw.Length, Is.EqualTo(Seeds * Days * Steps * 5 * 4), "four bytes for each of the five fields of each step of each day of each seed");
 
                 Climate climate = Climate.ForRegion(Region.Bherwerre);
                 double longitude = Region.Bherwerre.CentreLongitudeDeg;
@@ -47,11 +47,17 @@ namespace EarthGame.Tests.Engine
                             Weather sky = Weather.At(climate, synoptic, SolarClock.ForRegion(Region.Bherwerre, clock), AltitudeM, Exposure);
                             float air = BinaryPrimitives.ReadSingleLittleEndian(raw.AsSpan(offset, 4));
                             float rain = BinaryPrimitives.ReadSingleLittleEndian(raw.AsSpan(offset + 4, 4));
+                            float wind = BinaryPrimitives.ReadSingleLittleEndian(raw.AsSpan(offset + 8, 4));
+                            float cloud = BinaryPrimitives.ReadSingleLittleEndian(raw.AsSpan(offset + 12, 4));
+                            float humidity = BinaryPrimitives.ReadSingleLittleEndian(raw.AsSpan(offset + 16, 4));
                             string at = "seed " + (FirstSeed + (ulong)s) + ", day " + (day + 1) + ", step " + step;
                             Assert.That(air, Is.EqualTo((float)sky.AirC).Within(1e-4f), at + ": the air");
                             Assert.That(rain, Is.EqualTo((float)sky.RainRateMmPerHour).Within(1e-4f), at + ": the rain");
+                            Assert.That(wind, Is.EqualTo((float)sky.WindMs).Within(1e-4f), at + ": the wind");
+                            Assert.That(cloud, Is.EqualTo((float)sky.CloudCover01).Within(1e-4f), at + ": the cloud");
+                            Assert.That(humidity, Is.EqualTo((float)sky.RelativeHumidity01).Within(1e-4f), at + ": the humidity");
                             if (rain > 0f) raining++;
-                            offset += 8;
+                            offset += 20;
                         }
                 }
                 Assert.That(raining, Is.GreaterThan(0), "two months of samples must hold some rain, or the rain's place in the layout went unread");

@@ -267,8 +267,7 @@ namespace EarthGame.Engine
         public double RespiratoryAt(double metabolicW, in Surroundings s)
         {
             double m = Math.Max(0.0, metabolicW);
-            double saturation = 0.61094 * Math.Exp(17.625 * s.AirC / (s.AirC + 243.04));
-            double vapour = s.RelativeHumidity01 * saturation;
+            double vapour = s.RelativeHumidity01 * Climate.SaturationVapourKPa(s.AirC);
             double sensible = 0.0014 * m * (34.0 - s.AirC);
             double latent = 0.0173 * m * (5.87 - vapour);
             return Math.Max(0.0, sensible + latent);

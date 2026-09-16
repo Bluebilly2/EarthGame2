@@ -67,8 +67,10 @@ namespace EarthGame.Tests.Engine
             double direct = 1353.0 * Math.Pow(0.7, Math.Pow(1.0 / sinE, 0.678));
             Assert.That(Climate.DirectSolarWm2(elevation, 0.0), Is.EqualTo(direct).Within(1e-9));
             Assert.That(direct, Is.InRange(700.0, 800.0), "the measured 600-800 at a winter noon");
-            Assert.That(Climate.DirectSolarWm2(elevation, 1.0), Is.EqualTo(direct * 0.15).Within(1e-9), "cloud kills the beam");
-            double diffuse = 0.10 * direct * sinE;
+            // The shares under cloud and in a clear sky are the site's (M1.8c, calibrated to the Bureau's satellite exposure): a
+            // covered sky leaves a quarter of the beam, a clear one scatters fifteen hundredths of the beam's fall.
+            Assert.That(Climate.DirectSolarWm2(elevation, 1.0), Is.EqualTo(direct * 0.25).Within(1e-9), "cloud cuts the beam to a quarter");
+            double diffuse = 0.15 * direct * sinE;
             Assert.That(Climate.DiffuseSolarWm2(elevation, 0.0), Is.EqualTo(diffuse).Within(1e-9));
             Assert.That(Climate.DiffuseSolarWm2(elevation, 1.0), Is.EqualTo(0.28 * 1361.0 * sinE).Within(1e-9), "overcast: bright, not warm");
             double projected = 0.25 - 0.17 * (elevation / 90.0);
@@ -207,12 +209,15 @@ namespace EarthGame.Tests.Engine
         /// <summary>
         /// The world's own weather at the wake's date and place (M1.8a), from eight in the evening, a naked body at the shore's
         /// height in the open. The path's canon death at about 03:09 was v1's, on an inland beach 687 m up with the founder lying
-        /// on the ground; at Bherwerre's shore an ordinary late-winter night (about 10 °C, a light wind) leaves a founder who stands
-        /// still hypothermic in the small hours and alive at dawn, when the sun takes over, and one who keeps walking is never
-        /// hypothermic at all. That is what the physiology says of this coast, and the test holds it rather than the canon's hour.
+        /// on the ground. Under M1.8a's weather (v1's light night wind) an ordinary late-winter night left a founder who stood
+        /// still hypothermic in the small hours and alive at dawn, lowest core 28.7 °C. Under the lighthouse's own record (M1.8c,
+        /// 2026-09-16) the night is a degree milder but its wind is the coast's, about 2.5 m/s at a standing body in the open all
+        /// night where v1 had 1.5, and that decides it: the same founder is hypothermic after midnight and dies at about dawn,
+        /// the reserve spent before the sun can help; one who keeps walking is never hypothermic at all. The test holds what
+        /// the physiology says of this coast, not the canon's hour, and prints the night so a change in the weather is seen.
         /// </summary>
         [Test]
-        public void AnOrdinaryNightAtTheWakeLeavesAStandingFounderHypothermicAndAWalkingOneWarm()
+        public void AnOrdinaryNightAtTheWakeKillsAStandingFounderAboutDawnAndAWalkingOneIsNeverCold()
         {
             Region region = Region.Bherwerre;
             Climate climate = Climate.ForRegion(region);
@@ -222,10 +227,11 @@ namespace EarthGame.Tests.Engine
             string story = "standing: " + standing + "; walking: " + walking;
             TestContext.Out.WriteLine(TestContext.CurrentContext.Test.Name + ": " + story);
             Assert.That(standing.HypothermicAtH, Is.GreaterThan(2.0).And.LessThan(9.0), "hypothermic within the night, hours after dark; " + story);
-            Assert.That(standing.DeathAtH, Is.EqualTo(Night.Lived), "alive at ten in the morning: the sun takes over at dawn; " + story);
-            Assert.That(standing.LowestCoreC, Is.LessThan(Warmth.HypothermiaC).And.GreaterThan(Warmth.LethalCoreC), story);
+            Assert.That(standing.DeathAtH, Is.GreaterThan(8.0).And.LessThan(12.5), "dead about dawn, between four and eight in the morning; " + story);
+            Assert.That(standing.HypothermicAtH, Is.LessThan(standing.DeathAtH - 3.0), "hours of hypothermia before the death; " + story);
             Assert.That(double.IsNaN(walking.HypothermicAtH), Is.True, "walking's 180 W keeps a founder out of hypothermia through this night; " + story);
-            Assert.That(walking.LowestCoreC, Is.GreaterThan(standing.LowestCoreC + 1.0), story);
+            Assert.That(walking.DeathAtH, Is.EqualTo(Night.Lived), "and alive at ten in the morning; " + story);
+            Assert.That(walking.LowestCoreC, Is.GreaterThan(Warmth.ColdC), "never even cold; " + story);
         }
 
         /// <summary>
