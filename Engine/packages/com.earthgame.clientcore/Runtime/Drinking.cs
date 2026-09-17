@@ -104,8 +104,11 @@ namespace EarthGame.ClientCore
         /// <summary>
         /// Whether the streamed tiles put water of a cover standing at a point: the depth tile at least
         /// <see cref="WorldState.StandingWaterM"/> deep there, read between posts as the wader reads it, and the cover
-        /// tile's code at the nearest post the cover asked for (the sea's depth is water too, and is never offered as a
-        /// drink). False where either tile is not held.
+        /// tile's code the cover asked for at the nearest post of the point's cell that is wet by its own depth, which is
+        /// where the water between posts comes from (the server's <see cref="WorldState.WaterAt"/> reads the same way).
+        /// Until 2026-09-18 the cover was the nearest post's, so at a creek's mouth the sea reaching into the stream's
+        /// cell stood as fresh water (the corpus of 2026-09-16 drank it). The sea's depth is water too, and is never
+        /// offered as a drink. False where either tile is not held.
         /// </summary>
         public static bool Stands(Func<TileLayer, TileId, ReceivedTile> holding, TileGrid grid, double east, double north, GroundCover cover)
         {
@@ -114,10 +117,40 @@ namespace EarthGame.ClientCore
             if (depth?.Heights == null || !(TileGround.HeightAt(depth, east, north) >= WorldState.StandingWaterM)) return false;
             ReceivedTile covers = holding(TileLayer.GroundCover, id);
             if (covers?.Codes == null) return false;
+            if (!NearestWetPost(depth, east, north, out double postEast, out double postNorth)) return false;
             int last = covers.Posts - 1;
-            int x = Math.Min(last, Math.Max(0, (int)Math.Round((east - covers.OriginEast) / covers.CellM)));
-            int z = Math.Min(last, Math.Max(0, (int)Math.Round((north - covers.OriginNorth) / covers.CellM)));
+            int x = Math.Min(last, Math.Max(0, (int)Math.Round((postEast - covers.OriginEast) / covers.CellM)));
+            int z = Math.Min(last, Math.Max(0, (int)Math.Round((postNorth - covers.OriginNorth) / covers.CellM)));
             return GroundCovers.CoverOf(covers.Codes[z, x]) == cover;
+        }
+
+        /// <summary>
+        /// The nearest post of the point's cell in a depth tile whose own depth reaches <see cref="WorldState.StandingWaterM"/>,
+        /// as a position; false where none does (the depth between posts never exceeds its corners', so where water stands
+        /// one always does).
+        /// </summary>
+        private static bool NearestWetPost(ReceivedTile depth, double east, double north, out double postEast, out double postNorth)
+        {
+            int last = depth.Posts - 1;
+            double fx = Math.Min(last, Math.Max(0.0, (east - depth.OriginEast) / depth.CellM));
+            double fz = Math.Min(last, Math.Max(0.0, (north - depth.OriginNorth) / depth.CellM));
+            int x0 = Math.Min(last - 1, (int)Math.Floor(fx)), z0 = Math.Min(last - 1, (int)Math.Floor(fz));
+            double best = double.PositiveInfinity;
+            postEast = 0.0;
+            postNorth = 0.0;
+            for (int z = z0; z <= z0 + 1; z++)
+                for (int x = x0; x <= x0 + 1; x++)
+                {
+                    if (!(depth.Heights[z, x] >= WorldState.StandingWaterM)) continue;
+                    double d = (x - fx) * (x - fx) + (z - fz) * (z - fz);
+                    if (d < best)
+                    {
+                        best = d;
+                        postEast = depth.OriginEast + x * depth.CellM;
+                        postNorth = depth.OriginNorth + z * depth.CellM;
+                    }
+                }
+            return best < double.PositiveInfinity;
         }
     }
 }

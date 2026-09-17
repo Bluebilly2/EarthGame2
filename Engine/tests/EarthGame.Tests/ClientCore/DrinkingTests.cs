@@ -56,8 +56,9 @@ namespace EarthGame.Tests.ClientCore
         /// <summary>
         /// One 80 m tile of each layer, east −80 to 0 and north −80 to 0: water half a metre deep from post 8 (east −48)
         /// eastward, fresh water on posts 8 and 9 and the sea from post 10 (east −40) to the tile's edge, dry sand to the west.
+        /// At a mouth the fresh posts are dry by depth and the water is the sea's from post 10.
         /// </summary>
-        private static Dictionary<TileLayer, ReceivedTile> Tiles()
+        private static Dictionary<TileLayer, ReceivedTile> Tiles(bool mouth = false)
         {
             TileId id = new TileId(0, 0);
             float[,] depth = new float[Posts, Posts];
@@ -65,7 +66,7 @@ namespace EarthGame.Tests.ClientCore
             for (int z = 0; z < Posts; z++)
                 for (int x = 0; x < Posts; x++)
                 {
-                    depth[z, x] = x >= 8 ? 0.5f : 0f;
+                    depth[z, x] = x >= (mouth ? 10 : 8) ? 0.5f : 0f;
                     cover[z, x] = (byte)(x >= 10 ? GroundCover.Sea : x >= 8 ? GroundCover.FreshWater : GroundCover.Sand);
                 }
             return new Dictionary<TileLayer, ReceivedTile>
@@ -87,15 +88,37 @@ namespace EarthGame.Tests.ClientCore
 
             Assert.That(Drinking.StandsFresh(holding, grid, -8.0, -8.0), Is.False, "the sea is deep and not fresh");
             Assert.That(Drinking.FreshWaterNear(holding, grid, -8.0, -8.0, Drinking.SearchM, out _, out _), Is.False, "standing in the sea, the nearest fresh post is 36 m off: the sea under the founder is never offered");
-            Assert.That(Drinking.FreshWaterNear(holding, grid, -76.0, -76.0, Drinking.SearchM, out _, out _), Is.False, "dry sand all round, the fresh posts 28 m off");
+            // The water's edge, as the client reads it, is where the depth between posts 7 and 8 reaches 2 cm (east −51.8): 27 m from here.
+            Assert.That(Drinking.FreshWaterNear(holding, grid, -79.0, -76.0, Drinking.SearchM, out _, out _), Is.False, "dry sand all round, the water's edge 27 m off");
 
             Assert.That(Drinking.FreshWaterNear(holding, grid, -60.0, -20.0, Drinking.SearchM, out double east, out double north), Is.True, "from the sand, the fresh water's edge lies about 9 m east");
-            Assert.That(east, Is.GreaterThan(-52.0).And.LessThan(-44.0), "on the fresh posts, where the depth between posts has reached 2 cm and the nearest post is fresh");
-            Assert.That(Math.Abs(north + 20.0), Is.LessThan(2.0), "straight east of the founder");
+            Assert.That(east, Is.GreaterThan(-52.0).And.LessThan(-44.0), "at the fresh posts' edge, where the depth between posts has reached 2 cm and the nearest wet post is fresh");
+            // The rings are a metre apart and the bearings five degrees, so the ninth ring's first hit lies up to 3 m off the straight
+            // line to the edge 8.2 m off (the edge's depth reaches 2 cm at east −51.84).
+            Assert.That(Math.Abs(north + 20.0), Is.LessThan(4.0), "near straight east of the founder");
             Assert.That(Drinking.StandsFresh(holding, grid, east, north), Is.True);
 
             tiles.Remove(TileLayer.GroundCover);
             Assert.That(Drinking.FreshWaterNear(holding, grid, -60.0, -20.0, Drinking.SearchM, out _, out _), Is.False, "without the cover held, water of unknown kind is not drunk");
+        }
+
+        /// <summary>
+        /// At a creek's mouth the sea's depth reaches between its post and the stream's dry one, and the nearest post is the
+        /// stream's: the water is the sea's, the post wet by its own depth, and no fresh water stands (the corpus of 2026-09-16
+        /// drank the sea there, told it was fresh; the server judges the same way).
+        /// </summary>
+        [Test]
+        public void AtACreeksMouthTheWaterBesideTheDryFreshPostIsTheSeas()
+        {
+            TileGrid grid = new TileGrid(160.0, 80.0);
+            Func<TileLayer, TileId, ReceivedTile> holding = Holding(Tiles(mouth: true));
+            // Post 9 (east −44) is fresh by cover and dry; post 10 (east −40) the sea, half a metre deep: at east −42.4 the water
+            // between them stands 0.2 m and the nearest post is the fresh one.
+            Assert.That(Drinking.Stands(holding, grid, -42.4, -20.0, GroundCover.Sea), Is.True, "the sea's water, from the sea's post");
+            Assert.That(Drinking.StandsFresh(holding, grid, -42.4, -20.0), Is.False, "not the dry fresh post's");
+            Assert.That(Drinking.FreshWaterNear(holding, grid, -60.0, -20.0, Drinking.SearchM, out _, out _), Is.False, "no fresh water stands within reach: the mouth is never offered");
+            Assert.That(Drinking.WaterNear(holding, grid, -60.0, -20.0, Drinking.SearchM, GroundCover.Sea, out double east, out _), Is.True, "the sea is found for the drink scenario's refusal");
+            Assert.That(east, Is.GreaterThan(-44.0).And.LessThan(-40.0), "at the mouth, where the sea's depth between posts reaches 2 cm");
         }
 
         [Test]

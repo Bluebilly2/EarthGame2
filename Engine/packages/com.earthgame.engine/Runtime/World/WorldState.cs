@@ -182,10 +182,13 @@ namespace EarthGame.Engine
         /// <summary>
         /// The water standing at a point as the world's own layers have it (FP.1): its depth, the surface read between
         /// posts as the client reads the depth it is streamed, so the two agree where water stands; and its class, the
-        /// nearest post's when that post is water, else the nearest water post at the corners of the point's cell, which
-        /// is where the water between posts comes from. The first drink run's founder looked at a creek's edge and was
-        /// told there was nothing there, the nearest post being dry. Dry where the surface stands no higher than the
-        /// ground, beyond the frame, and on a world made without water.
+        /// nearest post's at the corners of the point's cell that is wet by its own depth, which is where the water
+        /// between posts comes from. The first drink run's founder looked at a creek's edge and was told there was
+        /// nothing there, the nearest post being dry by class; and until 2026-09-18 a post water by class but dry by
+        /// depth lent its class to the water beside it, so at a creek's mouth the sea reaching into the stream's cell was
+        /// served as fresh (the corpus of 2026-09-16 drank it four times). Where no corner is wet by its own depth (a
+        /// surface read on another grid than the ground's) the nearest water-class post answers, as before. Dry where the
+        /// surface stands no higher than the ground, beyond the frame, and on a world made without water.
         /// </summary>
         public WaterClass WaterAt(double east, double north, out double depthM)
         {
@@ -199,10 +202,8 @@ namespace EarthGame.Engine
             depthM = depth;
             double half = classes.ExtentM * 0.5;
             double fc = (east + half) / classes.CellM, fr = (half - north) / classes.CellM;
-            WaterClass nearest = ClassAtPost(classes, (int)Math.Round(fr), (int)Math.Round(fc));
-            if (IsWater(nearest)) return nearest;
-            WaterClass best = WaterClass.Dry;
-            double bestD = double.PositiveInfinity;
+            WaterClass wet = WaterClass.Dry, byClass = WaterClass.Dry;
+            double wetD = double.PositiveInfinity, byClassD = double.PositiveInfinity;
             int r0 = (int)Math.Floor(fr), c0 = (int)Math.Floor(fc);
             for (int r = r0; r <= r0 + 1; r++)
                 for (int c = c0; c <= c0 + 1; c++)
@@ -210,13 +211,27 @@ namespace EarthGame.Engine
                     WaterClass wc = ClassAtPost(classes, r, c);
                     if (!IsWater(wc)) continue;
                     double d = (r - fr) * (r - fr) + (c - fc) * (c - fc);
-                    if (d < bestD)
+                    if (d < byClassD)
                     {
-                        bestD = d;
-                        best = wc;
+                        byClassD = d;
+                        byClass = wc;
+                    }
+                    if (d < wetD && WetByDepthAtPost(classes, r, c))
+                    {
+                        wetD = d;
+                        wet = wc;
                     }
                 }
-            return best;
+            return wet != WaterClass.Dry ? wet : byClass;
+        }
+
+        /// <summary>Whether the water's surface stands over the ground by more than <see cref="StandingWaterM"/> at a post of the class raster.</summary>
+        private bool WetByDepthAtPost(RegionRaster classes, int row, int col)
+        {
+            double half = classes.ExtentM * 0.5;
+            double east = col * classes.CellM - half, north = half - row * classes.CellM;
+            if (!_surface.Contains(east, north)) return false;
+            return _surface.HeightAt(east, north) - GroundAt(east, north) > StandingWaterM;
         }
 
         /// <summary>Open water a founder could stand in or drink from, as against damp ground, a trickle under the leaves or a swamp.</summary>

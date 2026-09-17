@@ -171,6 +171,27 @@ namespace EarthGame.Tests.Server
             Assert.That(rig.Session.Hydration.Water01, Is.EqualTo(0.9 + 1.5 / Hydration.TotalBodyWaterL).Within(1e-12));
         }
 
+        /// <summary>
+        /// Where a creek bed meets the sea, the water between the bed's dry post and the sea's is the sea's: a post water by
+        /// class but dry by its own depth lends its class to nothing. The corpus of 2026-09-16 drank the sea at the creek's
+        /// mouth by the wake and was told it was fresh.
+        /// </summary>
+        [Test]
+        public void AtACreeksMouthTheWaterBesideTheDryBedIsTheSeas()
+        {
+            WorldState world = World();
+            Rig rig = Connect(world);
+            world.Clock.Scale = 0.0;
+            rig.Session.Hydration.Restore(0.9);
+            // Column 3 (east 10) is the creek bed, dry by depth; column 4 (east 20) the sea, two metres deep: at east 13 the water
+            // stands 0.6 m by the reading between posts, and the nearest post is the bed's.
+            Assert.That(world.WaterAt(13.0, 0.0, out double depth), Is.EqualTo(WaterClass.Sea));
+            Assert.That(depth, Is.EqualTo(0.6).Within(1e-9));
+            Stand(rig, 11.0, 0.0);
+            Assert.That(Ask(rig, 13.0, 100.6, 0.0), Is.EqualTo(VerbOutcome.Salt), "the sea at the mouth, not a creek's drink");
+            Assert.That(rig.Session.Hydration.Water01, Is.EqualTo(0.9), "salt gives nothing");
+        }
+
         [Test]
         public void WaterOutOfReachIsRefusedAsSuch()
         {

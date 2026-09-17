@@ -196,8 +196,10 @@ still runs on the main thread; this slice does not claim a frame-time budget for
   restored at the join. The client is told its own founder's water (`FounderState`, protocol 13: once a second, and
   at every drink, setting and join) and takes the word and the capacity from the engine's own tables, so no reader
   holds thresholds of its own. The verb `Drink` names a point as a put-down does; the server judges the reach and
-  the region, then the water there by `WorldState.WaterClassAt` (the water layer's class at the nearest post): a
-  creek, a stream or a lake gives, the sea answers `Salt`, anything else `NoWater`. The work capacity is the body's,
+  the region, then the water there by `WorldState.WaterAt` (the surface read between posts as the client reads its
+  streamed depth, and the class of the nearest post of the cell that is wet by its own depth, since 2026-09-18: until
+  then the nearest water-class post, which at a creek's mouth served the sea as fresh): a creek, a stream or a lake
+  gives, the sea answers `Salt`, anything else `NoWater`. The client's aim (`Drinking.Stands`) reads the same way. The work capacity is the body's,
   not the config's: `Mover.Step` takes it beside the config, and the validator's ceiling is `MaxHorizontalSpeedAt`
   the capacity the client was last told (the greater of the last two told), never the server's newer number, so a
   client is not corrected for a number it has not received.

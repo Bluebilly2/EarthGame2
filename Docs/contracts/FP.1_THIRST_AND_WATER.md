@@ -67,7 +67,8 @@ second (`FounderStateMessage`, protocol 13, one number) and at a drink, a settin
 `GameServer.Drink` judges the reach and the region as `Hands.PutDown` does, then `WorldState.WaterAt`: the water's
 surface read between posts as the client reads the depth it is streamed, so the two agree where water stands, and
 the class from the nearest wet post (the first run's founder looked at a creek's edge and was told there was nothing
-there, the nearest post being dry); `VerbOutcome.Salt` (7) and `NoWater` (8). The work capacity is the body's:
+there, the nearest post being dry; amended 2026-09-18: wet by its own depth, not by class alone, after the corpus of
+2026-09-16 drank the sea at a creek's mouth and was told it was fresh); `VerbOutcome.Salt` (7) and `NoWater` (8). The work capacity is the body's:
 `Mover.Step` takes it beside the config, `MoverConfig.MaxHorizontalSpeedAt` gives the ceiling, and the validator is
 handed the greater of the last two capacities the client was told. The client: `GameClient.FounderStateChanged` and
 `LastWater01`; the word under the clock (`HudController.SetCondition`, from `Hydration.WordFor`); the walk's capacity
