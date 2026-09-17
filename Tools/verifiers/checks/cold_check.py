@@ -238,9 +238,19 @@ def main(argv):
     night_killed = bool((dawn or {}).get("died_in_the_night", False))
     if night_killed:
         at_death = float((died or {}).get("core_c", float("nan")))
-        failures += check("cold.core_at_or_below_lethal_when_the_night_killed", (round(lowest, 2), round(at_death, 2)),
-                          "the last word told above %.0f by less than a word's cooling, the death's core at or below it" % LETHAL_C,
-                          at_death <= LETHAL_C and lowest <= LETHAL_C + 1.0)
+        # A word's cooling is the fall between the last two words told before the death: a word comes once a second by the
+        # tick rate (GameServer.SendFounderStates), so the last word above the lethal can lie anywhere within one telling's
+        # fall of it; a quarter's slack for a fall that quickens as the shivering fails, and never under a degree. Until
+        # 2026-09-17 the allowance was a fixed degree, which the night of that day failed by 0.02 with the words falling
+        # 1.16 a telling: the row depended on where in the second the core crossed.
+        died_tick = int((died or {}).get("tick", -1))
+        told = [float(r["core_c"]) for r in warmth
+                if r.get("why") == "told" and float(r["core_c"]) > LETHAL_C and int(r.get("tick", -1)) < died_tick]
+        word_fall = told[-2] - told[-1] if len(told) >= 2 else 0.0
+        allowance = max(1.0, 1.25 * word_fall)
+        failures += check("cold.core_at_or_below_lethal_when_the_night_killed", (round(lowest, 2), round(at_death, 2), round(allowance, 2)),
+                          "the last word told above %.0f by less than a word's cooling (the last two words' fall and a quarter, at least a degree), the death's core at or below it" % LETHAL_C,
+                          at_death <= LETHAL_C and lowest <= LETHAL_C + allowance)
     else:
         failures += check("cold.lowest_core_below_cold_and_above_lethal", round(lowest, 2), "(%.0f, %.0f)" % (LETHAL_C, COLD_C), LETHAL_C < lowest < COLD_C)
     if dawn is None:
