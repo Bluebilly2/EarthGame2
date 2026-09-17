@@ -21,8 +21,8 @@ namespace EarthGame.Tests.Engine
                 Assert.That(DefinitionCatalogue.ById(d.Id), Is.SameAs(d));
                 Assert.That(DefinitionCatalogue.ByKey(d.Key), Is.SameAs(d));
             }
-            Assert.That(DefinitionCatalogue.All.Count, Is.EqualTo(1 + PlantSpecies.All.Count + StoneType.All.Count + AnimalSpecies.All.Count + 2 + StoneType.All.Count),
-                "the player, the tables, the plain cobble and the stick, and a cobble of every stone");
+            Assert.That(DefinitionCatalogue.All.Count, Is.EqualTo(1 + PlantSpecies.All.Count + StoneType.All.Count + AnimalSpecies.All.Count + 2 + 2 * StoneType.All.Count),
+                "the player, the tables, the plain cobble and the stick, and a cobble and a flake of every stone");
         }
 
         [Test]
@@ -43,6 +43,7 @@ namespace EarthGame.Tests.Engine
         {
             List<Definition> items = new List<Definition> { DefinitionCatalogue.Cobble, DefinitionCatalogue.Stick };
             foreach (StoneType stone in StoneType.All) items.Add(DefinitionCatalogue.CobbleOf(stone));
+            foreach (StoneType stone in StoneType.All) items.Add(DefinitionCatalogue.FlakeOf(stone));
             Assert.That(DefinitionCatalogue.Spawnable, Is.EquivalentTo(items));
             foreach (Definition d in DefinitionCatalogue.Spawnable)
             {
@@ -69,6 +70,30 @@ namespace EarthGame.Tests.Engine
             Assert.That(DefinitionCatalogue.CobbleOf(StoneType.Basalt).MassKg, Is.EqualTo(0.6 * 2900.0 / 2600.0).Within(1e-12), "basalt is heavier");
             Assert.That(DefinitionCatalogue.CobbleOf(StoneType.Sandstone).MassKg, Is.EqualTo(0.6 * 2300.0 / 2600.0).Within(1e-12), "sandstone lighter");
             Assert.That(DefinitionCatalogue.CobbleOf(null), Is.SameAs(DefinitionCatalogue.Cobble), "a cell with no stone named gives the plain cobble");
+        }
+
+        /// <summary>A flake is of its stone (FP.3): one definition for each, spawnable, with the catalogue's word for a flake's weight until a blow gives it its own.</summary>
+        [Test]
+        public void AFlakeIsOfItsStoneAndAStonesItemsAreKnownForIt()
+        {
+            Definition flake = DefinitionCatalogue.FlakeOf(StoneType.Silcrete);
+            Assert.That(flake.Key, Is.EqualTo("item/flake-silcrete"));
+            Assert.That(flake.DisplayName, Is.EqualTo("a silcrete flake"));
+            Assert.That(DefinitionCatalogue.FlakeOf(StoneType.Obsidian).DisplayName, Is.EqualTo("an obsidian flake"));
+            Assert.That(flake.Row, Is.SameAs(StoneType.Silcrete));
+            Assert.That(flake.Spawnable, Is.True);
+            Assert.That(flake.MassKg, Is.EqualTo(0.02), "twenty grams, the catalogue's word for a flake with no mass of its own");
+            Assert.That(flake.RadiusM, Is.EqualTo(0.03));
+            Assert.That(DefinitionCatalogue.IsFlake(flake), Is.True);
+            Assert.That(DefinitionCatalogue.IsFlake(DefinitionCatalogue.CobbleOf(StoneType.Silcrete)), Is.False, "a cobble of the same stone is no flake");
+            Assert.That(DefinitionCatalogue.IsFlake(DefinitionCatalogue.Stick), Is.False);
+            Assert.That(DefinitionCatalogue.IsFlake(null), Is.False);
+            Assert.That(DefinitionCatalogue.StoneOf(flake), Is.SameAs(StoneType.Silcrete));
+            Assert.That(DefinitionCatalogue.StoneOf(DefinitionCatalogue.CobbleOf(StoneType.Rhyolite)), Is.SameAs(StoneType.Rhyolite));
+            Assert.That(DefinitionCatalogue.StoneOf(DefinitionCatalogue.Cobble), Is.Null, "the plain cobble is of no stone the country names");
+            Assert.That(DefinitionCatalogue.StoneOf(DefinitionCatalogue.Stick), Is.Null);
+            Assert.That(DefinitionCatalogue.StoneOf(DefinitionCatalogue.ByKey("stone/silcrete")), Is.Null, "the stone's own table row is no item");
+            Assert.Throws<KeyNotFoundException>(() => DefinitionCatalogue.FlakeOf(null), "a flake is always of a stone");
         }
 
         [Test]

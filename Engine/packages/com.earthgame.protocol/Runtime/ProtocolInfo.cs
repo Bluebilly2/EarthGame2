@@ -25,9 +25,12 @@ namespace EarthGame.Protocol
         /// 13 — FP.1 thirst and water: FounderState carries the water in the founder's body to their own client, and an intent
         /// has a fourth verb, drink, laid out as a put-down is;
         /// 14 — FP.2 the night's cold and death: FounderState carries the core's temperature as well, and Died tells a client
-        /// what killed its founder and the numbers of it.
+        /// what killed its founder and the numbers of it;
+        /// 15 — FP.3 the first stone: an item's component carries the state a blow gave it (its own mass, its edge, its
+        /// platform's angle and the flakes taken), an intent has a fifth verb, knap, naming the core and the wind-up, and an
+        /// intent's answer carries the words for what the stone did.
         /// </summary>
-        public const ushort Version = 14;
+        public const ushort Version = 15;
 
         /// <summary>Bytes of tile data per TileChunk; well under <see cref="MaxMessageBytes"/> with the header.</summary>
         public const int TileChunkBytes = 16 * 1024;

@@ -53,7 +53,7 @@ namespace EarthGame.Tests.Engine
         {
             EntityStore store = new EntityStore();
             Entity e = store.Spawn(Cobble, new Double3(0, 5, 0), 0f, 10);
-            ItemComponent item;
+            ItemComponent item = default;
             item.Resting = false;
             item.FallSpeed = 0f;
             e.SetItem(item, 10);

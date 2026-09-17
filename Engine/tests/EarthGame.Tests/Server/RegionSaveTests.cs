@@ -196,6 +196,9 @@ namespace EarthGame.Tests.Server
                 ("a carried thing", null, p => { p.Carried = new[] { new CarriedThing { Id = 9, Definition = DefinitionCatalogue.Stick, Place = 1 } }; p.Hand = 1; return p; }),
                 ("a thing taken from the ground", w => w.Taken.Take(new LyingThing(1, 1, StandLayout.Kind.Stick, 0)), null),
                 ("the hand", null, p => { p.Hand = 3; return p; }),
+                // FP.3: what a blow made of a stone, lying and carried.
+                ("a struck stone's own mass", w => w.Entities.All[0].SetItem(new ItemComponent { Resting = true, MassKg = 0.5f }, 1), null),
+                ("a carried stone's own mass", null, p => { p.Carried = new[] { new CarriedThing { Id = 9, Definition = DefinitionCatalogue.CobbleOf(StoneType.Silcrete), Place = 1, Item = new ItemComponent { Resting = true, MassKg = 0.5f } } }; p.Hand = 1; return p; }),
             };
             foreach ((string name, Action<WorldState> mutate, Func<SavedPlayer, SavedPlayer> mutatePlayer) in sabotage)
             {
@@ -205,6 +208,92 @@ namespace EarthGame.Tests.Server
                 if (mutatePlayer != null) p = mutatePlayer(p);
                 Assert.That(Digest(w, new[] { p }), Is.Not.EqualTo(baseline), name + " left the digest unchanged");
             }
+
+            // The rest of a stone's state enters beside its mass: an edge, a platform and a count that differ name different worlds.
+            string Struck(float edge, float platform, ushort flakes)
+            {
+                WorldState w = Make();
+                w.Entities.All[0].SetItem(new ItemComponent { Resting = true, MassKg = 0.5f, Edge01 = edge, PlatformDeg = platform, FlakesTaken = flakes }, 1);
+                return Digest(w, new[] { Player("William", 300, -300) });
+            }
+            Assert.That(Struck(0.3f, 70f, 1), Is.Not.EqualTo(Struck(0.4f, 70f, 1)), "a stone's edge left the digest unchanged");
+            Assert.That(Struck(0.3f, 70f, 1), Is.Not.EqualTo(Struck(0.3f, 75f, 1)), "a core's platform left the digest unchanged");
+            Assert.That(Struck(0.3f, 70f, 1), Is.Not.EqualTo(Struck(0.3f, 70f, 2)), "a core's count of flakes left the digest unchanged");
+            Assert.That(Struck(0.3f, 70f, 1), Is.EqualTo(Struck(0.3f, 70f, 1)), "and the same state is the same name");
+        }
+
+        /// <summary>
+        /// What a blow made of a stone rides the region file (version 3, FP.3) and the player file (version 6), and a file from
+        /// before either reads as it was: a thing with no state of its own, weighing what its definition says.
+        /// </summary>
+        [Test]
+        public void AStruckStonesStateRidesTheFilesAndOlderFilesReadAsTheyWere()
+        {
+            WorldState w = Make();
+            Entity core = w.Entities.All[2];
+            core.SetItem(new ItemComponent { Resting = true, FallSpeed = 0f, MassKg = 0.5793f, Edge01 = 0f, PlatformDeg = 80.2f, FlakesTaken = 2 }, 1);
+            Entity flake = w.SpawnItem(DefinitionCatalogue.FlakeOf(StoneType.Silcrete), 311, 306);
+            flake.SetItem(new ItemComponent { Resting = true, MassKg = 0.0207f, Edge01 = 0.545f }, 1);
+            SavedPlayer p = Player("William", 300, -300);
+            p.Hand = 1;
+            p.Carried = new[] { new CarriedThing { Id = 40, Definition = DefinitionCatalogue.CobbleOf(StoneType.Silcrete), SpawnTick = 3, Place = 1,
+                                                    Item = new ItemComponent { Resting = true, MassKg = 0.55f, PlatformDeg = 73.05f, FlakesTaken = 1 } } };
+            w.Entities.SetNextId(50);
+            string expected = Digest(w, new[] { p });
+            WorldSave.Write(_dir, w, new[] { p }, Now);
+            WorldSaveInfo info = WorldSave.Read(_dir);
+            Assert.That(info.Digest, Is.EqualTo(expected));
+            SavedEntity savedCore = info.Entities.Find(e => e.Id == core.Id.Value);
+            Assert.That(savedCore.Item.MassKg, Is.EqualTo(0.5793f), "the core's own mass rides the region file");
+            Assert.That(savedCore.Item.PlatformDeg, Is.EqualTo(80.2f));
+            Assert.That(savedCore.Item.FlakesTaken, Is.EqualTo((ushort)2));
+            SavedEntity savedFlake = info.Entities.Find(e => e.Id == flake.Id.Value);
+            Assert.That(savedFlake.Key, Is.EqualTo("item/flake-silcrete"));
+            Assert.That(savedFlake.Item.Edge01, Is.EqualTo(0.545f), "and the flake's edge");
+            Assert.That(info.Entities.Find(e => e.Id == 1UL).Item.HasStoneState, Is.False, "a cobble never struck has none");
+            CarriedThing carried = info.Players["William"].Carried[0];
+            Assert.That(carried.Item.MassKg, Is.EqualTo(0.55f), "the carried core's own mass rides the player file");
+            Assert.That(carried.Item.PlatformDeg, Is.EqualTo(73.05f));
+            Assert.That(carried.Item.FlakesTaken, Is.EqualTo((ushort)1));
+            Assert.That(carried.Item.Resting, Is.True, "at rest in a hand");
+            WorldState restored = WorldSave.Restore(info, _terrain, Fixture);
+            Assert.That(Digest(restored, new[] { info.Players["William"] }), Is.EqualTo(expected), "the same name after the round trip");
+            Assert.That(restored.Entities.TryGet(core.Id, out Entity back) && back.Item.MassKg == 0.5793f, Is.True);
+
+            // A version-2 region file, as M1.5b wrote it: an item is its rest and its fall speed alone.
+            SavedEntity oldCobble = default;
+            oldCobble.Id = 7;
+            oldCobble.Key = "item/cobble-silcrete";
+            oldCobble.Position = new Double3(300.0, 12.0, 300.0);
+            oldCobble.SpawnTick = 4;
+            oldCobble.HasItem = true;
+            oldCobble.Item = new ItemComponent { Resting = true };
+            byte[] v2 = OlderRegionFile(2, 2, 2, new[] { oldCobble });
+            List<SavedEntity> old = RegionFile.Decode(v2, out _, out _, out _);
+            Assert.That(old.Count, Is.EqualTo(1));
+            Assert.That(old[0].Item.Resting, Is.True);
+            Assert.That(old[0].Item.HasStoneState, Is.False, "a stone written before FP.3 weighs what its definition says");
+            Assert.That(KnappingItems.MassOf(DefinitionCatalogue.ByKey(old[0].Key), old[0].Item), Is.EqualTo(0.6).Within(1e-12));
+
+            // A version-5 player file, as FP.2 wrote it: a carried thing is its place, id, key and spawn tick, and no stone's state.
+            PacketWriter pw = new PacketWriter(128);
+            foreach (char c in "EG2P") pw.WriteByte((byte)c);
+            pw.WriteUInt16(5);
+            pw.WriteString("Old");
+            pw.WriteDouble(300.0); pw.WriteDouble(12.0); pw.WriteDouble(-300.0);
+            pw.WriteSingle(90f); pw.WriteSingle(-3f);
+            pw.WriteByte(1);
+            pw.WriteInt64(9);
+            pw.WriteByte(1);
+            pw.WriteByte(1);
+            pw.WriteByte(1); pw.WriteUInt64(40); pw.WriteString("item/cobble-silcrete"); pw.WriteInt64(3);
+            pw.WriteDouble(0.0625);
+            pw.WriteDouble(1.75);
+            SavedPlayer oldPlayer = PlayerFile.Decode(WithCrc(pw.Written.ToArray()));
+            Assert.That(oldPlayer.Carried.Length, Is.EqualTo(1));
+            Assert.That(oldPlayer.Carried[0].Item.HasStoneState, Is.False, "a cobble carried through version 5 weighs what its definition says");
+            Assert.That(oldPlayer.Carried[0].Item.Resting, Is.True);
+            Assert.That(oldPlayer.CoreDeficitC, Is.EqualTo(1.75), "and the rest of the file is read as before");
         }
 
         [Test]
@@ -250,9 +339,14 @@ namespace EarthGame.Tests.Server
             };
             p.WaterLoss = 0.0625;
             p.CoreDeficitC = 1.75;
+            p.Carried[0].Item = new ItemComponent { Resting = true, MassKg = 0.41f, PlatformDeg = 77.5f, FlakesTaken = 3 };
             SavedPlayer back = PlayerFile.Decode(PlayerFile.Encode(p));
             Assert.That(back.WaterLoss, Is.EqualTo(0.0625), "the water lost rides in the file since version 4 (FP.1)");
             Assert.That(back.CoreDeficitC, Is.EqualTo(1.75), "and how far below normal the core was since version 5 (FP.2)");
+            Assert.That(back.Carried[0].Item.MassKg, Is.EqualTo(0.41f), "and what a blow made of a carried stone since version 6 (FP.3)");
+            Assert.That(back.Carried[0].Item.PlatformDeg, Is.EqualTo(77.5f));
+            Assert.That(back.Carried[0].Item.FlakesTaken, Is.EqualTo((ushort)3));
+            Assert.That(back.Carried[1].Item.HasStoneState, Is.False, "the stick has none");
             Assert.That(back.Hand, Is.EqualTo((byte)4));
             Assert.That(back.Carried.Length, Is.EqualTo(2));
             Assert.That(back.Carried[1].Id, Is.EqualTo(11UL));
@@ -334,16 +428,14 @@ namespace EarthGame.Tests.Server
         [Test]
         public void AVersionOneRegionFileIsStillReadAndATakingNoCellHeldIsRefused()
         {
-            // Version 1, as M1.3 wrote it: the same header and records, and no diffs.
-            byte[] v1 = RegionFile.Encode(1, 2, new[] { SavedEntity.Of(Make().Entities.All[0]) });
-            v1[4] = 1;
-            v1[5] = 0;
+            // Version 1, as M1.3 wrote it: the same header and records, an item its rest and fall alone, and no diffs.
+            byte[] v1 = OlderRegionFile(1, 1, 2, new[] { SavedEntity.Of(Make().Entities.All[0]) });
             List<SavedEntity> read = RegionFile.Decode(v1, out int cx, out int cz, out List<LooseTaken.Cell> taken);
             Assert.That((cx, cz), Is.EqualTo((1, 2)));
             Assert.That(read.Count, Is.EqualTo(1));
+            Assert.That(read[0].Item.Resting, Is.True);
             Assert.That(taken, Is.Empty);
-            byte[] withDiff = RegionFile.Encode(1, 2, new SavedEntity[0], new[] { new LooseTaken.Cell { Row = 1, Col = 1, Sticks = 1 } });
-            withDiff[4] = 1;
+            byte[] withDiff = OlderRegionFile(1, 1, 2, new SavedEntity[0], new[] { new LooseTaken.Cell { Row = 1, Col = 1, Sticks = 1 } });
             Assert.Throws<InvalidDataException>(() => RegionFile.Decode(withDiff, out _, out _, out _), "version 1 had no diffs");
 
             // A taking of a stick its cell never held: a folder this world's server did not write.
@@ -355,6 +447,55 @@ namespace EarthGame.Tests.Server
                 Throws.TypeOf<InvalidDataException>().With.Message.Contains("held 0 sticks"));
             Assert.That(() => WorldSave.Restore(info, _terrain, Fixture), Throws.TypeOf<InvalidDataException>().With.Message.Contains("does not have"),
                 "nor from a world with no loose layer at all");
+        }
+
+        /// <summary>
+        /// A region file as versions 1 and 2 wrote it (M1.3, M1.5b): the same header, each item its rest and fall speed alone (the
+        /// stone's state came with version 3, FP.3), and version 2's diffs; written here by hand, since the writer of today
+        /// writes today's layout.
+        /// </summary>
+        private static byte[] OlderRegionFile(ushort version, int cellX, int cellZ, IReadOnlyList<SavedEntity> entities, IReadOnlyList<LooseTaken.Cell> taken = null)
+        {
+            PacketWriter records = new PacketWriter(128);
+            foreach (SavedEntity e in entities)
+            {
+                records.WriteUInt64(e.Id);
+                records.WriteString(e.Key);
+                records.WriteDouble(e.Position.X);
+                records.WriteDouble(e.Position.Y);
+                records.WriteDouble(e.Position.Z);
+                records.WriteSingle(e.YawDeg);
+                records.WriteInt64(e.SpawnTick);
+                records.WriteByte(e.HasItem ? EntityWire.ComponentItem : (byte)0);
+                if (e.HasItem)
+                {
+                    records.WriteBool(e.Item.Resting);
+                    records.WriteSingle(e.Item.FallSpeed);
+                }
+            }
+            int diffs = taken != null ? taken.Count : 0;
+            for (int i = 0; i < diffs; i++)
+            {
+                records.WriteByte((byte)TileLayer.Loose);
+                records.WriteUInt16((ushort)taken[i].Row);
+                records.WriteUInt16((ushort)taken[i].Col);
+                records.WriteUInt16(taken[i].Sticks);
+                records.WriteUInt16(taken[i].Cobbles);
+            }
+            byte[] body = records.Written.ToArray();
+            PacketWriter head = new PacketWriter(RegionFile.HeaderBytes);
+            foreach (char c in "EG2R") head.WriteByte((byte)c);
+            head.WriteUInt16(version);
+            head.WriteInt32(cellX);
+            head.WriteInt32(cellZ);
+            head.WriteDouble(RegionCells.CellM);
+            head.WriteUInt32((uint)entities.Count);
+            head.WriteUInt32((uint)diffs);
+            head.WriteUInt32(Crc32.Compute(body));
+            byte[] file = new byte[RegionFile.HeaderBytes + body.Length];
+            head.Written.CopyTo(file);
+            Buffer.BlockCopy(body, 0, file, RegionFile.HeaderBytes, body.Length);
+            return file;
         }
 
         /// <summary>A player file's body with its CRC appended, as <see cref="PlayerFile"/> lays it out.</summary>

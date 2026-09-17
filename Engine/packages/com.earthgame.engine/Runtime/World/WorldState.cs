@@ -313,7 +313,7 @@ namespace EarthGame.Engine
             double ground = GroundAt(east, north);
             double at = up.HasValue ? Math.Max(up.Value, ground) : ground;
             Entity e = Entities.Spawn(definition, new Double3(east, at, north), yawDeg, Tick);
-            ItemComponent item;
+            ItemComponent item = default;
             item.Resting = at <= ground + 1e-9;
             item.FallSpeed = 0f;
             e.SetItem(item, Tick);

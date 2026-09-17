@@ -146,6 +146,73 @@ namespace EarthGame.Tests.Engine
             Assert.That(Knapping.IsUsableTool(crude), Is.False, "quartzite swung too hard drops below a usable edge on its own");
         }
 
+        /// <summary>A pebble or a flake swung at a core drives no cone, whatever the core: nothing happens to it, not even the crumbling a hammer causes.</summary>
+        [Test]
+        public void AStoneTooLightToDriveAConeDoesNothingToTheCore()
+        {
+            StoneCore core = new StoneCore(StoneType.Sandstone, 1.0);
+            KnapResult r = Knapping.Strike(core, StoneType.Silcrete, 0.149, 10.0);
+            Assert.That(r.Outcome, Is.EqualTo(KnapOutcome.NoFracture));
+            Assert.That(r.Note, Does.Contain("too light"));
+            Assert.That(core.MassKg, Is.EqualTo(1.0), "sandstone under a pebble does not even crumble");
+            Assert.That(Knapping.Strike(new StoneCore(StoneType.Silcrete, 1.2), StoneType.Silcrete, 0.15, 10.0).Outcome, Is.EqualTo(KnapOutcome.Flake), "at the floor a stone is a hammer");
+            StoneCore spent = new StoneCore(StoneType.Silcrete, 0.1);
+            Assert.That(Knapping.Strike(spent, StoneType.Silcrete, 0.02, 10.0).Note, Does.Contain("nothing left"), "a spent core answers first");
+        }
+
+        /// <summary>
+        /// The stones as items (FP.3): a thing's mass is its definition's until a blow gives it one, a stone never struck presents a
+        /// fresh cobble's platform, what a blow makes of a core is written back as the item's state, and a flake is born with the
+        /// mass the blow took and the edge it made.
+        /// </summary>
+        [Test]
+        public void TheItemsStateIsReadAndWrittenByOneOwner()
+        {
+            Definition cobble = DefinitionCatalogue.CobbleOf(StoneType.Silcrete);
+            StoneCore fresh = KnappingItems.CoreOf(cobble, default);
+            Assert.That(fresh.Stone, Is.SameAs(StoneType.Silcrete));
+            Assert.That(fresh.MassKg, Is.EqualTo(0.6).Within(1e-12), "a cobble never struck weighs what its definition says");
+            Assert.That(fresh.PlatformAngleDeg, Is.EqualTo(StoneCore.FreshPlatformDeg), "and presents a fresh cobble's edge");
+            Assert.That(fresh.FlakesTaken, Is.EqualTo(0));
+
+            ItemComponent worked = new ItemComponent { Resting = true, MassKg = 0.5f, PlatformDeg = 75f, FlakesTaken = 2 };
+            StoneCore core = KnappingItems.CoreOf(cobble, worked);
+            Assert.That(core.MassKg, Is.EqualTo(0.5).Within(1e-7), "a worked core weighs what the blows left");
+            Assert.That(core.PlatformAngleDeg, Is.EqualTo(75.0).Within(1e-7));
+            Assert.That(core.FlakesTaken, Is.EqualTo(2));
+            Assert.That(KnappingItems.MassOf(cobble, worked), Is.EqualTo(0.5).Within(1e-7));
+            Assert.That(KnappingItems.MassOf(cobble, default), Is.EqualTo(0.6).Within(1e-12));
+
+            KnapResult r = Knapping.Strike(core, StoneType.Basalt, 1.4, 12.0);
+            Assert.That(r.Outcome, Is.EqualTo(KnapOutcome.Flake));
+            ItemComponent after = KnappingItems.Struck(worked, core);
+            Assert.That(after.MassKg, Is.EqualTo((float)core.MassKg), "the core's new mass is the item's");
+            Assert.That(after.PlatformDeg, Is.EqualTo((float)core.PlatformAngleDeg));
+            Assert.That(after.FlakesTaken, Is.EqualTo((ushort)3));
+            Assert.That(after.Resting, Is.True, "how it lies is not the blow's to change");
+            Assert.That(after.HasStoneState, Is.True);
+
+            ItemComponent flake = KnappingItems.FlakeOf(r);
+            Assert.That(flake.MassKg, Is.EqualTo((float)r.FlakeMassKg));
+            Assert.That(flake.Edge01, Is.EqualTo((float)r.EdgeQuality));
+            Assert.That(flake.Resting, Is.False, "born falling from where it came away");
+            Assert.That(flake.PlatformDeg, Is.EqualTo(0f));
+            Assert.That(flake.FlakesTaken, Is.EqualTo((ushort)0));
+
+            Assert.That(KnappingItems.OutcomeOf(KnapOutcome.NoFracture), Is.EqualTo(VerbOutcome.Bounced));
+            Assert.That(KnappingItems.OutcomeOf(KnapOutcome.Flake), Is.EqualTo(VerbOutcome.Flaked));
+            Assert.That(KnappingItems.OutcomeOf(KnapOutcome.Shatter), Is.EqualTo(VerbOutcome.Shattered));
+            Assert.That(KnappingItems.OutcomeOf(KnapOutcome.Crushed), Is.EqualTo(VerbOutcome.Crushed));
+
+            Assert.That(KnappingItems.IsStone(cobble), Is.True);
+            Assert.That(KnappingItems.IsStone(DefinitionCatalogue.FlakeOf(StoneType.Quartz)), Is.True);
+            Assert.That(KnappingItems.IsStone(DefinitionCatalogue.Cobble), Is.False, "the plain cobble is of no stone the country names");
+            Assert.That(KnappingItems.IsHammer(DefinitionCatalogue.Cobble), Is.True, "but it has mass and a radius, which is all a hammer is");
+            Assert.That(KnappingItems.IsHammer(DefinitionCatalogue.Stick), Is.False);
+            Assert.That(KnappingItems.IsStone(DefinitionCatalogue.Stick), Is.False);
+            Assert.Throws<ArgumentException>(() => KnappingItems.CoreOf(DefinitionCatalogue.Cobble, default), "no stone, no core");
+        }
+
         [Test]
         public void AFlintFlakeMakesSixMinutesOfCuttingAboutOne()
         {

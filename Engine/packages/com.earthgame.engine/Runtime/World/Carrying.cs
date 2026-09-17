@@ -15,6 +15,11 @@ namespace EarthGame.Engine
         Hold = 3,
         /// <summary>Drink from the water the founder is looking at (FP.1): fresh water gives, the sea refuses with its reason.</summary>
         Drink = 4,
+        /// <summary>
+        /// Strike the stone in hand on another stone (FP.3): one lying within reach, an item or one of the litter, or one held in
+        /// another place. The wind-up says how hard; the stone decides the rest (<see cref="Knapping.Strike"/>).
+        /// </summary>
+        Knap = 5,
     }
 
     /// <summary>What came of an intent (M1.5a). Wire-visible and never renumbered.</summary>
@@ -32,6 +37,18 @@ namespace EarthGame.Engine
         Salt = 7,
         /// <summary>Nothing to drink where the founder is looking (FP.1): dry ground, or the wet ground of a swamp.</summary>
         NoWater = 8,
+        /// <summary>The blow (FP.3) bounced: not enough behind it to start a fracture. Nothing changed.</summary>
+        Bounced = 9,
+        /// <summary>The blow (FP.3) took a flake off the core, which now lies where it fell with its own mass and edge.</summary>
+        Flaked = 10,
+        /// <summary>The blow (FP.3) broke the core up instead of taking a flake: too hard, or too heavy a hammer for what was left.</summary>
+        Shattered = 11,
+        /// <summary>The blow (FP.3) crushed the edge: a stone that never flakes, a platform gone blunt, or nothing left to hold.</summary>
+        Crushed = 12,
+        /// <summary>The thing in hand is no stone to strike with (FP.3): a stick, say. An empty hand answers <see cref="NothingInHand"/>.</summary>
+        NoHammer = 13,
+        /// <summary>The thing aimed at is no stone to knap (FP.3): a stick, or a cobble of no stone the country names.</summary>
+        NotStone = 14,
     }
 
     /// <summary>A thing a founder carries: out of the world, in one of the hands' places, keeping the id it had lying down.</summary>
@@ -43,6 +60,11 @@ namespace EarthGame.Engine
         public long SpawnTick;
         /// <summary>1 to <see cref="Hands.Places"/>.</summary>
         public byte Place;
+        /// <summary>
+        /// The state a stone earned by being struck (FP.3), kept while it is carried so a flake keeps its edge and a core its
+        /// platform through the hands, a save and a load; its rest and fall mean nothing in a hand and are kept at rest.
+        /// </summary>
+        public ItemComponent Item;
     }
 
     /// <summary>One founder's hands as the save and the digest see them.</summary>
@@ -122,9 +144,49 @@ namespace EarthGame.Engine
             byte place = FreePlace();
             if (place == 0) return VerbOutcome.HandsFull;
             world.Entities.Take(e);
-            Insert(new CarriedThing { Id = e.Id.Value, Definition = e.Definition, SpawnTick = e.SpawnTick, Place = place });
+            Insert(new CarriedThing { Id = e.Id.Value, Definition = e.Definition, SpawnTick = e.SpawnTick, Place = place, Item = Carried(e.Item) });
             if (!TryAt(Hand, out _)) Hand = place;
             return VerbOutcome.Done;
+        }
+
+        /// <summary>A thing's state as the hands keep it: what a blow made of it, at rest.</summary>
+        public static ItemComponent Carried(in ItemComponent item)
+        {
+            ItemComponent kept = item;
+            kept.Resting = true;
+            kept.FallSpeed = 0f;
+            return kept;
+        }
+
+        /// <summary>A thing's state as it is let go: what a blow made of it, falling from where it was released.</summary>
+        public static ItemComponent LetGo(in ItemComponent item)
+        {
+            ItemComponent falling = item;
+            falling.Resting = false;
+            falling.FallSpeed = 0f;
+            return falling;
+        }
+
+        /// <summary>A held stone's state after a blow on it (FP.3); false when nothing is in that place.</summary>
+        public bool TryUpdate(byte place, in ItemComponent item)
+        {
+            for (int i = 0; i < _things.Count; i++)
+            {
+                if (_things[i].Place != place) continue;
+                CarriedThing thing = _things[i];
+                thing.Item = Carried(item);
+                _things[i] = thing;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>A held thing gone for good (FP.3, a core spent under the hammer): the place empties; a hand pointing at it is an empty hand. False when nothing was there.</summary>
+        public bool Discard(byte place)
+        {
+            if (!TryAt(place, out _)) return false;
+            Remove(place);
+            return true;
         }
 
         /// <summary>
@@ -156,7 +218,7 @@ namespace EarthGame.Engine
             if (world.Entities.TryGet(thing.Id, out _)) return VerbOutcome.NotNow;
             double ground = world.GroundAt(at.X, at.Z);
             Entity e = world.Entities.Return(thing.Id, thing.Definition, new Double3(at.X, Math.Max(at.Y, ground) + ReleaseM, at.Z), yawDeg, thing.SpawnTick, world.Tick);
-            e.SetItem(new ItemComponent { Resting = false, FallSpeed = 0f }, world.Tick);
+            e.SetItem(LetGo(thing.Item), world.Tick);
             Remove(thing.Place);
             return VerbOutcome.Done;
         }
@@ -175,7 +237,7 @@ namespace EarthGame.Engine
                 CarriedThing thing = _things[i];
                 if (world.Entities.TryGet(thing.Id, out _)) continue;
                 Entity e = world.Entities.Return(thing.Id, thing.Definition, place, yawDeg, thing.SpawnTick, world.Tick);
-                e.SetItem(new ItemComponent { Resting = false, FallSpeed = 0f }, world.Tick);
+                e.SetItem(LetGo(thing.Item), world.Tick);
             }
             _things.Clear();
             Hand = 0;

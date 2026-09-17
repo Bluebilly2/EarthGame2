@@ -1,3 +1,4 @@
+using System;
 using EarthGame.Engine;
 
 namespace EarthGame.Protocol
@@ -699,18 +700,49 @@ namespace EarthGame.Protocol
             return animal;
         }
 
+        /// <summary>An item's rest and fall, then (protocol 15, FP.3) the state a blow gave it: its own mass, its edge, its platform's angle and the flakes taken.</summary>
         public static void WriteItem(PacketWriter w, in ItemComponent item)
         {
             w.WriteBool(item.Resting);
             w.WriteSingle(item.FallSpeed);
+            WriteStone(w, item);
         }
 
         public static ItemComponent ReadItem(PacketReader r)
         {
-            ItemComponent item;
+            ItemComponent item = ReadRestAndFall(r);
+            ReadStone(r, ref item);
+            return item;
+        }
+
+        /// <summary>An item's rest and fall alone: the whole of an item before protocol 15, which the region file's older versions still carry.</summary>
+        public static ItemComponent ReadRestAndFall(PacketReader r)
+        {
+            ItemComponent item = default;
             item.Resting = r.ReadBool();
             item.FallSpeed = r.ReadSingle();
             return item;
+        }
+
+        /// <summary>The state a blow gave a stone (FP.3): f32 mass kg, f32 edge, f32 platform degrees, u16 flakes; zeros for a thing with none of its own.</summary>
+        public static void WriteStone(PacketWriter w, in ItemComponent item)
+        {
+            w.WriteSingle(item.MassKg);
+            w.WriteSingle(item.Edge01);
+            w.WriteSingle(item.PlatformDeg);
+            w.WriteUInt16(item.FlakesTaken);
+        }
+
+        /// <summary>The stone's state read onto an item; a mass, edge or angle that is not a number, or one no stone could have, is refused (M1.5g's rule).</summary>
+        public static void ReadStone(PacketReader r, ref ItemComponent item)
+        {
+            item.MassKg = r.ReadSingle();
+            item.Edge01 = r.ReadSingle();
+            item.PlatformDeg = r.ReadSingle();
+            item.FlakesTaken = r.ReadUInt16();
+            if (!BodyWire.Finite(item.MassKg) || item.MassKg < 0f || !BodyWire.Finite(item.Edge01) || item.Edge01 < 0f || item.Edge01 > 1f
+                || !BodyWire.Finite(item.PlatformDeg) || item.PlatformDeg < 0f || item.PlatformDeg > 180f)
+                throw new ProtocolException("a stone's state of mass " + item.MassKg + ", edge " + item.Edge01 + " and platform " + item.PlatformDeg + " is none a stone could have");
         }
     }
 
@@ -851,25 +883,38 @@ namespace EarthGame.Protocol
     /// Client → server, reliable (protocol v6): a verb and its target. A pick-up names an entity (target kind 1: u64 id)
     /// or, since protocol v7 (M1.5b), a thing lying in the loose layer by its place (target kind 2: u16 row, u16 column,
     /// u8 kind, 2 a stick or 3 a cobble, u8 index); a put-down names the point on the ground the founder is looking at;
-    /// a hold names the place, 0 for an empty hand. The server answers with an <see cref="IntentResultMessage"/> of the
-    /// same sequence.
+    /// a hold names the place, 0 for an empty hand. A knap (protocol v15, FP.3) names the core as a pick-up names its
+    /// target, or as a place of the hands (target kind 3: u8 place), and then the wind-up as a byte, 0 a tap and 255 a
+    /// full swing; the hammer is whatever is in the hand. The server answers with an <see cref="IntentResultMessage"/> of
+    /// the same sequence.
     /// </summary>
     public struct IntentMessage
     {
         public const byte TargetEntity = 1;
         /// <summary>A thing lying in the loose layer, named by its place (protocol v7, M1.5b).</summary>
         public const byte TargetLying = 2;
+        /// <summary>A thing held in one of the hands' places (protocol v15, FP.3): a core struck while held.</summary>
+        public const byte TargetPlace = 3;
 
         public uint Sequence;
         public Verb Verb;
-        /// <summary>What a pick-up names: <see cref="TargetEntity"/> or <see cref="TargetLying"/>.</summary>
+        /// <summary>What a pick-up or a knap names: <see cref="TargetEntity"/>, <see cref="TargetLying"/> or, for a knap, <see cref="TargetPlace"/>.</summary>
         public byte Target;
         public ulong EntityId;
         public LyingThing Lying;
         public double East;
         public double Up;
         public double North;
+        /// <summary>A hold's place, 0 for an empty hand; a knap's when its target is a place of the hands.</summary>
         public byte Place;
+        /// <summary>How far a knap's swing was wound up (FP.3): 0 a tap, 255 the arm's full swing.</summary>
+        public byte WindUp;
+
+        /// <summary>The wind-up as the physics takes it, 0 to 1.</summary>
+        public double WindUp01 => WindUp / 255.0;
+
+        /// <summary>The byte a wind-up travels as: a fraction of a full swing, held to 0..1 and rounded to the nearest of 255 steps.</summary>
+        public static byte WindUpOf(double windUp01) => (byte)Math.Round(SimMath.Clamp01(windUp01) * 255.0);
 
         public void Write(PacketWriter w)
         {
@@ -879,18 +924,7 @@ namespace EarthGame.Protocol
             switch (Verb)
             {
                 case Verb.PickUp:
-                    w.WriteByte(Target);
-                    if (Target == TargetEntity) w.WriteUInt64(EntityId);
-                    else if (Target == TargetLying)
-                    {
-                        if (Lying.Row < 0 || Lying.Row > ushort.MaxValue || Lying.Col < 0 || Lying.Col > ushort.MaxValue || Lying.Index < 0 || Lying.Index > byte.MaxValue)
-                            throw new ProtocolException("the " + Lying + " does not fit the wire");
-                        w.WriteUInt16((ushort)Lying.Row);
-                        w.WriteUInt16((ushort)Lying.Col);
-                        w.WriteByte((byte)Lying.Kind);
-                        w.WriteByte((byte)Lying.Index);
-                    }
-                    else throw new ProtocolException("a pick-up names a target of kind " + Target + ", which has no layout");
+                    WriteTarget(w, "a pick-up", allowPlace: false);
                     break;
                 case Verb.PutDown:
                 case Verb.Drink:
@@ -901,9 +935,30 @@ namespace EarthGame.Protocol
                 case Verb.Hold:
                     w.WriteByte(Place);
                     break;
+                case Verb.Knap:
+                    WriteTarget(w, "a knap", allowPlace: true);
+                    w.WriteByte(WindUp);
+                    break;
                 default:
                     throw new ProtocolException("verb " + (byte)Verb + " has no layout");
             }
+        }
+
+        private void WriteTarget(PacketWriter w, string what, bool allowPlace)
+        {
+            w.WriteByte(Target);
+            if (Target == TargetEntity) w.WriteUInt64(EntityId);
+            else if (Target == TargetLying)
+            {
+                if (Lying.Row < 0 || Lying.Row > ushort.MaxValue || Lying.Col < 0 || Lying.Col > ushort.MaxValue || Lying.Index < 0 || Lying.Index > byte.MaxValue)
+                    throw new ProtocolException("the " + Lying + " does not fit the wire");
+                w.WriteUInt16((ushort)Lying.Row);
+                w.WriteUInt16((ushort)Lying.Col);
+                w.WriteByte((byte)Lying.Kind);
+                w.WriteByte((byte)Lying.Index);
+            }
+            else if (Target == TargetPlace && allowPlace) w.WriteByte(Place);
+            else throw new ProtocolException(what + " names a target of kind " + Target + ", which has no layout");
         }
 
         public static IntentMessage Read(PacketReader r)
@@ -914,19 +969,7 @@ namespace EarthGame.Protocol
             switch (m.Verb)
             {
                 case Verb.PickUp:
-                    m.Target = r.ReadByte();
-                    if (m.Target == TargetEntity) m.EntityId = r.ReadUInt64();
-                    else if (m.Target == TargetLying)
-                    {
-                        int row = r.ReadUInt16();
-                        int col = r.ReadUInt16();
-                        byte kind = r.ReadByte();
-                        int index = r.ReadByte();
-                        if (kind != (byte)StandLayout.Kind.Stick && kind != (byte)StandLayout.Kind.Cobble)
-                            throw new ProtocolException("a pick-up names a lying thing of kind " + kind + ", neither a stick nor a cobble");
-                        m.Lying = new LyingThing(row, col, (StandLayout.Kind)kind, index);
-                    }
-                    else throw new ProtocolException("a pick-up names a target of kind " + m.Target + ", which this build does not know");
+                    m.ReadTarget(r, "a pick-up", allowPlace: false);
                     break;
                 case Verb.PutDown:
                 case Verb.Drink:
@@ -939,24 +982,53 @@ namespace EarthGame.Protocol
                 case Verb.Hold:
                     m.Place = r.ReadByte();
                     break;
+                case Verb.Knap:
+                    m.ReadTarget(r, "a knap", allowPlace: true);
+                    m.WindUp = r.ReadByte();
+                    break;
                 default:
                     throw new ProtocolException("verb " + (byte)m.Verb + " is not one this build knows");
             }
             return m;
         }
+
+        private void ReadTarget(PacketReader r, string what, bool allowPlace)
+        {
+            Target = r.ReadByte();
+            if (Target == TargetEntity) EntityId = r.ReadUInt64();
+            else if (Target == TargetLying)
+            {
+                int row = r.ReadUInt16();
+                int col = r.ReadUInt16();
+                byte kind = r.ReadByte();
+                int index = r.ReadByte();
+                if (kind != (byte)StandLayout.Kind.Stick && kind != (byte)StandLayout.Kind.Cobble)
+                    throw new ProtocolException(what + " names a lying thing of kind " + kind + ", neither a stick nor a cobble");
+                Lying = new LyingThing(row, col, (StandLayout.Kind)kind, index);
+            }
+            else if (Target == TargetPlace && allowPlace) Place = r.ReadByte();
+            else throw new ProtocolException(what + " names a target of kind " + Target + ", which this build does not know");
+        }
     }
 
-    /// <summary>Server → client, reliable (protocol v6): what came of the intent with this sequence.</summary>
+    /// <summary>
+    /// Server → client, reliable (protocol v6): what came of the intent with this sequence, and since protocol v15 (FP.3)
+    /// the words for it when the world has some: a blow on stone is answered in the words the physics gives
+    /// (<see cref="KnapResult.Note"/>), made in one place and carried here so the screen says what the server did; empty
+    /// for every other verb.
+    /// </summary>
     public struct IntentResultMessage
     {
         public uint Sequence;
         public VerbOutcome Outcome;
+        public string Note;
 
         public void Write(PacketWriter w)
         {
             w.WriteByte((byte)MessageKind.IntentResult);
             w.WriteUInt32(Sequence);
             w.WriteByte((byte)Outcome);
+            w.WriteString(Note ?? string.Empty);
         }
 
         public static IntentResultMessage Read(PacketReader r)
@@ -964,7 +1036,8 @@ namespace EarthGame.Protocol
             IntentResultMessage m;
             m.Sequence = r.ReadUInt32();
             m.Outcome = (VerbOutcome)r.ReadByte();
-            if ((byte)m.Outcome > (byte)VerbOutcome.NoWater) throw new ProtocolException("intent outcome " + (byte)m.Outcome + " is not one this build knows");
+            if ((byte)m.Outcome > (byte)VerbOutcome.NotStone) throw new ProtocolException("intent outcome " + (byte)m.Outcome + " is not one this build knows");
+            m.Note = r.ReadString();
             return m;
         }
     }

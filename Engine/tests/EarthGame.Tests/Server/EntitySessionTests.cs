@@ -177,7 +177,7 @@ namespace EarthGame.Tests.Server
         public void TheByteBudgetDefersSpawnsWithoutLosingThem()
         {
             ServerConfig config = Config();
-            config.EntityBytesPerTick = 60;    // one spawn of 55 bytes per tick
+            config.EntityBytesPerTick = 74;    // one spawn of 69 bytes per tick (55 before protocol 15 carried a stone's state on an item)
             Rig rig = Start(config);
             rig.Server.RememberPlayers(new[] { At("A", 300, -300) });
             rig.A = rig.Join("A");

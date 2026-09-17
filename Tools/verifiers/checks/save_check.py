@@ -3,32 +3,37 @@
 
 Reads a world folder with Python alone, by the formats ARCHITECTURE.md section 10 states and nothing else:
 world.json (eg2.world version 1: the clock's total hours, the tick, next_entity_id, the extent), digest.txt (the
-world's name as the server wrote it), players/*.egp (eg2.player version 2 or 3: magic EG2P, u16 version, the name
+world's name as the server wrote it), players/*.egp (eg2.player versions 2 to 6: magic EG2P, u16 version, the name
 as a u16 UTF-8 byte length and the bytes, f64 east, up, north, f32 yaw, f32 pitch, u8 flags with 1 grounded,
 2 wading, 4 crouching, i64 saved tick; version 3 (M1.5a) then the hand's place as a u8 and what is carried as a u8
-count and, per thing, u8 place, u64 id, the key as a u16 UTF-8 byte length and the bytes, and i64 spawn tick; then
-u32 CRC-32 of everything before it) and any players/*.json left from version 1, regions/r.X.Y.egr (eg2.region
-version 1 or 2: magic EG2R, u16 version, i32 cell x, i32 cell z, f64 cell size, u32 entity count, u32 layer-diff
-count, none in version 1, u32 CRC-32 of the records, then per entity u64 id, the key as a u16 UTF-8 byte length and
-the bytes, f64 east, up, north, f32 yaw, i64 spawn tick, u8 component mask with 1 = item, and for an item u8
-resting and f32 fall speed; then per diff u8 layer, 5 for the loose layer, u16 row, u16 col, u16 sticks taken and
-u16 cobbles taken, a bit for each index), and layers/loose.json with its raw bytes (a u8 per cell of the world's
+count and, per thing, u8 place, u64 id, the key as a u16 UTF-8 byte length and the bytes, i64 spawn tick and, since
+version 6 (FP.3), f32 the thing's own mass kg, f32 its edge, f32 its platform degrees and u16 the flakes taken off
+it; since version 4 (FP.1) f64 the fraction of body water lost; since version 5 (FP.2) f64 how far below normal the
+core was; then u32 CRC-32 of everything before it) and any players/*.json left from version 1, regions/r.X.Y.egr
+(eg2.region version 1, 2 or 3: magic EG2R, u16 version, i32 cell x, i32 cell z, f64 cell size, u32 entity count, u32
+layer-diff count, none in version 1, u32 CRC-32 of the records, then per entity u64 id, the key as a u16 UTF-8 byte
+length and the bytes, f64 east, up, north, f32 yaw, i64 spawn tick, u8 component mask with 1 = item, and for an item
+u8 resting and f32 fall speed and, since version 3 (FP.3), f32 its own mass kg, f32 edge, f32 platform degrees and
+u16 flakes taken; then per diff u8 layer, 5 for the loose layer, u16 row, u16 col, u16 sticks taken and u16 cobbles
+taken, a bit for each index), and layers/loose.json with its raw bytes (a u8 per cell of the world's
 raster, row 0 north: the low four bits the sticks lying on the cell, the high four its cobbles). Then it rebuilds
 the world's name from the lines WorldDigest states — clock <nanohours>, tick <n>, one line per body sorted by name
 (<name> <micrometres east> <up> <north> g|a w|d c|s), then for each founder by name who carries something or has
-chosen a hand, hands <name> <place> and one line per thing by place (carried <name> <place> <id> <key>), one line
-per entity in id order (entity <id> <key> <micrometres east> <up> <north> <microdegrees yaw>[ item r|f <micrometres
-per second>]), one line per cell something was taken from, by row and then column (taken <row> <col> <sticks mask>
-<cobbles mask>), next_entity <n> — hashed with FNV-1a 64, every number a whole count of its resolution rounded half
-to even, and prints it beside the server's.
+chosen a hand, hands <name> <place> and one line per thing by place (carried <name> <place> <id> <key>[ stone
+<milligrams> <millionths of edge> <microdegrees platform> <flakes>], the stone's state only when the thing has a
+mass of its own, FP.3), one line per entity in id order (entity <id> <key> <micrometres east> <up> <north>
+<microdegrees yaw>[ item r|f <micrometres per second>[ stone <milligrams> <millionths> <microdegrees> <flakes>]]),
+one line per cell something was taken from, by row and then column (taken <row> <col> <sticks mask> <cobbles mask>),
+next_entity <n> — hashed with FNV-1a 64, every number a whole count of its resolution rounded half to even, and
+prints it beside the server's.
 
 Rows, each with both numbers:
   0. the folder holds one whole save: no file written aside (.part) and no save's record (save.commit) left over, which
      only a save a crash stopped leaves, for the next load to finish or clear (M1.3b);
-  1. every region file's CRC matches its records;
+  1. every region file's CRC matches its records (versions 1, 2 and 3);
   2. every region file is the cell its name says, and every entity in it lies in that cell (512 m cells from the
      south-west corner);
-  3. every player file's CRC matches, and no name has both a version-1 and a binary file;
+  3. every player file's CRC matches (versions 2 to 6), and no name has both a version-1 and a binary file;
   4. every carried thing is out of the world: its id lies in no region file, is below next_entity_id, and is
      carried by one founder only;
   5. every taking names only things its cell of the loose layer held, and is kept in the region file of the 512 m
@@ -56,6 +61,8 @@ CELL_M = 512.0
 METRE = 1e-6
 HOUR = 1e-9
 DEGREE = 1e-6
+MASS = 1e-6      # a stone's own mass is named to the milligram (FP.3)
+EDGE = 1e-6      # and its edge to the millionth
 REGION_HEADER = struct.Struct("<4sHiidIII")
 COMPONENT_ITEM = 1
 LAYER_LOOSE = 5
@@ -94,7 +101,7 @@ def read_region(path):
     magic, version, cx, cz, cell, count, diffs, crc = REGION_HEADER.unpack_from(data, 0)
     if magic != b"EG2R":
         raise ValueError("%s: not a region file" % path)
-    if version not in (1, 2):
+    if version not in (1, 2, 3):
         raise ValueError("%s: version %d" % (path, version))
     if version == 1 and diffs != 0:
         raise ValueError("%s: a version-1 region file with %d layer diffs" % (path, diffs))
@@ -108,12 +115,15 @@ def read_region(path):
         key, at = read_string(records, at)
         east, up, north, yaw, spawn_tick, mask = struct.unpack_from("<dddfqB", records, at)
         at += 8 * 3 + 4 + 8 + 1
-        item = None
+        item, stone = None, None
         if mask & COMPONENT_ITEM:
             resting, fall = struct.unpack_from("<Bf", records, at)
             at += 5
             item = (resting != 0, fall)
-        entities.append({"id": eid, "key": key, "east": east, "up": up, "north": north, "yaw": yaw, "spawn_tick": spawn_tick, "item": item})
+            if version >= 3:
+                stone = struct.unpack_from("<fffH", records, at)
+                at += 14
+        entities.append({"id": eid, "key": key, "east": east, "up": up, "north": north, "yaw": yaw, "spawn_tick": spawn_tick, "item": item, "stone": stone})
     taken = []
     for _ in range(diffs):
         layer, row, col, sticks, cobbles = struct.unpack_from("<BHHHH", records, at)
@@ -147,7 +157,7 @@ def read_player_binary(path):
     if data[:4] != b"EG2P":
         raise ValueError("%s: not a player file" % path)
     (version,) = struct.unpack_from("<H", data, 4)
-    if version not in (2, 3):
+    if version not in (2, 3, 4, 5, 6):
         raise ValueError("%s: version %d" % (path, version))
     name, at = read_string(data, 6)
     east, up, north, yaw, pitch, flags, tick = struct.unpack_from("<dddffBq", data, at)
@@ -161,11 +171,30 @@ def read_player_binary(path):
             key, at = read_string(data, at + 9)
             (spawn_tick,) = struct.unpack_from("<q", data, at)
             at += 8
-            carried.append({"place": place, "id": tid, "key": key, "spawn_tick": spawn_tick})
+            stone = None
+            if version >= 6:
+                stone = struct.unpack_from("<fffH", data, at)
+                at += 14
+            carried.append({"place": place, "id": tid, "key": key, "spawn_tick": spawn_tick, "stone": stone})
+    water_loss, core_deficit = 0.0, 0.0
+    if version >= 4:
+        (water_loss,) = struct.unpack_from("<d", data, at)
+        at += 8
+    if version >= 5:
+        (core_deficit,) = struct.unpack_from("<d", data, at)
+        at += 8
     if at != len(body):
         raise ValueError("%s: %d bytes left over after the version %d layout" % (path, len(body) - at, version))
     return {"name": name, "east": east, "up": up, "north": north, "grounded": bool(flags & 1), "wading": bool(flags & 2), "crouching": bool(flags & 4),
-            "version": version, "hand": hand, "carried": carried, "crc_stated": stated, "crc_actual": actual}
+            "version": version, "hand": hand, "carried": carried, "water_loss": water_loss, "core_deficit": core_deficit,
+            "crc_stated": stated, "crc_actual": actual}
+
+
+def stone_line(stone):
+    """The state a blow gave a stone (FP.3), as the digest names it: only when the thing has a mass of its own."""
+    if stone is None or not stone[0] > 0.0:
+        return ""
+    return " stone %s %s %s %d" % (fixed(stone[0], MASS), fixed(stone[1], EDGE), fixed(stone[2], DEGREE), stone[3])
 
 
 def read_player_v1(path):
@@ -234,10 +263,10 @@ def main(argv):
         else:
             players[p["name"]] = p
     crc_players = [p["name"] for p in players.values() if p["crc_stated"] != p["crc_actual"]]
-    versions = {v: sum(1 for p in players.values() if p["version"] == v) for v in (1, 2, 3)}
+    versions = {v: sum(1 for p in players.values() if p["version"] == v) for v in (1, 2, 3, 4, 5, 6)}
     expect("every player file's CRC matches, one file a name", not crc_players and not dup,
-           "%d players (version 1: %d, 2: %d, 3: %d); bad CRC: %s; twice: %s" % (len(players), versions[1], versions[2], versions[3],
-                                                                               ", ".join(crc_players) or "none", ", ".join(dup) or "none"))
+           "%d players (by version: %s); bad CRC: %s; twice: %s" % (len(players), ", ".join("%d: %d" % (v, n) for v, n in versions.items() if n) or "none",
+                                                                  ", ".join(crc_players) or "none", ", ".join(dup) or "none"))
 
     # 4: what is carried is out of the world.
     next_id = int(doc.get("next_entity_id", 1))
@@ -289,11 +318,11 @@ def main(argv):
             continue
         lines.append("hands %s %d" % (name, p["hand"]))
         for t in sorted(p["carried"], key=lambda t: t["place"]):
-            lines.append("carried %s %d %d %s" % (name, t["place"], t["id"], t["key"]))
+            lines.append("carried %s %d %d %s%s" % (name, t["place"], t["id"], t["key"], stone_line(t.get("stone"))))
     for e in sorted(entities, key=lambda e: e["id"]):
         line = "entity %d %s %s %s %s %s" % (e["id"], e["key"], fixed(e["east"], METRE), fixed(e["up"], METRE), fixed(e["north"], METRE), fixed(e["yaw"], DEGREE))
         if e["item"] is not None:
-            line += " item %s %s" % ("r" if e["item"][0] else "f", fixed(e["item"][1], METRE))
+            line += " item %s %s%s" % ("r" if e["item"][0] else "f", fixed(e["item"][1], METRE), stone_line(e.get("stone")))
         lines.append(line)
     for t in sorted(taken_all, key=lambda t: (t["row"], t["col"])):
         lines.append("taken %d %d %d %d" % (t["row"], t["col"], t["sticks"], t["cobbles"]))

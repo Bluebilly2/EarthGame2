@@ -15,10 +15,13 @@ namespace EarthGame.Tests.Engine
             return r;
         }
 
+        /// <summary>An item's component on the wire: its rest and fall, and since protocol 15 (FP.3) the fourteen bytes of the state a blow gave it.</summary>
+        private const int ItemBytes = 1 + 4 + 4 + 4 + 4 + 2;
+
         [Test]
-        public void TheProtocolIsVersionFourteenAndItsKindsKeepTheirNumbers()
+        public void TheProtocolIsVersionFifteenAndItsKindsKeepTheirNumbers()
         {
-            Assert.That(ProtocolInfo.Version, Is.EqualTo((ushort)14), "4 carried the entities, 5 the layer on each tile message, 6 the verbs, 7 the taking of what lies, 8 the far forest's layers, 9 an animal's pose and the interest radius, 10 a developer's settings and the clock on the pong, 11 the clock's scale on the pong, 12 the fleeing pose, 13 the founder's water and the drink, 14 the founder's core and the death");
+            Assert.That(ProtocolInfo.Version, Is.EqualTo((ushort)15), "4 carried the entities, 5 the layer on each tile message, 6 the verbs, 7 the taking of what lies, 8 the far forest's layers, 9 an animal's pose and the interest radius, 10 a developer's settings and the clock on the pong, 11 the clock's scale on the pong, 12 the fleeing pose, 13 the founder's water and the drink, 14 the founder's core and the death, 15 the stone's state on an item, the knap and the answer's words");
             Assert.That((byte)MessageKind.EntitySpawn, Is.EqualTo((byte)14));
             Assert.That((byte)MessageKind.EntityState, Is.EqualTo((byte)15));
             Assert.That((byte)MessageKind.EntityGone, Is.EqualTo((byte)16));
@@ -55,7 +58,61 @@ namespace EarthGame.Tests.Engine
             Assert.That(back.HasItem, Is.True);
             Assert.That(back.Item.Resting, Is.False);
             Assert.That(back.Item.FallSpeed, Is.EqualTo(2.5f));
-            Assert.That(w.Written.Length, Is.EqualTo(1 + 8 + 4 + 8 + 24 + 4 + 1 + 5), "the spawn's bytes are what the budget counts");
+            Assert.That(back.Item.HasStoneState, Is.False, "a cobble never struck has no state of its own");
+            Assert.That(w.Written.Length, Is.EqualTo(1 + 8 + 4 + 8 + 24 + 4 + 1 + ItemBytes), "the spawn's bytes are what the budget counts");
+        }
+
+        /// <summary>The state a blow gave a stone rides in the item's component (protocol 15, FP.3), and one no stone could have is refused.</summary>
+        [Test]
+        public void AStruckStonesStateRidesInItsItemAndAnImpossibleOneIsRefused()
+        {
+            EntitySpawnMessage m = default;
+            m.Id = 9;
+            m.DefinitionId = DefinitionCatalogue.FlakeOf(StoneType.Silcrete).Id.Value;
+            m.HasItem = true;
+            m.Item = new ItemComponent { Resting = true, FallSpeed = 0f, MassKg = 0.0207f, Edge01 = 0.545f, PlatformDeg = 0f, FlakesTaken = 0 };
+            PacketWriter w = new PacketWriter(64);
+            m.Write(w);
+            EntitySpawnMessage back = EntitySpawnMessage.Read(Reader(w));
+            Assert.That(back.Item.MassKg, Is.EqualTo(0.0207f));
+            Assert.That(back.Item.Edge01, Is.EqualTo(0.545f));
+            Assert.That(back.Item.HasStoneState, Is.True);
+            Assert.That(DefinitionCatalogue.ById(new DefinitionId(back.DefinitionId)), Is.SameAs(DefinitionCatalogue.FlakeOf(StoneType.Silcrete)));
+
+            EntityStateMessage core = default;
+            core.Id = 3;
+            core.Fields = EntityFields.Item;
+            core.Item = new ItemComponent { Resting = true, MassKg = 0.5793f, PlatformDeg = 80.2f, FlakesTaken = 2 };
+            w.Reset();
+            core.Write(w);
+            Assert.That(w.Written.Length, Is.EqualTo(1 + 8 + 8 + 1 + ItemBytes));
+            EntityStateMessage coreBack = EntityStateMessage.Read(Reader(w));
+            Assert.That(coreBack.Item.PlatformDeg, Is.EqualTo(80.2f));
+            Assert.That(coreBack.Item.FlakesTaken, Is.EqualTo((ushort)2));
+            Assert.That(coreBack.Item.MassKg, Is.EqualTo(0.5793f));
+
+            foreach ((float mass, float edge, float platform, string what) in new[]
+            {
+                (float.NaN, 0f, 0f, "a mass that is not a number"),
+                (-0.1f, 0f, 0f, "a mass below nothing"),
+                (0.1f, 1.5f, 0f, "an edge past one"),
+                (0.1f, 0.5f, 200f, "a platform past a flat face"),
+                (0.1f, 0.5f, float.PositiveInfinity, "an angle that is not a number"),
+            })
+            {
+                w.Reset();
+                w.WriteByte((byte)MessageKind.EntityState);
+                w.WriteUInt64(3);
+                w.WriteInt64(1);
+                w.WriteByte((byte)EntityFields.Item);
+                w.WriteBool(true);
+                w.WriteSingle(0f);
+                w.WriteSingle(mass);
+                w.WriteSingle(edge);
+                w.WriteSingle(platform);
+                w.WriteUInt16(0);
+                Assert.Throws<ProtocolException>(() => EntityStateMessage.Read(Reader(w)), what);
+            }
         }
 
         [Test]
@@ -70,7 +127,7 @@ namespace EarthGame.Tests.Engine
             m.East = 999;
             PacketWriter w = new PacketWriter(64);
             m.Write(w);
-            Assert.That(w.Written.Length, Is.EqualTo(1 + 8 + 8 + 1 + 4 + 5), "no position on the wire");
+            Assert.That(w.Written.Length, Is.EqualTo(1 + 8 + 8 + 1 + 4 + ItemBytes), "no position on the wire");
             PacketReader r = Reader(w);
             EntityStateMessage back = EntityStateMessage.Read(r);
             r.ExpectEnd();

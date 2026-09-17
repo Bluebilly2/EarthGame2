@@ -44,11 +44,27 @@ namespace EarthGame.Engine
         All = Position | Yaw | Item | Pose,
     }
 
-    /// <summary>A thing lying in the world: whether it has come to rest, and how fast it is falling while it has not.</summary>
+    /// <summary>
+    /// A thing lying in the world: whether it has come to rest, how fast it is falling while it has not, and since FP.3 the
+    /// state a stone earns by being struck. A thing's mass and edge live on its definition until a blow gives it its own:
+    /// a flake weighs what the blow took and carries the edge the stone and the blow made, and a core grows lighter with
+    /// every flake. Zero means "none of its own", so every stick and cobble written before FP.3 reads as it was.
+    /// </summary>
     public struct ItemComponent
     {
         public bool Resting;
         public float FallSpeed;
+        /// <summary>The thing's own mass, kg, once a blow has given it one; zero for a thing that weighs what its definition says.</summary>
+        public float MassKg;
+        /// <summary>The edge a flake carries, 0 to 1; zero for a thing with none.</summary>
+        public float Edge01;
+        /// <summary>The angle the struck edge of a core presents, degrees; zero for a stone never struck, which presents a fresh cobble's.</summary>
+        public float PlatformDeg;
+        /// <summary>Flakes taken off a core so far.</summary>
+        public ushort FlakesTaken;
+
+        /// <summary>Whether a blow has given this thing state of its own (a flake as struck, a core worked).</summary>
+        public bool HasStoneState => MassKg > 0f;
     }
 
     /// <summary>What an animal is doing (M1.7a), as one of the codes <see cref="AnimalPose"/> names.</summary>

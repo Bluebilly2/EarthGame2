@@ -173,6 +173,13 @@ namespace EarthGame.Tests.Server
             rig.Pump(2);
             Assert.That(rig.World.Entities.All.Count, Is.EqualTo(2));
             Assert.That(rig.World.Entities.All[1].Definition, Is.SameAs(DefinitionCatalogue.Cobble));
+            // FP.3: a cobble that knaps, the coast's silcrete, for a flake to be struck and looked at.
+            rig.Client.SendDevSetting(DevSettings.SpawnSilcreteCobble, 0.0);
+            rig.Pump(2);
+            Assert.That(rig.World.Entities.All.Count, Is.EqualTo(3));
+            Assert.That(rig.World.Entities.All[2].Definition, Is.SameAs(DefinitionCatalogue.CobbleOf(StoneType.Silcrete)));
+            Assert.That(rig.World.Entities.All[2].Position.X, Is.EqualTo(102.0).Within(1e-6), "the same two metres ahead");
+            Assert.That(rig.World.Entities.All[2].Item.Resting, Is.True);
         }
 
         [Test]

@@ -109,6 +109,50 @@ namespace EarthGame.Tests.Engine
             Assert.That(hands.Things.Count, Is.EqualTo(0), "a save from before the hands carries nothing");
         }
 
+        /// <summary>
+        /// What a blow made of a stone (FP.3) goes into the hands with it, is changed there when the held stone is struck, comes
+        /// back to the world with it, and leaves the hands for good when the stone is spent.
+        /// </summary>
+        [Test]
+        public void AStruckStonesStateGoesThroughTheHandsAndBack()
+        {
+            Entity core = _world.SpawnItem(DefinitionCatalogue.CobbleOf(StoneType.Silcrete), 301, -300);
+            core.SetItem(new ItemComponent { Resting = true, FallSpeed = 0f, MassKg = 0.5f, PlatformDeg = 75f, FlakesTaken = 1 }, _world.Tick);
+            _world.Step(0.05);
+            Hands hands = new Hands();
+            Double3 eye = EyeAt(300, -300);
+            Assert.That(hands.PickUp(_world, core.Id.Value, eye), Is.EqualTo(VerbOutcome.Done));
+            Assert.That(hands.Things[0].Item.MassKg, Is.EqualTo(0.5f), "the core's own mass came into the hand with it");
+            Assert.That(hands.Things[0].Item.PlatformDeg, Is.EqualTo(75f));
+            Assert.That(hands.Things[0].Item.FlakesTaken, Is.EqualTo((ushort)1));
+            Assert.That(hands.Things[0].Item.Resting, Is.True, "at rest in a hand");
+
+            Assert.That(hands.TryUpdate(1, new ItemComponent { Resting = false, FallSpeed = 3f, MassKg = 0.45f, PlatformDeg = 80f, FlakesTaken = 2 }), Is.True);
+            Assert.That(hands.Things[0].Item.MassKg, Is.EqualTo(0.45f), "struck while held");
+            Assert.That(hands.Things[0].Item.FlakesTaken, Is.EqualTo((ushort)2));
+            Assert.That(hands.Things[0].Item.Resting && hands.Things[0].Item.FallSpeed == 0f, Is.True, "a held thing neither rests on the ground nor falls: kept at rest");
+            Assert.That(hands.TryUpdate(2, default), Is.False, "nothing in place 2");
+            Assert.That(hands.Record("William").Things[0].Item.MassKg, Is.EqualTo(0.45f), "and the save sees it");
+
+            _world.Step(0.05);
+            Assert.That(hands.PutDown(_world, Ground(300, -298), eye, 0f), Is.EqualTo(VerbOutcome.Done));
+            Assert.That(_world.Entities.TryGet(core.Id, out Entity back), Is.True);
+            Assert.That(back.Item.MassKg, Is.EqualTo(0.45f), "the state went back to the world with it");
+            Assert.That(back.Item.PlatformDeg, Is.EqualTo(80f));
+            Assert.That(back.Item.Resting, Is.False, "and it falls from where it was let go");
+
+            _world.Step(0.05);
+            Assert.That(hands.PickUp(_world, core.Id.Value, eye), Is.EqualTo(VerbOutcome.Done));
+            Assert.That(hands.Discard(1), Is.True, "spent under the hammer, the core is gone from the hands");
+            Assert.That(hands.Things.Count, Is.EqualTo(0));
+            Assert.That(hands.TryAt(hands.Hand, out _), Is.False, "the hand points at an empty place");
+            Assert.That(hands.Discard(1), Is.False);
+
+            Hands restored = new Hands();
+            restored.Restore(new[] { new CarriedThing { Id = 5, Definition = DefinitionCatalogue.FlakeOf(StoneType.Silcrete), Place = 2, Item = new ItemComponent { MassKg = 0.02f, Edge01 = 0.6f } } }, 2);
+            Assert.That(restored.Things[0].Item.Edge01, Is.EqualTo(0.6f), "a save keeps a flake's edge");
+        }
+
         [Test]
         public void AReturnIsNeverANewThing()
         {

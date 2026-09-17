@@ -24,6 +24,10 @@ namespace EarthGame.Engine
         /// <summary>Yaw is named to the microdegree; a fall speed to the micrometre per second.</summary>
         public const double DegreeResolution = 1e-6;
 
+        /// <summary>A stone's own mass is named to the milligram, and an edge to the millionth (FP.3).</summary>
+        public const double MassResolution = 1e-6;
+        public const double EdgeResolution = 1e-6;
+
         /// <summary>
         /// The world: its clock, its tick, every remembered body by player name, what each founder carries (M1.5a),
         /// every one of the world's own entities in id order, what has been taken from the loose layer by cell (M1.5b),
@@ -67,15 +71,33 @@ namespace EarthGame.Engine
             return Hex(Fnv1a64(sb.ToString()));
         }
 
-        /// <summary>The entity's id, key, position, yaw, for an item whether it rests and its fall speed, and for an animal its pose (M1.7a).</summary>
+        /// <summary>
+        /// The entity's id, key, position, yaw, for an item whether it rests and its fall speed, then the state a blow gave it
+        /// when it has any (FP.3), and for an animal its pose (M1.7a).
+        /// </summary>
         private static void AppendEntity(StringBuilder sb, in EntityRecord r)
         {
             sb.Append("entity ").Append(r.Id.Value.ToString(CultureInfo.InvariantCulture)).Append(' ').Append(r.Key).Append(' ')
               .Append(Fixed(r.Position.X, MetreResolution)).Append(' ').Append(Fixed(r.Position.Y, MetreResolution)).Append(' ').Append(Fixed(r.Position.Z, MetreResolution))
               .Append(' ').Append(Fixed(r.YawDeg, DegreeResolution));
-            if (r.HasItem) sb.Append(" item ").Append(r.Item.Resting ? 'r' : 'f').Append(' ').Append(Fixed(r.Item.FallSpeed, MetreResolution));
+            if (r.HasItem)
+            {
+                sb.Append(" item ").Append(r.Item.Resting ? 'r' : 'f').Append(' ').Append(Fixed(r.Item.FallSpeed, MetreResolution));
+                AppendStone(sb, r.Item);
+            }
             if (r.HasAnimal) sb.Append(" animal ").Append(r.Animal.Pose.ToString(CultureInfo.InvariantCulture));
             sb.Append('\n');
+        }
+
+        /// <summary>
+        /// What a blow made of a stone (FP.3): its own mass, its edge, its platform's angle and the flakes taken, only when it
+        /// has state of its own, so a world saved before any stone was struck keeps its name.
+        /// </summary>
+        private static void AppendStone(StringBuilder sb, in ItemComponent item)
+        {
+            if (!item.HasStoneState) return;
+            sb.Append(" stone ").Append(Fixed(item.MassKg, MassResolution)).Append(' ').Append(Fixed(item.Edge01, EdgeResolution))
+              .Append(' ').Append(Fixed(item.PlatformDeg, DegreeResolution)).Append(' ').Append(item.FlakesTaken.ToString(CultureInfo.InvariantCulture));
         }
 
         /// <summary>
@@ -89,8 +111,12 @@ namespace EarthGame.Engine
             sb.Append("hands ").Append(c.Name).Append(' ').Append(c.Hand.ToString(CultureInfo.InvariantCulture)).Append('\n');
             things.Sort((a, b) => a.Place.CompareTo(b.Place));
             foreach (CarriedThing t in things)
+            {
                 sb.Append("carried ").Append(c.Name).Append(' ').Append(t.Place.ToString(CultureInfo.InvariantCulture)).Append(' ')
-                  .Append(t.Id.ToString(CultureInfo.InvariantCulture)).Append(' ').Append(t.Definition.Key).Append('\n');
+                  .Append(t.Id.ToString(CultureInfo.InvariantCulture)).Append(' ').Append(t.Definition.Key);
+                AppendStone(sb, t.Item);
+                sb.Append('\n');
+            }
         }
 
         /// <summary>A set of bodies by session id, as a client's mirror and the server's record both hold them.</summary>

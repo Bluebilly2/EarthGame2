@@ -26,6 +26,15 @@ namespace EarthGame.Tests.Protocol
             Assert.That((byte)Verb.PutDown, Is.EqualTo((byte)2));
             Assert.That((byte)Verb.Hold, Is.EqualTo((byte)3));
             Assert.That((byte)VerbOutcome.NotNow, Is.EqualTo((byte)6));
+            // FP.3: the fifth verb and the blow's six answers, wire-visible and never renumbered.
+            Assert.That((byte)Verb.Knap, Is.EqualTo((byte)5));
+            Assert.That((byte)VerbOutcome.Bounced, Is.EqualTo((byte)9));
+            Assert.That((byte)VerbOutcome.Flaked, Is.EqualTo((byte)10));
+            Assert.That((byte)VerbOutcome.Shattered, Is.EqualTo((byte)11));
+            Assert.That((byte)VerbOutcome.Crushed, Is.EqualTo((byte)12));
+            Assert.That((byte)VerbOutcome.NoHammer, Is.EqualTo((byte)13));
+            Assert.That((byte)VerbOutcome.NotStone, Is.EqualTo((byte)14));
+            Assert.That(IntentMessage.TargetPlace, Is.EqualTo((byte)3));
         }
 
         [Test]
@@ -75,8 +84,9 @@ namespace EarthGame.Tests.Protocol
             w.Reset();
             w.WriteByte((byte)MessageKind.Intent);
             w.WriteUInt32(1);
-            w.WriteByte(4);
-            Assert.Throws<ProtocolException>(() => IntentMessage.Read(Reader(w)), "verb 4");
+            // Past the last verb this build knows (5, knap, since FP.3).
+            w.WriteByte(6);
+            Assert.Throws<ProtocolException>(() => IntentMessage.Read(Reader(w)), "verb 6");
             w.Reset();
             w.WriteByte((byte)MessageKind.Intent);
             w.WriteUInt32(1);
@@ -176,23 +186,93 @@ namespace EarthGame.Tests.Protocol
         [Test]
         public void AnAnswerNamesItsIntentAndAnOutcomeThisBuildKnows()
         {
-            PacketWriter w = new PacketWriter(16);
+            PacketWriter w = new PacketWriter(64);
             IntentResultMessage m;
             m.Sequence = 41;
             m.Outcome = VerbOutcome.HandsFull;
+            m.Note = null;
             m.Write(w);
-            Assert.That(w.Written.Length, Is.EqualTo(1 + 4 + 1));
+            Assert.That(w.Written.Length, Is.EqualTo(1 + 4 + 1 + 2), "an answer with no words carries an empty string's length");
             PacketReader r = Reader(w);
             IntentResultMessage back = IntentResultMessage.Read(r);
             r.ExpectEnd();
             Assert.That(back.Sequence, Is.EqualTo(41u));
             Assert.That(back.Outcome, Is.EqualTo(VerbOutcome.HandsFull));
+            Assert.That(back.Note, Is.EqualTo(string.Empty));
+
+            // A blow's answer carries the physics' words (FP.3), made once on the server and read as they were written.
+            w.Reset();
+            m.Outcome = VerbOutcome.Flaked;
+            m.Note = "A clean flake, and it is sharp.";
+            m.Write(w);
+            r = Reader(w);
+            back = IntentResultMessage.Read(r);
+            r.ExpectEnd();
+            Assert.That(back.Outcome, Is.EqualTo(VerbOutcome.Flaked));
+            Assert.That(back.Note, Is.EqualTo("A clean flake, and it is sharp."));
+
             w.Reset();
             w.WriteByte((byte)MessageKind.IntentResult);
             w.WriteUInt32(41);
-            // Past the last outcome this build knows (8, NoWater, since FP.1): refused as unknown.
-            w.WriteByte(9);
+            // Past the last outcome this build knows (14, NotStone, since FP.3): refused as unknown.
+            w.WriteByte(15);
+            w.WriteString(string.Empty);
             Assert.Throws<ProtocolException>(() => IntentResultMessage.Read(Reader(w)));
+        }
+
+        /// <summary>A knap (protocol v15, FP.3) names its core as a pick-up names its target, or as a place of the hands, and then its wind-up.</summary>
+        [Test]
+        public void AKnapNamesItsCoreAndItsWindUp()
+        {
+            PacketWriter w = new PacketWriter(64);
+            IntentMessage onItem = new IntentMessage { Sequence = 5, Verb = Verb.Knap, Target = IntentMessage.TargetEntity, EntityId = 77, WindUp = 255 };
+            onItem.Write(w);
+            Assert.That(w.Written.Length, Is.EqualTo(1 + 4 + 1 + 1 + 8 + 1));
+            PacketReader r = Reader(w);
+            IntentMessage back = IntentMessage.Read(r);
+            r.ExpectEnd();
+            Assert.That(back.Verb, Is.EqualTo(Verb.Knap));
+            Assert.That(back.Target, Is.EqualTo(IntentMessage.TargetEntity));
+            Assert.That(back.EntityId, Is.EqualTo(77UL));
+            Assert.That(back.WindUp, Is.EqualTo((byte)255));
+            Assert.That(back.WindUp01, Is.EqualTo(1.0));
+
+            w.Reset();
+            IntentMessage onLitter = new IntentMessage { Sequence = 6, Verb = Verb.Knap, Target = IntentMessage.TargetLying, Lying = new LyingThing(12, 34, StandLayout.Kind.Cobble, 2), WindUp = 51 };
+            onLitter.Write(w);
+            Assert.That(w.Written.Length, Is.EqualTo(1 + 4 + 1 + 1 + 2 + 2 + 1 + 1 + 1));
+            r = Reader(w);
+            back = IntentMessage.Read(r);
+            r.ExpectEnd();
+            Assert.That(back.Lying, Is.EqualTo(new LyingThing(12, 34, StandLayout.Kind.Cobble, 2)));
+            Assert.That(back.WindUp01, Is.EqualTo(51.0 / 255.0).Within(1e-12));
+
+            w.Reset();
+            IntentMessage onHeld = new IntentMessage { Sequence = 7, Verb = Verb.Knap, Target = IntentMessage.TargetPlace, Place = 3, WindUp = 0 };
+            onHeld.Write(w);
+            Assert.That(w.Written.Length, Is.EqualTo(1 + 4 + 1 + 1 + 1 + 1));
+            r = Reader(w);
+            back = IntentMessage.Read(r);
+            r.ExpectEnd();
+            Assert.That(back.Target, Is.EqualTo(IntentMessage.TargetPlace));
+            Assert.That(back.Place, Is.EqualTo((byte)3));
+            Assert.That(back.WindUp01, Is.EqualTo(0.0), "a tap");
+
+            Assert.Throws<ProtocolException>(() => new IntentMessage { Verb = Verb.PickUp, Target = IntentMessage.TargetPlace, Place = 2 }.Write(new PacketWriter(16)),
+                "a pick-up cannot name a place of the hands: what is there is already picked up");
+            w.Reset();
+            w.WriteByte((byte)MessageKind.Intent);
+            w.WriteUInt32(1);
+            w.WriteByte((byte)Verb.PickUp);
+            w.WriteByte(IntentMessage.TargetPlace);
+            w.WriteByte(2);
+            Assert.Throws<ProtocolException>(() => IntentMessage.Read(Reader(w)), "nor be read naming one");
+
+            Assert.That(IntentMessage.WindUpOf(0.0), Is.EqualTo((byte)0));
+            Assert.That(IntentMessage.WindUpOf(1.0), Is.EqualTo((byte)255));
+            Assert.That(IntentMessage.WindUpOf(2.0), Is.EqualTo((byte)255), "held to a full swing");
+            Assert.That(IntentMessage.WindUpOf(-1.0), Is.EqualTo((byte)0));
+            Assert.That(IntentMessage.WindUpOf(0.5), Is.EqualTo((byte)128), "the nearest of 255 steps");
         }
 
         [Test]

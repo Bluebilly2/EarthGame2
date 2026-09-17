@@ -58,11 +58,12 @@ namespace EarthGame.Engine
         /// <summary>Flakes taken off this core so far.</summary>
         public int FlakesTaken { get; private set; }
 
-        public StoneCore(StoneType stone, double massKg, double platformAngleDeg = FreshPlatformDeg)
+        public StoneCore(StoneType stone, double massKg, double platformAngleDeg = FreshPlatformDeg, int flakesTaken = 0)
         {
             Stone = stone ?? throw new ArgumentNullException(nameof(stone));
             MassKg = Math.Max(0.0, massKg);
             PlatformAngleDeg = platformAngleDeg;
+            FlakesTaken = Math.Max(0, flakesTaken);
         }
 
         /// <summary>Whether this core has anything left to give from where it is being struck.</summary>
@@ -172,6 +173,10 @@ namespace EarthGame.Engine
             if (core == null || core.IsSpent)
                 return new KnapResult(KnapOutcome.Crushed, 0.0, 0.0, "There is nothing left to hold.");
 
+            // A pebble or a flake swung at a core drives no cone: what it has is not mass enough to put behind the blow.
+            if (hammerMassKg < MinimumHammerKg)
+                return new KnapResult(KnapOutcome.NoFracture, 0.0, 0.0, "The stone in hand is too light to start a fracture.");
+
             // Some stone simply does not do this: sandstone crumbles, granite powders; neither has ever made a blade.
             if (core.Stone.Knappability < MinimumKnappability)
             {
@@ -234,5 +239,69 @@ namespace EarthGame.Engine
         /// </summary>
         public static double CuttingMinutes(double bareHandedMinutes, double edge01) =>
             bareHandedMinutes / (1.0 + EdgeSpeedup * SimMath.Clamp01(edge01));
+    }
+
+    /// <summary>
+    /// The stones as items (FP.3): what the knapping physics reads off a thing's definition and the state a blow left on it,
+    /// and what it writes back. A thing's mass is its definition's until a blow gives it one of its own
+    /// (<see cref="ItemComponent.MassKg"/>), and a stone never struck presents a fresh cobble's platform; so a cobble taken
+    /// from the litter, or one written before this state existed, knaps as a fresh cobble of its stone. One owner for the
+    /// reading and the writing, so the server, the save and the wire cannot disagree about what a struck stone is.
+    /// </summary>
+    public static class KnappingItems
+    {
+        /// <summary>Whether a thing can be struck or struck with: an item of a stone the country names (a cobble of a stone, or a flake).</summary>
+        public static bool IsStone(Definition definition) => DefinitionCatalogue.StoneOf(definition) != null;
+
+        /// <summary>
+        /// Whether a thing can be swung as a hammer: any cobble, the plain cobble included (a hammer's part in the physics is its
+        /// mass and its radius, and the plain cobble has both), or a flake; not a stick.
+        /// </summary>
+        public static bool IsHammer(Definition definition) =>
+            IsStone(definition) || ReferenceEquals(definition, DefinitionCatalogue.Cobble);
+
+        /// <summary>What a thing weighs, kg: its own mass once a blow gave it one, else its definition's.</summary>
+        public static double MassOf(Definition definition, in ItemComponent item) => item.MassKg > 0f ? item.MassKg : definition.MassKg;
+
+        /// <summary>The core a stone item is, to be struck: its stone, its mass, the platform it presents and the flakes taken so far.</summary>
+        public static StoneCore CoreOf(Definition definition, in ItemComponent item)
+        {
+            StoneType stone = DefinitionCatalogue.StoneOf(definition);
+            if (stone == null) throw new ArgumentException("'" + definition + "' is of no stone the country names, and cannot be a core", nameof(definition));
+            return new StoneCore(stone, MassOf(definition, item), item.PlatformDeg > 0f ? item.PlatformDeg : StoneCore.FreshPlatformDeg, item.FlakesTaken);
+        }
+
+        /// <summary>The item's state after a blow on it, as the core now stands: its rest and fall as they were, the rest the core's.</summary>
+        public static ItemComponent Struck(in ItemComponent before, StoneCore core)
+        {
+            ItemComponent after = before;
+            after.MassKg = (float)core.MassKg;
+            after.PlatformDeg = (float)core.PlatformAngleDeg;
+            after.FlakesTaken = (ushort)Math.Min(core.FlakesTaken, ushort.MaxValue);
+            return after;
+        }
+
+        /// <summary>The state a flake is born with (FP.3): the mass the blow took and the edge it made, let go to fall where it came away.</summary>
+        public static ItemComponent FlakeOf(in KnapResult result)
+        {
+            ItemComponent flake = default;
+            flake.Resting = false;
+            flake.FallSpeed = 0f;
+            flake.MassKg = (float)result.FlakeMassKg;
+            flake.Edge01 = (float)result.EdgeQuality;
+            return flake;
+        }
+
+        /// <summary>The answer a blow's outcome is sent as (<see cref="VerbOutcome"/>): one place maps the physics' word to the wire's.</summary>
+        public static VerbOutcome OutcomeOf(KnapOutcome outcome)
+        {
+            switch (outcome)
+            {
+                case KnapOutcome.Flake: return VerbOutcome.Flaked;
+                case KnapOutcome.Shatter: return VerbOutcome.Shattered;
+                case KnapOutcome.Crushed: return VerbOutcome.Crushed;
+                default: return VerbOutcome.Bounced;
+            }
+        }
     }
 }

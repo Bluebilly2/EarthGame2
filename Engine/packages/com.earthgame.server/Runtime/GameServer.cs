@@ -880,6 +880,7 @@ namespace EarthGame.Server
         private void HandleIntent(PlayerSession session, IntentMessage intent)
         {
             VerbOutcome outcome;
+            string note = string.Empty;
             if (Paused || !session.HasBody || session.SnapshotPending) outcome = VerbOutcome.NotNow;
             else
             {
@@ -903,6 +904,9 @@ namespace EarthGame.Server
                     case Verb.Drink:
                         outcome = Drink(session, new Double3(intent.East, intent.Up, intent.North), eye);
                         break;
+                    case Verb.Knap:
+                        outcome = Knap(session, intent, eye, out note);
+                        break;
                     default:
                         outcome = VerbOutcome.NotNow;
                         break;
@@ -911,10 +915,146 @@ namespace EarthGame.Server
             IntentResultMessage result;
             result.Sequence = intent.Sequence;
             result.Outcome = outcome;
+            result.Note = note;
             _writer.Reset();
             result.Write(_writer);
             session.Connection.Send(_writer.Written, Delivery.Reliable);
             if (outcome == VerbOutcome.Done && intent.Verb != Verb.Drink) SendCarrying(session);
+        }
+
+        /// <summary>How far ahead of a founder's feet a flake struck off a held core lands, m: at their feet, where a knapper's flakes fall.</summary>
+        private const double FlakeAheadM = 0.5;
+
+        /// <summary>
+        /// A blow on stone (FP.3): the stone in hand is the hammer, the core is the stone aimed at (an item, or one of the litter)
+        /// or one held in another place, and <see cref="Knapping.Strike"/> decides what the stone does with the energy the wind-up,
+        /// the hammer's mass and what thirst has left of the founder's work put behind the swing. The answer is the physics' own
+        /// words. What a blow changes is committed on the world the server holds: the core's state is written back to it (or the
+        /// core is gone, spent); a cobble of the litter that a blow changes becomes an item where it lay, as one taken up does;
+        /// a flake comes into the world with its own mass and edge, let go a little above the ground beside the core, or at the
+        /// founder's feet when the core was held, and falls. A blow that bounces changes nothing.
+        /// </summary>
+        private VerbOutcome Knap(PlayerSession session, IntentMessage intent, Double3 eye, out string note)
+        {
+            note = string.Empty;
+            Hands hands = session.Hands;
+            if (!hands.TryAt(hands.Hand, out CarriedThing hammer)) return VerbOutcome.NothingInHand;
+            if (!KnappingItems.IsHammer(hammer.Definition)) return VerbOutcome.NoHammer;
+
+            // The core: where it is, what it is and what blows have made of it so far.
+            Definition coreDefinition;
+            ItemComponent coreItem;
+            Double3 at;
+            Entity coreEntity = null;
+            byte corePlace = 0;
+            switch (intent.Target)
+            {
+                case IntentMessage.TargetEntity:
+                {
+                    if (!World.Entities.TryGet(intent.EntityId, out coreEntity) || coreEntity.Killed || !coreEntity.HasItem) return VerbOutcome.NotThere;
+                    if (Double3.Distance(eye, coreEntity.Position) > Hands.ReachM + coreEntity.Definition.RadiusM) return VerbOutcome.OutOfReach;
+                    coreDefinition = coreEntity.Definition;
+                    coreItem = coreEntity.Item;
+                    at = coreEntity.Position;
+                    break;
+                }
+                case IntentMessage.TargetLying:
+                {
+                    if (!LyingThings.TryFind(World, intent.Lying, out at)) return VerbOutcome.NotThere;
+                    coreDefinition = LyingThings.DefinitionOf(World, intent.Lying);
+                    if (Double3.Distance(eye, at) > Hands.ReachM + coreDefinition.RadiusM) return VerbOutcome.OutOfReach;
+                    coreItem = default;
+                    break;
+                }
+                case IntentMessage.TargetPlace:
+                {
+                    // A stone cannot be struck on itself: the core is another place's.
+                    if (intent.Place == hands.Hand) return VerbOutcome.NotStone;
+                    if (!hands.TryAt(intent.Place, out CarriedThing held)) return VerbOutcome.NotThere;
+                    coreDefinition = held.Definition;
+                    coreItem = held.Item;
+                    corePlace = intent.Place;
+                    at = Ahead(session, FlakeAheadM);
+                    break;
+                }
+                default:
+                    return VerbOutcome.NotNow;
+            }
+            StoneType coreStone = DefinitionCatalogue.StoneOf(coreDefinition);
+            if (coreStone == null) return VerbOutcome.NotStone;
+
+            StoneCore core = KnappingItems.CoreOf(coreDefinition, coreItem);
+            double hammerMass = KnappingItems.MassOf(hammer.Definition, hammer.Item);
+            double energy = Knapping.SwingEnergyJ(intent.WindUp01, hammerMass, session.Hydration.WorkCapacity01);
+            KnapResult result = Knapping.Strike(core, DefinitionCatalogue.StoneOf(hammer.Definition), hammerMass, energy);
+            note = result.Note;
+            VerbOutcome outcome = KnappingItems.OutcomeOf(result.Outcome);
+            if (result.Outcome == KnapOutcome.NoFracture) return outcome;
+
+            // What the blow made of the core, written back to wherever the core is; a spent core is gone.
+            ItemComponent after = KnappingItems.Struck(coreItem, core);
+            if (coreEntity != null)
+            {
+                if (core.IsSpent) World.Entities.Kill(coreEntity);
+                else coreEntity.SetItem(after, World.Tick);
+            }
+            else if (corePlace != 0)
+            {
+                if (core.IsSpent) hands.Discard(corePlace);
+                else hands.TryUpdate(corePlace, after);
+                SendCarrying(session);
+            }
+            else
+            {
+                // A cobble of the litter the blow changed leaves the layer for good (M1.5b's rule for a thing moved), and unless it
+                // is spent it lies on as an item where it lay, with what the blow made of it.
+                World.Taken.Take(intent.Lying);
+                if (!core.IsSpent)
+                {
+                    Entity lying = World.Entities.Return(World.Entities.AllocateId(), coreDefinition, at, 0f, World.Tick, World.Tick);
+                    after.Resting = true;
+                    after.FallSpeed = 0f;
+                    lying.SetItem(after, World.Tick);
+                }
+                BroadcastTaken(intent.Lying.Row, intent.Lying.Col);
+            }
+
+            if (result.Outcome == KnapOutcome.Flake)
+            {
+                // The flake comes away beside the core and falls from a put-down's height; off a held core it falls at the
+                // founder's feet.
+                Double3 where = corePlace != 0 ? at : FlakeFalls(at, session.Body.Feet, core.FlakesTaken);
+                Entity flake = World.SpawnItem(DefinitionCatalogue.FlakeOf(coreStone), where.X, where.Z, World.GroundAt(where.X, where.Z) + Hands.ReleaseM, session.YawDeg);
+                flake.SetItem(KnappingItems.FlakeOf(result), World.Tick);
+            }
+            return outcome;
+        }
+
+        /// <summary>How far from a lying core its flakes land, m: a step towards the founder, and to one side then the other as they come off.</summary>
+        private const double FlakeTowardsM = 0.2, FlakeSideM = 0.1;
+
+        /// <summary>
+        /// Where a flake off a lying core lands: <see cref="FlakeTowardsM"/> towards the founder, so it is not under the core, and
+        /// <see cref="FlakeSideM"/> to the right for the first flake, the left for the second and further out for each pair after,
+        /// so a knapper's flakes lie scattered about the core rather than in one heap. The core's own place when the move would
+        /// leave the region.
+        /// </summary>
+        private Double3 FlakeFalls(Double3 core, Double3 feet, int flakesTaken)
+        {
+            double dx = feet.X - core.X, dz = feet.Z - core.Z;
+            double d = Math.Sqrt(dx * dx + dz * dz);
+            if (d < 1e-6)
+            {
+                dx = 0.0;
+                dz = 1.0;
+                d = 1.0;
+            }
+            dx /= d;
+            dz /= d;
+            double side = FlakeSideM * ((flakesTaken + 1) / 2) * (flakesTaken % 2 == 1 ? 1.0 : -1.0);
+            double east = core.X + dx * FlakeTowardsM - dz * side, north = core.Z + dz * FlakeTowardsM + dx * side;
+            if (Math.Abs(east) > World.Region.HalfExtentM || Math.Abs(north) > World.Region.HalfExtentM) return core;
+            return new Double3(east, World.GroundAt(east, north), north);
         }
 
         /// <summary>Where a founder's eye is, as the server holds their body: a verb's reach is measured from here.</summary>
@@ -1042,8 +1182,11 @@ namespace EarthGame.Server
                     break;
                 case DevSettings.SpawnStick:
                 case DevSettings.SpawnCobble:
+                case DevSettings.SpawnSilcreteCobble:
                 {
-                    Definition definition = setting.Name == DevSettings.SpawnStick ? DefinitionCatalogue.Stick : DefinitionCatalogue.Cobble;
+                    Definition definition = setting.Name == DevSettings.SpawnStick ? DefinitionCatalogue.Stick
+                        : setting.Name == DevSettings.SpawnCobble ? DefinitionCatalogue.Cobble
+                        : DefinitionCatalogue.CobbleOf(StoneType.Silcrete);
                     Ahead(session, out double east, out double north);
                     World.SpawnItem(definition, east, north, null, session.YawDeg);
                     break;
@@ -1100,13 +1243,23 @@ namespace EarthGame.Server
         /// </summary>
         private void Ahead(PlayerSession session, out double east, out double north)
         {
-            Double3 at = session.HasBody ? session.Body.Feet : World.SpawnPoint();
-            double yaw = session.YawDeg * GeoMath.DegToRad;
-            east = at.X + SpawnAheadM * Math.Sin(yaw);
-            north = at.Z + SpawnAheadM * Math.Cos(yaw);
-            if (Math.Abs(east) <= World.Region.HalfExtentM && Math.Abs(north) <= World.Region.HalfExtentM) return;
+            Double3 at = Ahead(session, SpawnAheadM);
             east = at.X;
             north = at.Z;
+        }
+
+        /// <summary>A point on the ground a distance ahead of the founder the way they face, and at their feet when that would be off the region.</summary>
+        private Double3 Ahead(PlayerSession session, double metres)
+        {
+            Double3 at = session.HasBody ? session.Body.Feet : World.SpawnPoint();
+            double yaw = session.YawDeg * GeoMath.DegToRad;
+            double east = at.X + metres * Math.Sin(yaw), north = at.Z + metres * Math.Cos(yaw);
+            if (Math.Abs(east) > World.Region.HalfExtentM || Math.Abs(north) > World.Region.HalfExtentM)
+            {
+                east = at.X;
+                north = at.Z;
+            }
+            return new Double3(east, World.GroundAt(east, north), north);
         }
 
         /// <summary>A number folded onto [0, period): a bearing that stays a bearing however it is added to.</summary>

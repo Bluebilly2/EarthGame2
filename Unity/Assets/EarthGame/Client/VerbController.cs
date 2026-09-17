@@ -8,12 +8,28 @@ using UnityEngine;
 
 namespace EarthGame.Client
 {
+    /// <summary>What the client last asked of a blow on stone (FP.3), for a scenario to hold the answer against.</summary>
+    public struct KnapAsked
+    {
+        /// <summary>The intent's sequence, which the answer names.</summary>
+        public uint Sequence;
+        /// <summary>The wind-up as it went on the wire, 0 to 1 in 255 steps: what the server put into the swing.</summary>
+        public double WindUp01;
+        public ulong HammerId;
+        /// <summary>The core as an item, or 0 when it was one of the litter.</summary>
+        public ulong CoreId;
+        public LyingThing? CoreLying;
+    }
+
     /// <summary>
     /// CANON's verb rule (2026-08-26) for the verbs a founder has so far (M1.5a): what the right mouse does comes from what
     /// the crosshair is on and what is in hand. On a thing lying within reach it picks it up; with something in hand and
     /// the ground within reach under the crosshair it puts it down there; 1–9 and the wheel choose the hand; Tab opens the
-    /// carrying window. The client only asks; the server commits every verb and answers (<see cref="IntentMessage"/>), and
-    /// the verb line under the crosshair says what the right mouse would do, or for a moment why it did not.
+    /// carrying window. Since FP.3 the left mouse works on stone: with a stone in hand and another under the crosshair, a
+    /// tap strikes lightly and a press held winds the arm up to a full swing, let go when the button is. The client only
+    /// asks; the server commits every verb and answers (<see cref="IntentMessage"/>), and the verb line under the
+    /// crosshair says what the mouse would do, or for a moment why it did not, or what the stone did in the physics' own
+    /// words.
     ///
     /// <para>Reach is measured as the server measures it, from the body's eye (<see cref="PlayerController.Eye"/>) with the
     /// engine's own <see cref="Hands.ReachM"/>, so the line never offers what the server would refuse; the ray is the
@@ -23,6 +39,18 @@ namespace EarthGame.Client
     {
         /// <summary>How long an answer other than done, or a note, stays on the verb line, s.</summary>
         public const float AnswerSeconds = 2f;
+
+        /// <summary>How long what the stone did stays on the verb line, s: a sentence to read, not a word.</summary>
+        public const float NoteSeconds = 3.5f;
+
+        /// <summary>
+        /// How long the work button must be held to wind the arm up to a full swing, s (FP.3). A tap is a light blow: the
+        /// wind-up is the hold's share of this, and the server puts <see cref="Knapping.SwingEnergyJ"/> of it behind the stone.
+        /// </summary>
+        public const float WindUpSeconds = 1f;
+
+        /// <summary>A gap in the ticking longer than this (the panel open) lets a held work button go without a blow, s.</summary>
+        private const float WorkGapSeconds = 0.5f;
 
         /// <summary>How far past the reach the crosshair looks, m, so a thing a little beyond it hides the ground behind it rather than offering it.</summary>
         private const float LookBeyondM = 1f;
@@ -43,9 +71,17 @@ namespace EarthGame.Client
         private string _answer = string.Empty;
         private float _answerUntil;
         private float _now;
+        private bool _workHeld;
+        private float _workSince;
 
         /// <summary>The thing under the crosshair within reach, or null.</summary>
         public EntityView Target { get; private set; }
+
+        /// <summary>The blow last asked of the server (FP.3), or null before any.</summary>
+        public KnapAsked? LastKnap { get; private set; }
+
+        /// <summary>How far the arm is wound up now, 0 to 1: the work button's hold against <see cref="WindUpSeconds"/>, nothing when it is not held.</summary>
+        public float WindUp01 { get; private set; }
 
         /// <summary>The thing of the litter under the crosshair within reach (M1.5b), when no entity is nearer, or null.</summary>
         public LyingThing? TargetLying { get; private set; }
@@ -90,15 +126,19 @@ namespace EarthGame.Client
         public void Dispose() => Rebind(null, null);
 
         /// <summary>A word on the verb line for a moment, for something the founder did that no verb answers.</summary>
-        public void Note(string text)
+        public void Note(string text) => Note(text, AnswerSeconds);
+
+        private void Note(string text, float seconds)
         {
             _answer = text ?? string.Empty;
-            _answerUntil = _now + AnswerSeconds;
+            _answerUntil = _now + seconds;
         }
 
         private void OnAnswered(IntentResultMessage result)
         {
-            if (result.Outcome == VerbOutcome.Done) _answer = string.Empty;
+            // What the stone did comes in the server's own words (FP.3); a refusal in the client's; done says nothing.
+            if (!string.IsNullOrEmpty(result.Note)) Note(result.Note, NoteSeconds);
+            else if (result.Outcome == VerbOutcome.Done) _answer = string.Empty;
             else Note(Say(result.Outcome));
         }
 
@@ -113,6 +153,8 @@ namespace EarthGame.Client
         /// <summary>One frame: the presses taken from the controls acted on, the crosshair's target found, the verb line said.</summary>
         public void Tick(in ControlsFrame presses, float now)
         {
+            // A hold that spans a gap in the ticking (the developer's panel open, the hands resting) is let go, not struck.
+            if (_workHeld && now - _now > WorkGapSeconds) _workHeld = false;
             _now = now;
             if (_client == null || _player == null || _camera == null) return;
             bool person = !(_player.Input is ScriptedInputSource) && !Application.isBatchMode;
@@ -135,6 +177,8 @@ namespace EarthGame.Client
                 TargetLying = null;
                 Ground = null;
                 Line = string.Empty;
+                _workHeld = false;
+                WindUp01 = 0f;
                 _hud?.SetVerb(Line);
                 return;
             }
@@ -144,6 +188,12 @@ namespace EarthGame.Client
             else if (presses.HandStep != 0) _client.SendIntent(new IntentMessage { Verb = Verb.Hold, Place = Step(carrying, presses.HandStep) });
 
             Aim();
+            // The work button (FP.3): held, the arm winds up; let go, the stone in hand comes down on the stone aimed at.
+            if (presses.Work && !_workHeld) _workSince = now;
+            WindUp01 = presses.Work ? Mathf.Clamp01((now - _workSince) / WindUpSeconds) : 0f;
+            if (!presses.Work && _workHeld) Strike(carrying, Mathf.Clamp01((now - _workSince) / WindUpSeconds));
+            _workHeld = presses.Work;
+            _hand?.WindUp(WindUp01);
             if (presses.Use)
             {
                 // The punch on use (M1.5c): the hand swings whether or not there is anything for it to do.
@@ -221,6 +271,34 @@ namespace EarthGame.Client
         }
 
         /// <summary>
+        /// The blow (FP.3): the stone in hand on the stone under the crosshair, an item or one of the litter, with the wind-up
+        /// the hold earned. Nothing is sent when there is no stone in hand or none aimed at; the hand swings whatever the
+        /// server makes of it, as a use does.
+        /// </summary>
+        private void Strike(CarryingMessage carrying, float windUp01)
+        {
+            if (!TryInHand(carrying, out CarriedThing held) || !KnappingItems.IsHammer(held.Definition)) return;
+            IntentMessage intent = new IntentMessage { Verb = Verb.Knap, WindUp = IntentMessage.WindUpOf(windUp01) };
+            KnapAsked asked = new KnapAsked { WindUp01 = intent.WindUp01, HammerId = held.Id };
+            if (Target != null && KnappingItems.IsStone(Target.Definition))
+            {
+                intent.Target = IntentMessage.TargetEntity;
+                intent.EntityId = Target.Id.Value;
+                asked.CoreId = Target.Id.Value;
+            }
+            else if (TargetLying.HasValue && TargetLying.Value.Kind == StandLayout.Kind.Cobble)
+            {
+                intent.Target = IntentMessage.TargetLying;
+                intent.Lying = TargetLying.Value;
+                asked.CoreLying = TargetLying.Value;
+            }
+            else return;
+            _hand?.Strike();
+            asked.Sequence = _client.SendIntent(intent);
+            LastKnap = asked;
+        }
+
+        /// <summary>
         /// The nearest thing of the litter the ray meets before a distance, by its mesh's bounds where it is drawn (M1.5b);
         /// the distance becomes where it was met.
         /// </summary>
@@ -243,14 +321,20 @@ namespace EarthGame.Client
             return found;
         }
 
-        /// <summary>What the right mouse would do now, in words.</summary>
+        /// <summary>What the mouse would do now, in words: the right button's use, and with a stone in hand on stone, the left button's blow (FP.3).</summary>
         private string Offer(CarryingMessage carrying)
         {
             bool full = carrying.Things != null && carrying.Things.Length >= Hands.Places;
-            if (Target != null) return Target.Definition.DisplayName + " — " + (full ? "your hands are full" : "pick up");
+            bool hammer = TryInHand(carrying, out CarriedThing inHand) && KnappingItems.IsHammer(inHand.Definition);
+            if (Target != null)
+            {
+                if (hammer && KnappingItems.IsStone(Target.Definition)) return Target.Definition.DisplayName + " — knap (hold to strike harder)" + (full ? "" : ", or pick up");
+                return Target.Definition.DisplayName + " — " + (full ? "your hands are full" : "pick up");
+            }
             if (TargetLying.HasValue)
             {
                 Definition kind = TargetLying.Value.Kind == StandLayout.Kind.Stick ? DefinitionCatalogue.Stick : DefinitionCatalogue.Cobble;
+                if (hammer && TargetLying.Value.Kind == StandLayout.Kind.Cobble) return kind.DisplayName + " — knap (hold to strike harder)" + (full ? "" : ", or pick up");
                 return kind.DisplayName + " — " + (full ? "your hands are full" : "pick up");
             }
             if (WaterAt.HasValue) return "water — drink";
@@ -304,6 +388,9 @@ namespace EarthGame.Client
                 case VerbOutcome.NoSuchPlace: return "no such place";
                 case VerbOutcome.Salt: return "the sea will not drink: salt";
                 case VerbOutcome.NoWater: return "nothing to drink there";
+                // A blow's own outcomes come with the server's words; these are the two refusals that have none.
+                case VerbOutcome.NoHammer: return "nothing in hand to strike with";
+                case VerbOutcome.NotStone: return "that is no stone to knap";
                 default: return "not now";
             }
         }

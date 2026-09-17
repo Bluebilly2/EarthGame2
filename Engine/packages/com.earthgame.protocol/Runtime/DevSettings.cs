@@ -64,6 +64,12 @@ namespace EarthGame.Protocol
         public const string SpawnStick = "spawn.stick";
         /// <summary>A deed: a cobble is set on the ground two metres ahead of the founder who asks.</summary>
         public const string SpawnCobble = "spawn.cobble";
+        /// <summary>
+        /// A deed: a silcrete cobble, the coast's everyday knapping stone, is set on the ground two metres ahead of the founder
+        /// who asks (FP.3). The plain cobble above is of no stone the country names and will not knap; this one does, so a
+        /// developer can strike a flake to look at, and the knap scenario has stones that answer.
+        /// </summary>
+        public const string SpawnSilcreteCobble = "spawn.silcrete_cobble";
         /// <summary>A deed: one kangaroo is stood two metres ahead of the founder who asks, broadside (M1.7b), to be looked at.</summary>
         public const string SpawnKangaroo = "spawn.kangaroo";
         /// <summary>A deed: one oystercatcher, the same way.</summary>
@@ -94,6 +100,7 @@ namespace EarthGame.Protocol
             new DevSetting(AnimalsSetDownPose, "Animals set down are: 1 resting, 2 grazing, 3 fleeing", AnimalPose.Resting, AnimalPose.Fleeing, AnimalPose.Resting),
             new DevSetting(SpawnStick, "A stick, two metres ahead", 0.0, 0.0, 0.0, deed: true),
             new DevSetting(SpawnCobble, "A cobble, two metres ahead", 0.0, 0.0, 0.0, deed: true),
+            new DevSetting(SpawnSilcreteCobble, "A silcrete cobble, two metres ahead (it knaps)", 0.0, 0.0, 0.0, deed: true),
             new DevSetting(SpawnKangaroo, "A kangaroo, two metres ahead", 0.0, 0.0, 0.0, deed: true),
             new DevSetting(SpawnOystercatcher, "An oystercatcher, two metres ahead", 0.0, 0.0, 0.0, deed: true),
         };

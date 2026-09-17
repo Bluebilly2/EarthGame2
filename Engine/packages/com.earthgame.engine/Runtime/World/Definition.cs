@@ -105,7 +105,17 @@ namespace EarthGame.Engine
         /// <summary>The density the plain cobble's 0.6 kg is of, kg/m³: a cobble of a named stone weighs by its own.</summary>
         public const double CobbleDensityKgM3 = 2600.0;
 
+        /// <summary>
+        /// What a flake's definition says it weighs, kg, for one that has no mass of its own (FP.3). A flake struck off a core
+        /// always has its own, the blow's; this is the catalogue's word for the kind, twenty grams, and the mass a flake
+        /// restored from before the state was kept would weigh.
+        /// </summary>
+        public const double FlakeMassKg = 0.02;
+        /// <summary>A flake's bounding radius, m: a plate a few centimetres across.</summary>
+        public const double FlakeRadiusM = 0.03;
+
         private static readonly Dictionary<StoneType, Definition> _cobbles = new Dictionary<StoneType, Definition>();
+        private static readonly Dictionary<StoneType, Definition> _flakes = new Dictionary<StoneType, Definition>();
         private static readonly Dictionary<AnimalSpecies, Definition> _animals = new Dictionary<AnimalSpecies, Definition>();
         private static readonly List<Definition> _all = new List<Definition>();
         private static readonly List<Definition> _spawnable = new List<Definition>();
@@ -130,10 +140,34 @@ namespace EarthGame.Engine
                 _cobbles[stone] = Add(new Definition("item/cobble-" + Slug(stone.Name), DefinitionKind.Item, (StartsWithVowel(name) ? "an " : "a ") + name + " cobble",
                     true, Cobble.MassKg * stone.DensityKgM3 / CobbleDensityKgM3, Cobble.RadiusM, stone));
             }
+            // A flake struck off a core is of the core's stone (FP.3): one for every stone, its mass and edge its own once struck.
+            foreach (StoneType stone in StoneType.All)
+            {
+                string name = stone.Name.ToLowerInvariant();
+                _flakes[stone] = Add(new Definition("item/flake-" + Slug(stone.Name), DefinitionKind.Item, (StartsWithVowel(name) ? "an " : "a ") + name + " flake",
+                    true, FlakeMassKg, FlakeRadiusM, stone));
+            }
         }
 
         /// <summary>The cobble of a stone, as a thing taken from a cell of it becomes; the plain cobble for a stone this catalogue has none for.</summary>
         public static Definition CobbleOf(StoneType stone) => stone != null && _cobbles.TryGetValue(stone, out Definition d) ? d : Cobble;
+
+        /// <summary>The flake of a stone (FP.3), which a blow on a core of that stone leaves lying; a flake is always of a stone.</summary>
+        public static Definition FlakeOf(StoneType stone)
+        {
+            if (stone == null || !_flakes.TryGetValue(stone, out Definition d)) throw new KeyNotFoundException("no flake for the stone '" + stone + "'");
+            return d;
+        }
+
+        /// <summary>Whether a definition is a flake of some stone (FP.3).</summary>
+        public static bool IsFlake(Definition definition) =>
+            definition != null && definition.Row is StoneType stone && _flakes.TryGetValue(stone, out Definition flake) && ReferenceEquals(flake, definition);
+
+        /// <summary>
+        /// The stone an item is of (FP.3): a cobble taken from a cell the stone layer names, or a flake; null for a stick, and for
+        /// the plain cobble, which is of no stone the country names and so cannot be read for how it fractures.
+        /// </summary>
+        public static StoneType StoneOf(Definition definition) => definition != null && definition.Kind == DefinitionKind.Item ? definition.Row as StoneType : null;
 
         /// <summary>The definition of a kind of animal, which an animal stood up from presence is (M1.7a).</summary>
         public static Definition AnimalOf(AnimalSpecies species)
