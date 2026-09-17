@@ -133,6 +133,7 @@ namespace EarthGame.Client
 
             // A flake into the hand and made the hand, so the frame shows it held.
             bool flakeHeld = false;
+            int flakePlace = 0, handPlace = 0;
             EntityView flake = NearestFlake();
             if (flake != null)
             {
@@ -142,6 +143,15 @@ namespace EarthGame.Client
                 {
                     _script.Hold(PlaceOf(flake.Id.Value));
                     yield return Wait(0.8);
+                    // The frame claims a flake in hand: the hand must be the flake's place by now, or the frame shows the hammer
+                    // (the first knap run's did, 2026-09-18) and the record says so.
+                    flakePlace = PlaceOf(flake.Id.Value);
+                    handPlace = _client.Carrying.Hand;
+                    if (handPlace != flakePlace)
+                    {
+                        _errors++;
+                        _log.Record(T, Tick, "error", new JsonObject().With("message", "the flake in place " + flakePlace + " was not made the hand: the hand is place " + handPlace));
+                    }
                 }
             }
             else
@@ -156,7 +166,7 @@ namespace EarthGame.Client
             MoverState end = _player.State;
             _log.Record(T, Tick, "end", WithFeet(new JsonObject().With("frames", _frames).With("errors", _errors)
                 .With("hammer_held", held).With("offered", offered).With("blows", _knapBlows).With("flaked", _knapFlaked).With("bounced", _knapBounced)
-                .With("flakes_seen", _knapFlakes.Count).With("usable_flake", _knapUsable).With("flake_held", flakeHeld)
+                .With("flakes_seen", _knapFlakes.Count).With("usable_flake", _knapUsable).With("flake_held", flakeHeld).With("flake_place", flakePlace).With("hand_place", handPlace)
                 .With("corrections", _player.Corrections).With("moves_sent", (int)_player.MovesSent)
                 .With("east", end.East).With("up", end.Up).With("north", end.North)));
             _running = false;
@@ -276,8 +286,14 @@ namespace EarthGame.Client
                 .With("core_mass_before_kg", (double)massBefore).With("core_platform_before_deg", (double)platformBefore).With("core_flakes_before", flakesBefore)
                 .With("water", water).With("outcome", outcome.ToString()).With("note", answer.Value.Note ?? string.Empty)
                 .With("core_gone", coreGone);
+            // The core after, read as the core before was: a stone with no state of its own (a blow that bounced off a fresh
+            // cobble) weighs what its definition says and presents a fresh platform, and the record says so rather than
+            // writing the zeros that mean "none of its own" (2026-09-18: the first knap run's check read a bounced tap's core
+            // as weighing nothing).
             if (!coreGone)
-                o.With("core_mass_after_kg", (double)core.Item.MassKg).With("core_platform_after_deg", (double)core.Item.PlatformDeg).With("core_flakes_after", (int)core.Item.FlakesTaken);
+                o.With("core_mass_after_kg", (double)(core.Item.MassKg > 0f ? core.Item.MassKg : (float)core.Definition.MassKg))
+                 .With("core_platform_after_deg", (double)(core.Item.PlatformDeg > 0f ? core.Item.PlatformDeg : (float)StoneCore.FreshPlatformDeg))
+                 .With("core_flakes_after", (int)core.Item.FlakesTaken);
             if (flake != null)
             {
                 bool usable = flake.Item.Edge01 >= Knapping.UsableEdge && flake.Item.MassKg >= Knapping.UsableFlakeKg;

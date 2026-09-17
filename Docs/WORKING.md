@@ -107,6 +107,12 @@ other's way:
   before one starts: neither the owner's editor nor the other agent's run.
 - **A running `EarthGame2.exe` may be the other's timing run.** Frame costs are measured with the machine quiet;
   builds, world creation and suites beside one make its numbers lie, so they wait until it ends.
+- **A scenario that leaves things behind runs on a copy of its world.** The scenario tools share `Artefacts/worlds/gate`;
+  the knap scenario leaves a struck core and its flakes at the wake and the founder holding the hammer, and its second
+  run on the same world (2026-09-18) found the first run's core under the crosshair where it had just set its own down.
+  `knap.py` now copies the world under the run's folder and never writes the one named; a tool that changes what lies
+  at the wake must do the same. The dirtied save of that day is set aside as `Artefacts/worlds/gate-dirty-20260918`
+  (its regions and player), and the gate's fixtures were placed again by `populate.py` on the untouched layers.
 - **No host build while the corpus runs.** The corpus's dedicated server runs from
   `Engine/.build/bin/EarthGame.ServerHost/Release/`, and a Release build of the host then fails on the locked
   files (2026-09-16, MSB3021) without harming the run; a Debug suite run beside a soak is a burst the `ticks` rows

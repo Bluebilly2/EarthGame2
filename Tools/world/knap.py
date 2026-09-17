@@ -21,6 +21,7 @@ written and nothing logged as an error); 1 otherwise.
 """
 import argparse
 import json
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -55,6 +56,13 @@ def main():
         raise RuntimeError("no world at %s; run Tools/world/create.py first" % world)
     if next((h for h in HOSTS if h.is_file()), None) is None:
         raise RuntimeError("no server host; build it: dotnet build Engine/tools/EarthGame.ServerHost -c Release")
+
+    # The scenario runs on a copy of the world under the run's own folder (2026-09-18): a knap leaves a struck core and its
+    # flakes lying at the wake and the founder holding the hammer and a flake, and a second run on the same world found the
+    # first run's core under the crosshair where it had just set its own down. The world named is read and never written.
+    world_copy = directory / "world" / world.name
+    shutil.copytree(world, world_copy)
+    world = world_copy
 
     # -batchmode without -nographics: the recorder renders its frames on the GPU into textures, with no window.
     # -eg-dev: a development game, whose server takes the scenario's deeds (the wake, the body, the stones set down).

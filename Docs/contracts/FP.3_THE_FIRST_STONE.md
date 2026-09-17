@@ -4,8 +4,8 @@
 on ruling 31 (the Founder's Path comes first); built 2026-09-16 (the game side, below) by an agent whose session ended
 before it could prove it, and parked unproven on `wip/agents-2026-09-16`; taken up 2026-09-18 on `agent/fp3-2026-09-18`
 from that branch, its server and recorder lines applied by hand onto main's moved copies, and proved headless as "How it
-is proved" says. The built game's run and the exit record are owed to the head developer after the merge. Owner: Claude
-(Fable 5.1). The third beat of Act I: "Cobbles at the tideline, driftwood on the sand, fibre plants at the dune's foot.
+is proved" says. Merged to main on 2026-09-18 (4a5086d) and run in the built game the same day: the exit record below. Owner:
+Claude (Fable 5.1). The third beat of Act I: "Cobbles at the tideline, driftwood on the sand, fibre plants at the dune's foot.
 Knap an edge (the wrong stone teaches as much as the right one), cut fibre, lay cord. The country as the only toolshop;
 looking at a material names what it could become."
 
@@ -156,3 +156,41 @@ left at 0.573 kg with its platform worked from 68° toward 80°.
 ## Exit record
 
 Owed: written by the head developer after the built game has run and the check has read it.
+
+## Exit record (2026-09-18)
+
+- **Landed.** The game side merged to main as 4a5086d after the head developer's review (700 tests green in the agent's
+  worktree, 713 on the merged tree with the animals' skin, the Unity-shaped compile and the host green; 19 sabotage cases
+  seen red and restored; `save_check` green on a save with a struck stone). The harness copy built from 6f73ac7 by
+  `install.py`, twice more with the recorder's two changes below.
+- **Run in the built game.** `knap.py` on the harness copy, `Artefacts/frames/knap-20260917T235217Z` (exit 0), the
+  founder at the wake of the gate world with a full body: two silcrete cobbles set down by the panel's deed, the first
+  taken up as the hammer, the second faced and the verb line offering "a silcrete cobble — knap (hold to strike harder),
+  or pick up". Three blows with the work button. The tap (wind-up 0.039, 0.78 J against the 4.50 J that starts a fracture
+  in silcrete) bounced: "The hammer bounced. Not enough behind it.", the core 0.600 kg at 68.0°, as it was. The measured
+  hold (0.549, 5.71 J) took a flake of 6.0 g with an edge of 0.651, "A clean flake, and it is sharp."; the core 0.594 kg
+  at 72.8°. The full swing (1.000, 13.87 J) took a flake of 20.6 g with an edge of 0.545, "A flake, but a coarse one.";
+  the core 0.573 kg at 79.9°, two flakes off it. Two flakes off one core, different tools (the path's demand). Then a
+  flake taken up and made the hand: the hand was the flake's place (2) by the frame. `knap_check.py`: 23 rows green,
+  the flakes' masses within 2 × 10⁻⁵ kg and their edges within 2 × 10⁻⁴ of the mechanics restated from Auerbach and v1,
+  the platforms within 0.02°. The same run on 2026-09-17T23:05Z gave the same numbers (the physics is the server's on
+  a held clock), red only on the recorder's row below.
+- **The frames** (1440p and 1080p, four). `flake-lying`: the two flakes as small pale stones a step from the core
+  towards the founder, one to each side, the verb line holding the last words; the hammer in hand fills the right of the
+  view, a cobble drawn half a metre from the eye. `flake-held`: the silcrete flake in hand, a flat plate pinched near the
+  eye, and the line "put down the silcrete flake". A flake lying is still a small cobble (DEBTS). William's eyes owed.
+- **Found on the way.** (i) The recorder wrote a bounced blow's core after as the raw zeros that mean "none of its own",
+  where it had written the resolved 0.6 kg before the blow; it now reads the after as the before, and the check's row
+  for a bounce is green. (ii) The scenario is not repeatable on a shared world: it leaves the struck core and a flake at
+  the wake and the founder holding the hammer and a flake, and the second run on `Artefacts/worlds/gate` found the first
+  run's core under the crosshair where it had just set its own down ("the core was not under the crosshair" with the line
+  offering a silcrete cobble). `knap.py` now runs on a copy of the world under its run's folder; the gate's dirtied save
+  was set aside (`gate-dirty-20260918`) and its fixtures placed again by `populate.py` (WORKING.md). (iii) The first
+  run's `flake-held` frame showed the hammer still in hand though the flake was carried; the scenario now checks that
+  the hand is the flake's place and writes both to the end record, and the third run's frame shows the flake. Why the
+  first did not is not known (the hold's answer is not logged).
+- **Not exercised.** A blow on a cobble of the litter in the built game (the scenario strikes items set down by the
+  deed; the litter path is proved over the in-memory wire); a core held in another place (no gesture, DEBTS); the arm's
+  ceiling against a heavier hammer; a founder thirsty enough that the work capacity shortens the swing; the hammer's own
+  wear (declared, unread); the plain cobble's refusal in the built game; the look of the wind-up and the swing under a
+  hand's own eye.
