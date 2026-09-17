@@ -214,6 +214,36 @@
       ],
       "checks": "A year of the engine's weather for each of many world seeds, at Point Perpendicular Lighthouse's height, written by the almanac tool's +weather: August's mean daily maximum and minimum, read as the Bureau reads them (the highest in the 24 hours from 9 am, the lowest in the 24 hours to 9 am), against the lighthouse's less the region's warming, to twice the warming's uncertainty; August's daily range to 0.15 degrees; the coldest hour of August's mean day within three quarters of an hour of mid-August's sunrise; and August's rain and the year's within a tenth of the record with the cool season's drying undone, with the station's rain days between the counts at 1 mm and at 0.2 mm for both.",
       "independent_of_the_tool_by": "numpy over the raw samples by the layout ARCHITECTURE section 10 states: each day's extremes and total, the rain days and the mean August day's coldest step are worked out in the check, where the engine works out none of them; the lighthouse's figures, the warming, the drying and the lapse rate restated from their sources, and sunrise from the NOAA solar equations through solar_check.py, which share nothing with the engine's Spencer series; never imports the engine"
+    },
+    {
+      "name": "thirst_check",
+      "path": "Tools/verifiers/checks/thirst_check.py",
+      "author": "Claude",
+      "gates": [
+        "FP.1"
+      ],
+      "checks": "A drink run's records: the body's water falls at the resting rate on the world's clock at the scenario's speed until the word is thirsty, a drink of fresh water raises it by a visit's worth and is told at once, the sea answers salt and gives nothing, and every frame was written.",
+      "independent_of_the_tool_by": "the rates and thresholds restated as numbers from v1's BodyState and the design (2.4 L a day of 42 L, the words at their shares of the body's water), the clock's speed read from the run's own header and the time base the server's ticks; the drink's rise worked out in the check from the litre and a half a visit; reads run.jsonl (eg2.run, ARCHITECTURE section 10) with the standard library and never imports the engine"
+    },
+    {
+      "name": "cold_check",
+      "path": "Tools/verifiers/checks/cold_check.py",
+      "author": "Claude",
+      "gates": [
+        "FP.2"
+      ],
+      "checks": "A night run's records: the words come at their thresholds of the core; the night is lived again from the words by the server's ticks in two bodies, one in still air and one in the open's wind, and the recorded core lies between them within a tolerance; the night lasts five world hours or more; the founder was cold; the death, when the night itself killed, is of the cold at or below the lethal core with the last word told above it by less than the fall between two told words; the body wakes at the wake and the stick lies where it fell.",
+      "independent_of_the_tool_by": "a heat balance of its own in Python (a lumped core with v1's coefficients restated: metabolism, shivering, convection by the wind at a body's height, radiation to the sky, the breath), stepped by the server's ticks carried on every record, never by the client's clock; the sky's air and wind taken from the records themselves; reads run.jsonl (eg2.run, ARCHITECTURE section 10) with the standard library and never imports the engine"
+    },
+    {
+      "name": "knap_check",
+      "path": "Tools/verifiers/checks/knap_check.py",
+      "author": "Claude (an agent under the head developer)",
+      "gates": [
+        "FP.3"
+      ],
+      "checks": "A knap run's blow records: from the hammer, the core as it was, the wind-up sent and the founder's water, what the stone should have done (bounce, a flake of a mass and an edge, shatter, crush) against the recorded outcome, the flake's mass and edge and the core's new mass and platform; the frames written.",
+      "independent_of_the_tool_by": "Auerbach's law and v1's Knapping restated as numbers in the check (the critical energy from the toughness and the hammer's radius, the swing's energy from the wind-up and the body's work under the arm's ceiling, the flake's mass per joule between its floor and ceiling, the shatter limit, the edge docked for violence, the platform's advance) and the stones' mineralogy restated from v1's StoneType; reads run.jsonl (eg2.run, ARCHITECTURE section 10) with the standard library and never imports the engine"
     }
   ]
 }
