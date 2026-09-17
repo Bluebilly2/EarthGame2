@@ -612,16 +612,22 @@ leg rather than to the whole lap. `corpus_check.py` reads what the bodies lived 
   is a collider: the crosshair picks a thing by its mesh's bounds widened 4 cm and the ground by a ray against the
   tiles' colliders, and the verb line offers only what the server's reach allows. A rejoin draws the new
   connection's things (until 2026-09-11 it went on drawing the first connection's).
-- **The animals, made in code** (M1.7b, 2026-09-16; CANON ruling 29, which retired the plan's "sourced meshes"). An
-  animal is a short list of rigid pieces — a box, a capsule or an ellipsoid with a local place, size, turn and colour —
-  hung on a skeleton of fixed bone lengths, and a pose moves the joints and never resizes anything. `AnimalShapes` in
-  ClientCore is the one table of that, engine-free and tested headlessly against the species' published sizes; the
-  Unity layer's `AnimalLooks` grows one mesh a piece at its own size with its colour in its corners, kept as the trees'
-  meshes are, and `EntityViews` gives each animal an object with a child for each piece and places the pieces every
-  frame for the pose the server last gave it. A piece's mesh carries its real size rather than being scaled to it,
-  because the stand's shader assumes a uniform scale and reads no inverse matrix; the material is a copy of the stand's
-  with its band's split set past any distance a world holds, since the animals have one band and no far form, and a
-  device that draws nothing instanced has no stand material and so makes no animals. The three poses the wire carries
+- **The animals, made in code** (M1.7b, 2026-09-16; CANON ruling 29, which retired the plan's "sourced meshes"; one
+  skin in place of the pieces since 2026-09-18). An animal is a skeleton of fixed bone lengths whose joints a pose
+  moves, and one skin grown over it once in its resting pose: a few closed shells, each a tube of rings run along the
+  bones with a radius that changes gently, mitred where its line bends and rounded off at both ends, every limb rooted
+  inside its parent and the sharpest joints one ball nested in another, the belly a paler colour below a line round each
+  ring. `AnimalShapes` in ClientCore is the one table of that, engine-free and tested headlessly: every shell closed with
+  no open edge, every face wound outward and every limb rooted in every pose, the sizes held to the species' published
+  bands, and the corners shared between faces so the skin has as many corners as faces. The Unity layer's `AnimalLooks`
+  turns the skin into one mesh a kind, kept as the trees' meshes are, and hangs it on a skinned renderer whose bones are
+  the skeleton's; `EntityViews` gives each animal an object with a child transform for each bone and places the bones
+  every frame for the pose the server last gave it, and the graphics card moves the skin with them. Until 2026-09-18 an
+  animal was a child object with a rigid mesh for each piece, which William saw in the first frames as "a load of 3d
+  shapes put together". The skin is drawn at scale one under the animal's own transform, because the stand's shader
+  assumes a uniform scale and reads no inverse matrix; the material is a copy of the stand's with its band's split set
+  past any distance a world holds, since the animals have one band and no far form, and a device that draws nothing
+  instanced has no stand material and so makes no animals. The three poses the wire carries
   are resting, grazing and fleeing (§5): the last is a function of time — the kangaroo's hop raising the body and
   swinging the legs on a cadence of the stride over the kind's flee speed (3.15 m at 7 m/s, the measured 0.45 s), the
   oystercatcher's flight holding it a metre or so up with its wings beating every 0.18 s — and each animal starts its
@@ -895,3 +901,4 @@ mandatory in every file from the first write.
 | 2026-09-16 | M1.Bc: the soak's mirror row leaves out the samples within two seconds of a founder's death, when the server itself moves them to the wake | With bodies (FP.1, FP.2) a soak's founders die of thirst and wake at the wake; the jump is the body's rule, told to every client as a correction and a state, and no interpolation follows it. Excusing it keeps the row a measure of the netcode; counting it apart keeps the deaths visible |
 | 2026-09-16 | FP.3: the state a blow gives a stone rides on `ItemComponent` beside its rest and fall, zero meaning "none of its own" and the definition's mass standing in; it goes into the hands with the thing, into the region and player files and onto the wire, and enters the digest only when the thing has state of its own | A flake's mass and edge are the blow's, not the kind's, and a core grows lighter; one owner (`KnappingItems`) reads and writes the rule, so the server, the save and the wire agree about what a struck stone is; zero as "none" keeps every stick and cobble written before FP.3 reading as it was and every older save's digest its name, where a version bump would have renamed worlds nothing had changed |
 | 2026-09-16 | FP.3: a blow's answer carries the physics' own words on the `IntentResult`, made once in `Knapping` and shown by the client as they came | The path binds the answers to their mechanism ("the wrong stone teaches as much as the right one" without a lesson, ruling 33); a client mapping outcomes to sentences of its own would be a second owner of what the stone said, free to drift from the physics, and the note is a few bytes on a reliable channel |
+| 2026-09-18 | M1.7b: an animal's skin is one closed surface a kind — shells lofted along the bones, mitred at the bends, rounded at the ends, rooted inside one another — grown once in the resting pose in ClientCore and moved by the bones on one skinned renderer an animal; the rigid pieces of 2026-09-16 are gone | William saw the pieces in the first frames and asked for the animals "more smooth and connected" (2026-09-16); a skin that follows its bones is what that costs. It is grown engine-free so a headless test can prove what a frame could only show: every shell closed, every face outward and every limb rooted inside its parent in every pose. One skinned renderer an animal is one draw a pass where the pieces were nineteen, and the skinning is the graphics card's; a skinned mesh is never instanced, which the trees need and a few dozen animals do not. A folded wing's frame takes the bird's up for its chord and a spread wing's the fore-and-aft line, because a fixed line nearly along a bone gives it no steady square and the first skin's wrist came out turned over. What an animal costs a frame stays the debt it was |

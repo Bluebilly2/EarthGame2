@@ -15,12 +15,12 @@ namespace EarthGame.Client
     /// test is meant to catch it first.
     ///
     /// <para><b>An animal is drawn as its kind in its pose</b> (M1.7b, CANON ruling 29). It is kept apart from the things:
-    /// an object of its own with a child for each rigid piece <see cref="AnimalShapes"/> names, each child holding the mesh
-    /// <see cref="AnimalLooks"/> grew for that piece, and every frame the pieces are placed again for the pose the server
-    /// last gave it and the moment it is at, so a mob grazes and a startled one bounds. Animals are held in their own list
-    /// and never offered to the crosshair (<see cref="Pick"/>): a kangaroo is not a thing to pick up, as M1.7a promised.
-    /// A device that draws nothing instanced has no stand material and so draws no animals either, as it draws no
-    /// trees.</para>
+    /// an object of its own carrying the one skin <see cref="AnimalLooks"/> grew for its kind, hung on a child transform for
+    /// each bone <see cref="AnimalShapes"/> names, and every frame the bones are placed again for the pose the server last
+    /// gave it and the moment it is at, so a mob grazes and a startled one bounds (until 2026-09-16 it was a child object
+    /// with a rigid mesh for each piece). Animals are held in their own list and never offered to the crosshair
+    /// (<see cref="Pick"/>): a kangaroo is not a thing to pick up, as M1.7a promised. A device that draws nothing instanced
+    /// has no stand material and so draws no animals either, as it draws no trees.</para>
     ///
     /// <para>The crosshair asks what a ray meets (<see cref="Pick"/>) of each thing's own bounds rather than of a
     /// collider: nothing lying is a collider, so a founder never stumbles on a stick the server's ground does not
@@ -46,13 +46,13 @@ namespace EarthGame.Client
             public long LandedTick = -1;
         }
 
-        /// <summary>One animal drawn (M1.7b): the object its pieces hang from, a transform for each piece, and where in its own hop it is.</summary>
+        /// <summary>One animal drawn (M1.7b): the object its skin is drawn on, a transform for each bone, and where in its own hop it is.</summary>
         private sealed class Beast
         {
             public EntityView View;
             public AnimalSpecies Species;
             public Transform Root;
-            public Transform[] Pieces;
+            public Transform[] Bones;
             /// <summary>Where this animal starts in its own cycle, s, so a mob does not bound as one machine.</summary>
             public double Start;
         }
@@ -64,7 +64,7 @@ namespace EarthGame.Client
         private readonly Material _material;
         private readonly Dictionary<ulong, Drawn> _drawn = new Dictionary<ulong, Drawn>();
         private readonly Dictionary<ulong, Beast> _beasts = new Dictionary<ulong, Beast>();
-        private readonly List<AnimalPart> _parts = new List<AnimalPart>();
+        private readonly List<AnimalBone> _bones = new List<AnimalBone>();
         private readonly HashSet<string> _unbound = new HashSet<string>();
         private Material _unboundMaterial;
         private Material _animalMaterial;
@@ -168,9 +168,8 @@ namespace EarthGame.Client
         }
 
         /// <summary>
-        /// Stands one animal up to be drawn (M1.7b): an object with a child for each piece its kind is made of, each
-        /// holding that piece's own mesh, in the animals' material. Nothing here is a collider and nothing is offered to
-        /// the crosshair.
+        /// Stands one animal up to be drawn (M1.7b): an object dressed in its kind's skin over a child transform for each
+        /// bone, in the animals' material. Nothing here is a collider and nothing is offered to the crosshair.
         /// </summary>
         private void StandUp(EntityView view)
         {
@@ -182,29 +181,15 @@ namespace EarthGame.Client
                 return;
             }
             if (_beasts.TryGetValue(view.Id.Value, out Beast old) && old.Root != null) Object.Destroy(old.Root.gameObject);
-            AnimalShapes.PartsOf(species, _parts);
             GameObject root = new GameObject(view.Definition.Key + " " + view.Id);
             Beast beast = new Beast
             {
                 View = view,
                 Species = species,
                 Root = root.transform,
-                Pieces = new Transform[_parts.Count],
+                Bones = AnimalLooks.Dress(root, species, _animalMaterial),
                 Start = AnimalLooks.StartOf(view.Id.Value),
             };
-            for (int i = 0; i < _parts.Count; i++)
-            {
-                GameObject piece = new GameObject(_parts[i].Name);
-                piece.transform.SetParent(root.transform, false);
-                piece.AddComponent<MeshFilter>().sharedMesh = AnimalLooks.Piece(species, i, _parts[i]);
-                MeshRenderer renderer = piece.AddComponent<MeshRenderer>();
-                renderer.sharedMaterial = _animalMaterial;
-                // An animal casts: a kangaroo without a shadow floats over the ground it stands on.
-                renderer.shadowCastingMode = ShadowCastingMode.On;
-                renderer.lightProbeUsage = LightProbeUsage.Off;
-                renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
-                beast.Pieces[i] = piece.transform;
-            }
             _beasts[view.Id.Value] = beast;
             Pose(beast, view.Position, 0.0);
         }
@@ -233,22 +218,15 @@ namespace EarthGame.Client
         }
 
         /// <summary>
-        /// Puts an animal where the server said it was and turns it to its yaw, then places each of its pieces for the pose
-        /// it was last given at the moment it has reached in its own cycle.
+        /// Puts an animal where the server said it was and turns it to its yaw, then places each of its bones for the pose
+        /// it was last given at the moment it has reached in its own cycle; the skin follows the bones.
         /// </summary>
         private void Pose(Beast beast, Double3 at, double now)
         {
             if (beast.Root == null) return;
             beast.Root.SetPositionAndRotation(new Vector3((float)at.X, (float)at.Y, (float)at.Z), Quaternion.Euler(0f, beast.View.YawDeg, 0f));
-            AnimalShapes.Build(beast.Species, beast.View.Animal.Pose, now + beast.Start, _parts);
-            int pieces = System.Math.Min(beast.Pieces.Length, _parts.Count);
-            for (int i = 0; i < pieces; i++)
-            {
-                if (beast.Pieces[i] == null) continue;
-                AnimalPart part = _parts[i];
-                beast.Pieces[i].SetLocalPositionAndRotation(new Vector3(part.X, part.Y, part.Z),
-                                                            Quaternion.Euler(part.PitchDeg, part.YawDeg, part.RollDeg));
-            }
+            AnimalShapes.Build(beast.Species, beast.View.Animal.Pose, now + beast.Start, _bones);
+            AnimalLooks.Place(beast.Bones, _bones);
         }
 
         private static void Place(Drawn d, Double3 at)

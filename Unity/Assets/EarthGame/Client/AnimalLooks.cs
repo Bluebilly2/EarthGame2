@@ -2,22 +2,26 @@ using System.Collections.Generic;
 using EarthGame.ClientCore;
 using EarthGame.Engine;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace EarthGame.Client
 {
     /// <summary>
     /// What an animal looks like, grown as geometry (M1.7b, CANON ruling 29: the looks are made here, nothing is bought or
-    /// downloaded). <see cref="AnimalShapes"/> says what a kangaroo and an oystercatcher are made of — a short list of
-    /// rigid pieces, each a box, a capsule or an ellipsoid of a stated size and colour — and this turns each piece into a
-    /// mesh at its own size, with its colour in its corners, built once and kept, as <see cref="StandMeshes"/> keeps the
-    /// trees. A pose moves the pieces and never resizes them, so one mesh a piece serves every pose and every frame.
+    /// downloaded). <see cref="AnimalShapes"/> says what a kangaroo and an oystercatcher are made of — a skeleton of fixed
+    /// bones, and one skin of closed shells grown over it in its resting pose with its colours in its corners — and this
+    /// turns that skin into one mesh a kind, built once and kept as <see cref="StandMeshes"/> keeps the trees, and hangs it
+    /// on a skinned renderer whose bones are the skeleton's: every frame the bones are placed for the animal's pose and the
+    /// graphics card moves the skin with them.
     ///
-    /// <para>The mesh carries the piece's real size rather than being scaled to it by the object that draws it, because
-    /// the stand's shader assumes a uniform scale and takes no inverse matrix (ARCHITECTURE §8, 2026-09-11); a piece drawn
-    /// at scale one keeps that promise and its faces are lit by their own planes.</para>
+    /// <para>Until 2026-09-16 an animal was a child object with a rigid mesh for each piece, and William saw "a load of 3d
+    /// shapes put together" in the first frames. A skin that bends with its bones is what "smooth and connected" costs:
+    /// the shells overlap and nest at the joints so no gap can open, and a fleeing mob costs a transform per bone rather
+    /// than a mesh rebuilt a frame.</para>
     ///
-    /// <para>Every face is its own triangle with its own normal and colour, faceted like everything else this game grows,
-    /// and jittered a little from face to face so a flank is not one flat sheet of colour.</para>
+    /// <para>Every face is one plane of one colour, faceted like everything else this game grows: the stand's shader takes
+    /// a face's normal and colour from its leading corner and interpolates neither (ARCHITECTURE §8), so the skin's corners
+    /// are shared between faces as the trees' are, each face leading with a corner of its own.</para>
     /// </summary>
     public static class AnimalLooks
     {
@@ -29,16 +33,10 @@ namespace EarthGame.Client
         /// </summary>
         public const float ReachM = 1.0e6f;
 
-        /// <summary>How far a face's colour is moved either way from its piece's, as a share: the facets of a flank.</summary>
-        private const float FaceJitter = 0.045f;
-
-        /// <summary>How many sides a lathed piece has, and how many rings it is stacked from between its poles.</summary>
-        private const int Sides = 10, Rings = 6, CapRings = 2;
-
         /// <summary>How far apart in its own cycle two animals start, s: enough that a mob does not hop as one machine.</summary>
         private const double SpreadSeconds = 4.0;
 
-        private static readonly Dictionary<int, Mesh> Pieces = new Dictionary<int, Mesh>();
+        private static readonly Dictionary<AnimalSpecies, Mesh> Bodies = new Dictionary<AnimalSpecies, Mesh>();
 
         /// <summary>The kind a definition names, or null for anything that is not an animal this build has shapes for.</summary>
         public static AnimalSpecies SpeciesOf(Definition definition)
@@ -61,30 +59,93 @@ namespace EarthGame.Client
         }
 
         /// <summary>
-        /// The mesh one piece of a kind is drawn by, built on first use and kept. The piece's shape, size and colour never
-        /// change with its pose (<see cref="AnimalShapes"/>), so its index in the kind's list names its mesh.
+        /// The mesh a kind is drawn by, built on first use and kept: the skin's corners with their planes and colours, the
+        /// bone each corner rides and its share of a second, and the bind poses of the resting skeleton the skin was grown
+        /// over, so the renderer can move the skin by where the bones are now against where they were then.
         /// </summary>
-        public static Mesh Piece(AnimalSpecies species, int index, in AnimalPart part)
+        public static Mesh Body(AnimalSpecies species)
         {
-            int key = Key(species, index);
-            if (Pieces.TryGetValue(key, out Mesh mesh)) return mesh;
-            Color colour = new Color(part.Colour.R, part.Colour.G, part.Colour.B, 1f);
-            Bits bits = new Bits();
-            switch (part.Shape)
+            if (Bodies.TryGetValue(species, out Mesh mesh)) return mesh;
+            AnimalBody body = AnimalShapes.BodyOf(species);
+            int count = body.VertexCount;
+            Vector3[] vertices = new Vector3[count], normals = new Vector3[count];
+            Color[] colours = new Color[count];
+            BoneWeight[] weights = new BoneWeight[count];
+            for (int v = 0; v < count; v++)
             {
-                case AnimalPartShape.Box:
-                    Box(bits, 0.5f * part.SizeX, 0.5f * part.SizeY, 0.5f * part.SizeZ, colour, key);
-                    break;
-                case AnimalPartShape.Capsule:
-                    Capsule(bits, 0.5f * part.SizeX, 0.5f * part.SizeZ, 0.5f * part.SizeY, colour, key);
-                    break;
-                default:
-                    Ellipsoid(bits, 0.5f * part.SizeX, 0.5f * part.SizeY, 0.5f * part.SizeZ, colour, key);
-                    break;
+                int point = body.VertexPoint[v];
+                vertices[v] = ToVector(body.Points[point]);
+                normals[v] = ToVector(body.VertexNormal[v]);
+                Rgb c = body.VertexColour[v];
+                colours[v] = new Color(c.R, c.G, c.B, 1f);
+                BoneWeight w = new BoneWeight { boneIndex0 = body.PointBone[point], weight0 = 1f };
+                if (body.PointBlend[point] >= 0 && body.PointShare[point] < 1.0)
+                {
+                    w.weight0 = (float)body.PointShare[point];
+                    w.boneIndex1 = body.PointBlend[point];
+                    w.weight1 = 1f - w.weight0;
+                }
+                weights[v] = w;
             }
-            mesh = bits.ToMesh(species.Name + " " + part.Name);
-            Pieces[key] = mesh;
+            mesh = new Mesh { name = species.Name };
+            mesh.SetVertices(vertices);
+            mesh.SetNormals(normals);
+            mesh.SetColors(colours);
+            mesh.SetTriangles(body.Triangles, 0);
+            mesh.boneWeights = weights;
+            Matrix4x4[] bind = new Matrix4x4[body.Bind.Count];
+            for (int b = 0; b < bind.Length; b++)
+                bind[b] = Matrix4x4.TRS(ToVector(body.Bind[b].Joint), TurnOf(body.Bind[b]), Vector3.one).inverse;
+            mesh.bindposes = bind;
+            mesh.bounds = ReachOf(species);
+            Bodies[species] = mesh;
             return mesh;
+        }
+
+        /// <summary>
+        /// Dresses one animal's object (M1.7b): a child transform for each bone, placed in the resting pose the skin was
+        /// grown over, and a skinned renderer on the object itself drawing the kind's mesh over those bones in the animals'
+        /// material, casting a shadow (a kangaroo without one floats over the ground it stands on). Its bounds are the box
+        /// the kind never leaves, since a skin that follows its bones has none of its own until it is drawn. The bones are
+        /// returned in the skeleton's order for <see cref="Place"/> to move every frame.
+        /// </summary>
+        public static Transform[] Dress(GameObject root, AnimalSpecies species, Material material)
+        {
+            Mesh mesh = Body(species);
+            List<AnimalBone> bind = new List<AnimalBone>();
+            AnimalShapes.BindPose(species, bind);
+            Transform[] bones = new Transform[bind.Count];
+            for (int b = 0; b < bones.Length; b++)
+            {
+                GameObject bone = new GameObject(bind[b].Name);
+                bone.transform.SetParent(root.transform, false);
+                bones[b] = bone.transform;
+            }
+            Place(bones, bind);
+            SkinnedMeshRenderer skin = root.AddComponent<SkinnedMeshRenderer>();
+            skin.sharedMesh = mesh;
+            skin.bones = bones;
+            skin.rootBone = root.transform;
+            skin.localBounds = mesh.bounds;
+            skin.updateWhenOffscreen = false;
+            // Two bones a corner is all the skin uses; asking for the quality setting's count could give it one and crease every bend.
+            skin.quality = SkinQuality.Bone2;
+            skin.sharedMaterial = material;
+            skin.shadowCastingMode = ShadowCastingMode.On;
+            skin.lightProbeUsage = LightProbeUsage.Off;
+            skin.reflectionProbeUsage = ReflectionProbeUsage.Off;
+            return bones;
+        }
+
+        /// <summary>Puts each bone's transform at its joint, turned so its forward is the bone and its up the bone's deep axis, as the bind poses were taken.</summary>
+        public static void Place(Transform[] bones, List<AnimalBone> pose)
+        {
+            int count = System.Math.Min(bones.Length, pose.Count);
+            for (int b = 0; b < count; b++)
+            {
+                if (bones[b] == null) continue;
+                bones[b].SetLocalPositionAndRotation(ToVector(pose[b].Joint), TurnOf(pose[b]));
+            }
         }
 
         /// <summary>
@@ -99,180 +160,20 @@ namespace EarthGame.Client
             return material;
         }
 
-        private static int Key(AnimalSpecies species, int index) => (species == AnimalSpecies.PiedOystercatcher ? 1 << 8 : 0) | (index & 0xFF);
-
-        // ------------------------------------------------------------------ the solids
-
-        /// <summary>A rectangular block of half-sides <paramref name="hx"/>, <paramref name="hy"/> and <paramref name="hz"/> about its middle.</summary>
-        private static void Box(Bits bits, float hx, float hy, float hz, Color colour, int seed)
-        {
-            Vector3[] c =
-            {
-                new Vector3(-hx, -hy, -hz), new Vector3(hx, -hy, -hz), new Vector3(hx, -hy, hz), new Vector3(-hx, -hy, hz),
-                new Vector3(-hx, hy, -hz), new Vector3(hx, hy, -hz), new Vector3(hx, hy, hz), new Vector3(-hx, hy, hz),
-            };
-            int[] quads =
-            {
-                0, 1, 2, 3,   4, 5, 6, 7,   0, 1, 5, 4,
-                1, 2, 6, 5,   2, 3, 7, 6,   3, 0, 4, 7,
-            };
-            for (int q = 0; q < quads.Length; q += 4)
-            {
-                bits.Face(c[quads[q]], c[quads[q + 1]], c[quads[q + 2]], Vector3.zero, Shade(colour, seed, bits.FaceCount));
-                bits.Face(c[quads[q]], c[quads[q + 2]], c[quads[q + 3]], Vector3.zero, Shade(colour, seed, bits.FaceCount));
-            }
-        }
-
-        /// <summary>An ellipsoid of radii <paramref name="rx"/>, <paramref name="ry"/> and <paramref name="rz"/>, lathed in rings of latitude.</summary>
-        private static void Ellipsoid(Bits bits, float rx, float ry, float rz, Color colour, int seed)
-        {
-            float[] ys = new float[Rings], widths = new float[Rings];
-            for (int i = 0; i < Rings; i++)
-            {
-                // From just above the bottom pole to just below the top one; the poles are closed by fans.
-                double a = (i + 1.0) / (Rings + 1.0) * System.Math.PI - System.Math.PI * 0.5;
-                ys[i] = (float)(ry * System.Math.Sin(a));
-                widths[i] = (float)System.Math.Cos(a);
-            }
-            Lathe(bits, ys, widths, rx, rz, -ry, ry, colour, seed);
-        }
-
         /// <summary>
-        /// A capsule along y: a tube of radii <paramref name="rx"/> and <paramref name="rz"/> whose straight part runs from
-        /// −<paramref name="half"/> + r to <paramref name="half"/> − r, with a rounded cap on each end, so the whole piece
-        /// is 2 × <paramref name="half"/> long. A bone shorter than it is thick is all cap.
+        /// The one rotation a bone's frame is: its Along forward and its Deep up, which puts its Across on the local x as
+        /// the frame is a proper one. The same call places the bones for the bind poses and for every frame, so whatever
+        /// convention the look rotation keeps cancels between the two.
         /// </summary>
-        private static void Capsule(Bits bits, float rx, float rz, float half, Color colour, int seed)
+        private static Quaternion TurnOf(in AnimalBone bone) => Quaternion.LookRotation(ToVector(bone.Along), ToVector(bone.Deep));
+
+        private static Bounds ReachOf(AnimalSpecies species)
         {
-            float radius = Mathf.Max(rx, rz);
-            float straight = Mathf.Max(0f, half - radius);
-            float capUp = half - straight;
-            List<float> ys = new List<float>();
-            List<float> widths = new List<float>();
-            for (int i = 1; i <= CapRings; i++)
-            {
-                double a = i / (CapRings + 1.0) * System.Math.PI * 0.5;
-                ys.Add(-straight - (float)(capUp * System.Math.Cos(a)));
-                widths.Add((float)System.Math.Sin(a));
-            }
-            ys.Add(-straight);
-            widths.Add(1f);
-            ys.Add(straight);
-            widths.Add(1f);
-            for (int i = CapRings; i >= 1; i--)
-            {
-                double a = i / (CapRings + 1.0) * System.Math.PI * 0.5;
-                ys.Add(straight + (float)(capUp * System.Math.Cos(a)));
-                widths.Add((float)System.Math.Sin(a));
-            }
-            Lathe(bits, ys.ToArray(), widths.ToArray(), rx, rz, -half, half, colour, seed);
+            AnimalShapes.ReachOf(species, out Double3 low, out Double3 high);
+            Vector3 min = ToVector(low), max = ToVector(high);
+            return new Bounds(0.5f * (min + max), max - min);
         }
 
-        /// <summary>
-        /// Stacks rings of <see cref="Sides"/> corners about the y axis and skins them, closing each end with a fan to its
-        /// pole: the one routine every rounded piece of an animal is made by.
-        /// </summary>
-        private static void Lathe(Bits bits, float[] ys, float[] widths, float rx, float rz, float bottomY, float topY, Color colour, int seed)
-        {
-            Vector3[][] rings = new Vector3[ys.Length][];
-            for (int i = 0; i < ys.Length; i++)
-            {
-                rings[i] = new Vector3[Sides];
-                for (int k = 0; k < Sides; k++)
-                {
-                    double a = k * (2.0 * System.Math.PI / Sides);
-                    rings[i][k] = new Vector3((float)(rx * widths[i] * System.Math.Cos(a)), ys[i], (float)(rz * widths[i] * System.Math.Sin(a)));
-                }
-            }
-            for (int i = 0; i + 1 < rings.Length; i++)
-            {
-                Vector3 inside = new Vector3(0f, 0.5f * (ys[i] + ys[i + 1]), 0f);
-                for (int k = 0; k < Sides; k++)
-                {
-                    int k2 = (k + 1) % Sides;
-                    bits.Face(rings[i][k], rings[i + 1][k], rings[i + 1][k2], inside, Shade(colour, seed, bits.FaceCount));
-                    bits.Face(rings[i][k], rings[i + 1][k2], rings[i][k2], inside, Shade(colour, seed, bits.FaceCount));
-                }
-            }
-            Vector3 bottom = new Vector3(0f, bottomY, 0f), top = new Vector3(0f, topY, 0f);
-            Vector3[] first = rings[0], last = rings[rings.Length - 1];
-            for (int k = 0; k < Sides; k++)
-            {
-                int k2 = (k + 1) % Sides;
-                bits.Face(bottom, first[k], first[k2], new Vector3(0f, ys[0], 0f), Shade(colour, seed, bits.FaceCount));
-                bits.Face(top, last[k], last[k2], new Vector3(0f, ys[ys.Length - 1], 0f), Shade(colour, seed, bits.FaceCount));
-            }
-        }
-
-        private static Color Shade(Color colour, int seed, int face)
-        {
-            float f = 1f + (Hash01(seed, face) - 0.5f) * 2f * FaceJitter;
-            return new Color(Mathf.Clamp01(colour.r * f), Mathf.Clamp01(colour.g * f), Mathf.Clamp01(colour.b * f), 1f);
-        }
-
-        /// <summary>A value in [0, 1) from two whole numbers, so a face's shade never depends on the order it was built in.</summary>
-        private static float Hash01(int a, int b)
-        {
-            uint h = (uint)a * 2654435761u ^ (uint)b * 2246822519u;
-            h ^= h >> 15;
-            h *= 2246822519u;
-            h ^= h >> 13;
-            h *= 3266489917u;
-            h ^= h >> 16;
-            return (h & 0xFFFFFFu) / 16777216f;
-        }
-
-        /// <summary>
-        /// A triangle soup wound away from a point inside the solid, each face carrying its own plane and colour on all
-        /// three of its corners: the shader takes both from the leading one and interpolates neither, so a face is one
-        /// plane of one colour (ARCHITECTURE §8).
-        /// </summary>
-        private sealed class Bits
-        {
-            private readonly List<Vector3> _verts = new List<Vector3>();
-            private readonly List<Vector3> _normals = new List<Vector3>();
-            private readonly List<Color> _colours = new List<Color>();
-            private readonly List<int> _tris = new List<int>();
-
-            public int FaceCount => _tris.Count / 3;
-
-            public void Face(Vector3 a, Vector3 b, Vector3 c, Vector3 inside, Color colour)
-            {
-                Vector3 n = Vector3.Cross(b - a, c - a);
-                if (n.sqrMagnitude < 1e-16f) return;
-                if (Vector3.Dot(n, (a + b + c) / 3f - inside) < 0f)
-                {
-                    Vector3 swap = b;
-                    b = c;
-                    c = swap;
-                    n = -n;
-                }
-                n = n.normalized;
-                int i0 = _verts.Count;
-                _verts.Add(a);
-                _verts.Add(b);
-                _verts.Add(c);
-                _normals.Add(n);
-                _normals.Add(n);
-                _normals.Add(n);
-                _colours.Add(colour);
-                _colours.Add(colour);
-                _colours.Add(colour);
-                _tris.Add(i0);
-                _tris.Add(i0 + 1);
-                _tris.Add(i0 + 2);
-            }
-
-            public Mesh ToMesh(string name)
-            {
-                Mesh mesh = new Mesh { name = name };
-                mesh.SetVertices(_verts);
-                mesh.SetNormals(_normals);
-                mesh.SetColors(_colours);
-                mesh.SetTriangles(_tris, 0);
-                mesh.RecalculateBounds();
-                return mesh;
-            }
-        }
+        private static Vector3 ToVector(Double3 v) => new Vector3((float)v.X, (float)v.Y, (float)v.Z);
     }
 }
