@@ -31,10 +31,13 @@ namespace EarthGame.Client
         /// <summary>What the main thread may spend on streaming work in one frame (ARCHITECTURE section 8).</summary>
         private const double StreamingBudgetMs = 1.5;
         /// <summary>
-        /// How far the client's clock may slip from the server's, as each pong carries it, before it is set to it (M1.D): three
-        /// minutes of the world's time, more than the round trip's worth and less than a developer's move of the clock.
+        /// How far the client's clock may slip from the server's, as each pong carries it, before it is set to it (M1.D):
+        /// seven seconds of the world's time, more than the round trip's worth at the game's own rate and at sixty times it
+        /// (a 20 ms round trip is 0.6 world-seconds at sixty times), and less than a developer's move of the clock. Until
+        /// 2026-09-16 it was three minutes, which let the HUD's clock read three minutes behind the server's for a while after
+        /// the panel sped the clock (the third night run: 05:45 on the HUD, 05:47 in the death's sentence).
         /// </summary>
-        private const double ClockSlipHours = 0.05;
+        private const double ClockSlipHours = 0.002;
 
         private Func<IClientTransport> _transportFactory;
         private string _address;
