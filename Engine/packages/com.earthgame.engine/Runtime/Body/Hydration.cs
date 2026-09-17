@@ -25,6 +25,13 @@ namespace EarthGame.Engine
         /// <summary>Water lost per day at rest, litres: breath, skin and urine.</summary>
         public const double BaseWaterLossLPerDay = 2.4;
 
+        /// <summary>
+        /// The breath's share of the resting loss, litres a day: the water a resting body exhales (about 0.3 to 0.4 L a
+        /// day in the physiology texts; Guyton's insensible loss), already inside <see cref="BaseWaterLossLPerDay"/>.
+        /// Exertion is charged only for the breath above this (2026-09-16).
+        /// </summary>
+        public const double RestingBreathLPerDay = 0.35;
+
         /// <summary>Total body water in a 70 kg adult, litres, about 60% of them.</summary>
         public const double TotalBodyWaterL = 42.0;
 
@@ -124,14 +131,21 @@ namespace EarthGame.Engine
         /// <summary>
         /// The body's day going by: <paramref name="days"/> of the world's clock, at rest or working. The clock is the
         /// caller's (<see cref="WorldClock.DaysFor"/>), so a held clock holds the body and a sped one dries it faster.
-        /// Exertion raises the resting loss as a multiple of basal (<see cref="Warmth.ExertionFactor"/>, v1's pricing:
-        /// walking 3.25 times, running 6.25), and the sweat the heat balance shed is charged in litres (FP.2); at rest in
-        /// the shade the loss is the resting 2.4 a day alone (FP.1). Illness, which v1 also charged, waits for illness.
+        /// The loss is the resting 2.4 L a day (FP.1), plus what the breath carries out above its resting share
+        /// (<paramref name="breathLPerHour"/>, the heat balance's own latent respiratory term in litres,
+        /// <see cref="Warmth.BreathWaterLPerHour"/>), plus the sweat the balance shed (<paramref name="sweatLPerHour"/>,
+        /// FP.2). Until 2026-09-16 exertion multiplied the whole resting loss by the metabolism's ratio (v1's pricing:
+        /// walking 3.25 times, running 6.25), as if urine and the skin's diffusion rose with the work, and a founder walking
+        /// a cool day died of thirst in fourteen hours; the owner asked whether that was right, and it was not. Walking
+        /// in cool weather now costs about three litres a day, two days to the lethal loss, and it is the sweat of a
+        /// warm day or a run that makes thirst quick: thirst in days, as the design's clock says. Illness, which v1 also
+        /// charged, waits for illness.
         /// </summary>
-        public void Advance(double days, double exertionFactor = 1.0, double sweatLPerHour = 0.0)
+        public void Advance(double days, double breathLPerHour = 0.0, double sweatLPerHour = 0.0)
         {
             if (!(days > 0.0)) return;
-            LossLPerDay = BaseWaterLossLPerDay * Math.Max(1.0, exertionFactor) + Math.Max(0.0, sweatLPerHour) * 24.0;
+            double breathAboveRest = Math.Max(0.0, breathLPerHour * 24.0 - RestingBreathLPerDay);
+            LossLPerDay = BaseWaterLossLPerDay + breathAboveRest + Math.Max(0.0, sweatLPerHour) * 24.0;
             Water01 = Math.Max(0.0, Water01 - LossLPerDay * days / TotalBodyWaterL);
         }
 

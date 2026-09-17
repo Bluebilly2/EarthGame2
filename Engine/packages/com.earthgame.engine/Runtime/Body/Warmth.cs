@@ -138,6 +138,9 @@ namespace EarthGame.Engine
         public double SensibleLossW { get; private set; }
         public double SkyLossW { get; private set; }
         public double RespiratoryLossW { get; private set; }
+
+        /// <summary>The water leaving in the breath in the last tick, litres an hour (2026-09-16): the water's account charges what of it exceeds the resting breath.</summary>
+        public double BreathWaterLPerHour { get; private set; }
         public double SolarGainW { get; private set; }
         public double EvaporativeW { get; private set; }
 
@@ -196,8 +199,6 @@ namespace EarthGame.Engine
         public static double ActivityHeatW(Exertion exertion) =>
             exertion == Exertion.Running ? RunningHeatW : exertion == Exertion.Walking ? WalkingHeatW : 0.0;
 
-        /// <summary>What the exertion does to the water's resting loss: a multiple of basal, one at rest (v1's exertion factor).</summary>
-        public static double ExertionFactor(Exertion exertion) => (BasalHeatW + ActivityHeatW(exertion)) / BasalHeatW;
 
         /// <summary>
         /// Total insulation between core and air, in clo: what is worn, plus the still-air layer on the skin, which
@@ -261,16 +262,27 @@ namespace EarthGame.Engine
         }
 
         /// <summary>
-        /// Heat carried out by breathing, W: warming the air on the way in and saturating it, Fanger's form as ISO 7933
-        /// uses it, a straight share of what the founder is producing, so it costs more the harder they work.
+        /// Heat carried out by breathing, W: warming the air on the way in (sensible) and saturating it (latent,
+        /// <see cref="RespiratoryLatentAt"/>), Fanger's form as ISO 7933 uses it, a straight share of what the founder is
+        /// producing, so it costs more the harder they work.
         /// </summary>
         public double RespiratoryAt(double metabolicW, in Surroundings s)
         {
             double m = Math.Max(0.0, metabolicW);
-            double vapour = s.RelativeHumidity01 * Climate.SaturationVapourKPa(s.AirC);
             double sensible = 0.0014 * m * (34.0 - s.AirC);
-            double latent = 0.0173 * m * (5.87 - vapour);
-            return Math.Max(0.0, sensible + latent);
+            return Math.Max(0.0, sensible + RespiratoryLatentAt(metabolicW, s));
+        }
+
+        /// <summary>
+        /// The latent part of the breath's loss, W: the water that leaves as vapour, more in dry air and the harder the
+        /// founder works. It is the water's account's breath (<see cref="BreathWaterLPerHour"/>): one owner for the heat
+        /// it carries and the litres it costs (2026-09-16).
+        /// </summary>
+        public double RespiratoryLatentAt(double metabolicW, in Surroundings s)
+        {
+            double m = Math.Max(0.0, metabolicW);
+            double vapour = s.RelativeHumidity01 * Climate.SaturationVapourKPa(s.AirC);
+            return Math.Max(0.0, 0.0173 * m * (5.87 - vapour));
         }
 
         /// <summary>
@@ -317,6 +329,9 @@ namespace EarthGame.Engine
 
             SkyLossW = SkyExcessLossAt(s);
             RespiratoryLossW = RespiratoryAt(ProductionW, s);
+            // The breath's water: the latent heat it carries, in litres by the heat of vaporisation. About a quarter of a
+            // litre a day at rest, near a litre walking, a litre and a half running in cold dry air.
+            BreathWaterLPerHour = RespiratoryLatentAt(ProductionW, s) * 3600.0 / LatentHeatOfSweatJPerL;
             NetHeatW = surplus - EvaporativeW - SkyLossW - RespiratoryLossW;
             CoreC += NetHeatW * seconds / heatCapacity;
             // A core this high means sweating has already failed; heat illness is not modelled beyond the water it costs.
@@ -339,6 +354,7 @@ namespace EarthGame.Engine
             ProductionW = BasalHeatW;
             SensibleLossW = SkyLossW = RespiratoryLossW = SolarGainW = EvaporativeW = 0.0;
             SweatRateLPerHour = 0.0;
+            BreathWaterLPerHour = 0.0;
         }
     }
 }

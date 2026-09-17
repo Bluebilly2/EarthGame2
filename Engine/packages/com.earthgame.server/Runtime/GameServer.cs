@@ -254,7 +254,8 @@ namespace EarthGame.Server
         /// <summary>
         /// Every founder's body lives the step on the world's clock (FP.1, FP.2): a held clock holds the body too. The
         /// surroundings are read once a second (the ground's openness is the costly part); the warmth runs every step in
-        /// them, doing what the body's speed says the founder is doing; the water goes at the exertion's rate plus the sweat.
+        /// them, doing what the body's speed says the founder is doing; the water goes at the resting rate plus the breath's
+        /// water above rest and the sweat, both the balance's own (2026-09-16).
         /// A body past the lethal core or the lethal loss dies here, in the step, whatever moved it there.
         /// </summary>
         private void AdvanceFounders(double stepSeconds)
@@ -273,7 +274,7 @@ namespace EarthGame.Server
                 }
                 Exertion exertion = Warmth.ExertionOf(s.Body.HorizontalSpeed);
                 s.Warmth.Tick(worldSeconds, s.Surroundings, exertion, s.Hydration.WorkCapacity01, 1.0 - s.Hydration.Loss / Hydration.LethalWaterLoss);
-                s.Hydration.Advance(days, Warmth.ExertionFactor(exertion), s.Warmth.SweatRateLPerHour);
+                s.Hydration.Advance(days, s.Warmth.BreathWaterLPerHour, s.Warmth.SweatRateLPerHour);
                 if (!s.Warmth.IsAlive)
                 {
                     // The beta arc's bridge (ServerConfig.BetaArcBridge): the cold reaches the edge of death and no further.

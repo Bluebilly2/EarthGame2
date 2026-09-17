@@ -146,19 +146,45 @@ namespace EarthGame.Tests.Engine
             Assert.That(Warmth.ExertionOf(speed), Is.EqualTo(expected));
         }
 
+        /// <summary>
+        /// The water's price of moving (2026-09-16, on the owner's question whether a walking founder should die of thirst in
+        /// fourteen hours): not v1's multiple of the whole resting loss, but the breath's water above rest, which is the
+        /// latent part of the heat balance's own breath in litres, and the sweat. A resting body in cool damp air breathes
+        /// out about a quarter of a litre a day, inside the resting 2.4; walking about three quarters; running in cold dry
+        /// air a litre and a half. So a founder walking a cool day without a drink lasts about two days to the lethal
+        /// loss, and a warm day's sweat or a run is what makes thirst quick: thirst in days, as the design says.
+        /// </summary>
         [Test]
         public void TheWorkOfMovingIsPricedInWattsAndInWater()
         {
             Assert.That(Warmth.ActivityHeatW(Exertion.Resting), Is.EqualTo(0.0));
             Assert.That(Warmth.ActivityHeatW(Exertion.Walking), Is.EqualTo(180.0));
             Assert.That(Warmth.ActivityHeatW(Exertion.Running), Is.EqualTo(420.0));
-            Assert.That(Warmth.ExertionFactor(Exertion.Resting), Is.EqualTo(1.0));
-            Assert.That(Warmth.ExertionFactor(Exertion.Walking), Is.EqualTo(3.25).Within(1e-12), "(80 + 180) / 80");
-            Assert.That(Warmth.ExertionFactor(Exertion.Running), Is.EqualTo(6.25).Within(1e-12));
-            Hydration water = new Hydration();
-            water.Advance(1.0, Warmth.ExertionFactor(Exertion.Walking), 0.5);
-            Assert.That(water.LossLPerDay, Is.EqualTo(2.4 * 3.25 + 12.0).Within(1e-12), "the resting loss times the factor, and the sweat by the day");
-            Assert.That(water.Water01, Is.EqualTo(1.0 - (2.4 * 3.25 + 12.0) / 42.0).Within(1e-12));
+            Warmth body = new Warmth();
+            Surroundings cool = new Surroundings(10.0, 1.0, 1.0, 0.7, -10.0, Warmth.StandingSkyView01);
+            double vapour = 0.7 * Climate.SaturationVapourKPa(10.0);
+            double breathRest = 0.0173 * 80.0 * (5.87 - vapour) * 3600.0 / 2430000.0;
+            double breathWalk = 0.0173 * 260.0 * (5.87 - vapour) * 3600.0 / 2430000.0;
+            Assert.That(body.RespiratoryLatentAt(80.0, cool) * 3600.0 / Warmth.LatentHeatOfSweatJPerL, Is.EqualTo(breathRest).Within(1e-12));
+            Assert.That(breathRest * 24.0, Is.InRange(0.2, 0.4), "a quarter of a litre a day at rest, inside the resting loss");
+            Assert.That(breathWalk * 24.0, Is.InRange(0.6, 1.0), "three quarters walking");
+            body.Tick(60.0, cool, Exertion.Walking, 1.0, 1.0);
+            Assert.That(body.BreathWaterLPerHour, Is.EqualTo(body.RespiratoryLatentAt(body.ProductionW, cool) * 3600.0 / Warmth.LatentHeatOfSweatJPerL).Within(1e-12), "the balance's own breath, in litres");
+
+            Hydration resting = new Hydration();
+            resting.Advance(1.0, breathRest, 0.0);
+            Assert.That(resting.LossLPerDay, Is.EqualTo(Hydration.BaseWaterLossLPerDay).Within(1e-12), "the resting breath is already in the resting loss");
+            Hydration walking = new Hydration();
+            walking.Advance(1.0, breathWalk, 0.0);
+            double expected = Hydration.BaseWaterLossLPerDay + breathWalk * 24.0 - Hydration.RestingBreathLPerDay;
+            Assert.That(walking.LossLPerDay, Is.EqualTo(expected).Within(1e-12), "the resting loss plus the breath above rest");
+            Assert.That(walking.Water01, Is.EqualTo(1.0 - expected / 42.0).Within(1e-12));
+            double daysToLethal = Hydration.LethalWaterLoss * Hydration.TotalBodyWaterL / expected;
+            Assert.That(daysToLethal, Is.InRange(1.8, 2.6), "a founder walking a cool day without a drink lasts about two days; " + daysToLethal.ToString("0.0"));
+            Hydration sweating = new Hydration();
+            sweating.Advance(1.0, breathWalk, 0.5);
+            Assert.That(sweating.LossLPerDay, Is.EqualTo(expected + 12.0).Within(1e-12), "and half a litre an hour of sweat is twelve a day on top");
+            Assert.That(Hydration.LethalWaterLoss * Hydration.TotalBodyWaterL / sweating.LossLPerDay, Is.LessThan(0.5), "a hot day's sweat makes thirst a matter of hours");
             Hydration rest = new Hydration();
             rest.Advance(1.0);
             Assert.That(rest.LossLPerDay, Is.EqualTo(2.4), "at rest in the shade, the resting loss alone");
@@ -291,7 +317,7 @@ namespace EarthGame.Tests.Engine
             for (double hours = 0.0; hours < Night.Lived; hours += step / 3600.0)
             {
                 body.Tick(step, surroundingsAt(hours), exertion, water.WorkCapacity01, 1.0 - water.Loss / Hydration.LethalWaterLoss);
-                water.Advance(step / 86400.0, Warmth.ExertionFactor(exertion), body.SweatRateLPerHour);
+                water.Advance(step / 86400.0, body.BreathWaterLPerHour, body.SweatRateLPerHour);
                 lowest = Math.Min(lowest, body.CoreC);
                 if (double.IsNaN(hypothermicAt) && body.Cold >= ColdLevel.Hypothermic) hypothermicAt = hours;
                 if (!body.IsAlive) return new Night(hypothermicAt, hours, lowest);

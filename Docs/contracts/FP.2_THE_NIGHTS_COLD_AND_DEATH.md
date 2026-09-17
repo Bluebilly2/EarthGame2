@@ -28,7 +28,10 @@ and dehydration, "both fully explained on death", and what death is under the St
 2. **The surroundings are the world's own weather at the founder**: `Weather.At` (M1.8a) with the sun's elevation,
    the wind at the body from the ground's openness where they stand (the layer's own rule, read from the terrain),
    and the sky view of a body in the open. The sweat the balance sheds costs water in the thirst's account, and
-   exertion raises the water's loss as v1 priced it: the beat pays FP.1's "rest alone" debt except illness.
+   exertion raises the water's loss as v1 priced it: the beat pays FP.1's "rest alone" debt except illness. (Amended
+   2026-09-16: v1's pricing, a multiple of the whole resting loss, was wrong by physiology and had a walking founder
+   dead in fourteen hours; the loss is the breath's water above rest, from the balance's own respiratory term, and the
+   sweat. `Hydration.Advance`'s history has the reason.)
 3. **The cold is a word, not a bar**, beside the thirst's under the clock: nothing while well, then *chilly* (core
    under 36.7), *cold* (36), *hypothermic* (35), *severely hypothermic* (32). Shivering is involuntary and is not
    shown; the slower walk of a cold body is not modelled here (v1 had none).

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using EarthGame.ClientCore;
 using EarthGame.Engine;
@@ -90,7 +91,11 @@ namespace EarthGame.Tests.Server
             // Told once a second, and at this rate a second is forty-eight minutes of the night: the word lags the body a little.
             Assert.That(rig.Client.LastCoreC, Is.EqualTo(body.CoreC).Within(0.2), "told within the second");
             Assert.That(rig.Session.Surroundings.SolarElevationDeg, Is.LessThan(0.0), "it is night");
-            Assert.That(rig.Session.Hydration.LossLPerDay, Is.EqualTo(Hydration.BaseWaterLossLPerDay).Within(1e-9), "standing still and cold, no sweat: the resting loss alone");
+            // Standing still and cold, no sweat: the resting loss, plus what a shivering body's harder breathing carries out
+            // above the resting breath (the water's pricing of 2026-09-16), under half a litre a day.
+            double breathAboveRest = Math.Max(0.0, body.BreathWaterLPerHour * 24.0 - Hydration.RestingBreathLPerDay);
+            Assert.That(rig.Session.Hydration.LossLPerDay, Is.EqualTo(Hydration.BaseWaterLossLPerDay + breathAboveRest).Within(1e-9), "the resting loss and the shivering's breath, no sweat");
+            Assert.That(breathAboveRest, Is.InRange(0.0, 0.5), "a shivering body breathes out under half a litre a day more than a resting one");
         }
 
         [Test]
