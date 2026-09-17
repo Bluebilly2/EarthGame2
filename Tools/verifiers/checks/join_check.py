@@ -28,7 +28,8 @@ What each row uses:
   N4  soak: no 'exception' in any log and no 'dropped' the harness did not induce; server 'memory'
       working_set_bytes <= 1 GB; 'ticks' heap_collected_bytes at minute 30 <= 1.2 x minute 5; each client's
       'mirror' samples (once the mirror holds two states, so the delay has something to interpolate between;
-      the first sample after a join holds one) within 0.5 m of the server's interpolated position in >= 99 %
+      the first sample after a join holds one; and not within two seconds of the mirrored founder's death, when the
+      server itself moves them to the wake, since 2026-09-16) within 0.5 m of the server's interpolated position in >= 99 %
       and 2.0 m in all; each
       two clients' 'sample'.entities_shared (since M1.7a the entities each holds inside its own and the other player's
       interest radius; before it the row compared 'remotes', the other players each held) are equal in >= 99 % of the
@@ -58,6 +59,7 @@ N4_HEAP_RATIO = 1.2
 N4_MIRROR_NEAR_M = 0.5
 N4_MIRROR_NEAR_FRACTION = 0.99
 N4_MIRROR_FAR_M = 2.0
+N4_DEATH_JUMP_TICKS = 40.0   # two seconds of ticks either side of a founder's death: the mirror's delay and its catching up
 N4_ENTITIES_FRACTION = 0.99
 N4_ENTITIES_MAX_DIVERGE_S = 2
 N4_TICK_OVER_FRACTION = 0.001
@@ -292,11 +294,20 @@ def check_n4(corpus, rows):
         rows.row(name, False, "no ticks window at minute 5 (%d) or minute 30 (%d); a full soak is needed" % (len(at5), len(at30)))
 
     ticks = server_ticks(srecords)
+    # A founder who died stands at the wake the next tick (FP.2's Standard death): the server's `death` records say which
+    # session and when. A mirror sample whose tick lies within the mirror's delay of that jump is the jump itself, which no
+    # interpolation follows, and not the netcode's error; such samples are counted apart and left out of the row.
+    deaths = {}
+    for d in kinds(srecords, "death"):
+        deaths.setdefault(int(d.get("session", -1)), []).append(float(d.get("tick", -1)))
     for who, records in clients.items():
-        near = far = measured = unmeasured = unestablished = 0
+        near = far = measured = unmeasured = unestablished = across_deaths = 0
         for m in kinds(records, "mirror"):
             if int(m.get("states_held", 2)) < 2:
                 unestablished += 1
+                continue
+            if any(abs(float(m["at_tick"]) - t) <= N4_DEATH_JUMP_TICKS for t in deaths.get(int(m["session"]), ())):
+                across_deaths += 1
                 continue
             table = ticks.get(int(m["session"]))
             truth = interpolate(table, float(m["at_tick"])) if table else None
@@ -315,7 +326,8 @@ def check_n4(corpus, rows):
         else:
             fraction = near / measured
             rows.row(name, fraction >= N4_MIRROR_NEAR_FRACTION and far == 0,
-                     "%.2f%% of %d samples within 0.5 m (>= 99%%), %d beyond 2.0 m (must be 0), %d unmeasured, %d before the mirror held two states" % (100.0 * fraction, measured, far, unmeasured, unestablished))
+                     "%.2f%% of %d samples within 0.5 m (>= 99%%), %d beyond 2.0 m (must be 0), %d unmeasured, %d before the mirror held two states, %d across a death's jump to the wake (left out)"
+                     % (100.0 * fraction, measured, far, unmeasured, unestablished, across_deaths))
 
     # The entity counts inside the shared interest radius (M1.7a), compared second by second of the server's clock while
     # both clients were interactive. A sample belongs to the server second of the newest tick its client had heard, less

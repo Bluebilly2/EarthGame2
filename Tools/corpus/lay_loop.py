@@ -38,18 +38,34 @@ The search, over the world's own layers:
   - the lap starts at the nearest of its waypoints that a straight, dry, flat walk from the wake reaches, because the
     founder walks straight from where they wake to the first waypoint (the first run of this tool found a loop whose
     own legs were dry and whose walk from the wake crossed a swamp);
-  - the walk from the wake and one lap must take no more than 500 s at the mover's own pace (run on the flat legs,
-    walked on the named ones, half pace wading), so the ten-minute walk reaches every named segment with time to
-    spare (the first loop this tool laid with the new legs was 1.9 km, about a quarter of an hour, and a ten-minute
-    walk would never have reached the shore); the candidates for each named leg are the nearest the wake, and of the
-    loops that fit, the one with the most time on the named segments is laid.
+  - the walk from the wake until the last of N2's named legs is done must take no more than 500 s at the mover's own
+    pace (run on the flat legs, walked on the named ones, half pace wading), so the ten-minute walk reaches every
+    named segment with time to spare (the first loop this tool laid with the new legs was 1.9 km, about a quarter of
+    an hour, and a ten-minute walk would never have reached the shore); until 2026-09-16 the whole lap was budgeted,
+    and a pass laid after the last named leg is the soak's business, not the walk's. The candidates for each named
+    leg are the nearest the wake, and of the loops that fit, the one with the most time on the named segments is laid;
+  - a pass (2026-09-16, DEBTS "The corpus's loop startles no animal"): `--pass LABEL EAST NORTH` puts a waypoint
+    within a stated distance of a place, so the soak's founders walk within an animal group's flight distance
+    (M1.7c: a mob runs from a founder 80 m off, a pair 60 m) wherever presence's wander has carried it: the distance
+    asked is the kind's flight distance less presence's 40 m wander and the group's own spread (five metres times the
+    root of its size), so 25 m for a mob and 12 m for a pair, or the number given as a fourth word. Where the groups
+    stand comes from a soak's own host log: `--groups <soak/server/run.jsonl>` lists every group it stood up, its mean
+    place and the pass to ask for. A pass is put in where it adds the least flat walking, like the cliff, the platform
+    and the wade;
+  - a water leg (`--water`, the same day): a waypoint on dry ground within a body's reach of fresh water that stands
+    (a creek, a stream or a lake with the world's surface at least 2 cm over the ground, WorldState.StandingWaterM
+    restated), so a thirsty founder on the loop can drink (FP.1) without leaving it far. Asked for and not found
+    within the radius, the tool says how far the nearest such water is and lays nothing: on the gate world of
+    2026-09-16 no creek or stream carries a surface at all (WorldLayers sets the surface to the ground everywhere but
+    the sea and the lakes), and the nearest lake with water in it is 1,977 m from the wake.
 
 Usage, from the repository root:
-    python Tools/corpus/lay_loop.py [world folder] [--write]
+    python Tools/corpus/lay_loop.py [world folder] [--write] [--radius 560] [--pass LABEL EAST NORTH [WITHIN]]...
+                                    [--water] [--groups <run.jsonl>]
 (default Artefacts/worlds/gate). Prints the survey of the loop it chose and its waypoints; with --write it replaces
 the waypoints in Engine/packages/com.earthgame.clientcore/Runtime/Routes.cs. A player carries the loop, so it is
-rebuilt before the corpus walks it. Exit 0 when a loop with every named segment was laid, 1 when none meets the
-criteria, 2 when the world cannot be read.
+rebuilt before the corpus walks it. Exit 0 when a loop with every named segment and every pass asked for was laid,
+1 when none meets the criteria, 2 when the world cannot be read.
 """
 import argparse
 import heapq
@@ -111,6 +127,17 @@ KEEP = 40
 KEEP_EXTRA = 12
 EXTRAS = ("cliff", "platform", "wade")
 NAMED = ("shore", "bank") + EXTRAS
+# A pass by an animal group (M1.7c restated): how near a founder sends a kind running, presence's wander round a group's
+# own place, and the spread of its members round the group (AnimalStandUp.MemberSpacingM times the root of the size).
+FLEE_WITHIN_M = {"mob": 80.0, "pair": 60.0}
+GROUP_SIZE = {"mob": 8, "pair": 2}
+WANDER_M = 40.0
+MEMBER_SPACING_M = 5.0
+# The water leg: water stands where the surface is this much over the ground (WorldState.StandingWaterM restated), and a
+# founder drinks from within a body's reach (Hands.ReachM, from the eye), less a stride so the crosshair can find it.
+STANDING_WATER_M = 0.02
+DRINK_FROM_M = 3.0
+FRESH = (CREEK, STREAM, LAKE)
 
 
 def layer(world, name):
@@ -172,6 +199,8 @@ class Ground:
         walkable = ~self.face & ~self.barred & (self.slope <= EDGE_MAX_DEG)
         self.edge = below & walkable
         self.edge_near = around(self.edge, 1) & walkable
+        # Fresh water that stands: a creek, a stream or a lake whose surface is over its ground (the water leg, 2026-09-16).
+        self.drinkable = np.isin(self.water, FRESH) & (self.depth >= STANDING_WATER_M)
         self.blocked = self.block_trunks(world)
         self.cache = {}
 
@@ -311,12 +340,14 @@ def path(prev, src, dst):
     return out[::-1]
 
 
-def candidate_points(g, wake):
+def candidate_points(g, wake, radius, places=()):
+    """The points a leg may start or end at: the coarse grid within the radius, the fine grid near a cliff's top edge, and
+    the fine grid within two of a pass's distances of each place passed (2026-09-16), so a pass can come as near as asked."""
     pts, seen = [wake], {wake}
 
     def add(e, n):
         p = (float(e), float(n))
-        if p in seen or math.hypot(e - wake[0], n - wake[1]) > RADIUS_M:
+        if p in seen or math.hypot(e - wake[0], n - wake[1]) > radius:
             return
         r, c = g.rc(e, n)
         if g.barred[r, c] or g.creek[r, c] or g.slope[r, c] > FLAT_MAX_DEG or g.in_a_trunk(e, n):
@@ -324,15 +355,51 @@ def candidate_points(g, wake):
         seen.add(p)
         pts.append(p)
 
-    for e in np.arange(wake[0] - RADIUS_M, wake[0] + RADIUS_M + 1, GRID_M):
-        for n in np.arange(wake[1] - RADIUS_M, wake[1] + RADIUS_M + 1, GRID_M):
+    for e in np.arange(wake[0] - radius, wake[0] + radius + 1, GRID_M):
+        for n in np.arange(wake[1] - radius, wake[1] + radius + 1, GRID_M):
             add(e, n)
     near_edge = around(g.edge, CLIFF_NEAR_CELLS)
-    for e in np.arange(wake[0] - RADIUS_M, wake[0] + RADIUS_M + 1, EDGE_GRID_M):
-        for n in np.arange(wake[1] - RADIUS_M, wake[1] + RADIUS_M + 1, EDGE_GRID_M):
+    for e in np.arange(wake[0] - radius, wake[0] + radius + 1, EDGE_GRID_M):
+        for n in np.arange(wake[1] - radius, wake[1] + radius + 1, EDGE_GRID_M):
             if near_edge[g.rc(e, n)]:
                 add(e, n)
+    for (pe, pn), within in places:
+        span = 2.0 * within
+        for e in np.arange(pe - span, pe + span + 1, EDGE_GRID_M):
+            for n in np.arange(pn - span, pn + span + 1, EDGE_GRID_M):
+                add(e, n)
     return pts
+
+
+def pass_legs(g, ours, place, within):
+    """Zero-length legs at the candidate points within a distance of a place, the nearest the place first: a pass by an
+    animal group's place (2026-09-16), so the founder walks within the kind's flight distance wherever the group wanders."""
+    legs = []
+    for p in ours:
+        off = math.hypot(p[0] - place[0], p[1] - place[1])
+        if off <= within:
+            legs.append((off, p, p, None))
+    legs.sort(key=lambda x: x[0])
+    return legs[:KEEP_EXTRA]
+
+
+def water_legs(g, ours, wake):
+    """Zero-length legs at the candidate points within a body's reach of fresh water that stands, the nearest the wake
+    first (the water leg, 2026-09-16)."""
+    reach = int(math.ceil(DRINK_FROM_M / g.cell))
+    by_water = around(g.drinkable, reach)
+    legs = [(math.hypot(p[0] - wake[0], p[1] - wake[1]), p, p, None) for p in ours if by_water[g.rc(*p)]]
+    legs.sort(key=lambda x: x[0])
+    return legs[:KEEP_EXTRA]
+
+
+def nearest_drinkable_m(g, wake):
+    """How far from the wake the nearest fresh water that stands is, m; infinite where the world has none."""
+    rows, cols = np.nonzero(g.drinkable)
+    if not len(rows):
+        return float("inf")
+    east, north = cols * g.cell - g.half, g.half - rows * g.cell
+    return float(np.hypot(east - wake[0], north - wake[1]).min())
 
 
 def from_wake(wake, a, b):
@@ -383,9 +450,10 @@ def wade_legs(g, starts, wake):
 
 
 def insert(legs, extras, idx, sp_of):
-    """Each extra kind of leg put in where it adds the least flat walking, the way round it is walked chosen with it."""
+    """Each extra kind of leg put in where it adds the least flat walking, the way round it is walked chosen with it: the
+    cliff, the platform and the wade, then any pass and the water leg, in the order the extras are given."""
     legs = list(legs)
-    for kind in EXTRAS:
+    for kind in extras:
         best = None
         for _, a, b, extra in extras[kind]:
             for x, y in (((a, b), (b, a)) if a != b else ((a, b),)):
@@ -424,16 +492,19 @@ def leg_seconds(g, a, b, run, wading):
 
 
 def walk_seconds(g, wake, way):
-    """How long the walk from the wake and one lap take, and how much of it is on the named segments, s."""
-    total = named = 0.0
+    """How long the walk from the wake and one lap take, how much of it is on the named segments, and how long it is
+    until the last of N2's named legs is done, s: the budget's measure since 2026-09-16, so a pass laid after them
+    lengthens the lap without costing the ten-minute walk a named segment."""
+    total = named = to_named = 0.0
     prev = wake
     for p, segment, run in way + [way[0]]:
         seconds = leg_seconds(g, prev, p, run, segment == "wade")
         total += seconds
         if segment in NAMED:
             named += seconds
+            to_named = total
         prev = p
-    return total, named
+    return total, named, to_named
 
 
 def lap_length(legs, idx, sp_of):
@@ -447,9 +518,10 @@ def lap_length(legs, idx, sp_of):
     return total
 
 
-def lay(g, wake):
+def lay(g, wake, radius=RADIUS_M, passes=(), water=False):
+    """The loop, as (point, segment, run) waypoints, or None. `passes` are (label, place, within) to lay a waypoint by."""
     t0 = time.time()
-    pts = candidate_points(g, wake)
+    pts = candidate_points(g, wake, radius, [(place, within) for _, place, within in passes])
     idx = {p: i for i, p in enumerate(pts)}
     arr = np.array(pts)
     nbr = [[] for _ in pts]
@@ -516,8 +588,21 @@ def lay(g, wake):
         "platform": platform_legs(g, [p for p in ours if g.platform[g.rc(*p)]], wake),
         "wade": wade_legs(g, [p for p in ours if g.shore[g.rc(*p)] <= WADE_SHORE_M], wake),
     }
+    for label, place, within in passes:
+        extras[label] = pass_legs(g, ours, place, within)
+        if not extras[label]:
+            nearest = min((math.hypot(p[0] - place[0], p[1] - place[1]) for p in ours), default=float("inf"))
+            print("no dry, flat point within %.0f m of the %s's place at east %.0f north %.0f on the wake's side of the water (the nearest %.0f m off; widen --radius?)"
+                  % (within, label, place[0], place[1], nearest))
+            return None
+    if water:
+        extras["water"] = water_legs(g, ours, wake)
+        if not extras["water"]:
+            print("no dry point within %.0f m of fresh water that stands, within %.0f m of the wake: the nearest such water is %.0f m from the wake"
+                  % (DRINK_FROM_M, radius, nearest_drinkable_m(g, wake)))
+            return None
     print("on the wake's side of the water: %d point(s) by the sea, %d by a bank; %d shore leg(s), %d bank leg(s), %s kept (%.0f s)"
-          % (len(seapts), len(bankpts), len(shore), len(bank), ", ".join("%d %s" % (len(extras[k]), k) for k in EXTRAS), time.time() - t0))
+          % (len(seapts), len(bankpts), len(shore), len(bank), ", ".join("%d %s" % (len(extras[k]), k) for k in extras), time.time() - t0))
     if not shore or not bank:
         return None
 
@@ -556,16 +641,16 @@ def lay(g, wake):
         if start is None:
             continue
         way = way[start:] + way[:start]
-        total, named = walk_seconds(g, wake, way)
-        if total > WALK_BUDGET_S:
+        total, named, to_named = walk_seconds(g, wake, way)
+        if to_named > WALK_BUDGET_S:
             continue
         score = named - 0.25 * total
         if best is None or score > best[0]:
-            best = (score, way, total, named)
+            best = (score, way, total, named, to_named)
     if best is None:
         return None
-    print("laid in %.0f s: the walk from the wake and a lap take %.0f s at the mover's pace, %.0f s of it on the named segments (budget %.0f s)"
-          % (time.time() - t0, best[2], best[3], WALK_BUDGET_S))
+    print("laid in %.0f s: the walk from the wake and a lap take %.0f s at the mover's pace, %.0f s of it on the named segments; the last named leg is done by %.0f s (budget %.0f s)"
+          % (time.time() - t0, best[2], best[3], best[4], WALK_BUDGET_S))
     return best[1]
 
 
@@ -618,9 +703,17 @@ def waypoints(g, pts, idx, sp_of, legs):
     return way
 
 
-def report(g, wake, way):
+def report(g, wake, way, passes=()):
     legs = [(wake, way[0][0], "approach")] + [(way[k - 1][0], way[k][0], way[k][1]) for k in range(1, len(way))] \
         + [(way[-1][0], way[0][0], way[0][1])]
+    for label, place, within in passes:
+        at = [p for p, segment, _ in way if segment == label]
+        if at:
+            print("  the pass by the %s: the waypoint at east %.0f north %.0f, %.1f m from the place asked (east %.0f north %.0f), within %.0f m"
+                  % (label, at[0][0], at[0][1], math.hypot(at[0][0] - place[0], at[0][1] - place[1]), place[0], place[1], within))
+    for p, segment, _ in way:
+        if segment == "water":
+            print("  the water: the waypoint at east %.0f north %.0f, fresh water standing within %.0f m" % (p[0], p[1], DRINK_FROM_M))
     lap = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b, _ in legs[1:])
     wet, plains = [], 0.0
     for a, b, name in legs:
@@ -663,8 +756,18 @@ def write_routes(way, lap):
     s, n = re.subn(r"(            return new\[\]\n            \{\n)(.*?)(            \};)", lambda m: m.group(1) + body + m.group(3), s, count=1, flags=re.S)
     if n != 1:
         raise ValueError("Routes.cs: the WakeLoop waypoints are not where this tool writes them")
-    summary = ("/// <summary>About %.2f km: the shore, the bank, a cliff's top edge, a shore platform and a wade into the sea, "
-               "and the flat ways between them.</summary>" % (lap / 1000.0))
+    labels = [name for _, name, _ in way]
+    passes = []
+    for label in labels:
+        if label not in NAMED and label not in ("plain", "return", "creek", "water") and label not in passes:
+            passes.append(label)
+    extra = ""
+    if passes:
+        extra += ", a pass by " + " and by ".join(("a kangaroo mob" if p == "mob" else "an oystercatcher pair" if p == "pair" else "the " + p) for p in passes)
+    if "water" in labels:
+        extra += ", a stand by fresh water"
+    summary = ("/// <summary>About %.2f km: the shore, the bank, a cliff's top edge, a shore platform and a wade into the sea%s, "
+               "and the flat ways between them.</summary>" % (lap / 1000.0, extra))
     s, n = re.subn(r"/// <summary>About [^<]*</summary>(\n        public static Waypoint\[\] WakeLoop\(\))", lambda m: summary + m.group(1), s, count=1)
     if n != 1:
         raise ValueError("Routes.cs: WakeLoop's summary is not where this tool writes it")
@@ -674,25 +777,94 @@ def write_routes(way, lap):
     print("wrote %d waypoints into %s" % (len(way), os.path.relpath(ROUTES, ROOT)))
 
 
+def groups_of(run_jsonl):
+    """The animal groups a host stood up, from its fauna records: by kind and square (the id's layout, ARCHITECTURE section
+    10: the kind in the seven bits under the top, the square's east and north indices in twenty-four bits each, offset by
+    2^23), each with its mean place over the records and how many times it was seen."""
+    groups = {}
+    with open(run_jsonl, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            record = json.loads(line)
+            if record.get("kind") != "fauna":
+                continue
+            ids, positions = record.get("ids", []), record.get("positions", [])
+            for i, animal_id in enumerate(ids):
+                animal_id = int(animal_id)
+                if not (animal_id >> 63) & 1 or len(positions) < 3 * (i + 1):
+                    continue
+                kind = (animal_id >> 56) & 0x7F
+                square = (((animal_id >> 32) & 0xFFFFFF) - (1 << 23), ((animal_id >> 8) & 0xFFFFFF) - (1 << 23))
+                g = groups.setdefault((kind, square), [0.0, 0.0, 0])
+                g[0] += float(positions[3 * i])
+                g[1] += float(positions[3 * i + 2])
+                g[2] += 1
+    return {key: (east / n, north / n, n) for key, (east, north, n) in groups.items() if n}
+
+
+def print_groups(run_jsonl, wake):
+    """What `--groups` prints: every group the soak stood up, nearest the wake first, and the pass to ask for."""
+    labels = {1: "mob", 2: "pair"}
+    rows = []
+    for (kind, square), (east, north, n) in groups_of(run_jsonl).items():
+        label = labels.get(kind, "kind %d" % kind)
+        rows.append((math.hypot(east - wake[0], north - wake[1]), label, square, east, north, n))
+    rows.sort()
+    print("%d group(s) stood up in %s:" % (len(rows), os.path.relpath(run_jsonl, ROOT)))
+    for off, label, square, east, north, n in rows:
+        within = pass_within(label)
+        print("  %s of square (%d, %d): mean place east %.0f north %.0f over %d sightings, %.0f m from the wake; ask --pass %s %.0f %.0f%s"
+              % (label, square[0], square[1], east, north, n, off, label, east, north, " %.0f" % within if within is not None else ""))
+
+
+def pass_within(label):
+    """How near a pass must come to a group's place for a founder to be within its kind's flight distance wherever the
+    wander and the members' spread have put them; None for a label that is no kind stood up."""
+    if label not in FLEE_WITHIN_M:
+        return None
+    return math.floor(FLEE_WITHIN_M[label] - WANDER_M - MEMBER_SPACING_M * math.sqrt(GROUP_SIZE[label]))
+
+
 def main(argv):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("world", nargs="?", default=DEFAULT_WORLD)
     parser.add_argument("--write", action="store_true", help="write the waypoints into Routes.WakeLoop")
+    parser.add_argument("--radius", type=float, default=RADIUS_M, help="how far from the wake candidate points are taken, m")
+    parser.add_argument("--pass", dest="passes", action="append", nargs="+", metavar="WORD", default=[],
+                        help="LABEL EAST NORTH [WITHIN]: a waypoint within WITHIN m of the place (mob 25, pair 12 unless given)")
+    parser.add_argument("--water", action="store_true", help="a waypoint within a body's reach of fresh water that stands")
+    parser.add_argument("--groups", metavar="RUN_JSONL", help="list the animal groups a soak's host stood up, and the passes to ask for, then stop")
     args = parser.parse_args(argv[1:])
     try:
         saved = json.load(open(os.path.join(ROOT, args.world, "world.json"), encoding="utf-8"))
         wake = (float(saved["wake_east"]), float(saved["wake_north"]))
+        if args.groups:
+            print_groups(args.groups, wake)
+            return 0
         g = Ground(args.world)
     except (OSError, KeyError, ValueError) as error:
         print("lay_loop: cannot read the world at %s: %s" % (args.world, error))
         return 2
+    passes = []
+    for words in args.passes:
+        if len(words) not in (3, 4):
+            print("lay_loop: --pass takes LABEL EAST NORTH [WITHIN], not %r" % (words,))
+            return 2
+        within = float(words[3]) if len(words) == 4 else pass_within(words[0])
+        if within is None:
+            print("lay_loop: --pass %s needs a WITHIN, %s being no kind stood up (mob, pair)" % (words[0], words[0]))
+            return 2
+        passes.append((words[0], (float(words[1]), float(words[2])), within))
     print("the wake of %s: east %.0f north %.0f" % (args.world, wake[0], wake[1]))
-    way = lay(g, wake)
+    way = lay(g, wake, args.radius, passes, args.water)
     if way is None:
-        print("lay_loop: no loop within %.0f m of the wake meets the criteria" % RADIUS_M)
+        print("lay_loop: no loop within %.0f m of the wake meets the criteria" % args.radius)
         return 1
-    lap, dry = report(g, wake, way)
-    missing = [name for name in NAMED if not any(segment == name for _, segment, _ in way)]
+    lap, dry = report(g, wake, way, passes)
+    wanted = list(NAMED) + [label for label, _, _ in passes] + (["water"] if args.water else [])
+    missing = [name for name in wanted if not any(segment == name for _, segment, _ in way)]
     if missing:
         print("lay_loop: the loop has no %s leg; not written" % ", no ".join(missing))
         return 1

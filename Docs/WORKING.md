@@ -107,6 +107,10 @@ other's way:
   before one starts: neither the owner's editor nor the other agent's run.
 - **A running `EarthGame2.exe` may be the other's timing run.** Frame costs are measured with the machine quiet;
   builds, world creation and suites beside one make its numbers lie, so they wait until it ends.
+- **No host build while the corpus runs.** The corpus's dedicated server runs from
+  `Engine/.build/bin/EarthGame.ServerHost/Release/`, and a Release build of the host then fails on the locked
+  files (2026-09-16, MSB3021) without harming the run; a Debug suite run beside a soak is a burst the `ticks` rows
+  may show. Build the host before, and keep the suite to the corpus's walks, never its soak.
 - **Output under a name of one's own:** fresh folders under `Artefacts/`, and no deletes in an automated run. Players
   are not output under a name of one's own: they go through `Tools/build/install.py` into `Build/Harness` (the runs')
   or `Build/Player` (the owner's), replaced in place and told apart by their `version.json` and the log's first line.

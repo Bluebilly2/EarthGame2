@@ -19,7 +19,6 @@ namespace EarthGame.Client
         private const double DrinkThirstTimeoutSeconds = 60.0;
         private const double DrinkFreshSearchM = 60.0, DrinkSeaSearchM = 150.0, DrinkStandOffM = 2.5;
         /// <summary>Water counts where the engine says it stands: the one threshold, the server's and the aim's.</summary>
-        private const double DrinkMinDepthM = WorldState.StandingWaterM;
         private const double DrinkWalkTimeoutSeconds = 150.0;
 
         private double _drinkWater = double.NaN;
@@ -160,37 +159,18 @@ namespace EarthGame.Client
             return o.With("east", s.East).With("up", s.Up).With("north", s.North);
         }
 
-        /// <summary>The cover the streamed tiles say a point has, or Unknown where none is held.</summary>
-        private GroundCover CoverAt(double east, double north)
-        {
-            if (_client.Grid == null) return GroundCover.Unknown;
-            ReceivedTile tile = _client.Tiles.Holding(TileLayer.GroundCover, _client.Grid.ForPosition(east, north));
-            if (tile?.Codes == null) return GroundCover.Unknown;
-            int last = tile.Posts - 1;
-            int x = Mathf.Clamp((int)Math.Round((east - tile.OriginEast) / tile.CellM), 0, last);
-            int z = Mathf.Clamp((int)Math.Round((north - tile.OriginNorth) / tile.CellM), 0, last);
-            return GroundCovers.CoverOf(tile.Codes[z, x]);
-        }
 
-        /// <summary>The nearest point out to a distance where the streamed water is deep enough and its cover is the one asked for.</summary>
+        /// <summary>The nearest point out to a distance where the streamed water stands and its cover is the one asked for: the engine-free search the corpus's walker uses too (<see cref="Drinking.WaterNear"/>, one owner since 2026-09-16).</summary>
         private bool FindWater(GroundCover cover, double searchM, out double atEast, out double atNorth)
         {
             Double3 feet = _player.State.Feet;
-            for (double r = 1.0; r <= searchM; r += 1.0)
-                for (int k = 0; k < 72; k++)
-                {
-                    double a = k * Math.PI / 36.0;
-                    double e = feet.X + r * Math.Sin(a), n = feet.Z + r * Math.Cos(a);
-                    if (StreamedDepth(e, n) >= DrinkMinDepthM && CoverAt(e, n) == cover)
-                    {
-                        atEast = e;
-                        atNorth = n;
-                        return true;
-                    }
-                }
-            atEast = 0.0;
-            atNorth = 0.0;
-            return false;
+            if (_client.Grid == null || _client.Tiles == null)
+            {
+                atEast = 0.0;
+                atNorth = 0.0;
+                return false;
+            }
+            return Drinking.WaterNear((layer, id) => _client.Tiles.Holding(layer, id), _client.Grid, feet.X, feet.Z, searchM, cover, out atEast, out atNorth);
         }
 
         /// <summary>Walks the founder towards a point until within a distance of it, turning to face it as they go.</summary>

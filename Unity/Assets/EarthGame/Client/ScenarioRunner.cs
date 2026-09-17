@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -23,6 +24,13 @@ namespace EarthGame.Client
     /// cuts the transport without a leave at 45 s and every 30 s after for <c>-eg-cycles</c> cycles, reconnecting
     /// three seconds after each cut. <c>-eg-seconds</c> overrides a scenario's length. The exit code is the
     /// verdict: 0 when the scenario answered its question and no exception was logged.</para>
+    ///
+    /// <para>Since 2026-09-16 the walker has a body to answer to (FP.1, FP.2): a founder the server has told is thirsty
+    /// looks once a second for fresh water standing within <see cref="Drinking.SearchM"/> of them in the streamed tiles,
+    /// leaves the loop for it, drinks through the use key until the word is gone (<see cref="Drinking"/>) and walks on
+    /// from the waypoint they were bound for, writing a <c>drink</c> record; a founder the server tells has died writes a
+    /// <c>died</c> record and, standing at the wake again, walks the loop from its approach. Every <c>sample</c> carries
+    /// the water the server last told and the word for it.</para>
     /// </summary>
     public sealed class ScenarioRunner : MonoBehaviour
     {
@@ -30,6 +38,9 @@ namespace EarthGame.Client
         private const double CutIntervalSeconds = 30.0;
         private const double CutLengthSeconds = 3.0;
         private const double JoinTimeoutSeconds = 120.0;
+        /// <summary>How long the script is given to bring the crosshair to a pitch before the use key is pressed, s.</summary>
+        private const double PitchSettleSeconds = 0.6;
+        private const float WalkingPitchDeg = -2f;
 
         private string _scenario;
         private string _dir;
@@ -39,6 +50,7 @@ namespace EarthGame.Client
         private RouteFollower _route;
         private ScriptedInputSource _script;
         private PlayerController _player;
+        private GameClient _client;
         private double _duration;
         private int _cycles;
         private int _cutsDone;
@@ -53,6 +65,19 @@ namespace EarthGame.Client
         private int _rejoinsInteractive;
         private string _segment = string.Empty;
         private bool _running;
+        // The thirst (2026-09-16): the drink under way, its divert off the loop, and what the run has seen of the body.
+        private bool _drinking;
+        private Coroutine _drinkRoutine;
+        private RouteFollower _divert;
+        private string _loopSegment = string.Empty;
+        private double _nextDrinkLook;
+        private double _retryDrinkAt;
+        private int _answers;
+        private VerbOutcome _lastAnswer = VerbOutcome.NotNow;
+        private int _drinks;
+        private int _drinksDone;
+        private int _deaths;
+        private double _lowestWater = 1.0;
 
         public static bool IsKnown(string scenario) => scenario == "walk" || scenario == "soak" || scenario == "rejoin" || scenario == "join";
 
@@ -88,6 +113,8 @@ namespace EarthGame.Client
 
         private double T => _clock.Elapsed.TotalSeconds;
         private long Tick => _runtime.Client != null ? _runtime.Client.LastServerTick : -1;
+        /// <summary>The founder's water as the server last told it, 1 full (FP.1); a client not yet told holds 1.</summary>
+        private double Water => _runtime.Client != null ? _runtime.Client.LastWater01 : 1.0;
 
         /// <summary>What one tile cost to make ready to draw (M1.4e), as it lands.</summary>
         private void OnTileBuilt(ClientRuntime.TileBuildReport report)
@@ -118,6 +145,27 @@ namespace EarthGame.Client
                 _script = _player.Script;
                 _player.CorrectionApplied += OnCorrection;
                 if (_scenario != "join") _route = new RouteFollower(Routes.WakeLoop(), loop: true);
+            }
+            Listen(_runtime.Client);
+        }
+
+        /// <summary>
+        /// Hears the body's answers and its death from the client that is connected now: a rejoin connects a new one, so
+        /// the runner listens again at every welcome and lets the old one go.
+        /// </summary>
+        private void Listen(GameClient client)
+        {
+            if (_client == client) return;
+            if (_client != null)
+            {
+                _client.IntentAnswered -= OnAnswered;
+                _client.Died -= OnDied;
+            }
+            _client = client;
+            if (_client != null)
+            {
+                _client.IntentAnswered += OnAnswered;
+                _client.Died += OnDied;
             }
         }
 
@@ -152,16 +200,37 @@ namespace EarthGame.Client
                 .With("segment", _segment).With("east", _player.State.East).With("up", _player.State.Up).With("north", _player.State.North));
         }
 
+        private void OnAnswered(IntentResultMessage result)
+        {
+            _answers++;
+            _lastAnswer = result.Outcome;
+        }
+
+        /// <summary>
+        /// The server has told this founder they died (FP.2): recorded with the sentence the screen shows, and the walk
+        /// begun again. The new founder stands at the wake, where the loop's approach starts, so the route is taken from
+        /// its first waypoint rather than from wherever the last founder was bound; a drink under way is given up.
+        /// </summary>
+        private void OnDied(Death death)
+        {
+            _deaths++;
+            _log.Record(T, Tick, "died", new JsonObject().With("cause", death.Cause.ToString()).With("local_hour", death.LocalHour).With("clock", death.Clock)
+                .With("water_loss", death.WaterLoss).With("core_c", death.CoreC).With("air_c", death.AirC).With("wind_ms", death.WindMs)
+                .With("east", death.East).With("north", death.North).With("segment", _segment).With("sentence", death.Explain()));
+            GiveUpDrinking();
+            if (_route != null) _route = new RouteFollower(Routes.WakeLoop(), loop: true);
+        }
+
         private void Update()
         {
             if (!_running) return;
             double t = T;
-            if (_route != null && _player != null && _script != null && !_severed)
+            if (_route != null && _player != null && _script != null && !_severed && !_drinking)
             {
                 if (_route.Advance(_player.State.East, _player.State.North, Time.unscaledDeltaTime, out double yaw, out bool sprint))
                 {
                     _script.YawTargetDeg = (float)yaw;
-                    _script.PitchTargetDeg = -2f;
+                    _script.PitchTargetDeg = WalkingPitchDeg;
                     _script.Move = new Vector2(0f, 1f);
                     _script.Sprint = sprint;
                 }
@@ -169,13 +238,14 @@ namespace EarthGame.Client
                 {
                     _script.Move = Vector2.zero;
                 }
-                if (_route.Segment != _segment)
+                if (_route.Segment != _segment) SetSegment(_route.Segment);
+                if (t >= _nextDrinkLook)
                 {
-                    _segment = _route.Segment;
-                    _log.Record(t, Tick, "segment", new JsonObject().With("name", _segment).With("index", _route.Index).With("lap", _route.Laps)
-                        .With("east", _player.State.East).With("north", _player.State.North));
+                    _nextDrinkLook = t + 1.0;
+                    LookForWater(t);
                 }
             }
+            if (_player != null) _lowestWater = Math.Min(_lowestWater, Water);
 
             if (_scenario == "rejoin" && _player != null)
             {
@@ -185,6 +255,7 @@ namespace EarthGame.Client
                     _severed = true;
                     _cutsDone++;
                     _reconnectAt = t + CutLengthSeconds;
+                    GiveUpDrinking();
                     if (_script != null) _script.Move = Vector2.zero;
                     _log.Record(t, Tick, "cut", new JsonObject().With("cycle", _cutsDone).With("east", _player.State.East).With("up", _player.State.Up).With("north", _player.State.North)
                         .With("mirrors", _runtime.Client.Mirrors.Count));
@@ -207,14 +278,147 @@ namespace EarthGame.Client
             if (t >= _duration) Finish(_scenario == "join" ? 1 : (_scenario == "rejoin" && _rejoinsInteractive < _cutsDone ? 1 : 0));
         }
 
+        /// <summary>The segment the founder is on, and a record of the change: the loop's legs, or "water" while a drink takes them off it.</summary>
+        private void SetSegment(string name)
+        {
+            _segment = name;
+            _log.Record(T, Tick, "segment", new JsonObject().With("name", _segment).With("index", _route != null ? _route.Index : 0).With("lap", _route != null ? _route.Laps : 0)
+                .With("east", _player.State.East).With("north", _player.State.North));
+        }
+
+        /// <summary>
+        /// Once a second on the loop (2026-09-16): a founder the server has told is thirsty looks for fresh water standing
+        /// within <see cref="Drinking.SearchM"/> in the tiles they hold, and goes to drink where they find it; a place that
+        /// gave nothing is not looked for again for <see cref="Drinking.RetryAfterSeconds"/>.
+        /// </summary>
+        private void LookForWater(double t)
+        {
+            if (!_runtime.Interactive || t < _retryDrinkAt || !Drinking.Wants(Water)) return;
+            GameClient c = _runtime.Client;
+            if (c?.Grid == null || c.Tiles == null) return;
+            MoverState s = _player.State;
+            if (!Drinking.FreshWaterNear((layer, id) => c.Tiles.Holding(layer, id), c.Grid, s.East, s.North, Drinking.SearchM, out double east, out double north)) return;
+            _drinking = true;
+            _drinkRoutine = StartCoroutine(Drink(east, north));
+        }
+
+        /// <summary>
+        /// The drink (2026-09-16): off the loop to within <see cref="Drinking.StandOffM"/> of the water, going round trunks as
+        /// the loop's follower does; then facing it, the crosshair pitched down through <see cref="Drinking.Pitches"/> and the
+        /// use key pressed at each until the server answers; a drink pressed again until the word is gone or the visit's
+        /// presses are spent (<see cref="Drinking.PressAgain"/>); and one <c>drink</c> record of what came of it. The loop is
+        /// then walked on from the waypoint the founder was bound for.
+        /// </summary>
+        private IEnumerator Drink(double east, double north)
+        {
+            _drinks++;
+            double began = T;
+            double before = Water;
+            int presses = 0, drank = 0;
+            VerbOutcome last = VerbOutcome.NotNow;
+            string outcome = "unreached";
+            _loopSegment = _segment;
+            SetSegment("water");
+            _divert = new RouteFollower(new[] { new Waypoint(east, north, "water", false) }, loop: false, reachM: Drinking.StandOffM, stuckSeconds: Drinking.WalkSeconds);
+            while (_drinking && !_divert.Finished && _divert.Skipped == 0 && !_severed)
+            {
+                MoverState s = _player.State;
+                if (_divert.Advance(s.East, s.North, Time.unscaledDeltaTime, out double yaw, out _))
+                {
+                    _script.YawTargetDeg = (float)yaw;
+                    _script.PitchTargetDeg = WalkingPitchDeg;
+                    _script.Move = new Vector2(0f, 1f);
+                    _script.Sprint = false;
+                }
+                yield return null;
+            }
+            _script.Move = Vector2.zero;
+            if (_drinking && _divert.Finished && !_severed)
+            {
+                Double3 feet = _player.State.Feet;
+                _script.YawTargetDeg = (float)(Math.Atan2(east - feet.X, north - feet.Z) * 180.0 / Math.PI);
+                outcome = "no answer";
+                foreach (float pitch in Drinking.Pitches)
+                {
+                    if (!_drinking || _severed) break;
+                    _script.PitchTargetDeg = pitch;
+                    yield return Wait(PitchSettleSeconds);
+                    bool answered = false;
+                    do
+                    {
+                        int at = _answers;
+                        // The server tells the body's new water before it answers the press, so what it was is taken first.
+                        double was = Water;
+                        _script.Use();
+                        double from = T;
+                        while (_drinking && _answers == at && T < from + Drinking.AnswerSeconds) yield return null;
+                        if (_answers == at) break;                       // the crosshair met no water at this pitch
+                        answered = true;
+                        presses++;
+                        last = _lastAnswer;
+                        if (last == VerbOutcome.Done)
+                        {
+                            drank++;
+                            // The next press is judged on the new water, once told.
+                            double told = T;
+                            while (_drinking && Water == was && T < told + Drinking.AnswerSeconds) yield return null;
+                        }
+                    } while (_drinking && Drinking.PressAgain(last, Water, presses));
+                    if (answered)
+                    {
+                        outcome = drank > 0 ? "drank" : last.ToString();
+                        break;
+                    }
+                }
+            }
+            MoverState end = _player.State;
+            _log.Record(T, Tick, "drink", new JsonObject().With("outcome", outcome).With("last", last.ToString()).With("presses", presses).With("drinks", drank)
+                .With("water_before", before).With("water_after", Water).With("seconds", T - began)
+                .With("water_east", east).With("water_north", north).With("east", end.East).With("up", end.Up).With("north", end.North));
+            _drinksDone += drank;
+            if (drank == 0) _retryDrinkAt = T + Drinking.RetryAfterSeconds;
+            _script.PitchTargetDeg = WalkingPitchDeg;
+            _divert = null;
+            _drinkRoutine = null;
+            if (_drinking)
+            {
+                _drinking = false;
+                SetSegment(_loopSegment);
+            }
+        }
+
+        private IEnumerator Wait(double seconds)
+        {
+            double until = T + seconds;
+            while (T < until) yield return null;
+        }
+
+        /// <summary>A drink under way is given up: at a cut, and at a death, when the founder is no longer where the water was.</summary>
+        private void GiveUpDrinking()
+        {
+            if (!_drinking) return;
+            _drinking = false;
+            if (_drinkRoutine != null) StopCoroutine(_drinkRoutine);
+            _drinkRoutine = null;
+            _divert = null;
+            _retryDrinkAt = 0.0;
+            if (_script != null)
+            {
+                _script.Move = Vector2.zero;
+                _script.PitchTargetDeg = WalkingPitchDeg;
+            }
+        }
+
         /// <summary>One second's record of the founder and of every mirror, the mirror's digest keyed by its newest tick.</summary>
         private void Sample(double t)
         {
             _samples++;
             GameClient c = _runtime.Client;
             MoverState s = _player.State;
+            double water = Water;
             _log.Record(t, Tick, "sample", new JsonObject().With("east", s.East).With("up", s.Up).With("north", s.North)
                 .With("grounded", s.Grounded).With("wading", s.Wading).With("speed", s.HorizontalSpeed).With("segment", _segment)
+                .With("water", water).With("thirst", Hydration.WordFor(Hydration.LevelOf(water))).With("drinking", _drinking)
                 .With("remotes", c.Mirrors.Count).With("entities_shared", SharedEntities(c, s)).With("rtt_ms", c.LastRttMs).With("bytes_sent", c.BytesSent).With("bytes_received", c.BytesReceived)
                 .With("corrections", _corrections).With("interactive", _runtime.Interactive).With("connection", _runtime.Joins)
                 .With("fps", Time.unscaledDeltaTime > 0f ? 1.0 / Time.unscaledDeltaTime : 0.0));
@@ -267,15 +471,19 @@ namespace EarthGame.Client
         {
             if (!_running) return;
             _running = false;
+            GiveUpDrinking();
             _log.Record(T, Tick, "end", new JsonObject().With("exit", exitCode).With("samples", _samples).With("errors", _errors).With("corrections", _corrections)
                 .With("interactive_s", _firstInteractive).With("rejoin_interactive_s", _lastRejoinInteractive).With("cuts", _cutsDone).With("rejoins_interactive", _rejoinsInteractive)
                 .With("laps", _route != null ? _route.Laps : 0).With("skipped_waypoints", _route != null ? _route.Skipped : 0)
                 .With("moves_sent", _player != null ? (int)_player.MovesSent : 0)
+                .With("drinks", _drinks).With("drinks_done", _drinksDone).With("deaths", _deaths).With("lowest_water", _lowestWater)
                 .With("east", _player != null ? _player.State.East : 0.0).With("up", _player != null ? _player.State.Up : 0.0).With("north", _player != null ? _player.State.North : 0.0));
             Application.logMessageReceived -= OnLog;
+            Listen(null);
             _log.Dispose();
             _log = null;
-            Debug.Log("[scenario] " + _scenario + " done: exit " + exitCode + ", " + _samples + " sample(s), " + _errors + " error(s), " + _corrections + " correction(s), " + _dir);
+            Debug.Log("[scenario] " + _scenario + " done: exit " + exitCode + ", " + _samples + " sample(s), " + _errors + " error(s), " + _corrections + " correction(s), "
+                      + _drinks + " drink(s), " + _deaths + " death(s), " + _dir);
             Application.Quit(exitCode);
         }
 

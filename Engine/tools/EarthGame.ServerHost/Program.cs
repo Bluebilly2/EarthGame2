@@ -364,7 +364,7 @@ namespace EarthGame.ServerHost
             /// <summary>A group has taken flight (M1.7c): which, from whom, how far off and which way, for fauna_check.</summary>
             public void Flight(AnimalFlight flight)
             {
-                _log?.Record(T, _server.World.Tick, "flight", new JsonObject().With("kind", KindOf(flight.Species)).With("cell_x", flight.CellX).With("cell_z", flight.CellZ)
+                _log?.Record(T, _server.World.Tick, "flight", new JsonObject().With("species", KindOf(flight.Species)).With("cell_x", flight.CellX).With("cell_z", flight.CellZ)
                     .With("east", flight.GroupEastM).With("north", flight.GroupNorthM).With("founder_east", flight.FounderEastM).With("founder_north", flight.FounderNorthM)
                     .With("distance_m", flight.DistanceM).With("bearing_deg", flight.BearingDeg));
             }

@@ -26,14 +26,23 @@ Rows, each with both numbers:
      nearest member, held to the kind's distance (80 m a mob, 60 m a pair, the contract's) plus a metre for the step
      between the founder's move and the noticing; both numbers printed. With no flights the row holds nothing and says so;
   9. every animal logged fleeing stood on dry ground: the places of pose 3 among the fauna records, held as rows 2 and 3
-     hold every place.
+     hold every place;
+  10. a flight was recorded, and the fauna records bear it out (2026-09-16; DEBTS "The corpus's loop startles no animal"):
+     at least one `flight` record, and for each one a fauna record within the kind's run (its length over its speed, and
+     the ten seconds between records) after it shows the group's members either logged fleeing (pose 3) or moved farther
+     since the record before than presence's wander can carry a group in the time between records. The flight record is
+     the stand-up's own claim; the members' poses and places are what the host saw of the world's entities, so a flight
+     that left no trace in them fails the row. A soak whose loop passes no group within its flight distance fails here,
+     which is what the row is for: the loop is laid to pass one (lay_loop.py --pass).
 
 What is restated here, and from where. The kinds' group sizes, from the species table (`Docs/ECOSYSTEM.md`, "The
 animals of Bherwerre": mobs of eight, pairs); the kangaroo's 4,000 m from fresh water (`AnimalSpecies.WaterRangeM`) and
 the tideline's 300 m (`AnimalCapacity.TidelineReachM`), past which their capacity is nothing; presence's 100 m squares
 and 40 m wander and the stand-up's 500 m, from the contract and ARCHITECTURE section 5; a member's spread, five metres
-times the root of its group's size, as the stand-up states it (a looseness, not a citation); and an animal's id's layout,
-from ARCHITECTURE section 10.
+times the root of its group's size, as the stand-up states it (a looseness, not a citation); an animal's id's layout,
+from ARCHITECTURE section 10; the runs (M1.7c's contract: a mob 150 m at 7 m/s, a pair 200 m at 15 m/s) and the wander's
+period of three world hours at the game's forty-eight world seconds a real second (ARCHITECTURE section 4), from which
+row 10 works out how far a group can move between two fauna records without having fled.
 
 Independent of the game: the squares' means are summed over the whole raster at once with numpy's bincount, every cell
 into the one square its centre lies in, where the game adds a layer cell by cell; the dry share of a square is counted
@@ -68,6 +77,14 @@ TIDELINE_REACH_M = 300.0
 FLEE_WITHIN_M = {KANGAROO: 80.0, OYSTERCATCHER: 60.0}
 FLIGHT_STEP_M = 1.0
 FLEEING_POSE = 3
+# How far and how fast each kind runs (M1.7c's contract), and how long a fauna record follows the last.
+RUN_M = {KANGAROO: 150.0, OYSTERCATCHER: 200.0}
+RUN_MS = {KANGAROO: 7.0, OYSTERCATCHER: 15.0}
+FAUNA_EVERY_S = 10.0
+# Presence's wander: a circle of 40 m round the group's own place, once round in three world hours, at forty-eight world
+# seconds a real second: the farthest it can carry a group between two records is the chord of that arc, plus the
+# members' own spread twice over (a member's place is drawn afresh round the group each second).
+WANDER_PERIOD_S = 3.0 * 3600.0 / 48.0
 # Presence and the stand-up.
 SQUARE_M = 100.0
 SQUARE_KM2 = 0.01
@@ -145,6 +162,21 @@ def posts_between(sidecar, east, north):
     tc, tr = col - c0, row - r0
     return [(r, c) for r, share_r in ((r0, 1.0 - tr), (r0 + 1, tr)) for c, share_c in ((c0, 1.0 - tc), (c0 + 1, tc))
             if share_r > 0.0 and share_c > 0.0]
+
+
+def group_centre(record, kind, square):
+    """Where a group's members stood in a fauna record, on average, or None where none of them was held."""
+    ids, positions = record.get("ids", []), record.get("positions", [])
+    east = north = 0.0
+    n = 0
+    for i, animal_id in enumerate(ids):
+        d = decode(int(animal_id))
+        if d is None or d[0] != kind or (d[1], d[2]) != square or len(positions) < 3 * (i + 1):
+            continue
+        east += float(positions[3 * i])
+        north += float(positions[3 * i + 2])
+        n += 1
+    return (east / n, north / n) if n else None
 
 
 def squares_of(sidecar):
@@ -275,18 +307,29 @@ def main(argv):
                  % (stood, len(seen[kind]), mu, sigma, stood, mu, sigma))
 
     # The flights (M1.7c): each began within its kind's distance of a founder, and every animal logged fleeing stood dry.
+    # The kind is the record's `species`; a record from before 2026-09-16 wrote it under the record's own `kind` key and lost
+    # it, and such a flight is held against the widest kind's distance and counted apart.
     flights = records_of(log_path, "flight")
-    beyond, farthest, unknown = 0, {}, 0
+    beyond, farthest, unknown, unnamed = 0, {}, 0, 0
+    widest = max(FLEE_WITHIN_M.values())
     for flight in flights:
-        kind = int(flight.get("kind", 0))
+        distance = float(flight.get("distance_m", float("inf")))
+        if "species" not in flight:
+            unnamed += 1
+            farthest[None] = max(farthest.get(None, 0.0), distance)
+            if distance > widest + FLIGHT_STEP_M:
+                beyond += 1
+            continue
+        kind = int(flight["species"])
         if kind not in FLEE_WITHIN_M:
             unknown += 1
             continue
-        distance = float(flight.get("distance_m", float("inf")))
         farthest[kind] = max(farthest.get(kind, 0.0), distance)
         if distance > FLEE_WITHIN_M[kind] + FLIGHT_STEP_M:
             beyond += 1
     told = ", ".join("%s farthest %.1f m of %.0f + %.0f" % (NAMES[k], farthest[k], FLEE_WITHIN_M[k], FLIGHT_STEP_M) for k in KINDS if k in farthest)
+    if None in farthest:
+        told = (told + "; " if told else "") + "%d of no species (records from before 2026-09-16) farthest %.1f m of the widest %.0f + %.0f" % (unnamed, farthest[None], widest, FLIGHT_STEP_M)
     rows.row("every flight began within its kind's distance", beyond == 0 and unknown == 0,
              "%d flight(s) recorded; %d began farther off than the kind's distance (must be 0), %d of a kind not stood up (must be 0); %s"
              % (len(flights), beyond, unknown, told if told else "no flights: nothing held"))
@@ -296,6 +339,47 @@ def main(argv):
               or any(float(surface[p]) > float(heights[p]) for p in posts_between(grid_side, east, north)))
     rows.row("every animal logged fleeing stood on dry ground", wet == 0,
              "%d fleeing place(s) logged, %d on open water or under the surface (must be 0)" % (len(fleeing), wet))
+
+    # A flight was recorded, and the fauna bear it out (2026-09-16): the group's members seen fleeing, or moved farther than
+    # the wander can carry them, in a record within the run after the flight.
+    borne, unborne, told_of = 0, 0, []
+    for flight in flights:
+        # The kind is the record's `species` (a record from before 2026-09-16 wrote it under the record's own `kind` key and
+        # lost it: such a flight is held against every kind that stands at its square).
+        kinds_to_try = [int(flight["species"])] if "species" in flight else list(RUN_M)
+        square = (int(flight.get("cell_x", 0)), int(flight.get("cell_z", 0)))
+        t0 = float(flight.get("t", 0.0))
+        seen = False
+        for kind in kinds_to_try:
+            if kind not in RUN_M:
+                continue
+            until = t0 + RUN_M[kind] / RUN_MS[kind] + FAUNA_EVERY_S
+            previous = None
+            for record in records:
+                centre = group_centre(record, kind, square)
+                fled = any(int(record["poses"][i]) == FLEEING_POSE for i, animal_id in enumerate(record.get("ids", []))
+                           if i < len(record.get("poses", [])) and decode(int(animal_id)) is not None and decode(int(animal_id))[:3] == (kind,) + square)
+                t = float(record.get("t", 0.0))
+                if centre is not None and previous is not None and t0 <= t <= until:
+                    gap = t - previous[0]
+                    wander = 2.0 * WANDER_M * math.sin(min(math.pi, math.pi * gap / WANDER_PERIOD_S)) + 2.0 * MEMBER_SPACING_M * math.sqrt(GROUP_SIZE[kind])
+                    moved = math.hypot(centre[0] - previous[1][0], centre[1] - previous[1][1])
+                    if fled or moved > wander:
+                        seen = True
+                        told_of.append("%s (%d, %d) at %.0f s: %s" % (NAMES[kind], square[0], square[1], t0, "logged fleeing" if fled else "moved %.0f m in %.0f s, past the wander's %.0f" % (moved, gap, wander)))
+                        break
+                if centre is not None:
+                    previous = (t, centre)
+            if seen:
+                break
+        if seen:
+            borne += 1
+        else:
+            unborne += 1
+            told_of.append("square (%d, %d) at %.0f s: no trace in the fauna records" % (square[0], square[1], t0))
+    rows.row("a flight was recorded and the fauna bear it out", borne >= 1 and unborne == 0,
+             "%d flight(s) recorded (at least 1), %d borne out by the fauna records, %d not (must be 0)%s"
+             % (len(flights), borne, unborne, ("; " + "; ".join(told_of[:6])) if told_of else "; no flight: the loop passed no group within its flight distance"))
 
     print("fauna_check: %s" % ("PASS" if rows.failed == 0 else "FAIL (%d row(s))" % rows.failed))
     return 0 if rows.failed == 0 else 1
