@@ -194,3 +194,21 @@ Owed: written by the head developer after the built game has run and the check h
   ceiling against a heavier hammer; a founder thirsty enough that the work capacity shortens the swing; the hammer's own
   wear (declared, unread); the plain cobble's refusal in the built game; the look of the wind-up and the swing under a
   hand's own eye.
+
+## The open questions, decided (2026-09-18)
+
+Asked of William with the exit record and answered by the head developer on his word ("answer the 5 questions to the
+best of your ability, i will correct you if i dont like what you pick"); each stands until he corrects it.
+
+1. **A flake struck with a cobble is smashed, and stays so.** Stone does what stone does: a hammer whose smallest bite is
+   more than a small stone can spare destroys it, which is what a cobble does to a flake. Making flakes unstrikeable
+   would be a guard with a lesson in it (ruling 33). The blow is the left mouse with a stone in hand, the pick-up the
+   right, and the verb line says "knap" before the button is pressed. A flake refined by a small hammer (retouch) is a
+   later beat, not a guard now.
+2. **The left mouse stays silent when there is nothing to strike.** Every verb here changes the world and the client only
+   asks; a swing at nothing would be motion with no consequence. The verb line already says what the mouse would do and
+   says nothing when nothing would happen. When more work verbs come to the left mouse (cutting fibre, carving), it
+   becomes "work with the thing in hand on the thing aimed at", and the hand's motion for an empty swing is decided then.
+3. **A flake gets a shape of its own after fire.** Ruling 31 puts the path's beats before polish: fire and the carving
+   that needs a flake's edge come first, and the shard's look lands with the beat where the edge is seen doing work. Until
+   then a flake in hand is drawn pressed flat and a flake lying is a small cobble (DEBTS, "A flake is drawn as a cobble").
