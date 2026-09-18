@@ -88,16 +88,18 @@ program, and since 2026-09-08 the agent writes everything, checks included (ruli
 
 ## Reviewing another model's work
 
-Codex (GPT-6) has committed to this repository. Do not read its exit record and agree: re-run the suite and every
+Codex (GPT-6) committed to this repository until 2026-09-14; William stopped using it on 2026-09-18 ("it kept hitting
+usage limits too fast"). What it taught still holds for any other party's work: do not read its exit record and agree: re-run the suite and every
 gate, read its verifier's evidence and its frames, and read the code for what a gate cannot see — one owner per
 fact, dated comments, no TODOs, versioned formats. Its loading slice held up and fixed a real bug of ours; what it
 got wrong was duplication (a copy of `CLAUDE.md` as `AGENTS.md`; the dedicated host left on an old path).
 
 ## Two agents, one machine
 
-Since CANON ruling 26 (2026-09-13) GPT, through Codex, works on world generation on its own judgement while Claude
-carries the beta arc, in the same repository on the same machine. Neither hands the other work, and each keeps out of the
-other's way:
+From CANON ruling 26 (2026-09-13) to its amendment of 2026-09-18, GPT, through Codex, worked on world generation on its
+own judgement while Claude carried the beta arc, in the same repository on the same machine; since then world generation
+is Claude's and no second agent works here (Claude's own parallel agents work in worktrees of their own, WORKING's
+"Two agents" rules below holding for them). Neither handed the other work, and each kept out of the other's way:
 
 - **Main is shared.** Each works on its own branch or worktree and lands on main in small commits, rebased on the
   latest main and green through the pre-push hook. Stage explicit paths, never `git add -A`; never force-push or

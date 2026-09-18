@@ -162,6 +162,11 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     GPT's work. What it takes on there, and how, is its own decision in the project's favour, and the house rules
     and this file bind it as they bind every agent. First recorded on 2026-09-13 as GPT choosing its own work
     anywhere; his second word that day gave it world generation.
+    Amended 2026-09-18: "im not using codex anymore, it kept hitting usage limits too fast"; and "yes, do that" to the
+    proposal that Claude takes world generation, the creeks given water first, the ground's own grain after the path's
+    next beat, and the Earth atlas restarted with Claude writing the dataset list and nothing downloaded until he says
+    yes. World generation is Claude's. Codex's design page and its slices (WG.0a, WG.0b, WG.0c) stand as written, and
+    no second agent works in the repository.
 
 27. **A fully functioning biosphere comes after the beta, under world generation.** "once we get past the beta arc,
     one of the things we will do is design a fully functioning biosphere (earth). this is one thing that will come

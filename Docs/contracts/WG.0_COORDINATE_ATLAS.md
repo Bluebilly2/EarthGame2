@@ -1,6 +1,7 @@
 # Draft contract WG.0 — Can the atlas describe a chosen place?
 
-**Status:** drafted 2026-09-13, unopened. Owner: Codex. Acquisition requires William's permission for the exact
+**Status:** drafted 2026-09-13, unopened. Owner: Claude since 2026-09-18 (Codex, its author, retired: CANON ruling 26 as
+amended). Acquisition requires William's permission for the exact
 files; the contributor opens implementation contracts. The completed research is
 [WORLD_GENERATION_DESIGN.md](../WORLD_GENERATION_DESIGN.md). The bounded inspection of data already present is
 opened separately as [WG.0a](WG.0a_EXISTING_ELEVATION.md), and does not fulfil this multi-field atlas contract.

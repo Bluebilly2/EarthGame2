@@ -1,6 +1,7 @@
 # World generation from a chosen place
 
-**Status:** research and design proposal, 2026-09-13. Author: Codex. No implementation is opened by this document.
+**Status:** research and design proposal, 2026-09-13. Author: Codex; taken up by Claude on 2026-09-18 (CANON ruling 26 as
+amended). No implementation is opened by this document.
 
 The owner's direction in the world-generation discussion is to generate country that roughly resembles its real
 region, and eventually let the player choose a starting location anywhere on Earth. The recommendations below
