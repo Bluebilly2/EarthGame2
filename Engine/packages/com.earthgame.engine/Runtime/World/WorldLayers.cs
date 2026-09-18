@@ -583,8 +583,41 @@ namespace EarthGame.Engine
             float[] fromFresh = DistanceFrom(fresh);
             Array.Copy(fromFresh, FreshWaterDistanceM, count);
             ReadOnlySpan<float> z = Heights.Values;
-            for (int i = 0; i < count; i++)
-                Surface[i] = Water[i] == (byte)WaterClass.Sea ? (float)Heightfield.SeaLevelM : _lake[i] ? _level[i] : z[i];
+            for (int r = 0; r < Height; r++)
+                for (int c = 0; c < Width; c++)
+                {
+                    int i = Index(r, c);
+                    if (Water[i] == (byte)WaterClass.Sea) Surface[i] = (float)Heightfield.SeaLevelM;
+                    else if (_lake[i]) Surface[i] = _level[i];
+                    else if (Water[i] == (byte)WaterClass.Creek || Water[i] == (byte)WaterClass.Stream) Surface[i] = z[i] + (float)ChannelDepthM(Drainage.CatchmentM2(c, r));
+                    else Surface[i] = z[i];
+                }
+        }
+
+        /// <summary>How deep a creek runs at the catchment that first keeps one running (<see cref="DrainageNetwork.CreekM2"/>), m: ankle-deep.</summary>
+        public const double CreekDepthM = 0.15;
+
+        /// <summary>
+        /// How a channel deepens with its catchment: the depth grows as the catchment to this power, the downstream hydraulic
+        /// geometry of Leopold and Maddock (USGS Professional Paper 252, 1953: depth as the discharge to about 0.4, the
+        /// discharge of these small coastal catchments taken as their area).
+        /// </summary>
+        public const double ChannelDepthExponent = 0.4;
+
+        /// <summary>The deepest a stream runs, m: waist-deep, past which the raster's four metres hold no channel's shape anyway.</summary>
+        public const double StreamDepthMaxM = 0.8;
+
+        /// <summary>
+        /// The water a creek or stream carries over its bed, m, from the catchment through the cell (2026-09-18, on William's
+        /// word that the creeks get water first, CANON ruling 26 as amended): nothing under the creek's catchment, where a
+        /// trickle runs under the leaves and the drink verb finds nothing; <see cref="CreekDepthM"/> at it; deepening as the
+        /// catchment to <see cref="ChannelDepthExponent"/>; held at <see cref="StreamDepthMaxM"/>. Until then every creek and
+        /// stream cell's surface was its ground, and the path's first drink, from the creek by the wake, could not be had.
+        /// </summary>
+        public static double ChannelDepthM(double catchmentM2)
+        {
+            if (catchmentM2 < DrainageNetwork.CreekM2) return 0.0;
+            return Math.Min(StreamDepthMaxM, CreekDepthM * Math.Pow(catchmentM2 / DrainageNetwork.CreekM2, ChannelDepthExponent));
         }
 
         /// <summary>

@@ -24,6 +24,13 @@ of one stated method are compared cell for cell where it matters:
      rather than one patch picked.
 A row passes when the two numbers are within 10 % of each other: a D8 divide on flat sand moves with the tie
 rule between two implementations, and more than a tenth of a catchment would not be that.
+  4. the water the creeks and streams carry (2026-09-18, CANON ruling 26 as amended): for every land cell the world's
+     water layer classes a creek (3) or a stream (4), the world's surface less the bake's ground against the law
+     restated here from Leopold and Maddock (USGS Professional Paper 252, 1953): 0.15 m at the creek's catchment of
+     120,000 m2, growing as the catchment to the 0.4, held at 0.8 m, with this file's own catchment; a cell passes
+     within 15 % of its depth or a centimetre (the two D8s' divides), and the row holds 99 % of the cells;
+  5. no water stands off the channels and the lakes: every cell classed dry, damp, a trickle or swamp has its surface
+     at its ground, within a millimetre, and the sea's at the datum.
 
 Exit 0 when every row passes, 1 when any fails, 2 when a raster is missing.
 Run from the repository root:  python Tools/verifiers/checks/drainage_check.py [world folder]
@@ -37,6 +44,16 @@ import sys
 import time
 
 import numpy as np
+
+# The water a channel carries (WorldLayers.ChannelDepthM, restated): Leopold and Maddock's downstream depth exponent, the
+# game's ankle-deep creek at its catchment and its waist-deep cap; the tolerances carry the two D8s' divides.
+CREEK_M2 = 120_000.0
+CREEK_DEPTH_M = 0.15
+CHANNEL_DEPTH_EXPONENT = 0.4
+CHANNEL_DEPTH_MAX_M = 0.8
+CHANNEL_DEPTH_TOLERANCE = 0.15
+CHANNEL_DEPTH_FLOOR_M = 0.01
+CHANNEL_SHARE = 0.99
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 REGION = os.path.join(ROOT, "Data", "regions", "bherwerre")
@@ -183,7 +200,8 @@ def main(argv):
     sidecar, z = load(os.path.join(REGION, "heights.json"))
     _, water = load(os.path.join(layers, "water.json"))
     _, engine = load(os.path.join(layers, "catchment.json"))
-    if z is None or water is None or engine is None:
+    _, surface = load(os.path.join(layers, "surface.json"))
+    if z is None or water is None or engine is None or surface is None:
         print("a raster is missing: the bake under %s and the world's water and catchment layers under %s are needed" % (REGION, layers))
         return 2
     if water.shape != z.shape or engine.shape != z.shape:
@@ -247,6 +265,28 @@ def main(argv):
         m = int(mine[near].sum())
         expect("%s gathers the same water" % name, within(e, m),
                "engine %s cells, here %s, into %d lake cells (%.1f ha) within %.0f m of the point (%s)" % ("{:,}".format(e), "{:,}".format(m), cells, cells * cell * cell / 1e4, radius, source))
+
+    # 4 and 5: the water the channels carry, and none where there is no channel or lake.
+    depth = surface.astype(np.float64) - z.astype(np.float64)
+    channel = ((water == 3) | (water == 4)) & land
+    law = np.minimum(CHANNEL_DEPTH_MAX_M, CREEK_DEPTH_M * np.power(np.maximum(mine, 1) * cell * cell / CREEK_M2, CHANNEL_DEPTH_EXPONENT))
+    law = np.where(mine * cell * cell < CREEK_M2, 0.0, law)
+    n_channel = int(channel.sum())
+    if n_channel == 0:
+        expect("creeks and streams carry water by the flow's law", False, "the water layer classes no land cell a creek or a stream")
+    else:
+        off = np.abs(depth[channel] - law[channel])
+        allowed = np.maximum(CHANNEL_DEPTH_TOLERANCE * law[channel], CHANNEL_DEPTH_FLOOR_M)
+        held = int((off <= allowed).sum())
+        worst = int(off.argmax())
+        expect("creeks and streams carry water by the flow's law", held >= CHANNEL_SHARE * n_channel,
+               "%d of %d channel cells within 15 %% or 1 cm of the law (at least 99 %%); depths %.2f to %.2f m; the worst %.3f m off where the law says %.3f"
+               % (held, n_channel, float(depth[channel].min()), float(depth[channel].max()), float(off[worst]), float(law[channel][worst])))
+    no_channel = land & np.isin(water, (0, 1, 2, 6))
+    standing = int((np.abs(depth[no_channel]) > 0.001).sum())
+    sea_off = int((np.abs(surface[sea & (water == 7)]) > 0.001).sum())
+    expect("no water stands off the channels and the lakes", standing == 0 and sea_off == 0,
+           "%d of %d dry, damp, trickle or swamp cells with a surface off the ground (must be 0); %d sea cells off the datum (must be 0)" % (standing, int(no_channel.sum()), sea_off))
 
     if failures:
         print("drainage_check: FAIL (%s)" % ", ".join(failures))

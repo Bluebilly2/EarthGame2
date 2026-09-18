@@ -283,6 +283,44 @@ namespace EarthGame.Tests.Engine
             Assert.That(deepest, Is.LessThanOrEqualTo(1e-4), "no cell anywhere has its surface below its ground, by " + deepest.ToString("0.000") + " m");
         }
 
+        /// <summary>
+        /// A creek or a stream carries water over its bed by the flow's law (2026-09-18): ankle-deep where the creek's catchment
+        /// begins, deeper as the catchment grows, never past the cap; a trickle, damp ground, swamp and dry ground keep the
+        /// ground's surface, and the lakes and the sea their levels as before.
+        /// </summary>
+        [Test]
+        public void CreeksAndStreamsCarryWaterByTheirCatchment()
+        {
+            WorldLayers w = Layers();
+            int creeks = 0, streams = 0, dryWithWater = 0;
+            for (int r = 0; r < Side; r++)
+                for (int c = 0; c < Side; c++)
+                {
+                    int i = r * Side + c;
+                    WaterClass wc = (WaterClass)w.Water[i];
+                    double depth = w.Surface[i] - w.Heights[r, c];
+                    if (wc == WaterClass.Creek || wc == WaterClass.Stream)
+                    {
+                        double expected = WorldLayers.ChannelDepthM(w.Drainage.CatchmentM2(c, r));
+                        Assert.That(depth, Is.EqualTo(expected).Within(1e-4), "the channel at row " + r + " col " + c);
+                        Assert.That(expected, Is.GreaterThanOrEqualTo(WorldLayers.CreekDepthM - 1e-9).And.LessThanOrEqualTo(WorldLayers.StreamDepthMaxM));
+                        if (wc == WaterClass.Creek) creeks++; else streams++;
+                    }
+                    else if (wc == WaterClass.Dry || wc == WaterClass.Damp || wc == WaterClass.Trickle || wc == WaterClass.Swamp)
+                    {
+                        if (depth > 1e-4) dryWithWater++;
+                    }
+                }
+            Assert.That(creeks + streams, Is.GreaterThan(0), "the made country has a channel that keeps water: creeks " + creeks + ", streams " + streams);
+            Assert.That(dryWithWater, Is.EqualTo(0), "no water stands where no channel or lake is");
+            // The law itself: nothing under the creek's catchment, ankle-deep at it, a stream at five times the catchment about
+            // twice as deep, and the cap far past it.
+            Assert.That(WorldLayers.ChannelDepthM(DrainageNetwork.CreekM2 * 0.99), Is.EqualTo(0.0));
+            Assert.That(WorldLayers.ChannelDepthM(DrainageNetwork.CreekM2), Is.EqualTo(WorldLayers.CreekDepthM).Within(1e-12));
+            Assert.That(WorldLayers.ChannelDepthM(DrainageNetwork.StreamM2), Is.EqualTo(WorldLayers.CreekDepthM * Math.Pow(5.0, 0.4)).Within(1e-9));
+            Assert.That(WorldLayers.ChannelDepthM(1e9), Is.EqualTo(WorldLayers.StreamDepthMaxM));
+        }
+
         [Test]
         public void TheMappedBodiesStandAtTheirLevelsAndTheGroundsFlatsStillRead()
         {
