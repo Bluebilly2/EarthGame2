@@ -134,6 +134,11 @@ is Claude's and no second agent works here (Claude's own parallel agents work in
   every new path the suite ran from (a temporary checkout, a scratch harness) was a firewall box on the owner's
   screen: three in ten minutes on 2026-09-16. The transport's choice of address is read (`BindAddressFor`,
   `BindsLocalOnlyFor`), never exercised, and every socket is closed unless opened.
+- **The push is a bare command, never piped.** `git push origin main`, its output read as it comes. A pipe makes it
+  two commands, which the harness's permission rules match less cleanly, and it hides the push's own exit code —
+  the same fault as piping a suite into `tail` (STANDARDS 8). William asked on 2026-09-20 for a push he does not
+  have to approve each time; the allow rule that answers it (`Bash(git push:*)`, in this checkout's untracked
+  `.claude/settings.local.json`) matches the bare form.
 - **Main can move under you.** It lives in one checkout, and either agent may merge into it and push at any time:
   `git log --oneline -5` before building on main shows what the other has landed, to be reviewed first, and
   `git log origin/main..main` before a push names every commit that push carries. On 2026-09-13 Codex merged and
