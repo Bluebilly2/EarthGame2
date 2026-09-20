@@ -122,6 +122,81 @@ namespace EarthGame.Tests.Client
             Assert.That(WaterSurface.Build(seabed, Tile(TileLayer.WaterDepth, (z, x) => 4f)), Is.Not.Empty, "a metre above it is not");
         }
 
+        /// <summary>
+        /// A creek one post wide (M1.4g promise 1). WG.1 gives a channel cell its own water over a bed the 4 m raster
+        /// does not cut, so only the channel's own posts are wet and no cell has four; until 2026-09-20 nothing was
+        /// drawn anywhere along it, while the founder stood in it and drank from it.
+        /// </summary>
+        [Test]
+        public void AChannelOnePostWideIsDrawn()
+        {
+            // A north-south channel down the middle column of posts: its bed two metres under the bank, ankle deep.
+            List<WaterQuad> quads = WaterSurface.Build(
+                Tile(TileLayer.Ground, (z, x) => x == 2 ? 8f : 10f),
+                Tile(TileLayer.WaterDepth, (z, x) => x == 2 ? 0.2f : 0f));
+            Assert.That(quads, Is.Not.Empty, "a creek a cell wide is water, and the eye must see it");
+            foreach (WaterQuad quad in quads)
+            {
+                Assert.That(quad.SurfaceUp, Is.EqualTo(8.2f).Within(1e-4), "the channel's own surface, not the bank's ground");
+                Assert.That(quad.EastFrom, Is.EqualTo(-10.0), "the cell each side of the wet post, and no further");
+                Assert.That(quad.EastTo, Is.EqualTo(10.0));
+            }
+            Assert.That(quads.Count, Is.EqualTo(Posts - 1), "one run of two cells in each row");
+        }
+
+        /// <summary>
+        /// The rule the four-corner test was there to keep (M1.4g promise 1): on a shore the water reaches the
+        /// waterline's own cell and stops, and never stands above the sand it meets.
+        /// </summary>
+        [Test]
+        public void AShelvingShoreKeepsTheWaterOffTheSand()
+        {
+            // Ground climbing a metre a post out of a flat body whose surface is 11; the posts above it are dry.
+            List<WaterQuad> quads = WaterSurface.Build(
+                Tile(TileLayer.Ground, (z, x) => 10f + x),
+                Tile(TileLayer.WaterDepth, (z, x) => x == 0 ? 1f : 0f));
+            Assert.That(quads, Is.Not.Empty);
+            foreach (WaterQuad quad in quads)
+            {
+                Assert.That(quad.EastTo, Is.LessThanOrEqualTo(-10.0 + 1e-6), "only the cell whose own post is wet");
+                Assert.That(quad.SurfaceUp, Is.LessThanOrEqualTo(11f + 1e-4), "never above the first dry post's ground");
+            }
+        }
+
+        /// <summary>
+        /// The clamp (M1.4g promise 1): where the layer leaves a wet post standing higher than the dry ground beside
+        /// it, the sheet is held down to that ground rather than floating over it.
+        /// </summary>
+        [Test]
+        public void WaterIsHeldDownToTheLowestDryGroundBesideIt()
+        {
+            // The channel's post stands 0.8 m of water at 10.8; the dry post east of it is ground at 10.2, under that
+            // surface. West of the channel the bank is high, so that cell is not clamped and is left out of the check.
+            List<WaterQuad> quads = WaterSurface.Build(
+                Tile(TileLayer.Ground, (z, x) => x == 2 ? 10f : (x == 3 ? 10.2f : 12f)),
+                Tile(TileLayer.WaterDepth, (z, x) => x == 2 ? 0.8f : 0f));
+            Assert.That(quads, Is.Not.Empty);
+            // Held down, the eastern cell sits at 10.2 and the western one at 10.8, and the two cannot merge. Unheld,
+            // both stand at 10.8 and merge into one run, so asking for a quad at 10.2 is what the clamp answers for.
+            bool held = false;
+            foreach (WaterQuad quad in quads)
+            {
+                if (Math.Abs(quad.SurfaceUp - 10.2f) < 1e-4) held = true;
+                Assert.That(quad.SurfaceUp, Is.LessThanOrEqualTo(10.8f + 1e-4), "nothing stands above the water's own surface");
+            }
+            Assert.That(held, Is.True, "10.8 would stand 0.6 m over the dry ground at post 3; the sheet is held down to it");
+        }
+
+        /// <summary>A wet post with nothing to show — the clamp puts the surface on its own bed — draws nothing.</summary>
+        [Test]
+        public void ACellWithNoDepthLeftToShowIsNotDrawn()
+        {
+            List<WaterQuad> quads = WaterSurface.Build(
+                Tile(TileLayer.Ground, (z, x) => x == 2 ? 10f : 10f),
+                Tile(TileLayer.WaterDepth, (z, x) => x == 2 ? 0.2f : 0f));
+            Assert.That(quads, Is.Empty, "a flat shelf beside a wet post is not a channel: holding 10.2 down to 10 leaves nothing");
+        }
+
         [Test]
         public void TheTwoTilesMustBeTheSameTileAndTheRightLayers()
         {

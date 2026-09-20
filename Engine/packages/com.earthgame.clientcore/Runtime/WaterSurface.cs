@@ -23,11 +23,13 @@ namespace EarthGame.ClientCore
     /// Turns the depth a client was streamed (M1.4b) into the rectangles a view draws (M1.4c). Engine-free, so
     /// what is drawn can be asserted without a renderer.
     ///
-    /// <para>A cell is under water when all four of its posts carry depth, so the drawn edge stops at the last
-    /// cell wholly under water rather than lapping over dry ground, and it sits at the lowest of those four
-    /// surfaces, so an edge cell never stands above its own bank. Cells along a row are merged while their
-    /// surface holds at one height, because standing water is flat: the sea across a kilometre tile is a quad a
-    /// row instead of two hundred and fifty.</para>
+    /// <para>A cell wholly under water sits at the lowest of its four surfaces, so it never stands above its own
+    /// bank. A cell with dry corners — a shore, or a channel narrower than the 4 m between posts — takes the
+    /// highest wet corner's surface, held down to the lowest dry corner's ground and drawn only while a
+    /// centimetre of water is still left above the wettest corner's bed. Until 2026-09-20 such a cell was not
+    /// drawn at all, which required four wet corners and so hid every creek in the world (M1.4g). Cells along a
+    /// row are merged while their surface holds at one height, because standing water is flat: the sea across a
+    /// kilometre tile is a quad a row instead of two hundred and fifty.</para>
     ///
     /// <para>The sea is not drawn from here. It has had a plane at the datum around the founder since
     /// 2026-09-08, and two surfaces at one height would fight; <see cref="Build"/> takes the height above which
@@ -64,19 +66,47 @@ namespace EarthGame.ClientCore
                 float runUp = 0f;
                 for (int x = 0; x + 1 < posts; x++)
                 {
-                    // All four, and never short of them: a cell is water only when its whole floor is under it.
-                    bool southWest = Surface(ground, depth, z, x, out float sw);
-                    bool southEast = Surface(ground, depth, z, x + 1, out float se);
-                    bool northWest = Surface(ground, depth, z + 1, x, out float nw);
-                    bool northEast = Surface(ground, depth, z + 1, x + 1, out float ne);
-                    bool wet = southWest && southEast && northWest && northEast;
+                    bool southWest = Surface(ground, depth, z, x, out float sw, out float gsw);
+                    bool southEast = Surface(ground, depth, z, x + 1, out float se, out float gse);
+                    bool northWest = Surface(ground, depth, z + 1, x, out float nw, out float gnw);
+                    bool northEast = Surface(ground, depth, z + 1, x + 1, out float ne, out float gne);
+                    int wetCorners = (southWest ? 1 : 0) + (southEast ? 1 : 0) + (northWest ? 1 : 0) + (northEast ? 1 : 0);
+                    bool wet = wetCorners > 0;
                     float up = 0f;
-                    if (wet)
+                    if (wetCorners == 4)
                     {
-                        // The lowest of the four, so the water never stands above the bank it meets.
+                        // A cell wholly under water is a body's inside: the lowest of the four, so the surface never
+                        // stands above a bank it meets (M1.4c).
                         up = Math.Min(Math.Min(sw, se), Math.Min(nw, ne));
-                        wet = up > aboveM;
                     }
+                    else if (wet)
+                    {
+                        // A cell with dry corners is an edge or a channel. Until 2026-09-20 it was left undrawn, which
+                        // hid every creek in the world: WG.1's channels are one cell wide, so no cell along them has
+                        // four wet corners and nothing was ever built, while the founder waded and drank there. The
+                        // surface is the highest wet corner's — the water is really there — held down to the lowest dry
+                        // corner's ground so it can never float over dry land, and drawn only if what is left still
+                        // stands a centimetre over the wettest corner's own bed. On a shore that clamp puts the sheet
+                        // at the sand and the opaque ground hides what reaches past the waterline (M1.4g).
+                        up = float.NegativeInfinity;
+                        if (southWest && sw > up) up = sw;
+                        if (southEast && se > up) up = se;
+                        if (northWest && nw > up) up = nw;
+                        if (northEast && ne > up) up = ne;
+                        float dryGround = float.PositiveInfinity;
+                        if (!southWest && gsw < dryGround) dryGround = gsw;
+                        if (!southEast && gse < dryGround) dryGround = gse;
+                        if (!northWest && gnw < dryGround) dryGround = gnw;
+                        if (!northEast && gne < dryGround) dryGround = gne;
+                        if (dryGround < up) up = dryGround;
+                        float bed = float.PositiveInfinity;
+                        if (southWest && gsw < bed) bed = gsw;
+                        if (southEast && gse < bed) bed = gse;
+                        if (northWest && gnw < bed) bed = gnw;
+                        if (northEast && gne < bed) bed = gne;
+                        wet = up - bed >= MinDepthM;
+                    }
+                    if (wet) wet = up > aboveM;
                     bool joins = wet && runFrom >= 0 && Math.Abs(up - runUp) <= SameSurfaceM;
                     if (!joins && runFrom >= 0)
                     {
@@ -94,11 +124,12 @@ namespace EarthGame.ClientCore
             return quads;
         }
 
-        /// <summary>The water's surface at a post, and whether any stands there at all.</summary>
-        private static bool Surface(ReceivedTile ground, ReceivedTile depth, int z, int x, out float up)
+        /// <summary>The water's surface and the ground at a post, and whether any water stands there at all.</summary>
+        private static bool Surface(ReceivedTile ground, ReceivedTile depth, int z, int x, out float up, out float bed)
         {
             float d = depth.Heights[z, x];
-            up = ground.Heights[z, x] + d;
+            bed = ground.Heights[z, x];
+            up = bed + d;
             return d >= MinDepthM;
         }
 

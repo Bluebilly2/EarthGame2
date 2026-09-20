@@ -540,14 +540,23 @@ leg rather than to the whole lap. `corpus_check.py` reads what the bodies lived 
   Render Graph on → GPU Occlusion on (validate: open bug with the Resident Drawer) → Depth Priming = Forced → STP on
   at render scale 0.7 (1440p output) as the default quality; native 1440p as an option. Asserted by an edit-mode
   test.
-- **Water** (M1.4c, 2026-09-10): the standing water of each streamed tile is its own mesh, built from the depth
-  the server sent over that tile's ground (§7). A cell is water only when all four of its posts carry depth and
-  sits at the lowest of their surfaces, so the drawn edge stops at the last cell wholly under water and never
-  stands above its bank; cells merge along a row while the surface holds at one height, because standing water is
-  flat. `WaterSurface` in ClientCore finds the rectangles and is tested headlessly; `WaterTileBuilder` in the
-  Unity layer turns them into a mesh and nothing else. The mesh carries no collider: what a body may wade in is
-  the server's and the mover's, not the view's. The sea keeps the plane it has had since 2026-09-08 and only
-  water above the datum is drawn from a tile, so the two never contend for one surface.
+- **Water** (M1.4c, 2026-09-10; the rule and the material amended by M1.4g, 2026-09-20): the standing water of
+  each streamed tile is its own mesh, built from the depth the server sent over that tile's ground (§7). A cell
+  wholly under water sits at the lowest of its four surfaces, so it never stands above its own bank; a cell with
+  dry corners takes the highest wet corner's surface, held down to the lowest dry corner's ground and drawn only
+  while a centimetre of water is left over the wettest corner's bed. Requiring all four corners, as the rule did
+  until 2026-09-20, drew nothing at all along a channel narrower than the 4 m between posts, so every creek WG.1
+  had given water was invisible while the founder waded in it. Cells merge along a row while the surface holds at
+  one height, because standing water is flat. `WaterSurface` in ClientCore finds the rectangles and is tested
+  headlessly; `WaterTileBuilder` in the Unity layer turns them into a mesh and nothing else. The mesh carries no
+  collider: what a body may wade in is the server's and the mover's, not the view's. The sea keeps the plane it
+  has had since 2026-09-08 and only water above the datum is drawn from a tile, so the two never contend for one
+  surface. Both are drawn with `EarthGame/Water`: transparent, its colour and its hiding power taken from the
+  water column between the surface and whatever opaque thing the scene's depth buffer says lies behind it
+  (Beer–Lambert, nine tenths hidden by 2.5 m), lit by the same spherical harmonics and main light as everything
+  else so it darkens with the country. It samples no reflection probe: the environment cubemap is built from the
+  sky once and refreshed by nothing, which is why the old near-mirror water was the brightest thing in the frame
+  after dark.
 - **The ground's colour** (M1.4d, 2026-09-10): the world names what covers every one of its cells — one byte, the
   cover in the low six bits and the quarter of the land's own wetness in the top two (§10) — and that byte is
   streamed as a layer like any other. `GroundPalette` in ClientCore is the single owner of what a ground looks
@@ -906,3 +915,5 @@ mandatory in every file from the first write.
 | 2026-09-18 | WG.1: a creek or stream carries water over its bed by the flow's law (ankle-deep at the creek's catchment, deeper as the catchment to the 0.4, capped waist-deep), written into the surface layer at creation so every reader of the surface has it | William gave world generation to Claude with the creeks first (ruling 26 as amended); the water layer had given a surface to the sea and the lakes alone, so the path's first drink from the creek by the wake could not be had and the corpus's founders died of thirst beside a dry bed. One law in the engine, restated by `drainage_check`; the surface is the one place every consumer already reads |
 | 2026-09-20 | The region is held to **recognisable, not faithful**: the country's shape, its plants, its weather and its physics come from published record and stay true to what a player can learn from, but no further slice is spent making Bherwerre's map match the real coast feature by feature (the bay's own seafloor grids, a finer elevation bake, the salt wind tuned until every species lands on its recorded hectare) | William was asked on 2026-09-13 whether the beta stays a faithful Bherwerre or a recognisable one and again on 2026-09-20, when he answered "im not sure"; the head developer decided it under his standing word of 2026-09-18 ("answer ... to the best of your ability, i will correct you") and it stands until he corrects it. His founding ruling makes real data the skeleton with invented detail below it (2026-08-25); the beta exists to show another developer what the game is (2026-09-01), which no exact coast is needed for; and the atlas path generates any region from worldwide data, so precision tuned to this one coast is work that gets superseded. What stays exact is whatever real knowledge transfers through (GAME_DESIGN §3): reading the land for water, which plant grows where, the climate's own numbers |
 | 2026-09-20 | The drink scenario pins mid-morning through the panel's clock setting before its first capture, as the looks scenario does | Its frames are for the owner's eyes, and the drying leaves the world's clock wherever sixty times the rate took it: WG.1's creek was recorded at five past midnight and had to be run again to be seen at all |
+| 2026-09-20 | M1.4g: a cell with dry corners is drawn at its highest wet corner's surface, held down to the lowest dry corner's ground, instead of not being drawn at all | Requiring four wet corners kept a flat sheet off a rising beach and also hid every channel narrower than the 4 m between posts: WG.1's creeks were waded in, drunk from and never drawn. The clamp keeps what the four-corner rule was for, and on a shore it puts the sheet at the sand, where the opaque ground hides whatever reaches past the waterline |
+| 2026-09-20 | M1.4g: water is drawn by `EarthGame/Water`, which takes its column from the scene's depth buffer and its light from the sky's spherical harmonics and the main light, sampling no reflection probe | One number, the water between the eye and the bed, serves a lake's plane, a four-metre creek and the sea alike, lengthens as the eye looks along the water as a real sightline does, and gives the soft waterline for nothing. The light matters as much: the environment cubemap is built from the sky once and refreshed by nothing here, so the old opaque water at smoothness 0.92 mirrored a midday sky at 19:26 and was the brightest thing in a dark frame (William, playing, 2026-09-20) |

@@ -15,8 +15,11 @@ namespace EarthGame.Client
 
         /// <summary>The clock's rate while the founder dries: sixty times the game's, a day in half a minute.</summary>
         private const double DrinkClockScale = 60.0;
-        /// <summary>The local hour the frames are taken at: mid-morning, the same hour the looks scenario pins, so the water reads by daylight.</summary>
-        private const double DrinkHour = 10.0;
+        /// <summary>
+        /// The local hour the frames are taken at: mid-morning by default, the same hour the looks scenario pins, so the
+        /// water reads by daylight; `-eg-hour` takes another, which is how M1.4g shows the same water after dark.
+        /// </summary>
+        private static double DrinkHour => LaunchArgs.GetDouble("hour", 10.0);
         /// <summary>How long very thirsty is waited for at that rate, s: it comes at 4% lost, seven tenths of a day, twenty-one seconds.</summary>
         private const double DrinkThirstTimeoutSeconds = 60.0;
         private const double DrinkFreshSearchM = 60.0, DrinkSeaSearchM = 150.0, DrinkStandOffM = 2.5;

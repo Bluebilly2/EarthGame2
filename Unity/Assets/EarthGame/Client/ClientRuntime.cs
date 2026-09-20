@@ -74,7 +74,8 @@ namespace EarthGame.Client
         private Material _terrainMaterial;
         private TerrainLayer _groundLayer;
         private Material _mirrorMaterial;
-        private Material _seaMaterial;
+        /// <summary>The water's own material (M1.4g): the sea's plane and every streamed tile's water are drawn with it.</summary>
+        private Material _waterMaterial;
         private EntityViews _entityViews;
         private StandViews _stand;
         private UnderstoreyViews _understorey;
@@ -365,7 +366,7 @@ namespace EarthGame.Client
             _waterTiles.Remove(id);
             _waterFrom[id] = from;
             System.Collections.Generic.List<WaterQuad> quads = WaterSurface.Build(ground, depth, Heightfield.SeaLevelM);
-            GameObject water = WaterTileBuilder.Build(quads, _seaMaterial, "Water tile " + id);
+            GameObject water = WaterTileBuilder.Build(quads, _waterMaterial, "Water tile " + id);
             if (water == null) return;
             _waterTiles[id] = water;
             Debug.Log("[client] water on tile " + id + ": " + quads.Count + " rectangle(s) above the datum");
@@ -734,10 +735,13 @@ namespace EarthGame.Client
             _terrainMaterial = Resources.Load<Material>("EarthGame/TerrainLit");
             _groundLayer = Resources.Load<TerrainLayer>("EarthGame/GroundLayer");
             Material skyMaterial = Resources.Load<Material>("EarthGame/Sky");
-            Material seaMaterial = _seaMaterial = Resources.Load<Material>("EarthGame/Sea");
-            if (_terrainMaterial == null || _groundLayer == null || skyMaterial == null || seaMaterial == null)
+            _waterMaterial = Resources.Load<Material>("EarthGame/Water");
+            // Sea.mat is no longer water: since M1.4g it is kept only as this build's copy of URP's Lit shader, for
+            // the other players' bodies below and the -eg-probe shapes, both of which want an ordinary opaque surface.
+            Material litSource = Resources.Load<Material>("EarthGame/Sea");
+            if (_terrainMaterial == null || _groundLayer == null || skyMaterial == null || litSource == null || _waterMaterial == null)
                 Debug.LogError("[client] runtime assets missing under Resources/EarthGame; run EarthGame > Apply project checklist");
-            _mirrorMaterial = new Material(seaMaterial != null ? seaMaterial.shader : Shader.Find("Universal Render Pipeline/Lit"));
+            _mirrorMaterial = new Material(litSource != null ? litSource.shader : Shader.Find("Universal Render Pipeline/Lit"));
             _mirrorMaterial.SetColor("_BaseColor", new Color(0.75f, 0.55f, 0.4f));
             _mirrorMaterial.SetFloat("_Smoothness", 0.3f);
 
@@ -787,14 +791,14 @@ namespace EarthGame.Client
             sea.transform.position = new Vector3((float)welcome.SpawnEast, 0f, (float)welcome.SpawnNorth);
             sea.transform.localScale = new Vector3(seaSpan / 10f, 1f, seaSpan / 10f);
             Renderer seaRenderer = sea.GetComponent<Renderer>();
-            if (seaMaterial != null) seaRenderer.sharedMaterial = seaMaterial;
+            if (_waterMaterial != null) seaRenderer.sharedMaterial = _waterMaterial;
             seaRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
             // -eg-probe: a white sphere and a cube three metres north-east of the spawn, lit by the ordinary Lit
             // shader, so a frame shows where the sun is and whether it reaches anything at all.
             if (LaunchArgs.Has("probe"))
             {
-                Material probeMaterial = new Material(seaMaterial != null ? seaMaterial.shader : Shader.Find("Universal Render Pipeline/Lit"));
+                Material probeMaterial = new Material(litSource != null ? litSource.shader : Shader.Find("Universal Render Pipeline/Lit"));
                 probeMaterial.SetColor("_BaseColor", Color.white);
                 probeMaterial.SetFloat("_Smoothness", 0.2f);
                 // South-south-west of the spawn: in the scenario's turn frame the sun is behind the camera, so a

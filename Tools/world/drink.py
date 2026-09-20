@@ -75,6 +75,9 @@ def main():
     parser.add_argument("--build", action="store_true")
     parser.add_argument("--player", default=str(PLAYER))
     parser.add_argument("--world", default="Artefacts/worlds/gate")
+    # The scenario pins the hour before its first frame (M1.4g), so two runs light the same water the same way;
+    # another hour here is how the water after dark is recorded.
+    parser.add_argument("--hour", type=float, default=None, help="the local hour the frames are taken at (default mid-morning)")
     args = parser.parse_args()
     player = (ROOT / args.player).resolve()
     world = (ROOT / args.world).resolve()
@@ -111,7 +114,8 @@ def main():
     # -eg-dev: a development game, whose server takes the scenario's clock setting.
     code = run([player, "-batchmode", "-logFile", directory / "player.log",
                 "-eg-mode", "solo", "-eg-dev", "-eg-name", "William", "-eg-world", world.name, "-eg-saves", world.parent,
-                "-eg-tiles", directory / "tiles", "-eg-record", directory, "-eg-scenario", "drink"], 900)
+                "-eg-tiles", directory / "tiles", "-eg-record", directory, "-eg-scenario", "drink"]
+               + ([] if args.hour is None else ["-eg-hour", "%g" % args.hour]), 900)
 
     log = directory / "run.jsonl"
     records = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()] if log.is_file() else []
