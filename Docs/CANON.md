@@ -244,3 +244,14 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     regardless of location, is just a static sounding noise. so the change is barely worth anything." Both are
     judgements he alone makes (ruling 12 and STANDARDS 6, 15): the ground's cover must read as country underfoot, and a
     footstep must sound like a foot on that ground, not like noise shaped by it. Neither is scheduled by this ruling.
+38. **An idle game pauses itself, and says so.** "the game is not in a playable state yet, there is no content to play.
+    if the game is ever open, and idle, i am not playing, i was looking at something or somethings. maybe add a flag or
+    something that notices when the player has gone idle. a small message that displays when idle, the game is paused,
+    time is paused. then everything is resumed when the player refocuses the game window, or a button or key is
+    pressed." A game left alone stops: the world's clock with it, so a founder does not thirst or freeze while nobody
+    is there, and a small message says that it has. Refocusing the window or any key or button starts it again. Until
+    this exists, an open game is not evidence that he is playing — it is evidence that he left it open.
+39. **Developer mode is switched on inside the game.** "make it so that dev mode is toggleable in game, not a restart
+    with the devmode flag." What `-eg-dev` grants at launch — the panel, the flight, the settings the server will take
+    — is turned on and off while the game runs. The launch flag stays for the scenarios and the runs, which have no
+    hands to press anything.
