@@ -69,9 +69,6 @@ program, and since 2026-09-08 the agent writes everything, checks included (ruli
 6. The message says what the commit contains, no more; the trailer carries the model's own name.
 7. Closing a slice: the contract's exit record with the numbers as run, frames if visual, the memory updated,
    the push green.
-8. If what the game can do changed, `Docs/THE_GAME_NOW.md` rewritten from the records — the owner's one plain-words
-   page, written 2026-09-20 because "continue" had come to mean flying blind for him. It owns no fact and nothing
-   cites it; it is derived, and stale is its only failure mode.
 
 ## Methods that saved time
 

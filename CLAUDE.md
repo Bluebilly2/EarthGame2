@@ -14,8 +14,6 @@ points here rather than repeating them: one file, one set of rules, no drift bet
 - `Docs/WORKING.md` — how the work is done here: the loop, working with the owner, the checklist before a commit,
   and this machine's traps.
 - The current contract under `Docs/contracts/` — what the slice in flight promises and how it is proved.
-- `Docs/THE_GAME_NOW.md` — the owner's plain-words page: what the game can do today, what changed, what waits on
-  him. Derived from the documents above and rewritten when they move; it owns nothing and nothing cites it.
 
 ## Layering and the commands
 - `Engine/packages/*` are engine-free (no `UnityEngine`, no `#if`, C# 9, .NET Standard 2.1) and are compiled by

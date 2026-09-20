@@ -221,3 +221,26 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     implemented)." The game teaches nothing on purpose: the body does what a body does and the world what a world does.
     While fire and shelter do not exist, a bridge keeps the cold from killing (the core held a hair above the lethal, the
     words still shown); it comes down when they do.
+
+### Rulings of 2026-09-20
+
+34. **The walk is not good enough.** Playing the WG.1 build at his own asking, on the dune behind the wake: "when i
+    walk down a steep hill ... the player just slows right down. the walking in general feels very basic and honestly
+    just really not that good. on the flat ground its okay though." Ruling 12 makes the walk's feel his, and ruling 18
+    (2026-09-08, "it feels good, continue") stood on a walk he had only taken on gentle ground. It is superseded on
+    slopes and on the walk's general feel; the flat walk stands as good enough for now. The ported numbers are no
+    longer settled by 18: Tobler's hiking function, which is fitted to journey times over hours, is what crawls a
+    founder down a steep descent, and the slice that answers this ruling decides what the player's own motion obeys
+    instead — his hands judge it again when it does.
+35. **Water is partly see-through.** Of the lake in his own screenshot: "can you make the water surface partially
+    transparent so that it doesnt just look like the ground but just blue." Water is not an opaque blue lid: the
+    shallows show what lies under them and the depths hide it.
+36. **Alt pans the camera, the body still.** "let the alt key allow the camera to pan without moving the players body.
+    inspired by the same mechanic in rust the survival game." Holding Alt looks around without turning the founder;
+    letting go returns the view to where the body faces.
+37. **The understorey is bland, and the footsteps are one noise.** Seeing both in play: "the understorey is still just
+    a smooth green floor with some small bits scattered around weirdly. i acknowledge that this is just for the beta
+    arc, but it just makes the understorey very bland"; and "footsteps over different ground do change, but the sound,
+    regardless of location, is just a static sounding noise. so the change is barely worth anything." Both are
+    judgements he alone makes (ruling 12 and STANDARDS 6, 15): the ground's cover must read as country underfoot, and a
+    footstep must sound like a foot on that ground, not like noise shaped by it. Neither is scheduled by this ruling.
