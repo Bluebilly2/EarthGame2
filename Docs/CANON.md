@@ -251,7 +251,8 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     pressed." A game left alone stops: the world's clock with it, so a founder does not thirst or freeze while nobody
     is there, and a small message says that it has. Refocusing the window or any key or button starts it again. Until
     this exists, an open game is not evidence that he is playing — it is evidence that he left it open.
-39. **Developer mode is switched on inside the game.** "make it so that dev mode is toggleable in game, not a restart
-    with the devmode flag." What `-eg-dev` grants at launch — the panel, the flight, the settings the server will take
-    — is turned on and off while the game runs. The launch flag stays for the scenarios and the runs, which have no
-    hands to press anything.
+39. **Developer mode is switched on inside the game, with F2.** "make it so that dev mode is toggleable in game, not
+    a restart with the devmode flag"; and, asked where the switch should live, "can the devmode toggle switch be f2?"
+    What `-eg-dev` grants at launch — the panel, the flight, the settings the server will take — is turned on and off
+    by F2 while the game runs, and F3 opens the panel only while it is on. The launch flag stays for the scenarios and
+    the runs, which have no hands to press anything.
