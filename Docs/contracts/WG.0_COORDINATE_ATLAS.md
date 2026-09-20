@@ -60,6 +60,40 @@ continuous tolerances and any report schema are added to this contract. Do not s
 failed check. William's instruction of 2026-09-13 authorizes independent contribution, but explicitly reserves
 permission for each acquisition; no new data is authorized by this draft.
 
+## Acquisition manifest (2026-09-20), for William's approval
+
+Promise 1 of this contract, written before anything is fetched. William asked for it on 2026-09-20 ("2. yes") under
+ruling 26 as amended: the head developer writes the list; **nothing is downloaded until he approves these exact
+files.** Provider pages were read on 2026-09-20 (documentation and directory indexes only, no data): where a page
+states no size, this says so rather than estimating.
+
+**The packaging rule that makes most of the licences simple.** The raw datasets are never shipped. They are read once,
+offline, into the atlas's own derived form — the same way the region's elevation is baked today — and only that
+derived form travels with the game. A licence therefore has to permit our *use* and the distribution of a *derivative*;
+only one candidate below fails that, and it is the one left out.
+
+| # | Dataset | What it answers for a chosen coordinate | Files | Size as stated | Licence | Take? |
+|---|---|---|---|---|---|---|
+| 1 | **Natural Earth 1:10m physical**, v5.1.1 | Where the coasts, islands, lakes and glaciers are, for choosing a place on a map | "Download all 10m physical themes" | 49.99 MB | Public domain; credit optional | **Yes** |
+| 2 | **NOAA ETOPO 2022**, 30 arc-second surface | The relief and the sea floor of anywhere on Earth, at about 900 m | `ETOPO_2022_v1_30s_N90W180_surface.tif` | 1.5 GB (directory index; the product page states none) | The product page states none; the dataset's metadata record lists CC0, and the DOI citation is required | **Yes** |
+| 3 | **HydroLAKES v1** | Every lake over 10 ha, with its pour point | `HydroLAKES_polys_v10.gdb.zip` | 763 MB | CC-BY 4.0; redistribution and commercial use allowed | **Yes** |
+| 4 | **RESOLVE Ecoregions 2017** | Which ecological region a place belongs to, and so what could grow there | `Ecoregions2017.zip` | 150 MB | CC-BY 4.0 | **Yes** |
+| 5 | **GLiM v1.0**, PANGAEA gridded release | The rock family under a place, at half a degree | one file at `hdl.handle.net/epic.39939.d001` | 37.8 kB | CC-BY 3.0 | **Yes** (it is tiny; it is also coarse, and it is *not* the polygon map its abstract describes) |
+| 6 | **CHELSA v2.1** climatologies 1981–2010 | Month-by-month temperature and rainfall at about 1 km | `tas` and `pr`, twelve months each, COG | **No size stated anywhere on the provider's pages** | CC0 | **Yes, with a ceiling**: the sizes are asked of the server before anything is fetched, and the fetch stops if the twenty-four files exceed 8 GB |
+| 7 | **SoilGrids v2** (250 m) | Soil texture and carbon by depth | a property × depth × statistic choice; `.vrt` plus tile folders | Not stated | CC-BY 4.0 | **Not yet.** Twelve properties × six depths × five statistics is a large choice with no stated size, and the region's soil is already modelled from its own rules. Buy it when the generator needs it |
+| 8 | **HydroBASINS v1 / HydroRIVERS v1** | Basins and river reaches worldwide | 9 continental archives / `HydroRIVERS_v10.gdb.zip` | 618 MB global rivers; basin files' sizes not shown | **The one that fails.** Free for commercial use, but its agreement (Technical Documentation v1.4, Appendix A) allows distribution only "incorporated into … Derivative Works" under an end-user licence "at least as protective", forbids standalone distribution, keeps all improvements as WWF's intellectual property, and prescribes a long copyright notice. The site's own Terms of Use contradict the product pages by saying "personal, non-commercial use only" | **No.** Coarse drainage is derived from ETOPO instead, by the same D8 method the region already uses (`DrainageNetwork`), which costs development and owes nobody |
+| 9 | **WorldClim 2.1** | A second opinion on climate | — | — | Requires prior permission for commercial use *or* redistribution | **No**, as the design already advised |
+
+**What approving this costs:** about 2.5 GB, plus CHELSA's twenty-four files, whose size the provider does not publish
+and which are measured before they are fetched. Nothing is downloaded before William names the lines he approves, and
+each file's notice goes into `THIRD_PARTY_NOTICES.md` in the commit that imports it (STANDARDS 16).
+
+**Two things to know before saying yes.** ETOPO at 30 arc-second is global context, not ground to walk on: a region
+that is actually played is still baked from fine data fetched for that region, as Bherwerre is. And ETOPO's own product
+page carries no licence text at all — the CC0 comes from its metadata record, so the first acquisition step records
+which page the term was read from, with the date.
+
 ## Exit record
 
-Unopened; no implementation or data-acquisition result.
+Unopened; no implementation or data-acquisition result. The acquisition manifest above is written and awaits William's
+approval of the exact files; nothing has been fetched.
