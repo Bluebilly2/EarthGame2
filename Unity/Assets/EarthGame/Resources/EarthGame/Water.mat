@@ -25,7 +25,8 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _FullAtM: 2.5
+    - _FullAtM: 1.5
+    - _SkyShown: 1.4
     - _MostOpaque: 0.95
     - _Glint: 220
     - _GlintStrength: 1.1

@@ -23,8 +23,9 @@ Shader "EarthGame/Water"
     {
         _ShallowColour ("Water over a shallow bed", Color) = (0.42, 0.58, 0.55, 1)
         _DeepColour ("Water too deep to see through", Color) = (0.04, 0.13, 0.22, 1)
-        _FullAtM ("Metres of water that hide nine tenths of the bed", Float) = 2.5
+        _FullAtM ("Metres of water that hide nine tenths of the bed", Float) = 1.5
         _MostOpaque ("The most the deep water hides, 0 to 1", Range(0, 1)) = 0.95
+        _SkyShown ("How much of the sky the surface gives back", Range(0, 3)) = 1.4
         _Glint ("How tight the sun's glint is", Float) = 220
         _GlintStrength ("How strong the sun's glint is", Range(0, 4)) = 1.1
     }
@@ -55,6 +56,7 @@ Shader "EarthGame/Water"
                 float4 _DeepColour;
                 float _FullAtM;
                 float _MostOpaque;
+                float _SkyShown;
                 float _Glint;
                 float _GlintStrength;
             CBUFFER_END
@@ -104,14 +106,24 @@ Shader "EarthGame/Water"
                 half lit = saturate(dot(normalWS, sun.direction)) * sun.shadowAttenuation;
                 half3 body = lerp(_ShallowColour.rgb, _DeepColour.rgb, hidden) * (sky + sun.color * lit);
 
-                // The sun's own glint, which is what tells the eye a surface is water at all. It rides on the sun, so
-                // it is gone with the sun and cannot light the sea after dark.
+                // Fresnel, by Schlick's approximation with water's normal-incidence reflectance of 0.02. Looking
+                // straight down, water gives back a fiftieth of the sky and its bed is plain; looking along it, nearly
+                // all of it, which is what tells an eye that a puddle is a puddle. Without this a creek of ankle-deep
+                // water is honestly transparent and reads as ground (the frames of 2026-09-20, before this line).
+                // What is given back is the sky the country is lit by, so it darkens with the country.
+                float facing = saturate(dot(normalWS, toEye));
+                float mirrored = 0.02 + 0.98 * pow(1.0 - facing, 5.0);
+                half3 skyShown = sky * _SkyShown;
+
+                // The sun's own glint on top. It rides on the sun, so it is gone with the sun and cannot light the sea
+                // after dark.
                 float3 halfway = normalize(sun.direction + toEye);
                 half glint = pow(saturate(dot(normalWS, halfway)), _Glint) * _GlintStrength * sun.shadowAttenuation;
-                half3 colour = body + sun.color * glint;
+                half3 colour = lerp(body, skyShown, mirrored) + sun.color * glint;
 
-                // What the water hides of its bed, plus what the glint adds: a still surface over nothing is still seen.
-                half alpha = saturate(hidden * _MostOpaque + glint);
+                // What the water hides of its bed, what its surface gives back of the sky, and the glint: a still
+                // surface over a bed you can see through is still a surface.
+                half alpha = saturate(max(hidden * _MostOpaque, mirrored) + glint);
                 return half4(MixFog(colour, input.fog), alpha);
             }
             ENDHLSL
