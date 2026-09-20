@@ -198,7 +198,8 @@ Owed: written by the head developer after the built game has run and the check h
 ## The open questions, decided (2026-09-18)
 
 Asked of William with the exit record and answered by the head developer on his word ("answer the 5 questions to the
-best of your ability, i will correct you if i dont like what you pick"); each stands until he corrects it.
+best of your ability, i will correct you if i dont like what you pick"); each stands until he corrects it. Put to him
+again on 2026-09-20 with the five set out plainly, he answered "okay": the picks below are settled, not provisional.
 
 1. **A flake struck with a cobble is smashed, and stays so.** Stone does what stone does: a hammer whose smallest bite is
    more than a small stone can spare destroys it, which is what a cobble does to a flake. Making flakes unstrikeable

@@ -50,6 +50,12 @@ program, and since 2026-09-08 the agent writes everything, checks included (ruli
 - When he says "continue", carry on with the work in flight by the plan; state anything pending on him rather
   than assuming it. Finish the job he asked for before proposing the next one, and propose it rather than start
   it.
+- **A slice that owes his eyes, his hands or his word adds a row to `DEBTS.md`'s "Waiting on the owner" table**,
+  and the slice keeps the detail. Until 2026-09-20 each such item lived only inside the contract that raised it:
+  a reading of the whole 7–19 September record, made independently of these documents, found every engineering
+  debt in the register and not one of his, twenty contracts saying "his eyes" with nothing listing them together,
+  and questions asked once that died unasked again (the gamepad's layout, how swimming feels, whether the beta
+  stays a faithful Bherwerre). A row leaves that table by his word, not by age.
 
 ## Before every commit
 

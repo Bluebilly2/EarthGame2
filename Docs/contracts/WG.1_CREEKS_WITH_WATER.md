@@ -67,3 +67,18 @@ wake's creek; frames of the creek drawn; William's eyes.
   cell wide, the raster's own width). The corpus's walkers drinking from it (the next full corpus; the loop already
   passes within their search of the wake's creek); the streams' knee-deep wade; the drawn water's edge against a bank
   that is the ground's own slope rather than a lake's flat.
+
+### The creek in daylight (2026-09-20)
+
+The scenario no longer takes its frames at whatever hour the drying left the clock at: it pins mid-morning through the
+panel's own clock setting before the first capture, as the looks scenario has since M1.7b, so two runs light the water
+the same way and the owner is never handed a black frame (`Recorder.Drink.DrinkHour`, recorded as `local_hour` in the
+run's end line). Run again on a copy of the gate world with the harness build of that morning
+(`Artefacts/frames/drink-20260919T225356Z`, 10:01 of day 1): very thirsty after 20 s at sixty times the rate, the creek
+drunk from (water 0.9594 to 0.9951), the sea refused as salt, no error, `thirst_check` green on all nine rows.
+
+What the frames show is the finding, and it is not the one the run was for: **the water is there and does not look like
+water.** At the creek's ankle depth the surface takes almost the ground's own green, with no edge, no sheen and no
+movement, so it reads as lawn with sedge standing in it; the sea, deep enough to darken, is the only water in the three
+frames that reads as water. That is now a debt of its own ("Shallow water does not read as water"), and it bears on the
+path's first beat, which asks the founder to find water by reading the country.

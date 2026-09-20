@@ -16,6 +16,10 @@ Unity/.vs/
 Unity/.idea/
 Unity/*.csproj
 Unity/*.sln
+# Unity 6000.3 writes the newer solution format and a VS Code folder when it regenerates project files (seen 2026-09-20,
+# the first build on the rebuilt machine); both are generated, like the .sln above.
+Unity/*.slnx
+Unity/.vscode/
 Unity/*.suo
 Unity/*.user
 Unity/*.userprefs

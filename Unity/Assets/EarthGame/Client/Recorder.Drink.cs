@@ -15,6 +15,8 @@ namespace EarthGame.Client
 
         /// <summary>The clock's rate while the founder dries: sixty times the game's, a day in half a minute.</summary>
         private const double DrinkClockScale = 60.0;
+        /// <summary>The local hour the frames are taken at: mid-morning, the same hour the looks scenario pins, so the water reads by daylight.</summary>
+        private const double DrinkHour = 10.0;
         /// <summary>How long very thirsty is waited for at that rate, s: it comes at 4% lost, seven tenths of a day, twenty-one seconds.</summary>
         private const double DrinkThirstTimeoutSeconds = 60.0;
         private const double DrinkFreshSearchM = 60.0, DrinkSeaSearchM = 150.0, DrinkStandOffM = 2.5;
@@ -71,7 +73,11 @@ namespace EarthGame.Client
                 _errors++;
                 _log.Record(T, Tick, "error", new JsonObject().With("message", "not very thirsty after " + thirstSeconds.ToString("0.0") + " s at " + DrinkClockScale + " times the game's rate; water " + _drinkWater.ToString("0.0000")));
             }
-            yield return Wait(0.5);
+            // Mid-morning before the first frame, as the looks scenario pins its own hour: the drying leaves the clock
+            // wherever its speed took it, and a world stood at night gives the owner black frames to judge water by
+            // (2026-09-18: WG.1's creek was recorded at midnight and had to be run again for eyes).
+            _client.SendDevSetting(DevSettings.ClockLocalHour, DrinkHour);
+            yield return Wait(1.0);
             yield return Capture("thirsty");
 
             // The fresh water within reach, and the drink.
@@ -124,6 +130,7 @@ namespace EarthGame.Client
             MoverState end = _player.State;
             _log.Record(T, Tick, "end", WithFeet(new JsonObject().With("frames", _frames).With("errors", _errors)
                 .With("very_thirsty", veryThirsty).With("thirst_seconds", thirstSeconds).With("clock_scale", DrinkClockScale)
+                .With("local_hour", DrinkHour)
                 .With("drank", drank).With("water_before", before).With("water_after", after).With("salt_refused", saltRefused)
                 .With("corrections", _player.Corrections).With("moves_sent", (int)_player.MovesSent)
                 .With("east", end.East).With("up", end.Up).With("north", end.North)));
