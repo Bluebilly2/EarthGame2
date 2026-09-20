@@ -77,8 +77,12 @@ run's end line). Run again on a copy of the gate world with the harness build of
 (`Artefacts/frames/drink-20260919T225356Z`, 10:01 of day 1): very thirsty after 20 s at sixty times the rate, the creek
 drunk from (water 0.9594 to 0.9951), the sea refused as salt, no error, `thirst_check` green on all nine rows.
 
-What the frames show is the finding, and it is not the one the run was for: **the water is there and does not look like
-water.** At the creek's ankle depth the surface takes almost the ground's own green, with no edge, no sheen and no
-movement, so it reads as lawn with sedge standing in it; the sea, deep enough to darken, is the only water in the three
-frames that reads as water. That is now a debt of its own ("Shallow water does not read as water"), and it bears on the
-path's first beat, which asks the founder to find water by reading the country.
+What the frames show is the finding, and it is not the one the run was for: **the creek is drunk from and never
+drawn.** The first reading of the frames took the flat green for water that looked like ground; the run's own log says
+otherwise. The client built water rectangles on one of the nine tiles it held — tile 3_6, the sea's, five of them —
+and none at the wake, where the founder stood in the creek, drank, and felt water underfoot thirteen times. The cause
+is `WaterSurface.Build`: a cell becomes water only when all four of its corner posts are wet, and at 4 m posts a
+channel narrower than two cells never has four wet corners. So WG.1's water is in the layers, in the server's
+judgement, in the client's wading and in the tiles it streams, and nowhere in what the eye sees. It is a debt of its
+own ("A creek is drunk from and never drawn"), with the fix and its proof written there, and it wants its own slice
+before the path's next beat.
