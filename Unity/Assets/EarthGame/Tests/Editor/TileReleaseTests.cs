@@ -31,7 +31,11 @@ namespace EarthGame.Tests.Editor
         {
             List<WaterQuad> quads = new List<WaterQuad>
             {
-                new WaterQuad { EastFrom = 0.0, EastTo = 10.0, NorthFrom = 0.0, NorthTo = 10.0, SurfaceUp = 1f },
+                new WaterQuad
+                {
+                    EastFrom = 0.0, EastTo = 10.0, NorthFrom = 0.0, NorthTo = 10.0,
+                    UpSouthWest = 1f, UpNorthWest = 1f, UpNorthEast = 1f, UpSouthEast = 1f,
+                },
             };
             GameObject water = WaterTileBuilder.Build(quads, null, "released water");
             Mesh mesh = water.GetComponent<MeshFilter>().sharedMesh;

@@ -24,17 +24,24 @@ namespace EarthGame.Client
             for (int i = 0; i < quads.Count; i++)
             {
                 WaterQuad quad = quads[i];
-                float up = quad.SurfaceUp;
                 float west = (float)quad.EastFrom, east = (float)quad.EastTo;
                 float south = (float)quad.NorthFrom, north = (float)quad.NorthTo;
                 int v = i * 4;
-                vertices[v + 0] = new Vector3(west, up, south);
-                vertices[v + 1] = new Vector3(west, up, north);
-                vertices[v + 2] = new Vector3(east, up, north);
-                vertices[v + 3] = new Vector3(east, up, south);
+                // Each corner at its own height (M1.4g): a still body's four are one, a creek's fall with its bed and
+                // a dry corner sits on the ground, so the surface tapers to the bank instead of standing over it.
+                vertices[v + 0] = new Vector3(west, quad.UpSouthWest, south);
+                vertices[v + 1] = new Vector3(west, quad.UpNorthWest, north);
+                vertices[v + 2] = new Vector3(east, quad.UpNorthEast, north);
+                vertices[v + 3] = new Vector3(east, quad.UpSouthEast, south);
+                // One normal for the whole quad, from the slope of its corners: a tilted surface must give back the
+                // sky at its own angle, and the game shades every face as one plane anyway.
+                float width = Mathf.Max(east - west, 1e-4f), span = Mathf.Max(north - south, 1e-4f);
+                float slopeEast = ((quad.UpNorthEast + quad.UpSouthEast) - (quad.UpNorthWest + quad.UpSouthWest)) * 0.5f / width;
+                float slopeNorth = ((quad.UpNorthWest + quad.UpNorthEast) - (quad.UpSouthWest + quad.UpSouthEast)) * 0.5f / span;
+                Vector3 normal = new Vector3(-slopeEast, 1f, -slopeNorth).normalized;
                 for (int k = 0; k < 4; k++)
                 {
-                    normals[v + k] = Vector3.up;
+                    normals[v + k] = normal;
                     uv[v + k] = new Vector2(vertices[v + k].x, vertices[v + k].z);
                 }
                 int t = i * 6;

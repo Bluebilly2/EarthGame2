@@ -13,7 +13,23 @@ namespace EarthGame.ClientCore
     {
         public double EastFrom, EastTo;
         public double NorthFrom, NorthTo;
-        public float SurfaceUp;
+
+        /// <summary>
+        /// Where the surface sits at each of the four corners, south-west, north-west, north-east, south-east. A
+        /// body of still water is flat and all four are one height; a creek falls with its bed, and a corner where
+        /// no water stands sits on the ground itself, so the surface tapers to nothing at the bank instead of
+        /// standing over it as a plate (M1.4g, 2026-09-20: flat plates a cell wide made a creek a staircase).
+        /// </summary>
+        public float UpSouthWest, UpNorthWest, UpNorthEast, UpSouthEast;
+
+        /// <summary>The highest of the four corners: what a flat body's one surface is.</summary>
+        public float SurfaceUp => Math.Max(Math.Max(UpSouthWest, UpNorthWest), Math.Max(UpNorthEast, UpSouthEast));
+
+        /// <summary>The lowest of the four corners.</summary>
+        public float LowestUp => Math.Min(Math.Min(UpSouthWest, UpNorthWest), Math.Min(UpNorthEast, UpSouthEast));
+
+        /// <summary>True when the four corners stand at one height, within the centimetre the wire rounds to.</summary>
+        public bool Flat => SurfaceUp - LowestUp <= WaterSurface.SameSurfaceM;
 
         public double WidthM => EastTo - EastFrom;
         public double DepthM => NorthTo - NorthFrom;
@@ -71,55 +87,41 @@ namespace EarthGame.ClientCore
                     bool northWest = Surface(ground, depth, z + 1, x, out float nw, out float gnw);
                     bool northEast = Surface(ground, depth, z + 1, x + 1, out float ne, out float gne);
                     int wetCorners = (southWest ? 1 : 0) + (southEast ? 1 : 0) + (northWest ? 1 : 0) + (northEast ? 1 : 0);
-                    bool wet = wetCorners > 0;
-                    float up = 0f;
-                    if (wetCorners == 4)
-                    {
-                        // A cell wholly under water is a body's inside: the lowest of the four, so the surface never
-                        // stands above a bank it meets (M1.4c).
-                        up = Math.Min(Math.Min(sw, se), Math.Min(nw, ne));
-                    }
-                    else if (wet)
-                    {
-                        // A cell with dry corners is an edge or a channel. Until 2026-09-20 it was left undrawn, which
-                        // hid every creek in the world: WG.1's channels are one cell wide, so no cell along them has
-                        // four wet corners and nothing was ever built, while the founder waded and drank there. The
-                        // surface is the highest wet corner's — the water is really there — held down to the lowest dry
-                        // corner's ground so it can never float over dry land, and drawn only if what is left still
-                        // stands a centimetre over the wettest corner's own bed. On a shore that clamp puts the sheet
-                        // at the sand and the opaque ground hides what reaches past the waterline (M1.4g).
-                        up = float.NegativeInfinity;
-                        if (southWest && sw > up) up = sw;
-                        if (southEast && se > up) up = se;
-                        if (northWest && nw > up) up = nw;
-                        if (northEast && ne > up) up = ne;
-                        float dryGround = float.PositiveInfinity;
-                        if (!southWest && gsw < dryGround) dryGround = gsw;
-                        if (!southEast && gse < dryGround) dryGround = gse;
-                        if (!northWest && gnw < dryGround) dryGround = gnw;
-                        if (!northEast && gne < dryGround) dryGround = gne;
-                        if (dryGround < up) up = dryGround;
-                        float bed = float.PositiveInfinity;
-                        if (southWest && gsw < bed) bed = gsw;
-                        if (southEast && gse < bed) bed = gse;
-                        if (northWest && gnw < bed) bed = gnw;
-                        if (northEast && gne < bed) bed = gne;
-                        wet = up - bed >= MinDepthM;
-                    }
-                    if (wet) wet = up > aboveM;
-                    bool joins = wet && runFrom >= 0 && Math.Abs(up - runUp) <= SameSurfaceM;
+
+                    // Every corner takes its own height: a wet one its water's surface, a dry one the ground it stands
+                    // on, a millimetre under it so the two do not fight for the same pixel. So the surface of a creek
+                    // falls with its bed, and it tapers to nothing exactly where the bank begins instead of standing
+                    // over it. Neighbouring cells share their posts, so the skin is continuous along a channel.
+                    // Flat plates a cell wide, which is what this was until 2026-09-20, made a creek a staircase of
+                    // panes stepping down the slope with gaps between them (William's own frame of that morning).
+                    float upSW = southWest ? sw : gsw - GroundBiasM;
+                    float upNW = northWest ? nw : gnw - GroundBiasM;
+                    float upNE = northEast ? ne : gne - GroundBiasM;
+                    float upSE = southEast ? se : gse - GroundBiasM;
+
+                    // Nothing to draw where no corner is wet, and nothing of the sea's own plane: the view passes the
+                    // datum and the sea has had a plane at it since 2026-09-08.
+                    bool wet = wetCorners > 0 && Math.Max(Math.Max(upSW, upNW), Math.Max(upNE, upSE)) > aboveM;
+
+                    // A body's inside is flat, and a flat row merges into one quad: the sea across a kilometre tile is
+                    // a quad a row instead of two hundred and fifty. A cell that is not flat is its own quad.
+                    bool flat = wet && wetCorners == 4
+                        && Math.Max(Math.Max(upSW, upNW), Math.Max(upNE, upSE)) - Math.Min(Math.Min(upSW, upNW), Math.Min(upNE, upSE)) <= SameSurfaceM;
+                    float up = flat ? Math.Min(Math.Min(upSW, upNW), Math.Min(upNE, upSE)) : 0f;
+                    bool joins = flat && runFrom >= 0 && Math.Abs(up - runUp) <= SameSurfaceM;
                     if (!joins && runFrom >= 0)
                     {
-                        quads.Add(Quad(ground, cell, z, runFrom, x, runUp));
+                        quads.Add(Flat(ground, cell, z, runFrom, x, runUp));
                         runFrom = -1;
                     }
-                    if (wet && runFrom < 0)
+                    if (flat && runFrom < 0)
                     {
                         runFrom = x;
                         runUp = up;
                     }
+                    if (wet && !flat) quads.Add(Cornered(ground, cell, z, x, upSW, upNW, upNE, upSE));
                 }
-                if (runFrom >= 0) quads.Add(Quad(ground, cell, z, runFrom, posts - 1, runUp));
+                if (runFrom >= 0) quads.Add(Flat(ground, cell, z, runFrom, posts - 1, runUp));
             }
             return quads;
         }
@@ -133,15 +135,35 @@ namespace EarthGame.ClientCore
             return d >= MinDepthM;
         }
 
-        /// <summary>The rectangle of the cells from <paramref name="fromX"/> up to (not including) <paramref name="toX"/>.</summary>
-        private static WaterQuad Quad(ReceivedTile ground, double cell, int z, int fromX, int toX, float up)
+        /// <summary>A dry corner sits this far under its ground, so the water's edge is buried rather than co-planar.</summary>
+        private const float GroundBiasM = 0.001f;
+
+        /// <summary>The rectangle of the cells from <paramref name="fromX"/> up to (not including) <paramref name="toX"/>, all at one height.</summary>
+        private static WaterQuad Flat(ReceivedTile ground, double cell, int z, int fromX, int toX, float up)
         {
-            WaterQuad quad;
+            WaterQuad quad = Bounds(ground, cell, z, fromX, toX);
+            quad.UpSouthWest = quad.UpNorthWest = quad.UpNorthEast = quad.UpSouthEast = up;
+            return quad;
+        }
+
+        /// <summary>One cell, each corner at its own height.</summary>
+        private static WaterQuad Cornered(ReceivedTile ground, double cell, int z, int x, float sw, float nw, float ne, float se)
+        {
+            WaterQuad quad = Bounds(ground, cell, z, x, x + 1);
+            quad.UpSouthWest = sw;
+            quad.UpNorthWest = nw;
+            quad.UpNorthEast = ne;
+            quad.UpSouthEast = se;
+            return quad;
+        }
+
+        private static WaterQuad Bounds(ReceivedTile ground, double cell, int z, int fromX, int toX)
+        {
+            WaterQuad quad = default;
             quad.EastFrom = ground.OriginEast + fromX * cell;
             quad.EastTo = ground.OriginEast + toX * cell;
             quad.NorthFrom = ground.OriginNorth + z * cell;
             quad.NorthTo = ground.OriginNorth + (z + 1) * cell;
-            quad.SurfaceUp = up;
             return quad;
         }
     }
