@@ -11,7 +11,7 @@ namespace EarthGame.Engine
     /// <para>The rules, in the order they are applied: what is under the feet decides grounded, sliding or
     /// airborne; water over the ground decides wading, and water too deep to stand in swimming (M1.5e); on walkable
     /// ground the wish becomes a velocity at the speed <see cref="Locomotion"/> gives for the slope in that direction,
-    /// a jump adds its take-off speed; in the water the wish is swum at the stroke's pace and the water turns the body
+    /// reached by the gait's acceleration and left by the brake (M1.5h), a jump adds its take-off speed; in the water the wish is swum at the stroke's pace and the water turns the body
     /// towards its float line; in the air gravity acts and the wish only eases the horizontal velocity; the motion is
     /// then swept through the world, stepping onto low obstacles and sliding along everything else; finally grounded
     /// feet snap to the ground beneath them or discover there is none, and a swimmer is held clear of taking the eye
@@ -103,7 +103,12 @@ namespace EarthGame.Engine
                     double speed = Locomotion.SpeedMs(slopeAlong, gait, workCapacity01);
                     if (s.Stance == Stance.Crouching) speed *= cfg.CrouchSpeedFactor;
                     if (s.Wading) speed *= deep ? cfg.DeepWadeSpeedFactor : cfg.WadeSpeedFactor;
-                    vel = new Double3(input.WishEast * speed, 0.0, input.WishNorth * speed);
+                    // The wish becomes a velocity by acceleration, not at once (M1.5h, CANON ruling 34): a body is at nine
+                    // tenths of its pace by the third step (Gait & Posture 83, 2021), quicker at a run, and brakes harder than
+                    // it starts (v1's 4 m/s²: a quarter of a metre from a walk, a metre and a half from a run). The velocity
+                    // is turned toward the wished one as a vector, so a reversed wish passes through a stop.
+                    Double3 wished = new Double3(input.WishEast * speed, 0.0, input.WishNorth * speed);
+                    vel = Approach(new Double3(vel.X, 0.0, vel.Z), wished, gait == Gait.Running ? cfg.RunAccelMs2 : cfg.WalkAccelMs2, cfg.BrakeMs2, dt);
                     s.Grounded = true;
                     if (input.Jump && !deep)
                     {
@@ -208,6 +213,21 @@ namespace EarthGame.Engine
         }
 
         /// <summary>Angle of a surface from the horizontal, degrees, from its unit normal.</summary>
+        /// <summary>
+        /// The horizontal velocity moved toward the wished one: at the gait's acceleration while the change goes the way the
+        /// body already moves (speeding up), at the brake otherwise (slowing, stopping, turning back); never past the wish.
+        /// </summary>
+        private static Double3 Approach(Double3 vel, Double3 wished, double accel, double brake, double dt)
+        {
+            double dx = wished.X - vel.X, dz = wished.Z - vel.Z;
+            double gap = Math.Sqrt(dx * dx + dz * dz);
+            if (gap < Epsilon) return wished;
+            double rate = vel.X * dx + vel.Z * dz >= 0.0 ? accel : brake;
+            double most = rate * dt;
+            if (gap <= most) return wished;
+            return new Double3(vel.X + dx / gap * most, 0.0, vel.Z + dz / gap * most);
+        }
+
         public static double SlopeDeg(Double3 normal)
             => Math.Acos(SimMath.Clamp(normal.Y, -1.0, 1.0)) * GeoMath.RadToDeg;
     }

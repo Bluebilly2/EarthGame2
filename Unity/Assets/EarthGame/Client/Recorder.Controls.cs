@@ -196,20 +196,27 @@ namespace EarthGame.Client
         /// Walking, running, crouching and the jump in one scheme: the move held forward (a composite's part at the desk, the
         /// stick on the gamepad), then with the sprint, then with the crouch, then the jump pressed.
         /// </summary>
+        /// <summary>
+        /// How long a gait is held before its speed is read at three fifths of the hold: since M1.5h a body takes about a second
+        /// and a third to reach its walk from rest, so the reading at 1.5 s is of the pace and not of the getting there (1.2 s
+        /// until then, which read the crouch as three quarters of a walk still on its way up).
+        /// </summary>
+        private const double GaitHoldS = 2.5;
+
         private IEnumerator Gaits(string scheme, string forwardPart, Vector2 forward)
         {
             double walk = 0.0, run = 0.0, crouched = 0.0, moved = 0.0;
             Stance stance = Stance.Standing;
             string walked = null, ran = null, crouchedBy = null;
             (string, string, Vector2) move = (Controls.Move, forwardPart, forward);
-            yield return Hold(scheme, 1.2, null, s => walked = s, move);
+            yield return Hold(scheme, GaitHoldS, null, s => walked = s, move);
             walk = _heldSpeed;
             moved = _heldAcross;
             Check("the move walks", scheme, walked, false, walked != null && moved >= 0.8 && walk > 0.5, F2(walk) + " m/s, " + F2(moved) + " m");
-            yield return Hold(scheme, 1.2, null, s => ran = s, move, (Controls.Sprint, null, Vector2.one));
+            yield return Hold(scheme, GaitHoldS, null, s => ran = s, move, (Controls.Sprint, null, Vector2.one));
             run = _heldSpeed;
             Check("the sprint runs", scheme, ran, false, ran != null && run > 1.3 * walk, F2(run) + " m/s against a walk's " + F2(walk));
-            yield return Hold(scheme, 1.2, null, s => crouchedBy = s, move, (Controls.Crouch, null, Vector2.one));
+            yield return Hold(scheme, GaitHoldS, null, s => crouchedBy = s, move, (Controls.Crouch, null, Vector2.one));
             crouched = _heldSpeed;
             stance = _heldStance;
             Check("the crouch crouches", scheme, crouchedBy, false, crouchedBy != null && stance == Stance.Crouching && crouched < 0.75 * walk, stance + ", " + F2(crouched) + " m/s");

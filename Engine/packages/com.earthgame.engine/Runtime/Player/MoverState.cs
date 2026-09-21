@@ -110,10 +110,17 @@ namespace EarthGame.Engine
         public double CrouchEyeHeight = 1.1;
         /// <summary>A rise this high in one stride is stepped onto rather than walked into.</summary>
         public double StepHeight = 0.4;
-        /// <summary>Ground steeper than this cannot be stood on: the founder slides.</summary>
-        public double WalkableSlopeDeg = 45.0;
+        /// <summary>
+        /// Ground steeper than this cannot be stood on: the founder slides. Dry sand's angle of repose, 30–35° (M1.5h): nothing
+        /// loose stands steeper, so the dune's own face is the limit of walked ground; until 2026-09-21 it was 45°.
+        /// </summary>
+        public double WalkableSlopeDeg = 35.0;
         /// <summary>How far below the feet the ground may fall in one step before the founder is airborne.</summary>
         public double GroundSnapDistance = 0.3;
+        /// <summary>How fast the horizontal velocity may grow toward the wish at a walk and at a run, and shrink when the wish is let go or reversed, m/s² (M1.5h).</summary>
+        public double WalkAccelMs2 = 1.05;
+        public double RunAccelMs2 = 3.2;
+        public double BrakeMs2 = 4.0;
         public double Gravity = 9.81;
         /// <summary>Height of a standing jump; the take-off speed is sqrt(2 g h).</summary>
         public double JumpHeight = 0.5;
@@ -152,7 +159,7 @@ namespace EarthGame.Engine
         /// The fastest a body of a work capacity can move horizontally on any ground: the validator's ceiling. The capacity
         /// is the body's, not the config's (FP.1): physiology owns it, and each founder has their own.
         /// </summary>
-        public double MaxHorizontalSpeedAt(double workCapacity01) => Locomotion.SpeedMs(Locomotion.ToblerPeakSlope, Gait.Running, workCapacity01);
+        public double MaxHorizontalSpeedAt(double workCapacity01) => Locomotion.SpeedMs(Locomotion.FastestWalkSlope, Gait.Running, workCapacity01);
 
         /// <summary>The fastest the mover can move horizontally on any ground at full capacity.</summary>
         public double MaxHorizontalSpeed => MaxHorizontalSpeedAt(1.0);

@@ -30,13 +30,13 @@ namespace EarthGame.Engine
     /// <summary>
     /// Moving, and what it costs.
     ///
-    /// <para>Two published functions do all of the work here, and neither was invented for this game. Tobler's
-    /// hiking function says how fast a person walks on a slope; the Pandolf equation says what it costs them to do
-    /// it carrying something. Both are used unchanged, which is the point: a founder who knows to contour around a
-    /// spur instead of going over it is right, because the same curve that makes real people do that is running
-    /// here. Ported from v1 (Assets/EarthGame/Sim/Body/Locomotion.cs) with the algorithm untouched; the gait
-    /// multipliers are the code's, not the v1 contract's, and that disagreement is a recorded debt for the owner's
-    /// hands to settle.</para>
+    /// <para>Published functions do the work here, and none was invented for this game. Tobler's hiking function says
+    /// how fast a journey goes over a slope, an hour's average with the pauses and the route-finding in it; the
+    /// Pandolf equation says what moving costs carrying something; and since M1.5h (CANON ruling 34, 2026-09-21) the
+    /// walker's own speed on a slope, second by second, is a table of what people are measured doing when they walk
+    /// on slopes, because Tobler used as a stepping pace walked a founder down a dune slower than a stroll. Ported
+    /// from v1 (Assets/EarthGame/Sim/Body/Locomotion.cs) with Tobler and Pandolf untouched; the gait multipliers
+    /// are the code's, not the v1 contract's, and that disagreement is a recorded debt for the owner's hands.</para>
     /// </summary>
     public static class Locomotion
     {
@@ -54,9 +54,42 @@ namespace EarthGame.Engine
         /// </summary>
         public const double ToblerPeakSlope = -0.05;
 
-        /// <summary>How fast a person walks on this slope, m/s. Slope is rise over run: positive uphill.</summary>
-        public static double WalkingSpeedMs(double slope)
+        /// <summary>Tobler's journey speed on this slope, m/s: an hour's average over country, pauses and route-finding included. Slope is rise over run, positive uphill.</summary>
+        public static double JourneySpeedMs(double slope)
             => ToblerBaseMs * Math.Exp(-ToblerExponent * Math.Abs(slope - ToblerPeakSlope));
+
+        // ---- The walker's own speed (M1.5h, CANON ruling 34) ----
+        /// <summary>The tangent of 24° and of 35°: the steepest gradient people were measured walking, and dry sand's angle of repose.</summary>
+        private const double Tan24 = 0.44523, Tan35 = 0.70021;
+        /// <summary>
+        /// The slopes (rise over run, positive uphill) at which the walker's speed is known, and the speeds, m/s, as people
+        /// are measured walking them: the hiking speeds a treadmill study set for its grades (Applied Sciences 14 (2024)
+        /// 4383: 5.0 km/h on the level and at −10 %, 3.5 km/h at +10 % and at −20 %, 2.5 km/h at +20 %); a gentle descent
+        /// walked no slower than the flat (Sun, Walters, Svensson and Lloyd 1996, Ergonomics 39:677, 2 400 pedestrians on a
+        /// ramp of up to 9°); beyond ±20 % the speed falling as the step shortens (Kawamura, Tokuhiro and Takechi 1991,
+        /// Acta Med Okayama 45:179, 3° to 12°: slower both ways at 12°, the step shorter the steeper the descent) to the
+        /// pace people were measured holding on a 24° descent (0.69 m/s, the slowest trial Minetti, Moia, Roi, Susta and
+        /// Ferretti 2002, J Appl Physiol 93:1039, walked at every gradient to ±0.45) and to a careful pace at 35°, past
+        /// which nothing loose stands and the mover slides. The 24° ascent and both 35° points are this slice's own
+        /// continuation of the measured trend, not measurements, and are marked for the owner's hands (DEBTS, ruling 12).
+        /// Between the points the speed is a straight line; past the ends it is the end's.
+        /// </summary>
+        private static readonly double[] WalkSlopes = { -Tan35, -Tan24, -0.20, -0.10, 0.0, 0.10, 0.20, Tan24, Tan35 };
+        private static readonly double[] WalkSpeeds = { 0.40, 0.69, 0.97, 1.39, 1.39, 0.97, 0.69, 0.50, 0.35 };
+        /// <summary>A slope on which the walker is fastest: the level and the gentle descent are one plateau in the table, and this is on it.</summary>
+        public const double FastestWalkSlope = -0.05;
+        /// <summary>How fast a person walks on this slope, m/s: the walker's own pace, not the journey's. Slope is rise over run, positive uphill.</summary>
+        public static double WalkingSpeedMs(double slope)
+        {
+            if (double.IsNaN(slope)) slope = 0.0;
+            if (slope <= WalkSlopes[0]) return WalkSpeeds[0];
+            int last = WalkSlopes.Length - 1;
+            if (slope >= WalkSlopes[last]) return WalkSpeeds[last];
+            int i = 1;
+            while (WalkSlopes[i] < slope) i++;
+            double t = (slope - WalkSlopes[i - 1]) / (WalkSlopes[i] - WalkSlopes[i - 1]);
+            return WalkSpeeds[i - 1] + (WalkSpeeds[i] - WalkSpeeds[i - 1]) * t;
+        }
 
         /// <summary>What each gait multiplies the sustainable walking speed by.</summary>
         public static double GaitMultiplier(Gait gait)
@@ -81,22 +114,11 @@ namespace EarthGame.Engine
             double multiplier = GaitMultiplier(gait);
             if (multiplier <= 0.0) return 0.0;
             double capacity = 0.45 + 0.55 * SimMath.Clamp01(workCapacity01);
-            double speed = WalkingSpeedMs(slope) * TravelPaceFactor * multiplier * capacity;
-            // Steep ground is slow. It is not a wall: Tobler's exponential keeps falling forever and hands back
-            // 0.14 m/s on a 33-degree slope, which in a game is indistinguishable from being unable to move.
-            return Math.Max(MinimumSpeedMs * multiplier, speed);
+            // The table's numbers are stepping speeds already: no correction from an hour-average, and no floor, since the
+            // table ends at the repose with a pace of its own and past it the mover slides (M1.5h; until then Tobler's
+            // hour-average was scaled by 1.3 and floored at 0.45 m/s, which is what crawled a founder down a dune).
+            return WalkingSpeedMs(slope) * multiplier * capacity;
         }
-
-        /// <summary>
-        /// Tobler's function against the pace a person's legs actually keep. Tobler is fitted to <b>journey</b>
-        /// times across terrain, so its 1.4 m/s on the flat already has the pauses, the route-finding and the
-        /// picking-your-way baked in. Somebody actually walking moves faster than their own hour-average, and this
-        /// is the difference between the two.
-        /// </summary>
-        public const double TravelPaceFactor = 1.3;
-
-        /// <summary>Slowest a founder moves on ground they can stand on at all, m/s.</summary>
-        public const double MinimumSpeedMs = 0.45;
 
         // ---- Swimming (Sugiyama & Katamoto 1992) ----
 

@@ -83,12 +83,12 @@ namespace EarthGame.Tests.Server
                 Assert.That(rig.A.Entities.Views[id].Animal.Pose, Is.Not.EqualTo(AnimalPose.Fleeing), "and nobody has startled it");
             Assert.That(flights, Is.Empty);
 
-            // A walks south at six metres a second, a legal walk, until the mob is seen to run.
+            // A walks south at four metres a second, under the run's ceiling (4.5 since M1.5h's walker's law), until the mob is seen to run.
             double seenAt = double.NaN;
             long seenTick = -1;
-            for (int step = 0; step < 600 && double.IsNaN(seenAt); step++)
+            for (int step = 0; step < 1000 && double.IsNaN(seenAt); step++)
             {
-                aNorth -= 0.3;
+                aNorth -= 0.2;
                 rig.A.SendMove(MoverInput.Walk(0.0, 1.0), 180f, 0f, Standing(world, g.EastM, aNorth));
                 rig.Pump();
                 EntityView first = rig.A.Entities.Views[ids[0]];

@@ -176,13 +176,13 @@ namespace EarthGame.Tests.Server
             rig.Pump(1);
             Assert.That(rig.Session.StoodUp, Is.EqualTo(100.0), "where they stood");
 
-            // Two and a half metres below it at 10 m/s, where a run and that fall allow 11.2 m/s with the tolerance.
-            rig.Client.SendMove(MoverInput.None, 0f, 0f, MoverState.AtRest(0.5, 97.5, 0.0));
+            // Two and a half metres below it at 9 m/s, where a run (3.6 since M1.5h) and that fall allow 9.8 m/s with the tolerance.
+            rig.Client.SendMove(MoverInput.None, 0f, 0f, MoverState.AtRest(0.45, 97.5, 0.0));
             rig.Pump(1);
             Assert.That(rig.Client.CorrectionCount, Is.EqualTo(0), "a fall's speed is believed");
             Assert.That(rig.Session.StoodUp, Is.EqualTo(100.0), "and a fall keeps where they stood");
 
-            // Back up level with where they stood, off their feet at 12 m/s: nothing drives that but a cheat.
+            // Back up level with where they stood, off their feet at 13 m/s: nothing drives that but a cheat.
             rig.Client.SendMove(MoverInput.None, 0f, 0f, MoverState.AtRest(1.1, 100.0, 0.0));
             rig.Pump(1);
             Assert.That(rig.Client.CorrectionCount, Is.EqualTo(1), "a body hanging level with where it stood is held to a run");
@@ -225,11 +225,11 @@ namespace EarthGame.Tests.Server
             Assert.That(client.State, Is.EqualTo(ClientState.Connected));
             Assert.That(server.Sessions[0].StoodUp, Is.EqualTo(100.0), "where the save held them");
 
-            client.SendMove(MoverInput.None, 0f, 0f, MoverState.AtRest(0.5, 97.5, 0.0));
+            client.SendMove(MoverInput.None, 0f, 0f, MoverState.AtRest(0.45, 97.5, 0.0));
             client.Update(ms);
             server.Update(0.05);
             client.Update(ms);
-            Assert.That(client.CorrectionCount, Is.EqualTo(0), "falling on from where the save held them, at 10 m/s");
+            Assert.That(client.CorrectionCount, Is.EqualTo(0), "falling on from where the save held them, at 9 m/s (a run of 3.6 and that fall allow 9.8 with the tolerance)");
         }
 
         private sealed class Face : IHeightSource
@@ -287,8 +287,9 @@ namespace EarthGame.Tests.Server
         [Test]
         public void AClaimedGapBuysNoMoreTimeThanReallyPassed()
         {
-            // A client that skips forty sequence numbers per report claims two seconds of walking each time (ten
-            // metres, back and forth inside the 40 m fixture); the credit it banked covers the first two claims,
+            // A client that skips forty sequence numbers per report claims two seconds of walking each time (eight
+            // metres, back and forth inside the 40 m fixture: 4 m/s, under the run's ceiling of 4.5 since M1.5h's
+            // walker's law); the credit it banked covers the first two claims,
             // and the third is judged over the second and a bit that really passed.
             InMemoryTransport.CreatePair(out IServerTransport st, out IClientTransport ct);
             GameServer server = new GameServer(new ServerConfig(), st, World());
@@ -314,7 +315,7 @@ namespace EarthGame.Tests.Server
                 move.Input = MoverInput.Walk(1.0, 0.0);
                 move.YawDeg = 90f;
                 move.PitchDeg = 0f;
-                move.Body = GroundedAt(ground, i % 2 == 0 ? 0.0 : 10.0, 0.0);
+                move.Body = GroundedAt(ground, i % 2 == 0 ? 0.0 : 8.0, 0.0);
                 w.Reset();
                 move.Write(w);
                 ct.Connection.Send(w.Written, Delivery.Unreliable);
@@ -394,6 +395,13 @@ namespace EarthGame.Tests.Server
             rig.Pump(2);
             Assert.That(rig.Client.CorrectionCount, Is.EqualTo(0), "being in the air over the ground is not a violation");
             Assert.That(rig.Session.HasBody, Is.True);
+        }
+
+        /// <summary>One law, three readers (M1.5h): the ceiling the server holds a run to is the walker's table's fastest point times the run's multiple.</summary>
+        [Test]
+        public void TheCeilingIsTheWalkersLawsFastestRun()
+        {
+            Assert.That(MoverConfig.Default.MaxHorizontalSpeed, Is.EqualTo(1.39 * Locomotion.GaitMultiplier(Gait.Running)).Within(0.02));
         }
 
         [Test]

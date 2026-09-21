@@ -47,13 +47,13 @@ namespace EarthGame.Tests.Engine
         }
 
         [Test]
-        public void WalkingOnTheFlatGoesAtToblersPace()
+        public void WalkingOnTheFlatReachesTheWalkersPace()
         {
             IWorldCollision flat = World((e, n) => 0.0);
-            MoverState s = Run(MoverState.AtRest(0.0, 0.0, 0.0), MoverInput.Walk(1.0, 0.0), flat, 50);
+            MoverState s = Run(MoverState.AtRest(0.0, 0.0, 0.0), MoverInput.Walk(1.0, 0.0), flat, 150);
             double expected = Locomotion.SpeedMs(0.0, Gait.Walking, 1.0);
-            Assert.That(s.East, Is.EqualTo(expected * 1.0).Within(1e-9), "one second of walking east at the flat walking speed");
-            Assert.That(s.HorizontalSpeed, Is.EqualTo(expected).Within(1e-9));
+            Assert.That(s.HorizontalSpeed, Is.EqualTo(expected).Within(1e-6), "three seconds in, the walker is at the flat walking speed");
+            Assert.That(s.East, Is.LessThan(expected * 3.0).And.GreaterThan(expected * 2.0), "having spent the first steps getting there");
             Assert.That(s.Grounded, Is.True);
             Assert.That(s.Up, Is.EqualTo(0.0).Within(1e-12), "feet stay on the ground");
         }
@@ -117,7 +117,7 @@ namespace EarthGame.Tests.Engine
             Assert.That(up.Up, Is.EqualTo(up.East * grade).Within(1e-9), "the feet are on the slope");
             double flatDistance = Locomotion.SpeedMs(0.0, Gait.Walking, 1.0) * 2.0;
             Assert.That(up.East, Is.LessThan(flatDistance), "uphill is slower");
-            Assert.That(up.East, Is.EqualTo(Locomotion.SpeedMs(grade, Gait.Walking, 1.0) * 2.0).Within(1e-6), "at exactly Tobler's speed for that grade");
+            Assert.That(up.HorizontalSpeed, Is.EqualTo(Locomotion.SpeedMs(grade, Gait.Walking, 1.0)).Within(1e-6), "at the walker's own speed for that grade, once at pace");
             MoverState down = Run(MoverState.AtRest(0.0, 0.0, 0.0), MoverInput.Walk(-1.0, 0.0), slope, 100);
             Assert.That(down.Grounded, Is.True, "walking down a gentle slope never leaves the ground");
             Assert.That(down.Up, Is.EqualTo(down.East * grade).Within(1e-9));
@@ -138,16 +138,75 @@ namespace EarthGame.Tests.Engine
         public void ALowStepIsSteppedOnto()
         {
             IWorldCollision step = World((e, n) => e > 3.0 ? 0.3 : 0.0);
-            MoverState s = Run(MoverState.AtRest(0.0, 0.0, 0.0), MoverInput.Walk(1.0, 0.0), step, 150);
+            MoverState s = Run(MoverState.AtRest(0.0, 0.0, 0.0), MoverInput.Walk(1.0, 0.0), step, 220);
             Assert.That(s.East, Is.GreaterThan(4.0), "walked past the step");
             Assert.That(s.Up, Is.EqualTo(0.3).Within(1e-9), "and is standing on it");
             Assert.That(s.Grounded, Is.True);
         }
 
+        /// <summary>
+        /// M1.5h (ruling 34): a body reaches its pace by the third step (Gait and Posture 83, 2021: 90 % of the steady speed by
+        /// then), and is not at it in one tick; let go, it brakes at v1's four metres a second per second — a quarter of a
+        /// metre from a walk — and a reversed wish passes through a stop, never flipping in a tick.
+        /// </summary>
+        [Test]
+        public void ABodyReachesItsPaceByTheThirdStep()
+        {
+            IWorldCollision flat = World((e, n) => 0.0);
+            double walk = Locomotion.SpeedMs(0.0, Gait.Walking, 1.0);
+            MoverState oneTick = Run(MoverState.AtRest(0.0, 0.0, 0.0), MoverInput.Walk(1.0, 0.0), flat, 1);
+            Assert.That(oneTick.HorizontalSpeed, Is.LessThan(0.5 * walk), "not at pace in one tick");
+            MoverState later = Run(MoverState.AtRest(0.0, 0.0, 0.0), MoverInput.Walk(1.0, 0.0), flat, 75);
+            Assert.That(later.HorizontalSpeed, Is.GreaterThan(0.9 * walk), "at nine tenths of the walk within a second and a half");
+            double run = Locomotion.SpeedMs(0.0, Gait.Running, 1.0);
+            MoverState running = Run(MoverState.AtRest(0.0, 0.0, 0.0), MoverInput.Walk(1.0, 0.0, sprint: true), flat, 60);
+            Assert.That(running.HorizontalSpeed, Is.GreaterThan(0.9 * run), "a run is at nine tenths within about a second: the same count of quicker steps");
+        }
+
+        [Test]
+        public void LetGoABodyStopsInItsOwnLength()
+        {
+            IWorldCollision flat = World((e, n) => 0.0);
+            MoverState walking = Run(MoverState.AtRest(0.0, 0.0, 0.0), MoverInput.Walk(1.0, 0.0), flat, 150);
+            MoverState afterOne = Run(walking, MoverInput.None, flat, 1);
+            Assert.That(afterOne.HorizontalSpeed, Is.GreaterThan(0.0), "a stop is not instant");
+            MoverState stopped = Run(walking, MoverInput.None, flat, 50);
+            Assert.That(stopped.HorizontalSpeed, Is.LessThan(1e-6), "and is a stop within a second");
+            Assert.That(stopped.East - walking.East, Is.GreaterThan(0.05).And.LessThan(0.5), "about a quarter of a metre of it from a walk");
+            MoverState runningState = Run(MoverState.AtRest(0.0, 0.0, 0.0), MoverInput.Walk(1.0, 0.0, sprint: true), flat, 150);
+            MoverState stoppedRun = Run(runningState, MoverInput.None, flat, 100);
+            Assert.That(stoppedRun.East - runningState.East, Is.GreaterThan(1.0).And.LessThan(2.5), "a metre and a half or so from a run");
+        }
+
+        [Test]
+        public void AReversedWishPassesThroughAStop()
+        {
+            IWorldCollision flat = World((e, n) => 0.0);
+            MoverState walking = Run(MoverState.AtRest(0.0, 0.0, 0.0), MoverInput.Walk(1.0, 0.0), flat, 150);
+            MoverState turned = Run(walking, MoverInput.Walk(-1.0, 0.0), flat, 1);
+            Assert.That(turned.VelEast, Is.GreaterThan(0.0), "still moving east the tick after the wish turns west");
+            MoverState later = Run(walking, MoverInput.Walk(-1.0, 0.0), flat, 150);
+            Assert.That(later.VelEast, Is.LessThan(0.0), "and west in time");
+            Assert.That(later.HorizontalSpeed, Is.EqualTo(Locomotion.SpeedMs(0.0, Gait.Walking, 1.0)).Within(1e-6));
+        }
+
+        /// <summary>Walked ground ends at the repose (M1.5h): a 30-degree face is walked, a 40-degree one, walked until now, is a slide.</summary>
+        [Test]
+        public void AFortyDegreeFaceIsASlideAndAThirtyIsWalked()
+        {
+            IWorldCollision forty = World((e, n) => e * Math.Tan(40.0 * Math.PI / 180.0));
+            MoverState onForty = Run(MoverState.AtRest(2.0, 2.0 * Math.Tan(40.0 * Math.PI / 180.0), 0.0), MoverInput.Walk(1.0, 0.0), forty, 100);
+            Assert.That(onForty.Grounded, Is.False, "nothing loose stands at forty degrees, and nor does the founder");
+            IWorldCollision thirty = World((e, n) => e * Math.Tan(30.0 * Math.PI / 180.0));
+            MoverState onThirty = Run(MoverState.AtRest(2.0, 2.0 * Math.Tan(30.0 * Math.PI / 180.0), 0.0), MoverInput.Walk(-1.0, 0.0), thirty, 100);
+            Assert.That(onThirty.Grounded, Is.True, "thirty degrees is walked");
+            Assert.That(onThirty.East, Is.LessThan(2.0), "down it");
+        }
+
         [Test]
         public void TooSteepToStandOnMeansSliding()
         {
-            const double grade = 1.8; // 61 degrees, past the 45 walkable
+            const double grade = 1.8; // 61 degrees, past the 35 walkable
             IWorldCollision steep = World((e, n) => e * grade);
             MoverState s = Run(MoverState.AtRest(2.0, 3.6, 0.0), MoverInput.Walk(1.0, 0.0, sprint: true), steep, 100);
             Assert.That(s.Grounded, Is.False, "there is no standing on this");
@@ -159,8 +218,9 @@ namespace EarthGame.Tests.Engine
         public void WalkingOffACliffFallsToTheLowerGround()
         {
             IWorldCollision cliff = World((e, n) => e > 2.0 ? -4.0 : 0.0);
-            // 1.6 s of walking at 1.82 m/s is 2.9 m: past the edge at 2 m with half a second of falling behind it.
-            MoverState s = Run(MoverState.AtRest(0.0, 0.0, 0.0), MoverInput.Walk(1.0, 0.0), cliff, 80);
+            // 2.4 s of walking at 1.39 m/s, less the first steps' getting to pace, is about 2.4 m: past the edge at 2 m with
+            // a quarter of a second of falling behind it.
+            MoverState s = Run(MoverState.AtRest(0.0, 0.0, 0.0), MoverInput.Walk(1.0, 0.0), cliff, 120);
             Assert.That(s.East, Is.GreaterThan(2.0));
             Assert.That(s.Grounded, Is.False, "over the edge, in the air");
             s = Run(s, MoverInput.None, cliff, 100);
@@ -172,12 +232,12 @@ namespace EarthGame.Tests.Engine
         public void ShallowWaterIsWadedAtHalfPace()
         {
             IWorldCollision shore = World((e, n) => -0.6, sea: true);
-            MoverState s = Run(MoverState.AtRest(0.0, -0.6, 0.0), MoverInput.Walk(1.0, 0.0), shore, 50);
+            MoverState s = Run(MoverState.AtRest(0.0, -0.6, 0.0), MoverInput.Walk(1.0, 0.0), shore, 100);
             Assert.That(s.Wading, Is.True, "sixty centimetres of sea over the feet is wading");
             Assert.That(s.Grounded, Is.True, "still on the bottom");
-            Assert.That(s.East, Is.EqualTo(Locomotion.SpeedMs(0.0, Gait.Walking, 1.0) * MoverConfig.Default.WadeSpeedFactor).Within(1e-9));
-            MoverState sprint = Run(MoverState.AtRest(0.0, -0.6, 0.0), MoverInput.Walk(1.0, 0.0, sprint: true), shore, 50);
-            Assert.That(sprint.East, Is.EqualTo(s.East).Within(1e-9), "there is no sprinting through water");
+            Assert.That(s.HorizontalSpeed, Is.EqualTo(Locomotion.SpeedMs(0.0, Gait.Walking, 1.0) * MoverConfig.Default.WadeSpeedFactor).Within(1e-9), "at the wade's pace once there");
+            MoverState sprint = Run(MoverState.AtRest(0.0, -0.6, 0.0), MoverInput.Walk(1.0, 0.0, sprint: true), shore, 100);
+            Assert.That(sprint.HorizontalSpeed, Is.EqualTo(s.HorizontalSpeed).Within(1e-9), "there is no sprinting through water");
             IWorldCollision dry = World((e, n) => 0.6, sea: true);
             Assert.That(Run(MoverState.AtRest(0.0, 0.6, 0.0), MoverInput.None, dry, 5).Wading, Is.False, "ground above the sea is dry");
         }
@@ -191,12 +251,12 @@ namespace EarthGame.Tests.Engine
             Ground surface = new Ground((e, n) => e < 5.0 ? 10.6 : 10.0);
             IWorldCollision lake = HeightfieldCollision.For(ground, MoverConfig.Default, hasSea: false, water: surface);
             double walking = Locomotion.SpeedMs(0.0, Gait.Walking, 1.0);
-            MoverState s = Run(MoverState.AtRest(0.0, 10.0, 0.0), MoverInput.Walk(1.0, 0.0), lake, 5);
+            MoverState s = Run(MoverState.AtRest(0.0, 10.0, 0.0), MoverInput.Walk(1.0, 0.0), lake, 50);
             Assert.That(s.Wading, Is.True, "sixty centimetres of lake over the feet is wading");
             Assert.That(s.HorizontalSpeed, Is.EqualTo(walking * MoverConfig.Default.WadeSpeedFactor).Within(1e-9));
-            for (int i = 0; i < 2000 && s.East < 6.0; i++) s = Mover.Step(s, MoverInput.Walk(1.0, 0.0), Dt, lake);
+            for (int i = 0; i < 2000 && s.East < 7.0; i++) s = Mover.Step(s, MoverInput.Walk(1.0, 0.0), Dt, lake);
             s = Mover.Step(s, MoverInput.Walk(1.0, 0.0), Dt, lake);
-            Assert.That(s.East, Is.GreaterThan(6.0), "walked out of the water");
+            Assert.That(s.East, Is.GreaterThan(7.0), "walked out of the water, and two metres on, at pace again");
             Assert.That(s.Wading, Is.False, "on the dry side");
             Assert.That(s.HorizontalSpeed, Is.EqualTo(walking).Within(1e-9));
 
@@ -293,9 +353,9 @@ namespace EarthGame.Tests.Engine
             IWorldCollision flat = World((e, n) => 0.0);
             MoverInput crouch = MoverInput.Walk(1.0, 0.0);
             crouch.Crouch = true;
-            MoverState s = Run(MoverState.AtRest(0.0, 0.0, 0.0), crouch, flat, 50);
+            MoverState s = Run(MoverState.AtRest(0.0, 0.0, 0.0), crouch, flat, 100);
             Assert.That(s.Stance, Is.EqualTo(Stance.Crouching));
-            Assert.That(s.East, Is.EqualTo(Locomotion.SpeedMs(0.0, Gait.Walking, 1.0) * MoverConfig.Default.CrouchSpeedFactor).Within(1e-9));
+            Assert.That(s.HorizontalSpeed, Is.EqualTo(Locomotion.SpeedMs(0.0, Gait.Walking, 1.0) * MoverConfig.Default.CrouchSpeedFactor).Within(1e-9), "at the crouch's pace once there");
         }
 
         [Test]
