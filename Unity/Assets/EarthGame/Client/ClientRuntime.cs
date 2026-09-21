@@ -94,6 +94,23 @@ namespace EarthGame.Client
         private SolarClock _solar;
         private PlayerController _player;
         private HudController _hud;
+
+        /// <summary>
+        /// Whether this game may pause itself when left alone (M1.E, CANON ruling 38), set by the bootstrap: a SOLO game with
+        /// hands at it, never a joined one (the world is the server's) and never a recorded run, which waits minutes between
+        /// its presses and whose soak would send itself to sleep.
+        /// </summary>
+        public bool PauseAllowed;
+
+        /// <summary>The frames a second a game asleep draws: enough to show its line, and a GPU the machine can use meanwhile.</summary>
+        internal const int SleepingFrameRate = 10;
+
+        private IdleWatch _idle;
+        private bool _frozenBeforeSleep;
+        private int _frameRateBeforeSleep = -1;
+
+        /// <summary>True while the game is asleep: the bootstrap then steps no world and the player moves nothing (M1.E).</summary>
+        public bool Asleep => _idle != null && _idle.Asleep;
         private Camera _camera;
         private float _nextPingAt;
         private float _nextTileRequestAt;
@@ -182,6 +199,8 @@ namespace EarthGame.Client
             _client.LooseTakenChanged += OnLooseTaken;
             _client.FounderStateChanged += OnFounderState;
             _client.Died += OnDied;
+            _client.DeveloperModeChanged += OnDeveloperModeChanged;
+            _idle = new IdleWatch(PauseAllowed);
             Interactive = false;
             if (_player != null) _player.Frozen = true;
             Joins++;
@@ -220,6 +239,72 @@ namespace EarthGame.Client
             Debug.Log("[founder] " + sentence);
         }
 
+        /// <summary>
+        /// The server's answer to the developer's switch (M1.E, CANON ruling 39). Flight and the panel follow what was granted,
+        /// never what was asked. Turning it off ends a flight first — the controller will not end a flight it is no longer
+        /// allowed — and sets the founder on the ground, as coming down always does (M1.5e). Turning it on again starts the
+        /// developer's session over, the noclip on, as the panel's reset leaves it (M1.D).
+        /// </summary>
+        private void OnDeveloperModeChanged(bool on, bool refused)
+        {
+            if (_player != null)
+            {
+                if (!on)
+                {
+                    _player.SetNoclip(false);
+                    _player.SetFlying(false);
+                }
+                else if (!_player.FlightAllowed)
+                {
+                    // On, from off: the developer's session starts as the panel's reset leaves it (M1.D), the noclip on and
+                    // the flight off; turning it off had taken the noclip with the flight. Found by the controls scenario,
+                    // whose crouch held in flight sank through nothing after F2 off and on again (2026-09-21).
+                    _player.SetNoclip(true);
+                }
+                _player.FlightAllowed = on;
+            }
+            if (!on && _devPanel != null && _devPanel.Open) _devPanel.Hide();
+            string words = refused ? "developer mode: this server does not allow it" : on ? "developer mode on — F3 for the panel, F to fly" : "developer mode off";
+            _hud?.SetNotice(words, 4f);
+            Debug.Log("[developer] " + words);
+        }
+
+        /// <summary>Asleep (M1.E): the founder held where they are, the frames slowed and the line shown.</summary>
+        private void Sleep()
+        {
+            _frozenBeforeSleep = _player != null && _player.Frozen;
+            if (_player != null) _player.Frozen = true;
+            _frameRateBeforeSleep = Application.targetFrameRate;
+            Application.targetFrameRate = SleepingFrameRate;
+            _hud?.SetPaused(true);
+            Debug.Log("[idle] asleep: the world and its clock wait");
+        }
+
+        /// <summary>
+        /// Awake again (M1.E): everything put back as it was, and the presses of the waking frame thrown away, so the key that
+        /// woke the game does nothing else — nobody wakes it by swinging a stone.
+        /// </summary>
+        private void Wake()
+        {
+            if (_player != null)
+            {
+                _player.Frozen = _frozenBeforeSleep;
+                _player.DropPresses();
+            }
+            Application.targetFrameRate = _frameRateBeforeSleep;
+            _hud?.SetPaused(false);
+            Debug.Log("[idle] awake");
+        }
+
+        /// <summary>
+        /// Whether anything was touched this frame (M1.E): the controls asset's Touched action, bound to any key, the mouse's
+        /// buttons, movement and wheel, and the pad's sticks, triggers and buttons, and read through PlayerInput as every
+        /// other action is, so the asset stays the one owner of what the hands mean (M1.5a's rule; the watch asked the
+        /// devices itself until the source rule caught it, 2026-09-21). Held counts as touched, so a founder walking with W
+        /// down for a minute is being played.
+        /// </summary>
+        private bool AnyInputThisFrame() => _player != null && _player.Touched;
+
         public void Reconnect()
         {
             if (_client != null)
@@ -233,6 +318,7 @@ namespace EarthGame.Client
                 _client.LooseTakenChanged -= OnLooseTaken;
                 _client.FounderStateChanged -= OnFounderState;
                 _client.Died -= OnDied;
+                _client.DeveloperModeChanged -= OnDeveloperModeChanged;
             }
             _transport?.Dispose();
             Connect();
@@ -246,6 +332,14 @@ namespace EarthGame.Client
             _lastRealtime = now;
             long nowMs = (long)(now * 1000.0);
             _client.Update(nowMs);
+            // The idle pause (M1.E, CANON ruling 38): a game left alone stops, its clock with it, until a key, a button, the
+            // mouse or the window's focus comes back. A window has no focus to lose in a run with no window at all.
+            if (_idle != null)
+            {
+                IdleChange change = _idle.Notice(dt, AnyInputThisFrame(), Application.isFocused || Application.isBatchMode);
+                if (change == IdleChange.FellAsleep) Sleep();
+                else if (change == IdleChange.WokeUp) Wake();
+            }
             if (_client.State == ClientState.Connected && Time.realtimeSinceStartup >= _nextPingAt)
             {
                 _client.Ping(nowMs);
@@ -254,7 +348,7 @@ namespace EarthGame.Client
             // The server's clock is the one clock (WorldClock): this client's runs between pongs at the server's rate and
             // follows it when it slips.
             if (_clock != null) _clock.Scale = _client.LastClockScale;
-            if (_clock != null && dt > 0.0) _clock.Advance(dt);
+            if (_clock != null && dt > 0.0 && !Asleep) _clock.Advance(dt);
             if (_clock != null && !double.IsNaN(_client.LastServerTotalHours) && Math.Abs(_client.LastServerTotalHours - _clock.TotalHours) > ClockSlipHours)
                 _clock.SetTotalHours(_client.LastServerTotalHours);
             if (ViewBuilt)
@@ -283,7 +377,8 @@ namespace EarthGame.Client
                     if (presses.DevPanel || presses.Menu) _devPanel.Hide();
                     else _devPanel.Tick();
                 }
-                else if (presses.DevPanel && _devPanel != null) _devPanel.Show();
+                else if (presses.DeveloperMode) _client.SendDeveloperMode(!_client.DeveloperMode);
+                else if (presses.DevPanel && _devPanel != null && _client.DeveloperMode) _devPanel.Show();
                 else _verbs?.Tick(presses, Time.realtimeSinceStartup);
                 // The hand moves with the head and the stride every frame (M1.5c); off the ground it only follows.
                 _hand?.Place(Time.deltaTime, _player.Frozen || !_player.State.Grounded ? 0.0 : _player.State.HorizontalSpeed, _player.PitchDeg);
@@ -884,7 +979,10 @@ namespace EarthGame.Client
             _player = body.AddComponent<PlayerController>();
             // A recorded scenario drives the founder through the scripted seam, except the controls scenario, which presses
             // the controls themselves (M1.5d).
-            ScriptedInputSource script = _recordDir != null && _scenario != Recorder.ControlsScenario ? new ScriptedInputSource() : null;
+            // The idle scenario, like the controls one, takes the real source: its waking key is pressed on a keyboard of its own
+            // and must reach the player through the asset's Touched action, which a scripted frame never carries (2026-09-21).
+            ScriptedInputSource script = _recordDir != null && _scenario != Recorder.ControlsScenario && _scenario != Recorder.IdleScenario
+                ? new ScriptedInputSource() : null;
             IPlayerInputSource input = script != null ? script : new InputSystemSource();
             Double3 spawn = new Double3(welcome.SpawnEast, welcome.SpawnUp + SpawnDropM, welcome.SpawnNorth);
             _player.Attach(_client, new PhysxCollision(_ground != null ? new StreamedWater(_ground, _depth) : null), MoverConfig.Default, _region, _camera, input, spawn, DefaultYawDeg, 0f);
@@ -893,8 +991,10 @@ namespace EarthGame.Client
             // -eg-still: the camera without the stride's dip and sway (M1.5c), for the owner to play against the one he
             // found good in ruling 18.
             _player.Still = LaunchArgs.Has("still");
-            // -eg-dev: a development game, whose founder can fly (M1.5e); the bootstrap runs its SOLO server to allow it.
-            _player.FlightAllowed = LaunchArgs.Has("dev");
+            // Nobody flies until the server says developer mode is on (M1.E). -eg-dev asks for it at once, for the scenarios and
+            // the runs, which have no hands to press F2; everyone else asks with F2 (CANON ruling 39).
+            _player.FlightAllowed = false;
+            if (LaunchArgs.Has("dev")) _client.SendDeveloperMode(true);
             _player.Stepped += OnStepped;
             // The trunks a founder can walk into (M1.6b): the client's, since the server never runs the mover.
             _trunks = new TrunkBodies(transform);
@@ -903,13 +1003,10 @@ namespace EarthGame.Client
             // The verbs (M1.5a): what the crosshair is on, the verb line, the carrying window and the thing in hand.
             if (_stand != null) _hand = new HandView(_camera, _stand.LooseMaterial);
             _verbs = new VerbController(_client, _entityViews, _player, _camera, _hud, _hand, _ground, _ground != null ? new StreamedWater(_ground, _depth) : null);
-            // The developer's panel (M1.D): in a development game alone, on an object of its own, since an object holds one
-            // UIDocument and the HUD's is on this one.
-            if (_player.FlightAllowed)
-            {
-                _devPanel = new GameObject("Developer panel").AddComponent<DevPanelController>();
-                _devPanel.Build(_client, _player, _region, welcome.Seed, _solar);
-            }
+            // The developer's panel (M1.D), on an object of its own, since an object holds one UIDocument and the HUD's is on
+            // this one. Built in every game since M1.E and opened only while developer mode is on, which F2 turns on and off.
+            _devPanel = new GameObject("Developer panel").AddComponent<DevPanelController>();
+            _devPanel.Build(_client, _player, _region, welcome.Seed, _solar);
 
             if (script == null && !Application.isBatchMode)
             {
@@ -942,6 +1039,9 @@ namespace EarthGame.Client
                 // being the server's to read.
                 Climate climate = Climate.ForRegion(_region);
                 Synoptic synoptic = new Synoptic(welcome.Seed);
+                // The idle scenario reads the watch in its first segment, and a coroutine's first segment runs inside Begin,
+                // as it starts: wired before, or the scenario found nothing to read (2026-09-21).
+                recorder.Asleep = () => Asleep;
                 recorder.Begin(_recordDir, _camera, _player, script, _hud, () => _client.LastServerTick, header, StandSettled,
                                () => _stand != null ? _stand.TreeCount : -1, () => _stand != null ? _stand.LastDrawMs : 0.0,
                                _scenario ?? Recorder.Scenario, _client, _verbs, _devPanel,

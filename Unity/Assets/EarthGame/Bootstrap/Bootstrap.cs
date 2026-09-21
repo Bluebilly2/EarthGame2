@@ -320,9 +320,12 @@ namespace EarthGame.Bootstrap
         private void StartServer(IServerTransport transport, WorldState world, WorldSaveInfo saved, int port)
         {
             _serverTransport = transport;
-            // -eg-dev: a SOLO game for development, whose server lets a founder fly (M1.5e).
+            // A SOLO game's own server may always grant developer mode, since it is the player's own world and F2 turns it on
+            // there (M1.E, CANON ruling 39); a game hosted for friends grants it only when started with -eg-dev, as a
+            // dedicated host does with +server.dev 1. Granting is per player: nobody has it until they ask.
             // -eg-no-bridge: the beta arc's bridge down, so the cold can kill (the scenario that proves death; ServerConfig.BetaArcBridge).
-            _server = new GameServer(new ServerConfig { Password = _password, Movement = new MovementRules { AllowFlight = LaunchArgs.Has("dev") },
+            bool mayGrant = _mode == LaunchMode.Solo || LaunchArgs.Has("dev");
+            _server = new GameServer(new ServerConfig { Password = _password, Movement = new MovementRules { AllowFlight = mayGrant },
                                                         BetaArcBridge = !LaunchArgs.Has("no-bridge") },
                                      transport, world);
             if (saved != null) _server.RememberPlayers(saved.Players.Values);
@@ -368,6 +371,11 @@ namespace EarthGame.Bootstrap
                 ScenarioRunner runner = gameObject.AddComponent<ScenarioRunner>();
                 runner.Begin(_scenario, _recordDir, _clientRuntime, header);
             }
+            // A game left alone pauses itself (M1.E, ruling 38): a SOLO game with hands at it, never a recorded run, which
+            // waits minutes between its presses, and never a joined game, whose world is the server's. The idle scenario is
+            // the one recorded run allowed to sleep, since sleeping is what it proves.
+            bool played = _recordDir == null && string.IsNullOrEmpty(_scenario) && !Application.isBatchMode;
+            _clientRuntime.PauseAllowed = _mode == LaunchMode.Solo && (played || _scenario == EarthGame.Client.Recorder.IdleScenario);
             _clientRuntime.Attach(transportFactory, address, port, _playerName, _password, region, _recordDir, _scenario);
         }
 
@@ -376,7 +384,13 @@ namespace EarthGame.Bootstrap
             // The fullscreen key, in the menu and in play alike (William's ruling of 2026-09-13).
             EarthGame.Client.WindowMode.Poll();
             PollPreparation();
-            if (_server != null)
+            if (_server != null && _clientRuntime != null && _clientRuntime.Asleep)
+            {
+                // Left alone (M1.E, CANON ruling 38): the world takes no step, and the time slept is dropped rather than caught
+                // up, so nothing thirsts, freezes or saves while nobody is there.
+                _lastRealtime = Time.realtimeSinceStartupAsDouble;
+            }
+            else if (_server != null)
             {
                 double now = Time.realtimeSinceStartupAsDouble;
                 _server.Update(now - _lastRealtime);

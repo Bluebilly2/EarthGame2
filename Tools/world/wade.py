@@ -28,6 +28,7 @@ import json
 import math
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -130,6 +131,22 @@ def run(args, timeout):
             raise
 
 
+def copied(world, directory):
+    """The world's copy under the run's own folder, the one the player is run on; the world named is read and never written.
+
+    A run saves its world on the way out (M1.3c) with the founder where the scenario left him and whatever it dropped lying
+    there. The knap scenario's second run on the gate world found the first's core under the crosshair (2026-09-18); the
+    drink scenario left the founder at the water's edge sixty metres from the wake, where the controls scenario's things are
+    dropped, and the next controls run found nothing within reach (2026-09-21). WORKING.md: a scenario that leaves things
+    behind runs on a copy of its world, and every tool here does, through this one owner.
+    """
+    copy = directory / "world" / world.name
+    if copy.exists():
+        raise RuntimeError("a world already lies at %s; a run takes a folder of its own" % copy)
+    shutil.copytree(world, copy)
+    return copy
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build", action="store_true")
@@ -153,6 +170,7 @@ def main():
         raise RuntimeError("no player at %s; run with --build" % player)
     if not (world / "world.json").is_file():
         raise RuntimeError("no world at %s; run Tools/world/create.py first" % world)
+    world = copied(world, directory)
     host = next((h for h in HOSTS if h.is_file()), None)
     if host is None:
         raise RuntimeError("no server host; build it: dotnet build Engine/tools/EarthGame.ServerHost -c Release")

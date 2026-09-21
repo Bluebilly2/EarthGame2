@@ -113,6 +113,12 @@ namespace EarthGame.ClientCore
         /// <summary>The last death the server told of (FP.2), or null.</summary>
         public Death? LastDeath { get; private set; }
 
+        /// <summary>Whether the server has this player in developer mode (M1.E, CANON ruling 39); off until it says otherwise.</summary>
+        public bool DeveloperMode { get; private set; }
+
+        /// <summary>Whether the server refused the last asking for developer mode: a server started without development does.</summary>
+        public bool DeveloperModeRefused { get; private set; }
+
         /// <summary>How many ticks behind the estimated server tick a mirror is sampled, so a state is usually held either side.</summary>
         public int MirrorDelayTicks = 3;
 
@@ -160,6 +166,8 @@ namespace EarthGame.ClientCore
         public event Action<FounderStateMessage> FounderStateChanged;
         /// <summary>The founder died (FP.2): what killed them and the numbers, for the sentence the screen shows.</summary>
         public event Action<Death> Died;
+        /// <summary>The server answered the developer's switch (M1.E): what the player now has, and whether the asking was refused.</summary>
+        public event Action<bool, bool> DeveloperModeChanged;
         /// <summary>Something was taken from a cell of the loose layer, or the join told of it (M1.5b); the cell's takings as they now stand.</summary>
         public event Action<LooseTaken.Cell> LooseTakenChanged;
 
@@ -177,6 +185,19 @@ namespace EarthGame.ClientCore
         }
 
         /// <summary>Asks a development server to move a developer's setting, or do a deed (M1.D), reliably; nothing when not connected.</summary>
+        /// <summary>
+        /// Asks the server for developer mode on or off (M1.E, the player's F2). The answer comes back as
+        /// <see cref="DeveloperModeChanged"/>; until it does, nothing a developer's mode allows is taken for granted.
+        /// </summary>
+        public void SendDeveloperMode(bool on)
+        {
+            if (State != ClientState.Connected) return;
+            DeveloperModeMessage asked = new DeveloperModeMessage { On = on, Refused = false };
+            _writer.Reset();
+            asked.Write(_writer);
+            _transport.Connection.Send(_writer.Written, Delivery.Reliable);
+        }
+
         public void SendDevSetting(string name, double value)
         {
             if (State != ClientState.Connected) return;
@@ -491,6 +512,15 @@ namespace EarthGame.ClientCore
                         reader.ExpectEnd();
                         LastDeath = died.Death;
                         Died?.Invoke(died.Death);
+                        break;
+                    }
+                    case MessageKind.DeveloperMode:
+                    {
+                        DeveloperModeMessage answer = DeveloperModeMessage.Read(reader);
+                        reader.ExpectEnd();
+                        DeveloperMode = answer.On;
+                        DeveloperModeRefused = answer.Refused;
+                        DeveloperModeChanged?.Invoke(answer.On, answer.Refused);
                         break;
                     }
                     case MessageKind.LooseTaken:

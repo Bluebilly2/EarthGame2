@@ -24,6 +24,7 @@ namespace EarthGame.Client
         private Label _diagnostic;
         private Label _condition;
         private Label _notice;
+        private Label _paused;
         private float _noticeUntil;
         private VisualElement _carrying;
         private readonly Label[] _places = new Label[Hands.Places];
@@ -78,6 +79,12 @@ namespace EarthGame.Client
             _diagnostic = MakeLabel(root, 14, 18, 0);
             _diagnostic.style.top = StyleKeyword.Auto;
             _diagnostic.style.bottom = 14;
+            // The idle pause (M1.E, CANON ruling 38): one line across the middle while a game left alone waits.
+            _paused = MakeLabel(root, 22, 0, 0);
+            _paused.style.left = new Length(50, LengthUnit.Percent);
+            _paused.style.top = new Length(42, LengthUnit.Percent);
+            _paused.style.translate = new Translate(new Length(-50, LengthUnit.Percent), 0);
+            _paused.style.unityTextAlign = TextAnchor.MiddleCenter;
 
             // The carrying window (M1.5a): the nine places, what is in each and its mass, and which is the hand. It only
             // shows; the world runs on while it is open (v1's I1), and Tab closes it again.
@@ -135,6 +142,15 @@ namespace EarthGame.Client
             label.pickingMode = PickingMode.Ignore;
             return label;
         }
+
+        /// <summary>The line a game left alone shows (M1.E, ruling 38), or nothing once it is played again.</summary>
+        public void SetPaused(bool paused)
+        {
+            if (_paused != null) _paused.text = paused ? PausedWords : string.Empty;
+        }
+
+        /// <summary>What the paused line says: that the world and its clock have stopped, and what starts them again.</summary>
+        public const string PausedWords = "Paused — the world and its time wait while you are away. Press any key to go on.";
 
         public void SetClock(string text)
         {

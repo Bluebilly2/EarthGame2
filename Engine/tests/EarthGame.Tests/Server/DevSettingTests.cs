@@ -46,6 +46,14 @@ namespace EarthGame.Tests.Server
             rig.Client.Connect("memory", 1, "William", "");
             rig.Pump(5);
             Assert.That(rig.Client.State, Is.EqualTo(ClientState.Connected));
+            // Since M1.E a development server takes a setting only from a player who has switched developer mode on; these
+            // tests are of the settings, so their player has. A server not started for development refuses the switch.
+            if (development)
+            {
+                rig.Client.SendDeveloperMode(true);
+                rig.Pump(2);
+                Assert.That(rig.Client.DeveloperMode, Is.True);
+            }
             return rig;
         }
 

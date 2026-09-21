@@ -60,7 +60,7 @@ continuous tolerances and any report schema are added to this contract. Do not s
 failed check. William's instruction of 2026-09-13 authorizes independent contribution, but explicitly reserves
 permission for each acquisition; no new data is authorized by this draft.
 
-## Acquisition manifest (2026-09-20), for William's approval
+## Acquisition manifest (2026-09-20), approved whole by William on 2026-09-21 ("all six")
 
 Promise 1 of this contract, written before anything is fetched. William asked for it on 2026-09-20 ("2. yes") under
 ruling 26 as amended: the head developer writes the list; **nothing is downloaded until he approves these exact
@@ -95,5 +95,6 @@ which page the term was read from, with the date.
 
 ## Exit record
 
-Unopened; no implementation or data-acquisition result. The acquisition manifest above is written and awaits William's
-approval of the exact files; nothing has been fetched.
+Unopened; no implementation or data-acquisition result. The acquisition manifest above is written, and on 2026-09-21
+William approved it whole ("all six"): the six datasets it names, and no other, may be fetched. Nothing has been fetched
+yet; the acquisition tool, with the sizes and checksums the manifest promises, is the next step.

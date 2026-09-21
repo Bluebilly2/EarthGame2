@@ -31,12 +31,24 @@ namespace EarthGame.Server
         public double MoveCreditCapSeconds = 5.0;
 
         /// <summary>
-        /// The one mark of a development server, set by a SOLO game's <c>-eg-dev</c> and a host's <c>+server.dev 1</c>: a
-        /// founder may fly (M1.5e, the owner's "flight i can use in dev"), so nothing but the region's edge and finite numbers
-        /// is held on their moves; and a developer's settings are taken (M1.D). Every other server corrects a flying founder
-        /// back and refuses the settings.
+        /// The one mark of a development server, set for every SOLO game and by a host's <c>+server.dev 1</c>: a server that
+        /// may grant developer mode. Since M1.E (2026-09-20, CANON ruling 39) it grants it player by player, to whoever
+        /// switches it on with F2; a player who has not is held to <see cref="WithoutFlight"/>. With it on, a founder may fly
+        /// (M1.5e, the owner's "flight i can use in dev"), so nothing but the region's edge and finite numbers is held on
+        /// their moves, and their developer's settings are taken (M1.D). A server without the mark refuses the switch.
         /// </summary>
         public bool AllowFlight;
+
+        /// <summary>These rules with flight taken away: what a development server holds a player to until they switch developer mode on (M1.E).</summary>
+        public MovementRules WithoutFlight() => new MovementRules
+        {
+            SpeedTolerance = SpeedTolerance,
+            GroundTolerance = GroundTolerance,
+            MaxVerticalSpeed = MaxVerticalSpeed,
+            MinIntervalSeconds = MinIntervalSeconds,
+            MoveCreditCapSeconds = MoveCreditCapSeconds,
+            AllowFlight = false,
+        };
     }
 
     /// <summary>

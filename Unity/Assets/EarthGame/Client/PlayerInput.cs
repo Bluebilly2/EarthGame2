@@ -36,6 +36,12 @@ namespace EarthGame.Client
         public bool Fly;
         /// <summary>The dev panel key pressed: a development game's panel opens, or closes (M1.D).</summary>
         public bool DevPanel;
+        /// <summary>The developer's switch pressed (F2): developer mode asked for on, or off (M1.E, CANON ruling 39).</summary>
+        public bool DeveloperMode;
+        /// <summary>Anything at all held or moved this frame (M1.E, the idle watch's feed): the asset's Touched action.</summary>
+        public bool Touched;
+        /// <summary>Alt held: the view turns without the body (M1.E, CANON ruling 36).</summary>
+        public bool FreeLook;
     }
 
     /// <summary>
@@ -82,6 +88,22 @@ namespace EarthGame.Client
         public const string Fullscreen = "Fullscreen";
         /// <summary>The developer's panel (M1.D, CANON ruling 30): bound at the desk alone, since only a developer has one.</summary>
         public const string DevPanel = "DevPanel";
+        /// <summary>
+        /// The developer's switch (M1.E, CANON ruling 39): F2 at the desk, William's own choice of key, turning developer
+        /// mode on and off while the game runs, where it took a restart with <c>-eg-dev</c> before 2026-09-20.
+        /// </summary>
+        public const string DeveloperMode = "DeveloperMode";
+        /// <summary>
+        /// Looking round without turning (M1.E, CANON ruling 36, "inspired by the same mechanic in rust"): either Alt at the
+        /// desk, held. The gamepad has none until its layout has been judged by his hands.
+        /// </summary>
+        public const string FreeLook = "FreeLook";
+        /// <summary>
+        /// Anything touched (M1.E, CANON ruling 38): the idle watch's feed, bound in the asset to any key, the mouse's buttons,
+        /// movement and wheel, and the pad's sticks, triggers and buttons, so that no key or device is named in code (M1.5a's
+        /// rule, which the watch broke on 2026-09-21 by asking the devices itself). Held counts as touched.
+        /// </summary>
+        public const string Touched = "Touched";
 
         /// <summary>The action for a place's key: "Hand1" to "Hand9".</summary>
         public static string Hand(int place) => "Hand" + place;
@@ -110,6 +132,9 @@ namespace EarthGame.Client
                 yield return Fly;
                 yield return Fullscreen;
                 yield return DevPanel;
+                yield return DeveloperMode;
+                yield return FreeLook;
+                yield return Touched;
             }
         }
 
@@ -151,6 +176,9 @@ namespace EarthGame.Client
         private readonly InputAction _screenshot;
         private readonly InputAction _fly;
         private readonly InputAction _devPanel;
+        private readonly InputAction _developerMode;
+        private readonly InputAction _touched;
+        private readonly InputAction _freeLook;
         private readonly InputAction[] _hand = new InputAction[Hands.Places];
 
         public InputSystemSource()
@@ -174,6 +202,9 @@ namespace EarthGame.Client
             _screenshot = Find(map, Controls.Screenshot);
             _fly = Find(map, Controls.Fly);
             _devPanel = Find(map, Controls.DevPanel);
+            _developerMode = Find(map, Controls.DeveloperMode);
+            _touched = Find(map, Controls.Touched);
+            _freeLook = Find(map, Controls.FreeLook);
             for (int p = 1; p <= Hands.Places; p++) _hand[p - 1] = Find(map, Controls.Hand(p));
             map?.Enable();
         }
@@ -207,6 +238,9 @@ namespace EarthGame.Client
             frame.Screenshot = Pressed(_screenshot);
             frame.Fly = Pressed(_fly);
             frame.DevPanel = Pressed(_devPanel);
+            frame.DeveloperMode = Pressed(_developerMode);
+            frame.Touched = _touched != null && _touched.IsPressed();
+            frame.FreeLook = Held(_freeLook);
         }
 
         private static bool Pressed(InputAction action) => action != null && action.WasPressedThisFrame();
@@ -230,6 +264,8 @@ namespace EarthGame.Client
         public bool Work;
         /// <summary>The jump held: a flying founder rises (M1.5e).</summary>
         public bool Rise;
+        /// <summary>Alt held: the view turns without the body (M1.E).</summary>
+        public bool FreeLook;
         public float TurnDegreesPerSecond = 120f;
         private ControlsFrame _presses;
 
@@ -244,6 +280,7 @@ namespace EarthGame.Client
         public void StepHand(int step) => _presses.HandStep += step;
         public void Fly() => _presses.Fly = true;
         public void DevPanel() => _presses.DevPanel = true;
+        public void DeveloperMode() => _presses.DeveloperMode = true;
 
         public void Sample(float dt, out ControlsFrame frame)
         {
@@ -261,6 +298,7 @@ namespace EarthGame.Client
             frame.Crouch = Crouch;
             frame.Work = Work;
             frame.Rise = Rise;
+            frame.FreeLook = FreeLook;
         }
     }
 }

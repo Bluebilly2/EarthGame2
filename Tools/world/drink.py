@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from wade import EDITOR_VERSION, HOSTS, UNITY, layer, near, number, run  # noqa: E402  (one owner of the layer reading)
+from wade import EDITOR_VERSION, HOSTS, UNITY, copied, layer, near, number, run  # noqa: E402  (one owner of the layer reading)
 
 ROOT = Path(__file__).resolve().parents[2]
 PLAYER = ROOT / "Build/Harness/EarthGame2.exe"
@@ -93,6 +93,7 @@ def main():
         raise RuntimeError("no player at %s; run with --build" % player)
     if not (world / "world.json").is_file():
         raise RuntimeError("no world at %s; run Tools/world/create.py first" % world)
+    world = copied(world, directory)
     host = next((h for h in HOSTS if h.is_file()), None)
     if host is None:
         raise RuntimeError("no server host; build it: dotnet build Engine/tools/EarthGame.ServerHost -c Release")

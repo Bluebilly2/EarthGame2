@@ -52,6 +52,18 @@ namespace EarthGame.Client
         public float PitchDeg;
 
         /// <summary>
+        /// Looking round without turning (M1.E, CANON ruling 36): while Alt is held the mouse's turn goes to the view, and the
+        /// body keeps <see cref="YawDeg"/>, which the mover walks by and the server is sent.
+        /// </summary>
+        private readonly FreeLook _freeLook = new FreeLook();
+
+        /// <summary>Where the view faces, degrees: the body's facing and the free look's turn off it.</summary>
+        public float LookYawDeg => Mathf.Repeat(YawDeg + (float)_freeLook.OffsetDeg, 360f);
+
+        /// <summary>How far the view stands off the body's facing, degrees (M1.E).</summary>
+        public double FreeLookOffsetDeg => _freeLook.OffsetDeg;
+
+        /// <summary>
         /// The camera without the stride's dip and sway (M1.5c, set by <c>-eg-still</c>): the camera the owner found good
         /// in ruling 18, kept so that he can play the two and say which stands.
         /// </summary>
@@ -71,6 +83,9 @@ namespace EarthGame.Client
         /// switch under the flight's). On, as the flight was built; the developer's panel turns it off.
         /// </summary>
         public bool Noclip { get; private set; } = true;
+
+        /// <summary>Whether anything was held or moved in the last frame sampled (M1.E): what the idle watch is fed.</summary>
+        public bool Touched { get; private set; }
 
         /// <summary>A foot fell (M1.5c) on the ground the body covered, or a stroke was swum (M1.5e); the client sounds it.</summary>
         public event Action<Footfall> Stepped;
@@ -122,6 +137,17 @@ namespace EarthGame.Client
         public bool HoldsView => _input is ScriptedInputSource || Application.isBatchMode || Cursor.lockState == CursorLockMode.Locked;
 
         /// <summary>The presses since the last take and the buttons held now, taken once a frame by whoever acts on them.</summary>
+        /// <summary>
+        /// The presses waiting, and the jump or the flight queued, thrown away (M1.E): the key that wakes a sleeping game does
+        /// nothing else — not even the jump that Space, the likeliest key, would have queued while the founder was held.
+        /// </summary>
+        public void DropPresses()
+        {
+            _presses = default;
+            _jumpQueued = false;
+            _flyQueued = false;
+        }
+
         public ControlsFrame TakePresses()
         {
             ControlsFrame taken = _presses;
@@ -202,11 +228,14 @@ namespace EarthGame.Client
         {
             if (_input == null) return;
             _input.Sample(Time.unscaledDeltaTime, out ControlsFrame f);
+            Touched = f.Touched;
             if (HoldsView)
             {
-                YawDeg = Mathf.Repeat(YawDeg + f.LookDeltaDeg.x, 360f);
+                double bodyTurn = _freeLook.Step(Time.unscaledDeltaTime, f.FreeLook, f.LookDeltaDeg.x);
+                YawDeg = Mathf.Repeat(YawDeg + (float)bodyTurn, 360f);
                 PitchDeg = Mathf.Clamp(PitchDeg - f.LookDeltaDeg.y, -MaxPitchDeg, MaxPitchDeg);
             }
+            else _freeLook.Step(Time.unscaledDeltaTime, false, 0.0);
             _move = f.Move;
             if (f.Jump) _jumpQueued = true;
             if (f.Fly) _flyQueued = true;
@@ -222,6 +251,7 @@ namespace EarthGame.Client
             _presses.Menu |= f.Menu;
             _presses.Screenshot |= f.Screenshot;
             _presses.DevPanel |= f.DevPanel;
+            _presses.DeveloperMode |= f.DeveloperMode;
             _seen.Jump |= f.Jump;
             _seen.Use |= f.Use;
             _seen.Carrying |= f.Carrying;
@@ -231,6 +261,7 @@ namespace EarthGame.Client
             _seen.Screenshot |= f.Screenshot;
             _seen.Fly |= f.Fly;
             _seen.DevPanel |= f.DevPanel;
+            _seen.DeveloperMode |= f.DeveloperMode;
         }
 
         /// <summary>
@@ -353,7 +384,7 @@ namespace EarthGame.Client
                 at.y -= (float)_stride.DipNowM;
             }
             _camera.transform.position = at;
-            _camera.transform.rotation = Quaternion.Euler(PitchDeg, YawDeg, 0f);
+            _camera.transform.rotation = Quaternion.Euler(PitchDeg, LookYawDeg, 0f);
         }
 
         public static Vector3 ToUnity(Double3 local) => new Vector3((float)local.X, (float)local.Y, (float)local.Z);

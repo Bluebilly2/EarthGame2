@@ -39,6 +39,12 @@ namespace EarthGame.Server
         /// cross the ground as fast as a run and the height lost since allow.
         /// </summary>
         public double StoodUp = double.NaN;
+        /// <summary>
+        /// Whether this player has switched developer mode on (M1.E, CANON ruling 39): off at every join, turned on and off by
+        /// the player's own F2, and granted only by a server that may grant it. The server's development mark
+        /// (`MovementRules.AllowFlight`) says whether anyone may have it; this says who does.
+        /// </summary>
+        public bool DeveloperMode;
         /// <summary>True from the Welcome until the snapshot has gone out, which happens after the next step (or at once while paused).</summary>
         public bool SnapshotPending;
         /// <summary>Where the joiner was told it stands, for the interest radius of its snapshot.</summary>

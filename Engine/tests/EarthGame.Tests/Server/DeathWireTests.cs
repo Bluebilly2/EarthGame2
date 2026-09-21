@@ -60,6 +60,10 @@ namespace EarthGame.Tests.Server
             rig.Client.Connect("memory", 1, "William", "");
             rig.Pump(6);
             Assert.That(rig.Client.State, Is.EqualTo(ClientState.Connected));
+            // The core is moved by a developer's setting, which a development server takes only from a player who has
+            // switched developer mode on (M1.E).
+            rig.Client.SendDeveloperMode(true);
+            rig.Pump(2);
             return rig;
         }
 

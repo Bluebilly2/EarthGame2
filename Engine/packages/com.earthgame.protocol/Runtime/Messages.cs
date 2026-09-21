@@ -56,6 +56,11 @@ namespace EarthGame.Protocol
         FounderState = 22,
         /// <summary>Server → its own client, reliable: the founder died, what killed them and the numbers of it (FP.2, protocol v14).</summary>
         Died = 23,
+        /// <summary>
+        /// Both ways, reliable (M1.E, protocol v16): the client asks for developer mode on or off (F2, CANON ruling 39), and
+        /// the server answers with what it granted and whether it refused.
+        /// </summary>
+        DeveloperMode = 24,
     }
 
     /// <summary>One tile of one layer the client wants, with the checksum of the copy it already holds (zero for none).</summary>
@@ -398,6 +403,37 @@ namespace EarthGame.Protocol
             m.Value = r.ReadDouble();
             if (string.IsNullOrEmpty(m.Name)) throw new ProtocolException("a developer's setting has a name");
             if (!BodyWire.Finite(m.Value)) throw new ProtocolException("a developer's setting of " + m.Name + " is not a number");
+            return m;
+        }
+    }
+
+    /// <summary>
+    /// Developer mode, asked and answered (M1.E, protocol v16; CANON ruling 39, "make it so that dev mode is toggleable in
+    /// game, not a restart with the devmode flag"). Client to server it carries what the player asks for; server to client
+    /// what the session now has, and whether the asking was refused — a server started without development refuses, and
+    /// keeps the player, because F2 is a key every game answers. One byte of flags, so a byte beyond the two is refused
+    /// where it is read.
+    /// </summary>
+    public struct DeveloperModeMessage
+    {
+        public bool On;
+        public bool Refused;
+
+        private const byte OnBit = 1, RefusedBit = 2;
+
+        public void Write(PacketWriter w)
+        {
+            w.WriteByte((byte)MessageKind.DeveloperMode);
+            w.WriteByte((byte)((On ? OnBit : 0) | (Refused ? RefusedBit : 0)));
+        }
+
+        public static DeveloperModeMessage Read(PacketReader r)
+        {
+            byte flags = r.ReadByte();
+            if ((flags & ~(OnBit | RefusedBit)) != 0) throw new ProtocolException("developer mode's flags carry a bit it does not have: " + flags);
+            DeveloperModeMessage m;
+            m.On = (flags & OnBit) != 0;
+            m.Refused = (flags & RefusedBit) != 0;
             return m;
         }
     }

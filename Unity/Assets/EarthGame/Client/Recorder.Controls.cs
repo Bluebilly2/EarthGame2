@@ -86,6 +86,27 @@ namespace EarthGame.Client
             turned = Mathf.DeltaAngle(yaw0, _player.YawDeg);
             Check("the view turns", Controls.Pad, stickLook, false, stickLook != null && turned > 30f, "turned " + F2(turned) + "° in half a second");
 
+            // The free look (M1.E, CANON ruling 36): Alt held, the mouse turns the view and not the body; let go, the view
+            // glides home to the body's facing.
+            if (Bound(Controls.FreeLook, Controls.Desk, null, out InputControl alt, out string altKey))
+            {
+                float body0 = _player.YawDeg;
+                Send(alt.device, To(alt, 1f));
+                yield return Frames(2);
+                Turn(30f, 0f);
+                yield return Frames(4);
+                float bodyTurned = Mathf.DeltaAngle(body0, _player.YawDeg);
+                double offset = _player.FreeLookOffsetDeg;
+                Check("Alt held turns the view and not the body", Controls.Desk, altKey, false,
+                      Mathf.Abs(bodyTurned) < 0.5f && Math.Abs(offset - 30.0) < 1.5,
+                      "the body turned " + F2(bodyTurned) + "°, the view stands " + F2((float)offset) + "° off it");
+                Send(alt.device, To(alt, 0f));
+                yield return Wait(FreeLook.ReturnSeconds + 0.3);
+                Check("Alt let go brings the view home", Controls.Desk, altKey, false, Math.Abs(_player.FreeLookOffsetDeg) < 0.01,
+                      "the view stands " + F2((float)_player.FreeLookOffsetDeg) + "° off the body");
+            }
+            else Check("Alt held turns the view and not the body", Controls.Desk, null, false, false, "nothing bound to the free look");
+
             // Use on a thing lying, empty-handed and then with the stick in hand.
             ulong stickId = stick.Id.Value, cobbleId = cobble.Id.Value;
             yield return Aim(stick.Position, stickId);
@@ -130,20 +151,26 @@ namespace EarthGame.Client
             yield return Expect("the screenshot reaches the controls", Controls.Screenshot, Controls.Desk, () => seen |= _player.TakeSeen().Screenshot, 1.0, () => "a windowless run saves no screenshot");
             int asked = WindowMode.Requested;
             yield return Expect("the fullscreen key reaches the window", Controls.Fullscreen, Controls.Desk, () => WindowMode.Requested > asked, 1.0, () => "a windowless run fills no screen");
-            // The developer's panel (M1.D): opened and closed by its key in a development game; in any other there is no panel,
-            // and the key is looked for in the controls frame alone.
-            if (_devPanel != null)
-            {
-                yield return Expect("the dev panel key opens the panel", Controls.DevPanel, Controls.Desk, () => _devPanel.Open, 1.0, Panel);
-                yield return Expect("the dev panel key closes the panel", Controls.DevPanel, Controls.Desk, () => !_devPanel.Open, 1.0, Panel);
-            }
-            else
-            {
-                seen = false;
-                _player.TakeSeen();
-                yield return Expect("the dev panel key reaches the controls, and no panel exists in a game not for development", Controls.DevPanel, Controls.Desk,
-                                    () => seen |= _player.TakeSeen().DevPanel, 1.0, () => "no panel");
-            }
+            // The developer's switch (M1.E, CANON ruling 39): F2 turns developer mode on and off while the game runs, and the
+            // panel's key answers only while it is on. A run started with -eg-dev asked for it at the join and begins on; one
+            // without begins off. Either way the switch is pressed both ways, and the run is left as it began, so the flight
+            // below is flown in a development run alone.
+            bool startedOn = _client.DeveloperMode;
+            if (startedOn)
+                yield return Expect("the developer's switch turns developer mode off", Controls.DeveloperMode, Controls.Desk,
+                                    () => !_client.DeveloperMode && !_player.FlightAllowed, 2.0, Developer);
+            Bound(Controls.DevPanel, Controls.Desk, null, out _, out string panelKey);
+            yield return Tap(Controls.DevPanel, Controls.Desk);
+            yield return Frames(3);
+            Check("the dev panel key opens nothing while developer mode is off", Controls.Desk, panelKey, false, !_devPanel.Open, Panel());
+            yield return Expect("the developer's switch turns developer mode on", Controls.DeveloperMode, Controls.Desk,
+                                () => _client.DeveloperMode && _player.FlightAllowed, 2.0, Developer);
+            // The developer's panel (M1.D): opened and closed by its key while developer mode is on.
+            yield return Expect("the dev panel key opens the panel", Controls.DevPanel, Controls.Desk, () => _devPanel.Open, 1.0, Panel);
+            yield return Expect("the dev panel key closes the panel", Controls.DevPanel, Controls.Desk, () => !_devPanel.Open, 1.0, Panel);
+            if (!startedOn)
+                yield return Expect("the developer's switch turns developer mode off again", Controls.DeveloperMode, Controls.Desk,
+                                    () => !_client.DeveloperMode && !_player.FlightAllowed, 2.0, Developer);
 
             // The body: walking, running, crouching and the jump, at the desk and on the gamepad.
             Turn(0f, -_player.PitchDeg);
@@ -222,6 +249,9 @@ namespace EarthGame.Client
         private string Flying() => (_player.Flying ? "flying, " : "not flying, ") + Height() + ", the ground at " + F2(GroundHere());
 
         private string Panel() => _devPanel != null && _devPanel.Open ? "the panel is open" : "the panel is closed";
+
+        private string Developer() => "developer mode " + (_client.DeveloperMode ? "on" : "off") + (_client.DeveloperModeRefused ? ", refused" : "")
+                                       + ", flight " + (_player.FlightAllowed ? "allowed" : "not allowed");
 
         /// <summary>
         /// An action pressed by the control the asset binds to it in a scheme, and its effect waited for. The check passes

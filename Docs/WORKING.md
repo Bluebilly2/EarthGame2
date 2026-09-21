@@ -115,12 +115,15 @@ is Claude's and no second agent works here (Claude's own parallel agents work in
   before one starts: neither the owner's editor nor the other agent's run.
 - **A running `EarthGame2.exe` may be the other's timing run.** Frame costs are measured with the machine quiet;
   builds, world creation and suites beside one make its numbers lie, so they wait until it ends.
-- **A scenario that leaves things behind runs on a copy of its world.** The scenario tools share `Artefacts/worlds/gate`;
-  the knap scenario leaves a struck core and its flakes at the wake and the founder holding the hammer, and its second
-  run on the same world (2026-09-18) found the first run's core under the crosshair where it had just set its own down.
-  `knap.py` now copies the world under the run's folder and never writes the one named; a tool that changes what lies
-  at the wake must do the same. The dirtied save of that day is set aside as `Artefacts/worlds/gate-dirty-20260918`
-  (its regions and player), and the gate's fixtures were placed again by `populate.py` on the untouched layers.
+- **Every recorded run is on a copy of its world.** The scenario tools share `Artefacts/worlds/gate`, and a run saves
+  its world on the way out with the founder where the scenario left him and whatever it dropped lying there. The knap
+  scenario's second run on the same world (2026-09-18) found the first run's core under the crosshair where it had just
+  set its own down; the drink scenario (2026-09-20) left the founder at the water's edge sixty metres from the wake, and
+  the next controls run, whose things are dropped at the wake, found nothing within reach (2026-09-21). Since that day
+  every tool under `Tools/world/` that runs the player takes its copy through the one owner, `wade.copied`, under the
+  run's own folder, and never writes the world named. The dirtied saves are set aside as
+  `Artefacts/worlds/gate-dirty-20260918` and `gate-dirty-20260921` (their regions and player), and the gate's fixtures
+  were placed again by `populate.py` on the untouched layers.
 - **No host build while the corpus runs.** The corpus's dedicated server runs from
   `Engine/.build/bin/EarthGame.ServerHost/Release/`, and a Release build of the host then fails on the locked
   files (2026-09-16, MSB3021) without harming the run; a Debug suite run beside a soak is a burst the `ticks` rows

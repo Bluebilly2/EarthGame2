@@ -31,6 +31,9 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from wade import copied  # noqa: E402  (one owner of the world's copy)
+
 ROOT = Path(__file__).resolve().parents[2]
 EDITOR_VERSION = next(line.split(":", 1)[1].strip()
                       for line in (ROOT / "Unity/ProjectSettings/ProjectVersion.txt").read_text().splitlines()
@@ -74,6 +77,7 @@ def main():
         raise RuntimeError("no player at %s; run with --build" % player)
     if not (world / "world.json").is_file():
         raise RuntimeError("no world at %s; run Tools/world/create.py first" % world)
+    world = copied(world, directory)
 
     # -batchmode without -nographics: the recorder renders its frames on the GPU into textures, with no window.
     things = ["-eg-items", "6"] if args.scenario in ("carry", "controls") else []

@@ -55,7 +55,19 @@ namespace EarthGame.Server
             _accumulator = new FixedStepAccumulator(1.0 / _config.TickRate, _config.MaxStepsPerUpdate);
             _tiles = new TileService(World);
             _ticks = new TickStats(1.0 / _config.TickRate);
+            _withoutFlight = _config.Movement.WithoutFlight();
         }
+
+        /// <summary>The server's movement rules with flight taken away, made once: what a player is held to until they switch developer mode on (M1.E).</summary>
+        private readonly MovementRules _withoutFlight;
+
+        /// <summary>
+        /// The movement rules this player's moves are held to: the server's own while they have developer mode on, the same
+        /// without flight otherwise (M1.E). A development server once let every player fly; since 2026-09-20 only the one who
+        /// switched it on.
+        /// </summary>
+        public MovementRules MovementRulesFor(PlayerSession session)
+            => session != null && session.DeveloperMode && _config.Movement.AllowFlight ? _config.Movement : _withoutFlight;
 
         /// <summary>The world this server is authoritative for.</summary>
         public WorldState World { get; }
@@ -439,6 +451,13 @@ namespace EarthGame.Server
                         HandleDevSetting(session, setting);
                         break;
                     }
+                    case MessageKind.DeveloperMode:
+                    {
+                        DeveloperModeMessage asked = DeveloperModeMessage.Read(reader);
+                        reader.ExpectEnd();
+                        HandleDeveloperMode(session, asked);
+                        break;
+                    }
                     default:
                         // Unknown or out-of-place kinds are ignored, not fatal: a newer client may speak more
                         // than this server understands, and the protocol version check already gates layout.
@@ -604,7 +623,7 @@ namespace EarthGame.Server
                 interval = Math.Min(bySequence, session.MoveCredit);
             }
             string reason = MovementValidator.Check(session.Body, session.HasBody, move.Body, interval, World.Terrain,
-                                                    World.Region.HalfExtentM, _config.Mover, _config.Movement, session.StoodUp, session.CeilingCapacity);
+                                                    World.Region.HalfExtentM, _config.Mover, MovementRulesFor(session), session.StoodUp, session.CeilingCapacity);
             if (reason == null)
             {
                 session.MoveCredit = Math.Max(0.0, session.MoveCredit - interval);
@@ -1103,6 +1122,23 @@ namespace EarthGame.Server
         }
 
         /// <summary>
+        /// A player asking for developer mode on or off (M1.E, CANON ruling 39, the player's F2). A server that may grant it
+        /// (its development mark) grants what was asked; one that may not refuses, and keeps the player, since F2 is a key
+        /// every game answers. Either way the player is told what they now have, so the switch can say so.
+        /// </summary>
+        private void HandleDeveloperMode(PlayerSession session, DeveloperModeMessage asked)
+        {
+            bool mayGrant = _config.Movement.AllowFlight;
+            session.DeveloperMode = mayGrant && asked.On;
+            DeveloperModeMessage answer;
+            answer.On = session.DeveloperMode;
+            answer.Refused = asked.On && !mayGrant;
+            _writer.Reset();
+            answer.Write(_writer);
+            session.Connection.Send(_writer.Written, Delivery.Reliable);
+        }
+
+        /// <summary>
         /// A developer's setting (M1.D, CANON ruling 30): taken on a development server alone, held to its table's range and
         /// applied to what owns it. A server not started for development refuses it and closes, as it does a malformed
         /// message, since a client that sends one to such a server is not the game's; a name this build's table lacks is
@@ -1116,6 +1152,10 @@ namespace EarthGame.Server
                 Refuse(session.Connection, "a developer's setting (" + setting.Name + ") on a server not started for development");
                 return;
             }
+            // A development server takes a setting only from a player who has switched developer mode on (M1.E). One that
+            // has not is let be rather than closed: a setting can be sent a moment before the switch's own answer arrives,
+            // and the client of this game is the only thing that sends one at all.
+            if (!session.DeveloperMode) return;
             DevSetting known = DevSettings.Find(setting.Name);
             if (known == null)
             {

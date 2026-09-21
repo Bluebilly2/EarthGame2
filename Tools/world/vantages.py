@@ -26,6 +26,9 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from wade import copied  # noqa: E402  (one owner of the world's copy)
+
 ROOT = Path(__file__).resolve().parents[2]
 EDITOR_VERSION = next(line.split(":", 1)[1].strip()
                       for line in (ROOT / "Unity/ProjectSettings/ProjectVersion.txt").read_text().splitlines()
@@ -89,6 +92,7 @@ def main():
         raise RuntimeError("no player at %s; run with --build" % player)
     if not (world / "world.json").is_file():
         raise RuntimeError("no world at %s; run Tools/world/create.py first" % world)
+    world = copied(world, directory)
     host = next((h for h in HOSTS if h.is_file()), None)
     if host is None:
         raise RuntimeError("no server host; build it: dotnet build Engine/tools/EarthGame.ServerHost -c Release")

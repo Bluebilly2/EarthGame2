@@ -28,9 +28,12 @@ namespace EarthGame.Protocol
         /// what killed its founder and the numbers of it;
         /// 15 — FP.3 the first stone: an item's component carries the state a blow gave it (its own mass, its edge, its
         /// platform's angle and the flakes taken), an intent has a fifth verb, knap, naming the core and the wind-up, and an
-        /// intent's answer carries the words for what the stone did.
+        /// intent's answer carries the words for what the stone did;
+        /// 16 — M1.E the developer's switch: DeveloperMode, both ways, the player asking for developer mode on or off (F2)
+        /// and the server answering with what it granted and whether it refused. A development server's settings and its
+        /// flight are then the switched-on player's alone, not every player's.
         /// </summary>
-        public const ushort Version = 15;
+        public const ushort Version = 16;
 
         /// <summary>Bytes of tile data per TileChunk; well under <see cref="MaxMessageBytes"/> with the header.</summary>
         public const int TileChunkBytes = 16 * 1024;

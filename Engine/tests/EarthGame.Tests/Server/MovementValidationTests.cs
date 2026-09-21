@@ -70,9 +70,17 @@ namespace EarthGame.Tests.Server
             // Thirty metres over the ground at 25 m/s, as a developer's flight goes (M1.5e).
             Heightfield ground = Ground();
             double high = ground.HeightAt(0.0, 0.0) + 30.0;
-            foreach (bool allowed in new[] { false, true })
+            // Three servers: one not started for development; one that is, whose player has not switched developer mode on
+            // (M1.E, 2026-09-20: a development server once let every player fly); and one whose player has.
+            foreach ((bool development, bool switched) in new[] { (false, false), (true, false), (true, true) })
             {
-                Rig rig = Connect(config: new ServerConfig { Movement = new MovementRules { AllowFlight = allowed } });
+                bool allowed = development && switched;
+                Rig rig = Connect(config: new ServerConfig { Movement = new MovementRules { AllowFlight = development } });
+                if (switched)
+                {
+                    rig.Client.SendDeveloperMode(true);
+                    rig.Pump(2);
+                }
                 for (int i = 0; i <= 4; i++)
                 {
                     MoverState flying = MoverState.AtRest(i * 1.25, high, 0.0);
@@ -82,7 +90,8 @@ namespace EarthGame.Tests.Server
                 }
                 if (!allowed)
                 {
-                    Assert.That(rig.Client.CorrectionCount, Is.GreaterThan(0), "any other server corrects it");
+                    Assert.That(rig.Client.CorrectionCount, Is.GreaterThan(0),
+                        development ? "a development server corrects a player who has not switched developer mode on" : "any other server corrects it");
                     Assert.That(rig.Client.LastCorrection.Reason, Does.Contain("speed"));
                     continue;
                 }
