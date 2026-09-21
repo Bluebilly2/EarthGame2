@@ -73,6 +73,8 @@ def main():
     parser.add_argument("--lookout", type=float, default=0.0, help="metres to fly the founder up for four frames to the compass points")
     parser.add_argument("--only", default=None, help="a comma-separated subset of " + ",".join(VANTAGES))
     parser.add_argument("--out", default=None)
+    parser.add_argument("--hour", type=float, default=None, help="the local hour the frames are taken at (-eg-hour, a development game)")
+    parser.add_argument("--day", type=int, default=None, help="the day of the year the frames are taken on (-eg-day, a development game)")
     args = parser.parse_args()
     player = (ROOT / args.player).resolve()
     world = (ROOT / args.world).resolve()
@@ -115,6 +117,8 @@ def main():
                    "-eg-tiles", at / "tiles", "-eg-record", at]
         if args.hold > 0.0:
             command += ["-eg-hold", str(args.hold)]
+        if args.hour is not None or args.day is not None:
+            command += ["-eg-dev"] + ([] if args.day is None else ["-eg-day", str(args.day)]) + ([] if args.hour is None else ["-eg-hour", "%g" % args.hour])
         if args.hide:
             command += ["-eg-hide", args.hide]
         if args.lookout > 0.0:

@@ -76,6 +76,18 @@ namespace EarthGame.Client
         private Material _mirrorMaterial;
         /// <summary>The water's own material (M1.4g): the sea's plane and every streamed tile's water are drawn with it.</summary>
         private Material _waterMaterial;
+        /// <summary>
+        /// The water's ripples (M1.4h): the wind that drives them, read from the weather once a second, and their own time,
+        /// which runs only while the game is awake, so a paused game's water stands with its world. The climate and the
+        /// synoptic state are this client's reading of the seed and the region (M1.8a), the recorder's too.
+        /// </summary>
+        private static readonly int WindId = Shader.PropertyToID("_Wind"), RippleSecondsId = Shader.PropertyToID("_RippleSeconds");
+        private Climate _climate;
+        private Synoptic _synoptic;
+        private float _rippleSeconds, _nextWindAt;
+        private bool _hideWater;
+        /// <summary>-eg-day and -eg-hour (M1.4h): the time asked for at launch, sent once as the developer's settings when the mode is granted.</summary>
+        private bool _launchTimeSent;
         private EntityViews _entityViews;
         private StandViews _stand;
         private UnderstoreyViews _understorey;
@@ -256,6 +268,15 @@ namespace EarthGame.Client
                 }
                 else if (!_player.FlightAllowed)
                 {
+                    // -eg-day D and -eg-hour H (M1.4h): a run that wants a day of the year and an hour — a windy day for the water's frames —
+                    // asks for them at launch; they go to the server as the developer's own settings, once, the day first so
+                    // the hour lands on it. A game not for development never sees them: the settings need the mode.
+                    if (!_launchTimeSent)
+                    {
+                        _launchTimeSent = true;
+                        if (LaunchArgs.Has("day")) _client.SendDevSetting(DevSettings.ClockDayOfYear, LaunchArgs.GetDouble("day", 1.0));
+                        if (LaunchArgs.Has("hour")) _client.SendDevSetting(DevSettings.ClockLocalHour, LaunchArgs.GetDouble("hour", 12.0));
+                    }
                     // On, from off: the developer's session starts as the panel's reset leaves it (M1.D), the noclip on and
                     // the flight off; turning it off had taken the noclip with the flight. Found by the controls scenario,
                     // whose crouch held in flight sank through nothing after F2 off and on again (2026-09-21).
@@ -382,6 +403,20 @@ namespace EarthGame.Client
                 else _verbs?.Tick(presses, Time.realtimeSinceStartup);
                 // The hand moves with the head and the stride every frame (M1.5c); off the ground it only follows.
                 _hand?.Place(Time.deltaTime, _player.Frozen || !_player.State.Grounded ? 0.0 : _player.State.HorizontalSpeed, _player.PitchDeg);
+                // The water's ripples (M1.4h): their time runs while the game is awake; the wind that drives them is read once a
+                // second, downwind being the way the weather's wind blows to.
+                if (_waterMaterial != null)
+                {
+                    if (!Asleep) _rippleSeconds += Time.deltaTime;
+                    _waterMaterial.SetFloat(RippleSecondsId, _rippleSeconds);
+                    if (_climate != null && _synoptic != null && _solar != null && Time.realtimeSinceStartup >= _nextWindAt)
+                    {
+                        _nextWindAt = Time.realtimeSinceStartup + 1f;
+                        Weather weather = Weather.At(_climate, _synoptic, _solar, Math.Max(0.0, _player.State.Up), 1.0);
+                        double from = weather.WindFromDeg * Math.PI / 180.0;
+                        _waterMaterial.SetVector(WindId, new Vector4((float)-Math.Sin(from), (float)-Math.Cos(from), (float)weather.WindMs, 0f));
+                    }
+                }
                 UpdateHud(dt);
             }
         }
@@ -455,6 +490,7 @@ namespace EarthGame.Client
             if (ground == null || depth == null) return;
             // Either layer arriving asks for the pair, so the same mesh would be built twice on a join; the two
             // checksums together name what it was built from.
+            if (_hideWater) return;
             long from = ((long)ground.Crc32 << 32) | depth.Crc32;
             if (_waterFrom.TryGetValue(id, out long built) && built == from && _waterTiles.ContainsKey(id)) return;
             if (_waterTiles.TryGetValue(id, out GameObject previous)) WaterTileBuilder.Free(previous);
@@ -941,6 +977,15 @@ namespace EarthGame.Client
                         Debug.Log("[client] -eg-hide " + name + ": hidden");
                         continue;
                     }
+                    if (name == "water")
+                    {
+                        // The sea's plane and every water tile to come: the frame's cost with and without water (M1.4h).
+                        _hideWater = true;
+                        GameObject seaObject = GameObject.Find("Sea");
+                        if (seaObject != null) seaObject.SetActive(false);
+                        Debug.Log("[client] -eg-hide water: hidden");
+                        continue;
+                    }
                     GameObject victim = GameObject.Find(name);
                     Debug.Log("[client] -eg-hide " + name + ": " + (victim != null ? "hidden" : "not found"));
                     if (victim != null) victim.SetActive(false);
@@ -1023,6 +1068,8 @@ namespace EarthGame.Client
 
             // The scenarios that write frames (first-frame, carry, litter, wade, controls) are the recorder's own; every other
             // scenario is the runner's, which was attached before the connection began so its clock starts at Connect.
+            _climate = Climate.ForRegion(_region);
+            _synoptic = new Synoptic(welcome.Seed);
             if (_recordDir != null && (_scenario == null || Recorder.IsKnown(_scenario)))
             {
                 JsonObject header = new JsonObject()
@@ -1037,15 +1084,13 @@ namespace EarthGame.Client
                 // The sky and the sun as this client works them out (M1.8a: a function of the seed and the clock), for the
                 // records the night scenario keeps beside the body's words (FP.2); the wind in the open, the ground's openness
                 // being the server's to read.
-                Climate climate = Climate.ForRegion(_region);
-                Synoptic synoptic = new Synoptic(welcome.Seed);
                 // The idle scenario reads the watch in its first segment, and a coroutine's first segment runs inside Begin,
                 // as it starts: wired before, or the scenario found nothing to read (2026-09-21).
                 recorder.Asleep = () => Asleep;
                 recorder.Begin(_recordDir, _camera, _player, script, _hud, () => _client.LastServerTick, header, StandSettled,
                                () => _stand != null ? _stand.TreeCount : -1, () => _stand != null ? _stand.LastDrawMs : 0.0,
                                _scenario ?? Recorder.Scenario, _client, _verbs, _devPanel,
-                               () => Weather.At(climate, synoptic, _solar, Math.Max(0.0, _player.State.Up), 1.0), () => _solar.SolarElevationDeg,
+                               () => Weather.At(_climate, _synoptic, _solar, Math.Max(0.0, _player.State.Up), 1.0), () => _solar.SolarElevationDeg,
                                () => _clock.TotalHours);
                 TileBuilt += recorder.RecordBuild;
             }

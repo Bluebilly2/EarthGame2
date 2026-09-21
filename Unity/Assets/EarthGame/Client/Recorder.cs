@@ -614,7 +614,9 @@ namespace EarthGame.Client
                 _log.Record(T, Tick, "frame", new JsonObject().With("file", file).With("width", size.Width).With("height", size.Height)
                     .With("east", _player.State.East).With("up", _player.State.Up).With("north", _player.State.North)
                     .With("yaw_deg", (double)_player.YawDeg).With("pitch_deg", (double)_player.PitchDeg)
-                    .With("grounded", _player.State.Grounded).With("corrections", _player.Corrections));
+                    .With("grounded", _player.State.Grounded).With("corrections", _player.Corrections)
+                    // The wind the frame was taken in (M1.4h): the water's ripples are as steep as it makes them.
+                    .With("wind_ms", _sky != null ? _sky().WindMs : 0.0).With("wind_from_deg", _sky != null ? _sky().WindFromDeg : 0.0));
             }
         }
 
