@@ -63,6 +63,12 @@ namespace EarthGame.Client
         /// <summary>How far the view stands off the body's facing, degrees (M1.E).</summary>
         public double FreeLookOffsetDeg => _freeLook.OffsetDeg;
 
+        /// <summary>The view's pitch: the body's and the free look's tilt off it (M1.E; both axes by William's word of 2026-09-21), within the view's limit.</summary>
+        public float LookPitchDeg => Mathf.Clamp(PitchDeg + (float)_freeLook.PitchOffsetDeg, -MaxPitchDeg, MaxPitchDeg);
+
+        /// <summary>How far the view stands off the body's pitch, degrees (M1.E): the controls scenario reads it.</summary>
+        public double FreeLookPitchOffsetDeg => _freeLook.PitchOffsetDeg;
+
         /// <summary>
         /// The camera without the stride's dip and sway (M1.5c, set by <c>-eg-still</c>): the camera the owner found good
         /// in ruling 18, kept so that he can play the two and say which stands.
@@ -231,11 +237,12 @@ namespace EarthGame.Client
             Touched = f.Touched;
             if (HoldsView)
             {
-                double bodyTurn = _freeLook.Step(Time.unscaledDeltaTime, f.FreeLook, f.LookDeltaDeg.x);
-                YawDeg = Mathf.Repeat(YawDeg + (float)bodyTurn, 360f);
-                PitchDeg = Mathf.Clamp(PitchDeg - f.LookDeltaDeg.y, -MaxPitchDeg, MaxPitchDeg);
+                // The mouse's turn and tilt go to the body, or while Alt is held to the view (M1.E, both axes since 2026-09-21).
+                FreeLook.BodyShare body = _freeLook.Step(Time.unscaledDeltaTime, f.FreeLook, f.LookDeltaDeg.x, -f.LookDeltaDeg.y);
+                YawDeg = Mathf.Repeat(YawDeg + (float)body.TurnDeg, 360f);
+                PitchDeg = Mathf.Clamp(PitchDeg + (float)body.PitchDeg, -MaxPitchDeg, MaxPitchDeg);
             }
-            else _freeLook.Step(Time.unscaledDeltaTime, false, 0.0);
+            else _freeLook.Step(Time.unscaledDeltaTime, false, 0.0, 0.0);
             _move = f.Move;
             if (f.Jump) _jumpQueued = true;
             if (f.Fly) _flyQueued = true;
@@ -384,7 +391,7 @@ namespace EarthGame.Client
                 at.y -= (float)_stride.DipNowM;
             }
             _camera.transform.position = at;
-            _camera.transform.rotation = Quaternion.Euler(PitchDeg, LookYawDeg, 0f);
+            _camera.transform.rotation = Quaternion.Euler(LookPitchDeg, LookYawDeg, 0f);
         }
 
         public static Vector3 ToUnity(Double3 local) => new Vector3((float)local.X, (float)local.Y, (float)local.Z);

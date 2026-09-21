@@ -111,10 +111,12 @@ namespace EarthGame.Engine
         /// <summary>A rise this high in one stride is stepped onto rather than walked into.</summary>
         public double StepHeight = 0.4;
         /// <summary>
-        /// Ground steeper than this cannot be stood on: the founder slides. Dry sand's angle of repose, 30–35° (M1.5h): nothing
-        /// loose stands steeper, so the dune's own face is the limit of walked ground; until 2026-09-21 it was 45°.
+        /// Ground steeper than this cannot be stood on: the founder slides. M1.5h set it to dry sand's angle of repose, 35°, the
+        /// limit of walked ground, and the same evening William walked up a face between 35° and 45° and fell through the
+        /// world: a face that had been walked was a slide, and the slide on the client's terrain let the body through. It is
+        /// 45° again until the slide is made safe (DEBTS, 2026-09-21); the walker's table still slows to its careful pace at 35°.
         /// </summary>
-        public double WalkableSlopeDeg = 35.0;
+        public double WalkableSlopeDeg = 45.0;
         /// <summary>How far below the feet the ground may fall in one step before the founder is airborne.</summary>
         public double GroundSnapDistance = 0.3;
         /// <summary>How fast the horizontal velocity may grow toward the wish at a walk and at a run, and shrink when the wish is let go or reversed, m/s² (M1.5h).</summary>

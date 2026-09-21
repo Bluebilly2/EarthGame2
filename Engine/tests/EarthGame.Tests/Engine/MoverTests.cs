@@ -190,13 +190,16 @@ namespace EarthGame.Tests.Engine
             Assert.That(later.HorizontalSpeed, Is.EqualTo(Locomotion.SpeedMs(0.0, Gait.Walking, 1.0)).Within(1e-6));
         }
 
-        /// <summary>Walked ground ends at the repose (M1.5h): a 30-degree face is walked, a 40-degree one, walked until now, is a slide.</summary>
+        /// <summary>
+        /// A 30-degree face is walked and a 50-degree one is a slide. The limit between them is 45° for now: M1.5h set it at the
+        /// repose, 35°, and William fell through the world on a face between the two the same evening (DEBTS 2026-09-21).
+        /// </summary>
         [Test]
-        public void AFortyDegreeFaceIsASlideAndAThirtyIsWalked()
+        public void AFiftyDegreeFaceIsASlideAndAThirtyIsWalked()
         {
-            IWorldCollision forty = World((e, n) => e * Math.Tan(40.0 * Math.PI / 180.0));
-            MoverState onForty = Run(MoverState.AtRest(2.0, 2.0 * Math.Tan(40.0 * Math.PI / 180.0), 0.0), MoverInput.Walk(1.0, 0.0), forty, 100);
-            Assert.That(onForty.Grounded, Is.False, "nothing loose stands at forty degrees, and nor does the founder");
+            IWorldCollision fifty = World((e, n) => e * Math.Tan(50.0 * Math.PI / 180.0));
+            MoverState onFifty = Run(MoverState.AtRest(2.0, 2.0 * Math.Tan(50.0 * Math.PI / 180.0), 0.0), MoverInput.Walk(1.0, 0.0), fifty, 100);
+            Assert.That(onFifty.Grounded, Is.False, "there is no standing on fifty degrees");
             IWorldCollision thirty = World((e, n) => e * Math.Tan(30.0 * Math.PI / 180.0));
             MoverState onThirty = Run(MoverState.AtRest(2.0, 2.0 * Math.Tan(30.0 * Math.PI / 180.0), 0.0), MoverInput.Walk(-1.0, 0.0), thirty, 100);
             Assert.That(onThirty.Grounded, Is.True, "thirty degrees is walked");
@@ -206,7 +209,7 @@ namespace EarthGame.Tests.Engine
         [Test]
         public void TooSteepToStandOnMeansSliding()
         {
-            const double grade = 1.8; // 61 degrees, past the 35 walkable
+            const double grade = 1.8; // 61 degrees, past the 45 walkable
             IWorldCollision steep = World((e, n) => e * grade);
             MoverState s = Run(MoverState.AtRest(2.0, 3.6, 0.0), MoverInput.Walk(1.0, 0.0, sprint: true), steep, 100);
             Assert.That(s.Grounded, Is.False, "there is no standing on this");

@@ -237,7 +237,9 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     shallows show what lies under them and the depths hide it.
 36. **Alt pans the camera, the body still.** "let the alt key allow the camera to pan without moving the players body.
     inspired by the same mechanic in rust the survival game." Holding Alt looks around without turning the founder;
-    letting go returns the view to where the body faces.
+    letting go returns the view to where the body faces. Amended 2026-09-21, playing the M1.5h build: "when you
+    release the alt key after looking around, the x and y should both snap back, not just the x" — the view's tilt is
+    the free look's as much as its turn, and both come home.
 37. **The understorey is bland, and the footsteps are one noise.** Seeing both in play: "the understorey is still just
     a smooth green floor with some small bits scattered around weirdly. i acknowledge that this is just for the beta
     arc, but it just makes the understorey very bland"; and "footsteps over different ground do change, but the sound,

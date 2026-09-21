@@ -86,24 +86,28 @@ namespace EarthGame.Client
             turned = Mathf.DeltaAngle(yaw0, _player.YawDeg);
             Check("the view turns", Controls.Pad, stickLook, false, stickLook != null && turned > 30f, "turned " + F2(turned) + "° in half a second");
 
-            // The free look (M1.E, CANON ruling 36): Alt held, the mouse turns the view and not the body; let go, the view
-            // glides home to the body's facing.
+            // The free look (M1.E, CANON ruling 36): Alt held, the mouse turns and tilts the view and not the body; let go, the
+            // view glides home to the body's facing and pitch (both axes by William's word of 2026-09-21).
             if (Bound(Controls.FreeLook, Controls.Desk, null, out InputControl alt, out string altKey))
             {
-                float body0 = _player.YawDeg;
+                float body0 = _player.YawDeg, pitch0 = _player.PitchDeg;
                 Send(alt.device, To(alt, 1f));
                 yield return Frames(2);
-                Turn(30f, 0f);
+                Turn(30f, 20f);
                 yield return Frames(4);
-                float bodyTurned = Mathf.DeltaAngle(body0, _player.YawDeg);
-                double offset = _player.FreeLookOffsetDeg;
+                float bodyTurned = Mathf.DeltaAngle(body0, _player.YawDeg), bodyTilted = _player.PitchDeg - pitch0;
+                double offset = _player.FreeLookOffsetDeg, tilt = _player.FreeLookPitchOffsetDeg;
                 Check("Alt held turns the view and not the body", Controls.Desk, altKey, false,
                       Mathf.Abs(bodyTurned) < 0.5f && Math.Abs(offset - 30.0) < 1.5,
                       "the body turned " + F2(bodyTurned) + "°, the view stands " + F2((float)offset) + "° off it");
+                Check("Alt held tilts the view and not the body", Controls.Desk, altKey, false,
+                      Mathf.Abs(bodyTilted) < 0.5f && Math.Abs(Math.Abs(tilt) - 20.0) < 1.5,
+                      "the body tilted " + F2(bodyTilted) + "°, the view stands " + F2((float)tilt) + "° off its pitch");
                 Send(alt.device, To(alt, 0f));
                 yield return Wait(FreeLook.ReturnSeconds + 0.3);
-                Check("Alt let go brings the view home", Controls.Desk, altKey, false, Math.Abs(_player.FreeLookOffsetDeg) < 0.01,
-                      "the view stands " + F2((float)_player.FreeLookOffsetDeg) + "° off the body");
+                Check("Alt let go brings the view home", Controls.Desk, altKey, false,
+                      Math.Abs(_player.FreeLookOffsetDeg) < 0.01 && Math.Abs(_player.FreeLookPitchOffsetDeg) < 0.01,
+                      "the view stands " + F2((float)_player.FreeLookOffsetDeg) + "° off the body and " + F2((float)_player.FreeLookPitchOffsetDeg) + "° off its pitch");
             }
             else Check("Alt held turns the view and not the body", Controls.Desk, null, false, false, "nothing bound to the free look");
 

@@ -708,7 +708,7 @@ leg rather than to the whole lap. `corpus_check.py` reads what the bodies lived 
   scripted-input seam hands the same frame (`ControlsFrame`), its pitch the camera's. The verbs (`VerbController`)
   act on what the crosshair is on and what is in hand: a thing within reach, the ground within reach, the keys and the
   wheel for the hand, Tab for the carrying window; Escape lets the mouse go and a click takes it back; Alt held turns
-  the view without the body (M1.E, CANON ruling 36: `FreeLook` in ClientCore keeps the offset, bounded at 135° and
+  the view without the body (M1.E, CANON ruling 36: `FreeLook` in ClientCore keeps the turn's offset, bounded at 135°, and since his word of 2026-09-21 the tilt's, bounded at 89°, both
   gliding home in a quarter second when Alt is let go; the mover walks and the server is sent the body's facing, the
   camera and the crosshair take the view's); F2 turns developer mode on and off (M1.E, ruling 39, the server's answer
   deciding: flight, the panel and the settings follow what was granted, and turning it off sets a flying founder down);
