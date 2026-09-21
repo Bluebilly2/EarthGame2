@@ -29,6 +29,11 @@ pushed through the pre-push hook.**
 
 ## Working with the owner
 
+- **Every check-in ends with a checkpoint** (William, 2026-09-21): under its own heading, apart from the rest, what was
+  done since the last one, what is open, a one-paragraph summary, what is immediately next and what comes after; with
+  what waits on him (his word, eyes or hands) and which build his game folder holds. He reads that block when he reads
+  nothing else.
+
 William owns the design (`Docs/GAME_DESIGN.md`), and his decisions are in `Docs/CANON.md`. He is learning to
 program, and since 2026-09-08 the agent writes everything, checks included (ruling 17).
 

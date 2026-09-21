@@ -21,6 +21,29 @@ namespace EarthGame.Tests.Engine
             public double HeightAt(double east, double north) => _f(east, north);
         }
 
+        /// <summary>
+        /// The client's blind spot, mimicked (2026-09-21): a PhysX capsule cast that starts with the capsule's foot already inside
+        /// the sloping terrain reports no hit, so on a face too steep to stand on the sweep says the way is free. This wraps the
+        /// exact heightfield collision and ignores any sweep whose capsule starts inside the ground within its own radius.
+        /// </summary>
+        private sealed class SweepThatIgnoresWhatItStartsInside : IWorldCollision
+        {
+            private readonly HeightfieldCollision _inner;
+            private readonly Func<double, double, double> _ground;
+            public SweepThatIgnoresWhatItStartsInside(HeightfieldCollision inner, Func<double, double, double> ground) { _inner = inner; _ground = ground; }
+            public bool ProbeGround(Double3 feet, double radius, double stepUp, double maxDown, out double groundUp, out Double3 normal)
+                => _inner.ProbeGround(feet, radius, stepUp, maxDown, out groundUp, out normal);
+            public bool SweepCapsule(Double3 feet, double radius, double height, Double3 delta, out double fraction, out Double3 normal)
+            {
+                bool inside = false;
+                foreach ((double dx, double dz) in new[] { (radius, 0.0), (-radius, 0.0), (0.0, radius), (0.0, -radius) })
+                    inside |= _ground(feet.X + dx, feet.Z + dz) > feet.Y + 0.05;
+                if (inside) { fraction = 1.0; normal = Double3.Up; return false; }
+                return _inner.SweepCapsule(feet, radius, height, delta, out fraction, out normal);
+            }
+            public double WaterSurfaceAt(double east, double north) => _inner.WaterSurfaceAt(east, north);
+        }
+
         private static HeightfieldCollision World(Func<double, double, double> height, bool sea = false)
             => HeightfieldCollision.For(new Ground(height), MoverConfig.Default, sea);
 
@@ -191,12 +214,16 @@ namespace EarthGame.Tests.Engine
         }
 
         /// <summary>
-        /// A 30-degree face is walked and a 50-degree one is a slide. The limit between them is 45° for now: M1.5h set it at the
-        /// repose, 35°, and William fell through the world on a face between the two the same evening (DEBTS 2026-09-21).
+        /// Walked ground ends at the repose (M1.5h): a 30-degree face is walked, a 40-degree one, walked until 2026-09-21, is a slide,
+        /// and so is a 50. The limit spent an evening at 45° after William fell through a face between 35 and 45; the slide keeps its
+        /// feet now (M1.5i) and the repose is the limit again.
         /// </summary>
         [Test]
-        public void AFiftyDegreeFaceIsASlideAndAThirtyIsWalked()
+        public void AFortyDegreeFaceIsASlideAndAThirtyIsWalked()
         {
+            IWorldCollision forty = World((e, n) => e * Math.Tan(40.0 * Math.PI / 180.0));
+            MoverState onForty = Run(MoverState.AtRest(2.0, 2.0 * Math.Tan(40.0 * Math.PI / 180.0), 0.0), MoverInput.Walk(1.0, 0.0), forty, 100);
+            Assert.That(onForty.Grounded, Is.False, "nothing loose stands at forty degrees, and nor does the founder");
             IWorldCollision fifty = World((e, n) => e * Math.Tan(50.0 * Math.PI / 180.0));
             MoverState onFifty = Run(MoverState.AtRest(2.0, 2.0 * Math.Tan(50.0 * Math.PI / 180.0), 0.0), MoverInput.Walk(1.0, 0.0), fifty, 100);
             Assert.That(onFifty.Grounded, Is.False, "there is no standing on fifty degrees");
@@ -206,10 +233,34 @@ namespace EarthGame.Tests.Engine
             Assert.That(onThirty.East, Is.LessThan(2.0), "down it");
         }
 
+        /// <summary>
+        /// William fell through the world on a face too steep to stand on (2026-09-21): the sweep on the client is a capsule cast
+        /// that starts inside the sloping terrain and reports nothing, so gravity took the body through. The mover itself now
+        /// keeps a sliding body's feet on the surface under them, so the body slides down the face and never leaves it, whatever
+        /// the sweep fails to see.
+        /// </summary>
+        [Test]
+        public void ASlidingBodyKeepsItsFeetOnTheSurfaceEvenWhenTheSweepSeesNothing()
+        {
+            double grade = Math.Tan(50.0 * Math.PI / 180.0);
+            Func<double, double, double> face = (e, n) => e * grade;
+            IWorldCollision blind = new SweepThatIgnoresWhatItStartsInside(World(face), face);
+            MoverState s = MoverState.AtRest(2.0, 2.0 * grade, 0.0);
+            double lowestUnder = 0.0;
+            for (int i = 0; i < 100; i++)
+            {
+                s = Mover.Step(s, MoverInput.Walk(1.0, 0.0), Dt, blind);
+                lowestUnder = Math.Min(lowestUnder, s.Up - face(s.East, s.North));
+            }
+            Assert.That(lowestUnder, Is.GreaterThan(-0.05), "the body went through the face by " + (-lowestUnder).ToString("0.00") + " m");
+            Assert.That(s.Grounded, Is.False, "there is no standing on fifty degrees");
+            Assert.That(s.East, Is.LessThan(2.0), "and the body slid down it");
+        }
+
         [Test]
         public void TooSteepToStandOnMeansSliding()
         {
-            const double grade = 1.8; // 61 degrees, past the 45 walkable
+            const double grade = 1.8; // 61 degrees, past the 35 walkable
             IWorldCollision steep = World((e, n) => e * grade);
             MoverState s = Run(MoverState.AtRest(2.0, 3.6, 0.0), MoverInput.Walk(1.0, 0.0, sprint: true), steep, 100);
             Assert.That(s.Grounded, Is.False, "there is no standing on this");

@@ -189,6 +189,17 @@ namespace EarthGame.Engine
                     vel = new Double3(vel.X, 0.0, vel.Z);
                     s.Grounded = true;
                 }
+                // A falling body whose feet the sweep has let under the ground is put back on the surface and slides along it
+                // (M1.5i, 2026-09-21): the client's sweep is a capsule cast that starts with its foot inside a steep face and reports
+                // nothing, and William fell through the world on a face too steep to stand on. The mover keeps the feet on the
+                // surface itself, whatever the sweep fails to see, and takes the velocity's part into the surface away so the rest
+                // is the slide down it.
+                else if (world.ProbeGround(feet, radius, cfg.StepHeight, 0.0, out double under, out Double3 underNormal) && under > feet.Y)
+                {
+                    feet = new Double3(feet.X, under, feet.Z);
+                    double velInto = Double3.Dot(vel, underNormal);
+                    if (velInto < 0.0) vel = vel - underNormal * velInto;
+                }
             }
             if (swimming)
             {

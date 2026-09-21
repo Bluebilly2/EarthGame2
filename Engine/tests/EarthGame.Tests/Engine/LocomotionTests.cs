@@ -78,14 +78,14 @@ namespace EarthGame.Tests.Engine
         }
 
         /// <summary>
-        /// Nothing loose stands steeper than about 35 degrees, dry sand's angle of repose, and the walker's table ends there with a
-        /// careful pace. The mover's own limit went back to 45° the evening M1.5h landed, when William fell through the world on a
-        /// face between the two (the slide on the client's terrain, DEBTS 2026-09-21); it returns to the repose when the slide is safe.
+        /// Nothing loose stands steeper than about 35 degrees, dry sand's angle of repose: the dune's face is the limit of walked ground,
+        /// and the walker's table ends there with a careful pace. The limit spent an evening back at 45°, when William fell through
+        /// the world on a face between the two; it is the repose again since the mover keeps a sliding body's feet on the surface (M1.5i).
         /// </summary>
         [Test]
         public void W4_WalkedGroundEndsAtTheRepose()
         {
-            Assert.That(MoverConfig.Default.WalkableSlopeDeg, Is.EqualTo(45.0), "45 until the slide is safe; then the repose");
+            Assert.That(MoverConfig.Default.WalkableSlopeDeg, Is.EqualTo(35.0));
             double atTheLimit = Locomotion.SpeedMs(-Math.Tan(35.0 * Math.PI / 180.0), Gait.Walking, 1.0);
             Assert.That(atTheLimit, Is.GreaterThan(0.3).And.LessThan(0.6), "the last walked pace is a careful one");
             Assert.That(Locomotion.SpeedMs(-1.5, Gait.Walking, 1.0), Is.EqualTo(atTheLimit).Within(1e-3), "and past the limit the law has no more to say: the mover slides");
