@@ -83,3 +83,47 @@ from it. Every record keeps the licence and the name of the data resource it cam
 the fetch of 2026-09-10 most were CC-BY 4.0, others CC-BY-NC 4.0, CC-BY 3.0 AU, CC0 or CC-BY-SA, and some
 resources state none. Attribution: the Atlas of Living Australia (https://www.ala.org.au/) and the data providers
 named in each record's `resource` field.
+
+## The coordinate atlas's datasets (WG.0), fetched by `Tools/atlas/acquire.py` — each under its own licence
+
+Six global datasets, approved whole by William on 2026-09-21 ("all six") from the acquisition manifest in
+`Docs/contracts/WG.0_COORDINATE_ATLAS.md`, fetched into `Data/global/<dataset>/` (never committed) with each file's size
+and SHA-256 recorded in `Data/global/manifest.json`. The raw datasets are never shipped: they are read once, offline,
+into the atlas's own derived form, and only that derived form travels with the game. The licence pages were read on
+2026-09-20; ETOPO's product page carries no licence text, so its term is the one its metadata record states.
+
+### Natural Earth 1:10m physical, v5.1.1 — Public domain
+
+1 file(s), 50.0 MB, under `Data/global/naturalearth/`. Licence page: https://www.naturalearthdata.com/about/terms-of-use/. Citation: Made with Natural Earth. Free vector and raster map data @ naturalearthdata.com.
+
+- `10m_physical.zip` (50.0 MB, SHA-256 `a79cc39162f29832b567de5e24e8770f04a0b997eefd8d067ae4c9df40d21d2a`) from https://naciscdn.org/naturalearth/10m/physical/10m_physical.zip
+
+### NOAA ETOPO 2022, 30 arc-second surface — CC0 (the metadata record; the product page states none)
+
+1 file(s), 1.5 GB, under `Data/global/etopo/`. Licence page: https://www.ncei.noaa.gov/metadata/geoportal/rest/metadata/item/gov.noaa.ngdc.mgg.dem%3Aetopo_2022/html. Citation: NOAA National Centers for Environmental Information. 2022: ETOPO 2022 15 Arc-Second Global Relief Model. NOAA NCEI. DOI: 10.25921/fd45-gt74.
+
+- `ETOPO_2022_v1_30s_N90W180_surface.tif` (1.5 GB, SHA-256 `8630abc401cc6bdd30b507a68d3eb9eda5b65f5636f7199e4b1eefd476b5a9e2`) from https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO2022/data/30s/30s_surface_elev_gtif/ETOPO_2022_v1_30s_N90W180_surface.tif
+
+### HydroLAKES v1.0 — CC-BY 4.0
+
+1 file(s), 727.2 MB, under `Data/global/hydrolakes/`. Licence page: https://www.hydrosheds.org/products/hydrolakes. Citation: Messager, M.L., Lehner, B., Grill, G., Nedeva, I., Schmitt, O. (2016): Estimating the volume and age of water stored in global lakes using a geo-statistical approach. Nature Communications 7: 13603. doi:10.1038/ncomms13603.
+
+- `HydroLAKES_polys_v10.gdb.zip` (727.2 MB, SHA-256 `1c1303a4882c597b769f4a2beae6c72804c52ad418a0b4078817cf1062116643`) from https://data.hydrosheds.org/file/hydrolakes/HydroLAKES_polys_v10.gdb.zip
+
+### RESOLVE Ecoregions 2017 — CC-BY 4.0
+
+1 file(s), 142.3 MB, under `Data/global/ecoregions/`. Licence page: https://ecoregions.appspot.com/. Citation: Dinerstein, E. et al. (2017): An Ecoregion-Based Approach to Protecting Half the Terrestrial Realm. BioScience 67(6): 534-545. doi:10.1093/biosci/bix014.
+
+- `Ecoregions2017.zip` (142.3 MB, SHA-256 `be36d6209e443038d02e309f0447c6e7f2a62f5fe60c605ffe90d064952f2a60`) from https://storage.googleapis.com/teow2016/Ecoregions2017.zip
+
+### GLiM v1.0, PANGAEA gridded release (0.5 degree) — CC-BY 3.0
+
+1 file(s), 37.8 kB, under `Data/global/glim/`. Licence page: https://doi.org/10.1594/PANGAEA.788537. Citation: Hartmann, J., Moosdorf, N. (2012): The new global lithological map database GLiM: A representation of rock properties at the Earth surface. Geochemistry, Geophysics, Geosystems 13: Q12004. doi:10.1029/2012GC004370.
+
+- `glim_gridded_0point5deg.zip` (37.8 kB, SHA-256 `43b4ce3276b155d804db8ff9fb227d620b4c35015a4cf564eac4d06d2b69d88e`) from https://hdl.handle.net/10013/epic.39939.d001
+
+### CHELSA v2.1 climatologies 1981-2010, tas and pr, monthly — CC0
+
+24 file(s), 4.0 GB, under `Data/global/chelsa/`. Licence page: https://chelsa-climate.org/downloads/. Citation: Karger, D.N. et al. (2017): Climatologies at high resolution for the earth's land surface areas. Scientific Data 4: 170122. doi:10.1038/sdata.2017.122. Version 2.1: doi:10.16904/envidat.228.v2.1.
+
+- `CHELSA_tas_01_1981-2010_V.2.1.tif` … `CHELSA_pr_12_1981-2010_V.2.1.tif` (24 files from https://os.zhdk.cloud.switch.ch/chelsav2/GLOBAL/climatologies/1981-2010/, each SHA-256 in `manifest.json`)

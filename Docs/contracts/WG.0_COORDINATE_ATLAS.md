@@ -96,5 +96,9 @@ which page the term was read from, with the date.
 ## Exit record
 
 Unopened; no implementation or data-acquisition result. The acquisition manifest above is written, and on 2026-09-21
-William approved it whole ("all six"): the six datasets it names, and no other, may be fetched. Nothing has been fetched
-yet; the acquisition tool, with the sizes and checksums the manifest promises, is the next step.
+William approved it whole ("all six"): the six datasets it names, and no other, may be fetched. Fetched the same day by
+`Tools/atlas/acquire.py` into `Data/global/`: 29 files, 6.4 GB, every file's size and SHA-256 in `Data/global/manifest.json`
+(`--verify` recomputes them; 29 of 29 agreed), each dataset's notice in `THIRD_PARTY_NOTICES.md`. CHELSA's twenty-four came to
+4.0 GB against the 8 GB ceiling; ETOPO's address is NOAA's data directory, not its THREDDS server, which answers 404;
+PANGAEA's handle for GLiM closes the connection after a HEAD, and the tool asks once more on a fresh one. Promise 1 is
+kept; the reading of the datasets into the atlas's derived form is the contract's next promise, unopened.
