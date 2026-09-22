@@ -84,7 +84,10 @@ namespace EarthGame.Protocol
         public static readonly IReadOnlyList<DevSetting> All = new[]
         {
             new DevSetting(StandAtWake, "Stand at the wake", 0.0, 0.0, 0.0, deed: true),
-            new DevSetting(FounderWater, "The founder's water, 1 full", 0.8, 1.0, 1.0),
+            // The floor a hair above the lethal loss (2026-09-22): dragged below it, the slider killed, the Standard death woke
+            // a new founder with a full body, and the slider, still low, killed that one too, twelve times in a minute of
+            // William's session of 2026-09-21. One owner for the panel's slider and the server's hold alike.
+            new DevSetting(FounderWater, "The founder's water, 1 full", 1.0 - Hydration.LethalWaterLoss + 0.01, 1.0, 1.0),
             new DevSetting(FounderCoreC, "The founder's core, °C (28 is death)", 26.0, 37.0, Warmth.NormalCoreC),
             new DevSetting(ClockLocalHour, "Local hour", 0.0, 24.0, double.NaN),
             new DevSetting(ClockDayOfYear, "Day of the year", 1.0, 365.0, double.NaN),

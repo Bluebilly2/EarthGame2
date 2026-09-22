@@ -80,6 +80,28 @@ namespace EarthGame.Tests.Server
             Assert.That(rig.Client.State, Is.EqualTo(ClientState.Connected), "and the client stays");
         }
 
+        /// <summary>
+        /// The water slider cannot kill (DEBTS 2026-09-21): dragged below the lethal loss it killed, the Standard death woke a
+        /// new founder with a full body, and the slider, still low, killed that one too, twelve times in a minute of William's
+        /// session. The table's floor for the founder's water stands a hair above the lethal loss, one owner for the panel's
+        /// slider and the server's hold alike, so the lowest the slider reaches is a founder alive and thirsty.
+        /// </summary>
+        [Test]
+        public void TheWaterSliderCannotKill()
+        {
+            DevSetting water = DevSettings.Find(DevSettings.FounderWater);
+            Assert.That(water.Least, Is.GreaterThan(1.0 - Hydration.LethalWaterLoss), "the floor is above the lethal loss");
+            Assert.That(water.Least, Is.LessThan(1.0 - Hydration.LethalWaterLoss + 0.03), "and only a hair above it, so thirst can still be seen");
+            Hydration thirsty = new Hydration();
+            thirsty.Restore(water.Least);
+            Assert.That(thirsty.IsAlive, Is.True, "a founder restored to the floor is alive");
+            Rig rig = Connect(true);
+            rig.Client.SendDevSetting(DevSettings.FounderWater, water.Least);
+            rig.Pump(3);
+            Assert.That(rig.Session.Hydration.IsAlive, Is.True, "and so is one the panel has set to it, after the server's own steps");
+            Assert.That(rig.Session.Hydration.Water01, Is.EqualTo(water.Least).Within(0.01));
+        }
+
         [Test]
         public void TheAnimalsFlightRulesAreMovedByTheirRows()
         {
@@ -114,7 +136,7 @@ namespace EarthGame.Tests.Server
             Assert.That(rig.Client.LastWater01, Is.EqualTo(0.9), "told at once");
             rig.Client.SendDevSetting(DevSettings.FounderWater, 0.2);
             rig.Pump(2);
-            Assert.That(rig.Session.Hydration.Water01, Is.EqualTo(0.8), "held to the row's least, a fifth lost being past collapse");
+            Assert.That(rig.Session.Hydration.Water01, Is.EqualTo(DevSettings.Find(DevSettings.FounderWater).Least), "held to the row's least, a fifth lost being past collapse");
         }
 
         [Test]

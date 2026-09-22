@@ -460,6 +460,8 @@ file's name.
   carries the server's clock and, since protocol v11 the same day, its scale: a client's own clock, which runs from its
   Welcome, runs at that scale and is set to the server's when it slips by more than 0.002 h of the world's time (about seven world-seconds; M1.D's first landing allowed three minutes),
   so a clock a developer moves moves every client's sky.
+  The founder's water slider has a floor a hair above the lethal loss (2026-09-22): dragged past it, it killed the founder
+  and then each new one the Standard death woke, since the slider stayed where it was left.
 - **Rejoin:** a session that ends keeps its body and what it carries by player name for the life of the server (and in the world
   folder on save); the same name wakes there, and a Hello for a name still connected supersedes the old session
   (the transport had not yet noticed the cut). A name that would share a player file with another name the server knows,
