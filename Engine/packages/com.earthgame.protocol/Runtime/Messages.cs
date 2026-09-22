@@ -63,6 +63,8 @@ namespace EarthGame.Protocol
         DeveloperMode = 24,
         /// <summary>Server → client (BF.2, protocol 18): a work's progress once a second, and its end, done or stopped, with the words.</summary>
         WorkState = 25,
+        /// <summary>Server → client (BF.3, protocol 19): what has changed in the generated world, cell by cell, every layer at once; LooseTaken (20) retired.</summary>
+        Changes = 26,
     }
 
     /// <summary>One tile of one layer the client wants, with the checksum of the copy it already holds (zero for none).</summary>
@@ -1180,7 +1182,68 @@ namespace EarthGame.Protocol
     }
 
     /// <summary>
-    /// Server → client, reliable (protocol v7, M1.5b): what has been taken from the loose layer, cell by cell — every
+    /// Server → client, reliable (BF.3, protocol 19): what has changed in the generated world, cell by cell — every cell at
+    /// the join, before the snapshot's end, and a cell again to every client whenever a founder changes it. Each cell: u16 row,
+    /// u16 col, u8 the layers it carries (1 loose, 2 tuft, 4 trunk, 8 ground; another refused), then for the loose layer u16
+    /// the sticks taken and u16 the cobbles taken, for the tuft layer u16 the tufts taken by bit, for the trunk layer u8 its
+    /// flags and u8 the cut's progress, for the ground layer u8 its flags and u8 the centimetres dug. A client adds what it is
+    /// told to what it holds: a taking is never put back and a measure never lessens. Replaced LooseTaken (20), which carried
+    /// the loose layer alone.
+    /// </summary>
+    public struct ChangesMessage
+    {
+        /// <summary>The most cells one message carries; a joiner is sent as many messages as it takes.</summary>
+        public const int MostCells = 2048;
+
+        public CellChange[] Cells;
+
+        public void Write(PacketWriter w)
+        {
+            int count = Cells != null ? Cells.Length : 0;
+            if (count > MostCells) throw new ProtocolException("changes of " + count + " cells; one message carries at most " + MostCells);
+            w.WriteByte((byte)MessageKind.Changes);
+            w.WriteUInt16((ushort)count);
+            for (int i = 0; i < count; i++)
+            {
+                CellChange c = Cells[i];
+                if (c.Row < 0 || c.Row > ushort.MaxValue || c.Col < 0 || c.Col > ushort.MaxValue) throw new ProtocolException("cell (" + c.Row + ", " + c.Col + ") does not fit the wire");
+                w.WriteUInt16((ushort)c.Row);
+                w.WriteUInt16((ushort)c.Col);
+                w.WriteByte(c.Layers);
+                if (c.HasLoose) { w.WriteUInt16(c.Sticks); w.WriteUInt16(c.Cobbles); }
+                if (c.HasTuft) w.WriteUInt16(c.Tufts);
+                if (c.HasTrunk) { w.WriteByte(c.TrunkFlags); w.WriteByte(c.TrunkCut); }
+                if (c.HasGround) { w.WriteByte(c.GroundFlags); w.WriteByte(c.DugCm); }
+            }
+        }
+
+        public static ChangesMessage Read(PacketReader r)
+        {
+            ChangesMessage m;
+            int count = r.ReadUInt16();
+            if (count > MostCells) throw new ProtocolException("changes of " + count + " cells; one message carries at most " + MostCells);
+            m.Cells = new CellChange[count];
+            for (int i = 0; i < count; i++)
+            {
+                CellChange c = default;
+                c.Row = r.ReadUInt16();
+                c.Col = r.ReadUInt16();
+                byte layers = r.ReadByte();
+                if ((layers & ~CellChange.AllLayers) != 0) throw new ProtocolException("a change of layers " + layers + ", some of which this build does not know");
+                if ((layers & CellChange.LooseLayer) != 0) { c.Sticks = r.ReadUInt16(); c.Cobbles = r.ReadUInt16(); }
+                if ((layers & CellChange.TuftLayer) != 0) c.Tufts = r.ReadUInt16();
+                if ((layers & CellChange.TrunkLayer) != 0) { c.TrunkFlags = r.ReadByte(); c.TrunkCut = r.ReadByte(); }
+                if ((layers & CellChange.GroundLayer) != 0) { c.GroundFlags = r.ReadByte(); c.DugCm = r.ReadByte(); }
+                if (!c.IsPossible(out string why)) throw new ProtocolException("a change to cell (" + c.Row + ", " + c.Col + ") that could not be: " + why);
+                m.Cells[i] = c;
+            }
+            return m;
+        }
+    }
+
+    /// <summary>
+    /// Server → client, reliable (protocol v7, M1.5b; retired by BF.3, protocol 19, in favour of <see cref="ChangesMessage"/>, and
+    /// refused when read): what has been taken from the loose layer, cell by cell — every
     /// cell at the join, before the snapshot's end, and a cell's takings again to every client whenever a founder takes
     /// something from it. A client adds what it is told to what it holds: nothing taken is ever put back.
     /// </summary>

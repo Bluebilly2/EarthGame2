@@ -1352,10 +1352,13 @@ namespace EarthGame.Server
         /// taken is gone for whoever holds that tile now and whoever comes to it later. A joiner still waiting for its
         /// snapshot is sent every taking with it.
         /// </summary>
-        private void BroadcastTaken(int row, int col)
+        private void BroadcastTaken(int row, int col) => BroadcastChange(row, col);
+
+        /// <summary>A cell's changes, every layer at once (BF.3), to every client that has its snapshot; a joiner is sent the whole set with its snapshot.</summary>
+        private void BroadcastChange(int row, int col)
         {
-            if (!World.Taken.TryGet(row, col, out LooseTaken.Cell cell)) return;
-            LooseTakenMessage m;
+            if (!World.Changes.TryGet(row, col, out CellChange cell)) return;
+            ChangesMessage m;
             m.Cells = new[] { cell };
             _writer.Reset();
             m.Write(_writer);
@@ -1363,14 +1366,14 @@ namespace EarthGame.Server
                 if (!_sessions[i].SnapshotPending) _sessions[i].Connection.Send(_writer.Written, Delivery.Reliable);
         }
 
-        /// <summary>Everything taken from the loose layer so far, to a joiner, in messages of at most <see cref="LooseTakenMessage.MaxCells"/> cells.</summary>
+        /// <summary>Every change to the world so far, to a joiner, in messages of at most <see cref="ChangesMessage.MostCells"/> cells.</summary>
         private void SendTaken(PlayerSession joiner)
         {
-            List<LooseTaken.Cell> cells = World.Taken.Cells();
-            for (int start = 0; start < cells.Count; start += LooseTakenMessage.MaxCells)
+            List<CellChange> cells = World.Changes.AllCells();
+            for (int start = 0; start < cells.Count; start += ChangesMessage.MostCells)
             {
-                LooseTakenMessage m;
-                m.Cells = cells.GetRange(start, Math.Min(LooseTakenMessage.MaxCells, cells.Count - start)).ToArray();
+                ChangesMessage m;
+                m.Cells = cells.GetRange(start, Math.Min(ChangesMessage.MostCells, cells.Count - start)).ToArray();
                 _writer.Reset();
                 m.Write(_writer);
                 joiner.Connection.Send(_writer.Written, Delivery.Reliable);

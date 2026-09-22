@@ -33,6 +33,14 @@ namespace EarthGame.Server
         public LooseTaken.Cell Cell;
     }
 
+    /// <summary>A cell's change of the tuft, trunk or ground layers as a region file holds it (BF.3), with the file's cell.</summary>
+    public struct SavedChange
+    {
+        public int RegionX;
+        public int RegionZ;
+        public CellChange Cell;
+    }
+
     /// <summary>What a world folder says about itself, read back without building the world yet.</summary>
     public sealed class WorldSaveInfo
     {
@@ -52,6 +60,8 @@ namespace EarthGame.Server
         public readonly List<SavedEntity> Entities = new List<SavedEntity>();
         /// <summary>What was taken from the loose layer, from every region file's layer diffs (M1.5b).</summary>
         public readonly List<SavedTaking> Taken = new List<SavedTaking>();
+        /// <summary>The other changes to the world, from every region file's layer diffs (BF.3).</summary>
+        public readonly List<SavedChange> Changes = new List<SavedChange>();
         /// <summary>The id the next spawn takes; 1 for a world saved before it had entities.</summary>
         public ulong NextEntityId = 1;
         /// <summary>The digest the server wrote beside the world, or null for a world saved before it wrote one.</summary>
@@ -211,8 +221,22 @@ namespace EarthGame.Server
                     if (!takenByCell.TryGetValue(key, out List<LooseTaken.Cell> list)) takenByCell[key] = list = new List<LooseTaken.Cell>();
                     list.Add(cell);
                 }
+            Dictionary<long, List<CellChange>> changesByCell = new Dictionary<long, List<CellChange>>();
+            RegionRaster grid = loose ?? world.Cover ?? world.Stand;
+            if (grid != null)
+                foreach (CellChange cell in world.Changes.Cells())
+                {
+                    StandLayout.CellCentre(cell.Row, cell.Col, grid.CellM, grid.ExtentM, out double east, out double north);
+                    long key = ((long)RegionCells.IndexOf(east, extent) << 32) | (uint)RegionCells.IndexOf(north, extent);
+                    if (!changesByCell.TryGetValue(key, out List<CellChange> list)) changesByCell[key] = list = new List<CellChange>();
+                    CellChange bare = cell;
+                    bare.Sticks = 0;
+                    bare.Cobbles = 0;
+                    list.Add(bare);
+                }
             HashSet<long> keys = new HashSet<long>(byCell.Keys);
             keys.UnionWith(takenByCell.Keys);
+            keys.UnionWith(changesByCell.Keys);
             HashSet<string> written = new HashSet<string>(StringComparer.Ordinal);
             foreach (long key in keys)
             {
@@ -220,8 +244,9 @@ namespace EarthGame.Server
                 string name = RegionFile.NameFor(cx, cz);
                 byCell.TryGetValue(key, out List<SavedEntity> entities);
                 takenByCell.TryGetValue(key, out List<LooseTaken.Cell> taken);
+                changesByCell.TryGetValue(key, out List<CellChange> changes);
                 place.Add(new KeyValuePair<string, byte[]>(RegionFile.Folder + "/" + name,
-                    RegionFile.Encode(cx, cz, (IReadOnlyList<SavedEntity>)entities ?? Array.Empty<SavedEntity>(), taken)));
+                    RegionFile.Encode(cx, cz, (IReadOnlyList<SavedEntity>)entities ?? Array.Empty<SavedEntity>(), taken, changes)));
                 written.Add(name);
             }
             foreach (string file in Directory.GetFiles(regionsDir, "r.*.egr"))
@@ -332,7 +357,8 @@ namespace EarthGame.Server
             {
                 string name = Path.GetFileName(file);
                 if (!RegionFile.TryParseName(name, out int namedX, out int namedZ)) continue;
-                List<SavedEntity> entities = RegionFile.Decode(File.ReadAllBytes(file), out int cx, out int cz, out List<LooseTaken.Cell> taken);
+                List<SavedEntity> entities = RegionFile.Decode(File.ReadAllBytes(file), out int cx, out int cz, out List<LooseTaken.Cell> taken, out List<CellChange> changes);
+                foreach (CellChange cell in changes) info.Changes.Add(new SavedChange { RegionX = cx, RegionZ = cz, Cell = cell });
                 if (cx != namedX || cz != namedZ) throw new InvalidDataException(name + " says it is cell (" + cx + ", " + cz + ")");
                 foreach (LooseTaken.Cell cell in taken) info.Taken.Add(new SavedTaking { RegionX = cx, RegionZ = cz, Cell = cell });
                 if (extentM > 0.0)
@@ -354,6 +380,7 @@ namespace EarthGame.Server
             if (region == null) throw new InvalidDataException("the save is set in region '" + info.RegionId + "', which this build does not know");
             WorldState world = new WorldState(info.Seed, region, WorldClock.Restore(info.TotalHours, info.StartedAtHours), terrain, info.Tick, info.Wake, water, cover, stand, loose, stone, capacity, shoreDistance);
             foreach (SavedTaking taking in info.Taken) world.Taken.Merge(CheckTaking(world, taking));
+            foreach (SavedChange change in info.Changes) world.Changes.Merge(CheckChange(world, change));
             foreach (SavedEntity s in info.Entities)
             {
                 if (!DefinitionCatalogue.TryByKey(s.Key, out Definition definition))
@@ -370,6 +397,24 @@ namespace EarthGame.Server
         /// code counts, in a cell whose centre lies in the region file that recorded it. A folder that says otherwise was
         /// not written by this world's server, and is refused rather than drawn as a gap in the litter where nothing lay.
         /// </summary>
+        /// <summary>
+        /// A change read from a save, held against the world it is restored into (BF.3): a cell of the world's raster, in the
+        /// region file of the 512 m cell its centre lies in; anything else was not written by this world's server and is refused.
+        /// </summary>
+        private static CellChange CheckChange(WorldState world, SavedChange change)
+        {
+            CellChange c = change.Cell;
+            RegionRaster grid = world.Loose ?? world.Cover ?? world.Stand;
+            if (grid == null) throw new InvalidDataException("the save changed cell (" + c.Row + ", " + c.Col + ") of a world with no layers");
+            if (c.Row < 0 || c.Col < 0 || c.Row >= grid.Height || c.Col >= grid.Width)
+                throw new InvalidDataException("the save changed cell (" + c.Row + ", " + c.Col + "), outside the layers' " + grid.Width + " by " + grid.Height);
+            StandLayout.CellCentre(c.Row, c.Col, grid.CellM, grid.ExtentM, out double east, out double north);
+            double extent = world.Region.ExtentM;
+            if (RegionCells.IndexOf(east, extent) != change.RegionX || RegionCells.IndexOf(north, extent) != change.RegionZ)
+                throw new InvalidDataException(RegionFile.NameFor(change.RegionX, change.RegionZ) + " holds the changes of cell (" + c.Row + ", " + c.Col + "), which lies in another");
+            return c;
+        }
+
         private static LooseTaken.Cell CheckTaking(WorldState world, SavedTaking taking)
         {
             LooseTaken.Cell c = taking.Cell;

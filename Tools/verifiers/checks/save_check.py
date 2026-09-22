@@ -12,12 +12,16 @@ in the mask's order (bit 0 f32 mass kg, 1 f32 length m, 2 f32 diameter m, 3 f32 
 edge, 5 f32 platform degrees, 6 u16 flakes taken, 7 u8 look, 8 f32 condition, 9 u16 marks) — version 6 (FP.3) carried
 f32 mass kg, f32 edge, f32 platform degrees and u16 flakes instead; since version 4 (FP.1) f64 the fraction of body water lost; since version 5 (FP.2) f64 how far below normal the
 core was; then u32 CRC-32 of everything before it) and any players/*.json left from version 1, regions/r.X.Y.egr
-(eg2.region version 1 to 4: magic EG2R, u16 version, i32 cell x, i32 cell z, f64 cell size, u32 entity count, u32
+(eg2.region version 1 to 5: magic EG2R, u16 version, i32 cell x, i32 cell z, f64 cell size, u32 entity count, u32
 layer-diff count, none in version 1, u32 CRC-32 of the records, then per entity u64 id, the key as a u16 UTF-8 byte
 length and the bytes, f64 east, up, north, f32 yaw, i64 spawn tick, u8 component mask with 1 = item, and for an item
 u8 resting and f32 fall speed and, since version 4 (BF.1), the thing's own record as the player file carries it (version
-3, FP.3, carried f32 its own mass kg, f32 edge, f32 platform degrees and u16 flakes taken instead); then per diff u8
-layer, 5 for the loose layer, u16 row, u16 col, u16 sticks taken and u16 cobbles
+3, FP.3, carried f32 its own mass kg, f32 edge, f32 platform degrees and u16 flakes taken instead); then per diff,
+since version 5 (BF.3), u8 the change layer (5 loose, 9 tufts, 10 trunk, 11 ground), u16 row, u16 col, u8 the payload's
+length and the payload (loose: u16 sticks taken and u16 cobbles taken, a bit for each index; tufts: u16 the tufts taken
+by bit; trunk: u8 flags and u8 the cut; ground: u8 flags and u8 the centimetres dug), a layer this reader does not
+know skipped by its length; versions 2 to 4 carried the loose diff alone as u8 layer 5, u16 row, u16 col, u16 sticks
+taken and u16 cobbles
 taken, a bit for each index), and layers/loose.json with its raw bytes (a u8 per cell of the world's
 raster, row 0 north: the low four bits the sticks lying on the cell, the high four its cobbles). Then it rebuilds
 the world's name from the lines WorldDigest states — clock <nanohours>, tick <n>, one line per body sorted by name
@@ -28,13 +32,14 @@ and a condition in millionths, a platform in microdegrees, flakes, look and mark
 thing has something of its own, BF.1), one line per entity in id order (entity <id> <key> <micrometres east> <up> <north>
 <microdegrees yaw>[ item r|f <micrometres per second>[ thing <mask> <fields>]]),
 one line per cell something was taken from, by row and then column (taken <row> <col> <sticks mask> <cobbles mask>),
-next_entity <n> — hashed with FNV-1a 64, every number a whole count of its resolution rounded half to even, and
+then the other change layers each by row and then column (tuft <row> <col> <bits>, trunk <row> <col> <flags> <cut>,
+ground <row> <col> <flags> <dug cm>, BF.3), next_entity <n> — hashed with FNV-1a 64, every number a whole count of its resolution rounded half to even, and
 prints it beside the server's.
 
 Rows, each with both numbers:
   0. the folder holds one whole save: no file written aside (.part) and no save's record (save.commit) left over, which
      only a save a crash stopped leaves, for the next load to finish or clear (M1.3b);
-  1. every region file's CRC matches its records (versions 1 to 4);
+  1. every region file's CRC matches its records (versions 1 to 5);
   2. every region file is the cell its name says, and every entity in it lies in that cell (512 m cells from the
      south-west corner);
   3. every player file's CRC matches (versions 2 to 7), and no name has both a version-1 and a binary file;
@@ -73,7 +78,7 @@ THING_FIELDS = [("mass", "<f", MASS), ("length", "<f", METRE), ("diameter", "<f"
 THING_MASK_ALL = (1 << len(THING_FIELDS)) - 1
 REGION_HEADER = struct.Struct("<4sHiidIII")
 COMPONENT_ITEM = 1
-LAYER_LOOSE = 5
+LAYER_LOOSE, LAYER_TUFT, LAYER_TRUNK, LAYER_GROUND = 5, 9, 10, 11
 
 
 def fixed(value, resolution):
@@ -132,7 +137,7 @@ def read_region(path):
     magic, version, cx, cz, cell, count, diffs, crc = REGION_HEADER.unpack_from(data, 0)
     if magic != b"EG2R":
         raise ValueError("%s: not a region file" % path)
-    if version not in (1, 2, 3, 4):
+    if version not in (1, 2, 3, 4, 5):
         raise ValueError("%s: version %d" % (path, version))
     if version == 1 and diffs != 0:
         raise ValueError("%s: a version-1 region file with %d layer diffs" % (path, diffs))
@@ -157,16 +162,39 @@ def read_region(path):
                 thing = thing_of_struck_stone(struct.unpack_from("<fffH", records, at))
                 at += 14
         entities.append({"id": eid, "key": key, "east": east, "up": up, "north": north, "yaw": yaw, "spawn_tick": spawn_tick, "item": item, "thing": thing})
-    taken = []
+    taken, changes = [], {}
     for _ in range(diffs):
-        layer, row, col, sticks, cobbles = struct.unpack_from("<BHHHH", records, at)
-        at += 9
-        if layer != LAYER_LOOSE:
-            raise ValueError("%s: a diff of layer %d" % (path, layer))
-        taken.append({"row": row, "col": col, "sticks": sticks, "cobbles": cobbles, "file_cell": (cx, cz)})
+        if version >= 5:
+            layer, row, col, length = struct.unpack_from("<BHHB", records, at)
+            at += 6
+            payload = records[at:at + length]
+            at += length
+            if layer == LAYER_LOOSE:
+                if length != 4:
+                    raise ValueError("%s: a loose diff of %d bytes" % (path, length))
+                sticks, cobbles = struct.unpack_from("<HH", payload, 0)
+                taken.append({"row": row, "col": col, "sticks": sticks, "cobbles": cobbles, "file_cell": (cx, cz)})
+            elif layer in (LAYER_TUFT, LAYER_TRUNK, LAYER_GROUND):
+                if length != 2:
+                    raise ValueError("%s: a diff of layer %d of %d bytes" % (path, layer, length))
+                cell_change = changes.setdefault((row, col), {"row": row, "col": col, "tufts": 0, "trunk": (0, 0), "ground": (0, 0), "file_cell": (cx, cz)})
+                if layer == LAYER_TUFT:
+                    (cell_change["tufts"],) = struct.unpack_from("<H", payload, 0)
+                elif layer == LAYER_TRUNK:
+                    cell_change["trunk"] = struct.unpack_from("<BB", payload, 0)
+                else:
+                    cell_change["ground"] = struct.unpack_from("<BB", payload, 0)
+            # a layer this reader does not know is skipped by its length
+        else:
+            layer, row, col, sticks, cobbles = struct.unpack_from("<BHHHH", records, at)
+            at += 9
+            if layer != LAYER_LOOSE:
+                raise ValueError("%s: a diff of layer %d" % (path, layer))
+            taken.append({"row": row, "col": col, "sticks": sticks, "cobbles": cobbles, "file_cell": (cx, cz)})
     if at != len(records):
         raise ValueError("%s: %d bytes left over after %d records and %d diffs" % (path, len(records) - at, count, diffs))
-    return {"cell": (cx, cz), "cell_m": cell, "diffs": diffs, "crc_stated": crc, "crc_actual": actual, "entities": entities, "taken": taken}
+    return {"cell": (cx, cz), "cell_m": cell, "diffs": diffs, "crc_stated": crc, "crc_actual": actual, "entities": entities, "taken": taken,
+            "changes": list(changes.values())}
 
 
 def read_codes_layer(world_dir, name):
@@ -267,6 +295,7 @@ def main(argv):
     regions = sorted(glob.glob(os.path.join(full, "regions", "r.*.egr")))
     entities = []
     taken_all = []
+    changes_all = []
     crc_bad, misplaced, named_wrong = [], [], []
     for path in regions:
         name = os.path.basename(path)
@@ -281,6 +310,7 @@ def main(argv):
                 misplaced.append("entity %d at (%.1f, %.1f) in %s" % (e["id"], e["east"], e["north"], name))
         entities.extend(region["entities"])
         taken_all.extend(region["taken"])
+        changes_all.extend(region["changes"])
     expect("every region file's CRC matches", not crc_bad, "%d files, %d entities; %s" % (len(regions), len(entities), "; ".join(crc_bad) or "all match"))
     expect("every entity lies in the cell its file names", not misplaced and not named_wrong,
            "; ".join(misplaced + named_wrong) or "%d entities in %d cells of %.0f m" % (len(entities), len(regions), CELL_M))
@@ -361,6 +391,16 @@ def main(argv):
         lines.append(line)
     for t in sorted(taken_all, key=lambda t: (t["row"], t["col"])):
         lines.append("taken %d %d %d %d" % (t["row"], t["col"], t["sticks"], t["cobbles"]))
+    changes_sorted = sorted(changes_all, key=lambda c: (c["row"], c["col"]))
+    for c in changes_sorted:
+        if c["tufts"]:
+            lines.append("tuft %d %d %d" % (c["row"], c["col"], c["tufts"]))
+    for c in changes_sorted:
+        if c["trunk"] != (0, 0):
+            lines.append("trunk %d %d %d %d" % (c["row"], c["col"], c["trunk"][0], c["trunk"][1]))
+    for c in changes_sorted:
+        if c["ground"] != (0, 0):
+            lines.append("ground %d %d %d %d" % (c["row"], c["col"], c["ground"][0], c["ground"][1]))
     lines.append("next_entity %d" % int(doc.get("next_entity_id", 1)))
     recomputed = fnv1a64("\n".join(lines) + "\n")
     written = open(digest_path, encoding="utf-8").read().strip()

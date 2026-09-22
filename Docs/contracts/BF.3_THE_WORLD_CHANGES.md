@@ -1,6 +1,6 @@
 # Contract BF.3 — The world changes
 
-**Status:** drafted 2026-09-22, the third of the beta's foundations (`Docs/BETA_MAP.md` §7, CANON ruling 41), on BF.1
+**Status:** drafted 2026-09-22, the third of the beta's foundations; stage one (promise 1, the record of change) built the same day (`Docs/BETA_MAP.md` §7, CANON ruling 41), on BF.1
 and BF.2. Owner: Claude. William's lane: the frames of a cleared patch, a stripped trunk and a cut tuft; his hands on
 the work when he plays.
 

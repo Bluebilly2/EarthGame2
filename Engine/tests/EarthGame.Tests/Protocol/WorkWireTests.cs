@@ -12,7 +12,7 @@ namespace EarthGame.Tests.Protocol
         [Test]
         public void TheProtocolIsEighteen()
         {
-            Assert.That(ProtocolInfo.Version, Is.EqualTo((ushort)18), "BF.2's work is protocol 18");
+            Assert.That(ProtocolInfo.Version, Is.EqualTo((ushort)19), "BF.2's work was protocol 18; BF.3's changes are 19");
             Assert.That((byte)MessageKind.WorkState, Is.EqualTo((byte)25));
             Assert.That((byte)Verb.Work, Is.EqualTo((byte)6));
             Assert.That((byte)Verb.StopWork, Is.EqualTo((byte)7));

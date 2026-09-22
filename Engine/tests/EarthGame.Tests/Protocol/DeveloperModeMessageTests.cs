@@ -39,7 +39,7 @@ namespace EarthGame.Tests.Protocol
         [Test]
         public void TheProtocolSaysItsVersion()
         {
-            Assert.That(ProtocolInfo.Version, Is.EqualTo(18), "BF.2's work is protocol 18");
+            Assert.That(ProtocolInfo.Version, Is.EqualTo(19), "BF.3's changes are protocol 19");
         }
     }
 }

@@ -96,6 +96,9 @@ namespace EarthGame.Engine
         /// <summary>What has been taken up of what lies loose (M1.5b), kept beside the layer, which never changes.</summary>
         public LooseTaken Taken { get; } = new LooseTaken();
 
+        /// <summary>Every change to the generated world (BF.3): the takings, the tufts taken, the trunks' yield and cut, the ground cleared and dug.</summary>
+        public WorldChanges Changes { get; }
+
         /// <summary>
         /// What each square of presence feeds, from the world folder's capacity layers (M1.7a); null on a world made before
         /// them, round whose founders no animal stands.
@@ -129,6 +132,7 @@ namespace EarthGame.Engine
                           RegionRaster shoreDistance = null)
         {
             Seed = seed;
+            Changes = new WorldChanges(Taken);
             Region = region ?? throw new ArgumentNullException(nameof(region));
             Clock = clock ?? new WorldClock();
             if (terrain != null && Math.Abs(terrain.Raster.ExtentM - region.ExtentM) > 1e-6)

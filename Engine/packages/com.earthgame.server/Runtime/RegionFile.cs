@@ -32,7 +32,7 @@ namespace EarthGame.Server
     }
 
     /// <summary>
-    /// The region file, format <c>eg2.region</c> version 4 (ARCHITECTURE §6 and §10): one per 512 m cell
+    /// The region file, format <c>eg2.region</c> version 5 (ARCHITECTURE §6 and §10): one per 512 m cell
     /// (<see cref="RegionCells"/>), holding the entities whose position lies in the cell and, since version 2 (M1.5b),
     /// the layer diffs of the raster cells whose centres lie in it. Little-endian: the magic <c>EG2R</c>, u16 version,
     /// i32 cell x, i32 cell z, f64 cell size, u32 entity count, u32 layer-diff count, u32 CRC-32 of everything that
@@ -40,16 +40,19 @@ namespace EarthGame.Server
     /// yaw, i64 spawn tick, u8 component mask (1 = item), and for an item u8 resting and f32 fall speed and, since
     /// version 4 (BF.1), what the thing has of its own in <see cref="ThingWire"/>'s one layout, as the wire carries it
     /// (<see cref="EntityWire.WriteItem"/>; version 3, FP.3, carried f32 mass kg, f32 edge, f32 platform degrees and u16
-    /// flakes taken instead); then per diff: u8 the layer by its tile byte (5, the
-    /// loose layer, the only one yet), u16 row and u16 column of the world's raster, and for the loose layer u16 the
-    /// sticks taken and u16 the cobbles taken, a bit for each index. Version 1 had no diffs, version 2 nothing of a thing's
-    /// own, and versions 1 to 3 are still read: a thing from before reads as one that weighs what its definition says. The server writes
+    /// flakes taken instead); then per diff, since version 5 (BF.3): u8 the change layer (5 the loose layer, 9 the tufts,
+    /// 10 the trunk, 11 the ground), u16 row and u16 column of the world's raster, u8 the payload's length and the payload —
+    /// for the loose layer u16 the sticks taken and u16 the cobbles taken, a bit for each index; for the tufts u16 the tufts
+    /// taken by bit; for the trunk u8 its flags and u8 the cut's progress; for the ground u8 its flags and u8 the centimetres
+    /// dug — so a reader skips a layer it does not know by its length. Versions 2 to 4 carried the loose layer's diff alone,
+    /// nine bytes with no length. Version 1 had no diffs, version 2 nothing of a thing's own, and versions 1 to 4 are still
+    /// read: a thing from before reads as one that weighs what its definition says. The server writes
     /// and reads it; save_check.py restates the layout in Python and reads it too.
     /// </summary>
     public static class RegionFile
     {
         public const string Folder = "regions";
-        public const ushort Version = 4;
+        public const ushort Version = 5;
         public const int HeaderBytes = 4 + 2 + 4 + 4 + 8 + 4 + 4 + 4;
         private static readonly byte[] Magic = { (byte)'E', (byte)'G', (byte)'2', (byte)'R' };
 
@@ -63,10 +66,13 @@ namespace EarthGame.Server
             return parts.Length == 2 && int.TryParse(parts[0], out cellX) && int.TryParse(parts[1], out cellZ);
         }
 
-        public static byte[] Encode(int cellX, int cellZ, IReadOnlyList<SavedEntity> entities, IReadOnlyList<LooseTaken.Cell> taken = null)
+        public static byte[] Encode(int cellX, int cellZ, IReadOnlyList<SavedEntity> entities, IReadOnlyList<LooseTaken.Cell> taken = null, IReadOnlyList<CellChange> changes = null)
         {
             int diffs = taken != null ? taken.Count : 0;
-            PacketWriter records = new PacketWriter(64 + 64 * entities.Count + 9 * diffs);
+            if (changes != null)
+                for (int i = 0; i < changes.Count; i++)
+                    diffs += (changes[i].HasTuft ? 1 : 0) + (changes[i].HasTrunk ? 1 : 0) + (changes[i].HasGround ? 1 : 0);
+            PacketWriter records = new PacketWriter(64 + 64 * entities.Count + 10 * diffs);
             for (int i = 0; i < entities.Count; i++)
             {
                 SavedEntity e = entities[i];
@@ -80,17 +86,52 @@ namespace EarthGame.Server
                 records.WriteByte(e.HasItem ? EntityWire.ComponentItem : (byte)0);
                 if (e.HasItem) EntityWire.WriteItem(records, e.Item);
             }
-            for (int i = 0; i < diffs; i++)
+            int looseDiffs = taken != null ? taken.Count : 0;
+            for (int i = 0; i < looseDiffs; i++)
             {
                 LooseTaken.Cell c = taken[i];
                 if (c.Row < 0 || c.Row > ushort.MaxValue || c.Col < 0 || c.Col > ushort.MaxValue)
                     throw new ArgumentException("cell (" + c.Row + ", " + c.Col + ") does not fit a region file", nameof(taken));
-                records.WriteByte((byte)TileLayer.Loose);
+                records.WriteByte((byte)ChangeLayer.Loose);
                 records.WriteUInt16((ushort)c.Row);
                 records.WriteUInt16((ushort)c.Col);
+                records.WriteByte(4);
                 records.WriteUInt16(c.Sticks);
                 records.WriteUInt16(c.Cobbles);
             }
+            if (changes != null)
+                for (int i = 0; i < changes.Count; i++)
+                {
+                    CellChange c = changes[i];
+                    if (c.Row < 0 || c.Row > ushort.MaxValue || c.Col < 0 || c.Col > ushort.MaxValue)
+                        throw new ArgumentException("cell (" + c.Row + ", " + c.Col + ") does not fit a region file", nameof(changes));
+                    if (c.HasTuft)
+                    {
+                        records.WriteByte((byte)ChangeLayer.Tuft);
+                        records.WriteUInt16((ushort)c.Row);
+                        records.WriteUInt16((ushort)c.Col);
+                        records.WriteByte(2);
+                        records.WriteUInt16(c.Tufts);
+                    }
+                    if (c.HasTrunk)
+                    {
+                        records.WriteByte((byte)ChangeLayer.Trunk);
+                        records.WriteUInt16((ushort)c.Row);
+                        records.WriteUInt16((ushort)c.Col);
+                        records.WriteByte(2);
+                        records.WriteByte(c.TrunkFlags);
+                        records.WriteByte(c.TrunkCut);
+                    }
+                    if (c.HasGround)
+                    {
+                        records.WriteByte((byte)ChangeLayer.Ground);
+                        records.WriteUInt16((ushort)c.Row);
+                        records.WriteUInt16((ushort)c.Col);
+                        records.WriteByte(2);
+                        records.WriteByte(c.GroundFlags);
+                        records.WriteByte(c.DugCm);
+                    }
+                }
             byte[] body = records.Written.ToArray();
             PacketWriter head = new PacketWriter(HeaderBytes);
             for (int i = 0; i < Magic.Length; i++) head.WriteByte(Magic[i]);
@@ -111,14 +152,21 @@ namespace EarthGame.Server
         /// Reads a region file: its entities, and its layer diffs as the loose layer's takings; refuses a wrong magic,
         /// another version, a wrong CRC, a diff of a layer this build does not know, or a short record, with the reason.
         /// </summary>
-        public static List<SavedEntity> Decode(byte[] bytes, out int cellX, out int cellZ, out List<LooseTaken.Cell> taken)
+        public static List<SavedEntity> Decode(byte[] bytes, out int cellX, out int cellZ, out List<LooseTaken.Cell> taken) =>
+            Decode(bytes, out cellX, out cellZ, out taken, out _);
+
+        /// <summary>
+        /// Reads a region file: its entities, its loose-layer diffs as takings and its other change layers as cell changes (BF.3);
+        /// a diff of a layer this build does not know is skipped by its length in version 5 and refused before it.
+        /// </summary>
+        public static List<SavedEntity> Decode(byte[] bytes, out int cellX, out int cellZ, out List<LooseTaken.Cell> taken, out List<CellChange> changes)
         {
             if (bytes == null || bytes.Length < HeaderBytes) throw new InvalidDataException("a region file is at least " + HeaderBytes + " bytes");
             for (int i = 0; i < Magic.Length; i++)
                 if (bytes[i] != Magic[i]) throw new InvalidDataException("not a region file (magic)");
             PacketReader head = new PacketReader(bytes, 4, HeaderBytes - 4);
             ushort version = head.ReadUInt16();
-            if (version != Version && version != 3 && version != 2 && version != 1) throw new InvalidDataException("region file version " + version + "; this build reads 1, 2, 3 and " + Version);
+            if (version != Version && version != 4 && version != 3 && version != 2 && version != 1) throw new InvalidDataException("region file version " + version + "; this build reads 1 to 4 and " + Version);
             cellX = head.ReadInt32();
             cellZ = head.ReadInt32();
             double cellM = head.ReadDouble();
@@ -147,16 +195,64 @@ namespace EarthGame.Server
                 entities.Add(e);
             }
             taken = new List<LooseTaken.Cell>((int)Math.Min(diffs, 4096u));
+            changes = new List<CellChange>();
+            Dictionary<long, int> at = new Dictionary<long, int>();
             for (uint i = 0; i < diffs; i++)
             {
                 byte layer = r.ReadByte();
-                if (layer != (byte)TileLayer.Loose) throw new InvalidDataException("region file carries a diff of layer " + layer + ", which this build does not know");
-                LooseTaken.Cell c;
-                c.Row = r.ReadUInt16();
-                c.Col = r.ReadUInt16();
-                c.Sticks = r.ReadUInt16();
-                c.Cobbles = r.ReadUInt16();
-                taken.Add(c);
+                int row = r.ReadUInt16();
+                int col = r.ReadUInt16();
+                if (version < 5)
+                {
+                    if (layer != (byte)ChangeLayer.Loose) throw new InvalidDataException("region file carries a diff of layer " + layer + ", which this build does not know");
+                    LooseTaken.Cell c;
+                    c.Row = row;
+                    c.Col = col;
+                    c.Sticks = r.ReadUInt16();
+                    c.Cobbles = r.ReadUInt16();
+                    taken.Add(c);
+                    continue;
+                }
+                int length = r.ReadByte();
+                switch ((ChangeLayer)layer)
+                {
+                    case ChangeLayer.Loose:
+                    {
+                        if (length != 4) throw new InvalidDataException("a loose diff of " + length + " bytes; it is four");
+                        LooseTaken.Cell c;
+                        c.Row = row;
+                        c.Col = col;
+                        c.Sticks = r.ReadUInt16();
+                        c.Cobbles = r.ReadUInt16();
+                        taken.Add(c);
+                        break;
+                    }
+                    case ChangeLayer.Tuft:
+                    case ChangeLayer.Trunk:
+                    case ChangeLayer.Ground:
+                    {
+                        if (length != 2) throw new InvalidDataException("a diff of layer " + layer + " of " + length + " bytes; it is two");
+                        long key = LooseTaken.Key(row, col);
+                        if (!at.TryGetValue(key, out int index))
+                        {
+                            at[key] = index = changes.Count;
+                            CellChange fresh = default;
+                            fresh.Row = row;
+                            fresh.Col = col;
+                            changes.Add(fresh);
+                        }
+                        CellChange c = changes[index];
+                        if ((ChangeLayer)layer == ChangeLayer.Tuft) c.Tufts = r.ReadUInt16();
+                        else if ((ChangeLayer)layer == ChangeLayer.Trunk) { c.TrunkFlags = r.ReadByte(); c.TrunkCut = r.ReadByte(); }
+                        else { c.GroundFlags = r.ReadByte(); c.DugCm = r.ReadByte(); }
+                        if (!c.IsPossible(out string why)) throw new InvalidDataException("region file carries a change to cell (" + row + ", " + col + ") that could not be: " + why);
+                        changes[index] = c;
+                        break;
+                    }
+                    default:
+                        for (int skip = 0; skip < length; skip++) r.ReadByte();
+                        break;
+                }
             }
             r.ExpectEnd();
             return entities;

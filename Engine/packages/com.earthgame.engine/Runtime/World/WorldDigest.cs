@@ -36,7 +36,11 @@ namespace EarthGame.Engine
         /// rather than the world's state (M1.7a). The lines, in this order, are what save_check.py rebuilds from the world
         /// folder by hand.
         /// </summary>
-        public static string World(WorldState world, IEnumerable<KeyValuePair<string, MoverState>> bodiesByName, IEnumerable<CarrierRecord> carriers = null)
+        public static string World(WorldState world, IEnumerable<KeyValuePair<string, MoverState>> bodiesByName, IEnumerable<CarrierRecord> carriers = null) =>
+            Hex(Fnv1a64(Lines(world, bodiesByName, carriers)));
+
+        /// <summary>The lines the world's name is the hash of, for a reader that wants to see them.</summary>
+        public static string Lines(WorldState world, IEnumerable<KeyValuePair<string, MoverState>> bodiesByName, IEnumerable<CarrierRecord> carriers = null)
         {
             StringBuilder sb = new StringBuilder();
             sb.Append("clock ").Append(Fixed(world.Clock.TotalHours, HourResolution)).Append('\n');
@@ -57,8 +61,16 @@ namespace EarthGame.Engine
             foreach (LooseTaken.Cell cell in world.Taken.Cells())
                 sb.Append("taken ").Append(cell.Row.ToString(CultureInfo.InvariantCulture)).Append(' ').Append(cell.Col.ToString(CultureInfo.InvariantCulture))
                   .Append(' ').Append(cell.Sticks.ToString(CultureInfo.InvariantCulture)).Append(' ').Append(cell.Cobbles.ToString(CultureInfo.InvariantCulture)).Append('\n');
+            // The other change layers (BF.3), each its own line kind by row and then column: the tufts' bits, the trunk's flags and cut, the ground's flags and depth.
+            List<CellChange> changes = world.Changes.Cells();
+            foreach (CellChange c in changes)
+                if (c.HasTuft) sb.Append("tuft ").Append(c.Row.ToString(CultureInfo.InvariantCulture)).Append(' ').Append(c.Col.ToString(CultureInfo.InvariantCulture)).Append(' ').Append(c.Tufts.ToString(CultureInfo.InvariantCulture)).Append('\n');
+            foreach (CellChange c in changes)
+                if (c.HasTrunk) sb.Append("trunk ").Append(c.Row.ToString(CultureInfo.InvariantCulture)).Append(' ').Append(c.Col.ToString(CultureInfo.InvariantCulture)).Append(' ').Append(c.TrunkFlags.ToString(CultureInfo.InvariantCulture)).Append(' ').Append(c.TrunkCut.ToString(CultureInfo.InvariantCulture)).Append('\n');
+            foreach (CellChange c in changes)
+                if (c.HasGround) sb.Append("ground ").Append(c.Row.ToString(CultureInfo.InvariantCulture)).Append(' ').Append(c.Col.ToString(CultureInfo.InvariantCulture)).Append(' ').Append(c.GroundFlags.ToString(CultureInfo.InvariantCulture)).Append(' ').Append(c.DugCm.ToString(CultureInfo.InvariantCulture)).Append('\n');
             sb.Append("next_entity ").Append(world.Entities.NextId.ToString(CultureInfo.InvariantCulture)).Append('\n');
-            return Hex(Fnv1a64(sb.ToString()));
+            return sb.ToString();
         }
 
         /// <summary>A set of entities as a session's interest set and a client's mirror both hold them: by id, with the fields that travel.</summary>

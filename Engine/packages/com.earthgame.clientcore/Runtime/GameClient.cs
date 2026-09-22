@@ -45,6 +45,7 @@ namespace EarthGame.ClientCore
 
         public GameClient(IClientTransport transport, ITileCache tileCache = null)
         {
+            Changes = new WorldChanges(Taken);
             _transport = transport ?? throw new ArgumentNullException(nameof(transport));
             _tileCache = tileCache ?? new NoTileCache();
         }
@@ -143,6 +144,8 @@ namespace EarthGame.ClientCore
 
         /// <summary>What has been taken from the loose layer, as the server has told this client (M1.5b): every taking, whichever tiles are held.</summary>
         public LooseTaken Taken { get; } = new LooseTaken();
+        /// <summary>Every change to the world the server has told this client (BF.3), the takings among them.</summary>
+        public WorldChanges Changes { get; }
 
         /// <summary>Payload bytes this connection has sent and received, or zero before it exists.</summary>
         public long BytesSent => _transport.Connection != null ? _transport.Connection.BytesSent : 0;
@@ -173,6 +176,8 @@ namespace EarthGame.ClientCore
         public event Action<bool, bool> DeveloperModeChanged;
         /// <summary>Something was taken from a cell of the loose layer, or the join told of it (M1.5b); the cell's takings as they now stand.</summary>
         public event Action<LooseTaken.Cell> LooseTakenChanged;
+        /// <summary>A cell's changes of the tuft, trunk or ground layers, as now held (BF.3).</summary>
+        public event Action<CellChange> ChangesChanged;
 
         private uint _intentSequence;
 
@@ -535,13 +540,16 @@ namespace EarthGame.ClientCore
                         break;
                     }
                     case MessageKind.LooseTaken:
+                        throw new ProtocolException("LooseTaken (20) is retired since protocol 19 (BF.3); changes travel as Changes (26)");
+                    case MessageKind.Changes:
                     {
-                        LooseTakenMessage taken = LooseTakenMessage.Read(reader);
+                        ChangesMessage changes = ChangesMessage.Read(reader);
                         reader.ExpectEnd();
-                        foreach (LooseTaken.Cell cell in taken.Cells)
+                        foreach (CellChange cell in changes.Cells)
                         {
-                            Taken.Merge(cell);
-                            if (Taken.TryGet(cell.Row, cell.Col, out LooseTaken.Cell now)) LooseTakenChanged?.Invoke(now);
+                            Changes.Merge(cell);
+                            if (cell.HasLoose && Taken.TryGet(cell.Row, cell.Col, out LooseTaken.Cell now)) LooseTakenChanged?.Invoke(now);
+                            if ((cell.HasTuft || cell.HasTrunk || cell.HasGround) && Changes.TryGet(cell.Row, cell.Col, out CellChange held)) ChangesChanged?.Invoke(held);
                         }
                         break;
                     }
