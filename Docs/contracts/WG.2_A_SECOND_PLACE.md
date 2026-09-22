@@ -61,6 +61,40 @@ the whole plant and animal table as it stands, a stone story like Bherwerre's (q
 sandstone country), and a station twelve kilometres inland. The Tasman Peninsula is as steep as the Prom and its
 hornfels knaps well, but its plants and animals are Tasmania's and the port is larger; it is the third.
 
+## Asked the same day: must it be coastal, and could it have a tall waterfall?
+
+Nothing in the constitution needs a coast. The path's first act does, as William approved it (2026-09-01): the wake on
+sand with surf in the ear, the sea that will not drink as the first lesson, cobbles at the tideline, driftwood, fibre at
+the dune's foot. An inland place re-cuts that beat, and the path is his to re-cut: a river below a fall gives water at
+once, so the first "no" is lost or becomes another; river cobbles are the first stone (better tool stone than most
+beaches); driftwood lies along the river and fibre on its banks; the surf is the fall's roar; the shorebird gives way
+to a bird of the river or the forest. Fire, the night, the camp and the rain are the same anywhere. The bake takes an
+inland box (`bake_region.py --coast` off), and the layers cope with no sea and no shore.
+
+What a fall is in the game today, honestly: at 30 m a hundred-metre fall is a cliff with a creek running down it; the
+water is drawn as a steep sheet with no plunge pool, no spray and no sound. Giving a fall its presence (found in the
+drainage as a channel's drop over a cell, a pool, mist, its roar in the ear) is a slice of its own, beside BF.4.
+
+Inland waterfall country, measured as the coasts were (ETOPO at 928 m; the 9 × 9 cells round the centre):
+
+| Place | Height range in the box | Mean slope at 900 m | Steepest | Station | The fall |
+|---|---|---|---|---|---|
+| Grose Valley, Blue Mountains (−33.640, 150.330) | 353–1035 m | 9.1° | 24.8° | Katoomba 063039 (1017 m, since the 1880s) | Govetts Leap about 180 m; Bridal Veil |
+| Jamison Valley, Blue Mountains (−33.730, 150.370) | 244–960 m | 7.0° | 26.8° | Katoomba | Wentworth Falls 187 m in two tiers |
+| Fitzroy Falls and the Kangaroo Valley (−34.660, 150.500) | 91–724 m | 6.5° | 23.2° | Moss Vale 068045 (675 m, since 1898) | Fitzroy 81 m; Belmore about 100 m |
+| Wollomombi and Chandler, New England (−30.520, 152.060) | 643–1035 m | 2.7° | 22.2° | Armidale | Wollomombi about 220 m, in a gorge through a plateau |
+| Apsley Falls and gorge (−31.050, 151.780) | 738–1226 m | 4.3° | 14.8° | Walcha | Apsley, two tiers |
+
+The Blue Mountains' valleys and the Kangaroo Valley are steeper on average than the Promontory; the New England gorges
+are a plateau with a gorge cut through it, gentle on average and sheer at the gorge. The highlands are far colder in
+late winter than Jervis Bay (Katoomba's August nights near 2 °C, Moss Vale's near 3, Armidale's near 0, against the
+lighthouse's 8): a bare first night is harsher there, which is the path's enemy and not a fault, and a wake on a valley
+floor (the Grose at 350 m, the Kangaroo River at 100 m; `Weather.At` takes the altitude) keeps it survivable. If he
+chooses a fall: the Grose Valley for the tallest falls in the deepest valley, a long station record, a national park,
+sandstone country with river gravels and a basalt cap (Mount Banks) for stone, and the Blue Gum Forest; the Kangaroo
+Valley if the cold is the worry, milder and nearer Jervis Bay in its plants. Either box is 36 tiles at zoom 14 and 25
+at zoom 11, the same manifest's shape with its own centre and station. The decision, coastal or inland, is his.
+
 ## The acquisition manifest (nothing fetched until approved)
 
 The bake's own tools take any centre, so the second place is fetched as Bherwerre was, not as the six global datasets
