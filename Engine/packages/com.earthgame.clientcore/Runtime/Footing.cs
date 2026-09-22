@@ -3,7 +3,7 @@ using EarthGame.Engine;
 
 namespace EarthGame.ClientCore
 {
-    /// <summary>What a footfall sounds of (M1.5c): the grounds an ear tells apart, v1's five and water.</summary>
+    /// <summary>What a footfall sounds of (M1.5c): the grounds an ear tells apart, v1's five and water; heath its own since M1.5j.</summary>
     public enum FootingSound : byte
     {
         Soil = 0,
@@ -12,6 +12,7 @@ namespace EarthGame.ClientCore
         Rock = 3,
         Sand = 4,
         Water = 5,
+        Heath = 6,
     }
 
     /// <summary>
@@ -44,8 +45,10 @@ namespace EarthGame.ClientCore
                 case GroundCover.Bracken:
                     return FootingSound.Grass;
                 case GroundCover.ForestFloor:
-                case GroundCover.Heath:
                     return FootingSound.Litter;
+                case GroundCover.Heath:
+                    // Heard as litter until M1.5j: William's ear wanted the twigs told from the forest floor.
+                    return FootingSound.Heath;
                 default:
                     // Bare earth, a swamp's floor, and a cover nothing has said or this build does not know.
                     return FootingSound.Soil;

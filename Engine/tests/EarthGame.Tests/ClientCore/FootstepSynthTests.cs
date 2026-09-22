@@ -38,16 +38,22 @@ namespace EarthGame.Tests.ClientCore
             Assert.That(FootstepSynth.Stroke(1), Is.Not.EqualTo(stroke), "the strokes differ");
         }
 
-        /// <summary>How much of a sound is in its top end: the mean step from sample to sample over the mean sample, which a dull thud keeps small.</summary>
-        private static double Roughness(float[] s)
+        /// <summary>
+        /// How much of a sound is in its top end: the share of its energy above about 1.4 kHz (what a one-pole low-pass at a
+        /// fifth lets through, taken away). M1.5c measured the mean step from sample to sample instead, which read rock's ring
+        /// as smooth once a rock step rang at its own pitches (M1.5j); a dull thud keeps this small either way.
+        /// </summary>
+        private static double Brightness(float[] s)
         {
-            double steps = 0.0, size = 0.0;
-            for (int i = 1; i < s.Length; i++)
+            double low = 0.0, top = 0.0, all = 0.0;
+            for (int i = 0; i < s.Length; i++)
             {
-                steps += Math.Abs(s[i] - s[i - 1]);
-                size += Math.Abs(s[i]);
+                low += 0.2 * (s[i] - low);
+                double high = s[i] - low;
+                top += high * high;
+                all += (double)s[i] * s[i];
             }
-            return steps / size;
+            return all > 0.0 ? top / all : 0.0;
         }
 
         [Test]
@@ -79,8 +85,8 @@ namespace EarthGame.Tests.ClientCore
         [Test]
         public void SandIsDullerThanRockAndSoilDullerThanGrass()
         {
-            Assert.That(Roughness(FootstepSynth.Step(FootingSound.Sand, 0)), Is.LessThan(Roughness(FootstepSynth.Step(FootingSound.Rock, 0))));
-            Assert.That(Roughness(FootstepSynth.Step(FootingSound.Soil, 0)), Is.LessThan(Roughness(FootstepSynth.Step(FootingSound.Grass, 0))));
+            Assert.That(Brightness(FootstepSynth.Step(FootingSound.Sand, 0)), Is.LessThan(Brightness(FootstepSynth.Step(FootingSound.Rock, 0))));
+            Assert.That(Brightness(FootstepSynth.Step(FootingSound.Soil, 0)), Is.LessThan(Brightness(FootstepSynth.Step(FootingSound.Grass, 0))));
         }
     }
 }

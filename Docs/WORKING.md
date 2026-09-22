@@ -157,7 +157,7 @@ is Claude's and no second agent works here (Claude's own parallel agents work in
 
 ## This machine's traps
 
-- Bash heredocs over about 8 KB fail with "unexpected EOF", and a heredoc containing `\n` or `\\` in a Python
+- A Bash call whose text is over about 8 KB in all — one heredoc or several with the commands round them — fails with "unexpected EOF"; a heredoc over about 8 KB fails the same way, and a heredoc containing `\n` or `\\` in a Python
   string arrives mangled. Write patch scripts with the Write tool into the session's scratchpad and run them.
 - `$TEMP` in Git Bash is the system temp folder, not the session's scratchpad; use the scratchpad's full path.
 - A scratch script named like a standard module (`bisect.py`) shadows it for every script in that folder.

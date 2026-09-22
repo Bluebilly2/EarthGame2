@@ -232,6 +232,8 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     longer settled by 18: Tobler's hiking function, which is fitted to journey times over hours, is what crawls a
     founder down a steep descent, and the slice that answers this ruling decides what the player's own motion obeys
     instead — his hands judge it again when it does.
+    **Closed 2026-09-22.** M1.5h gave the walk its own measured law and M1.5i kept a sliding body's feet on the ground;
+    his hands on that build, on the dune, a bank and a face too steep to stand on: "the stuff on me: everything is green".
 35. **Water is partly see-through.** Of the lake in his own screenshot: "can you make the water surface partially
     transparent so that it doesnt just look like the ground but just blue." Water is not an opaque blue lid: the
     shallows show what lies under them and the depths hide it.

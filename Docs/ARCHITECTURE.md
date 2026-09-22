@@ -723,9 +723,17 @@ leg rather than to the whole lap. `corpus_check.py` reads what the bodies lived 
   masses and which is the hand while the world runs on), menus, settings, and the tablet page; readability floor
   3:1. Sound in M1: wind by exposure, surf by distance, birds from presence, footsteps by surface, rain. Footsteps
   and things landing came first (M1.5c, 2026-09-11), made at load from arithmetic rather than recorded
-  (`FootstepSynth`, v1's synthesis): a footfall comes from the distance walked (`Stride`) and sounds of the cover the
-  server streams, or of the water over it (`Footing`), and a thing that falls sounds of wood or stone when it is drawn
-  landing, by the energy it came down with. Every automated run is muted.
+  (`FootstepSynth`): a footfall comes from the distance walked (`Stride`) and sounds of the cover the server streams,
+  or of the water over it (`Footing`), and a thing that falls sounds of wood or stone when it is drawn landing, by the
+  energy it came down with. Since M1.5j (2026-09-22) a footstep is an impact and the ground's own answer to it rather
+  than v1's one burst of filtered noise: the heel strikes and the forefoot follows 70 to 110 ms later, and each strike
+  is answered by a body (the damped low thump of the foot's weight), by modes (damped tones at a hard ground's own
+  pitches, rock's knock and ring at `RockRingHz`) and by grains (small impacts scattered after the strike, dense and
+  dull on sand, fewer and crisper on litter), with twigs snapping under the whole step on heath, a swish of blades on
+  grass, and a burst, a wash and chirping bubbles for a wading step. Heath is a footing of its own (`FootingSound.Heath`);
+  the forest floor stays litter. Every step is made from whole numbers, the same in every build, and put at its
+  ground's own peak inside a stated band. `Engine/tools/EarthGame.Sounds` writes the same sounds as WAV files for the
+  owner's ears, with a blind set lettered A to G and the key kept apart. Every automated run is muted.
 
 ## 9. Player and collision
 
@@ -960,3 +968,4 @@ mandatory in every file from the first write.
 | 2026-09-21 | Every tool under `Tools/world/` that runs the player runs it on a copy of its world, taken through one owner (`wade.copied`) under the run's own folder; the world named is read and never written | A run saves its world on the way out (M1.3c) with the founder where the scenario left him: the drink scenario of 2026-09-20 left him at the water's edge sixty metres from the wake, and the controls scenario, whose things are dropped at the wake, found nothing within reach. `knap.py` alone had copied (2026-09-18); WORKING.md's rule was kept by one tool of eight, and a rule kept by hand in eight places is the named bug shape. One owner keeps it kept |
 | 2026-09-21 | M1.4h: ripples are slopes on the water's normal in the shader — four waves at the dispersion relation's speeds, steepened by the wind, faded with distance — never a displaced mesh, and their clock is the game's awake seconds | William's "ripples now". A displaced mesh would move the wading and the depth column M1.4g had just made agree with the world; a normal moves only what the eye sees. The dispersion relation is one law where four tuned speeds would be four facts; the wind ties the look to the weather the game already computes (M1.8a); and a ripple on real time would have moved while the world stood still (M1.E) |
 | 2026-09-21 | M1.5h: the founder's second-by-second speed is a table of measured walking speeds on slopes, reached by acceleration and left by braking, on ground no steeper than 35°; Tobler stays as the journey's hour-average | William's ruling 34: a founder walked down a dune slower than a stroll, because Tobler's hiking function, fitted to journey times with the pauses in them, was used as a stepping pace and floored. The stepping pace and the journey's pace are two facts with two owners now; the acceleration is the third step's (Gait & Posture 2021) and the brake v1's; the repose is where loose ground stops standing. His hands judge the feel (ruling 12) |
+| 2026-09-22 | M1.5j: a footstep is an impact and the ground's own answer to it — a heel and a forefoot, each answered by a body, modes and grains from the ground's numbers — and heath is a footing of its own; the tests assert the numbers an ear would give (a second strike, a ring's autocorrelation, the count of snaps, the splash's length, a brightness share) and the tool writes the same sounds as WAV files for the owner's ears, blind | William heard every M1.5c ground as "a static sounding noise" (ruling 37): one burst of filtered noise differs by brightness and length only. What an ear tells apart is the structure of the sound, and a test can only hold that structure if it measures it; whether the result sounds like a foot on that ground stays his, so the proof ends with a blind set rather than a claim. |

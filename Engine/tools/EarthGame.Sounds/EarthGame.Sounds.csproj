@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The founder's sounds written out as WAV files for the owner's ears (M1.5j promise 5), from the same arithmetic the
+    client plays. Run with +key value arguments: +out the folder (Artefacts/sounds/[stamp]) and +blind the seed of the
+    lettering's shuffle (1). It writes each ground's steps, a walk on each, the strokes, the landings, and a blind set
+    lettered A to G with the key beside it.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>EarthGame.Sounds</RootNamespace>
+    <AssemblyName>EarthGame.Sounds</AssemblyName>
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../EarthGame.ClientCore.csproj" />
+  </ItemGroup>
+</Project>
