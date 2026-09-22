@@ -475,7 +475,8 @@ file's name.
   console (`+server.port`, `+server.password`, `+server.maxplayers`, `+server.seed`, `+server.region`,
   `+server.simulate.latency/jitter/loss`, `+server.sendcap`, `+server.log`, `+server.seconds`; `status`, `pause`,
   `resume`, `digest`, `stop` on stdin). The Unity client takes the same shaping for its own socket
-  (`-eg-latency`, `-eg-jitter`, `-eg-loss`, `-eg-sendcap`) and runs a scenario with `-eg-scenario` and
+  (`-eg-latency`, `-eg-jitter`, `-eg-loss`, `-eg-sendcap`; `-eg-dune slide` runs the dune scenario's slide part alone for a
+  founder a tool has stood below a steep face, 2026-09-22) and runs a scenario with `-eg-scenario` and
   `-eg-record` (`ScenarioRunner`: the founder driven along `Routes.WakeLoop` by a `RouteFollower`; `join`, `walk`,
   `soak`, `rejoin`; the first-frame recorder stays). `Tools/corpus/run.py` is the harness (§7.1's conditions,
   the held-tick pause driven from the player's own log; since 2026-09-10 every scenario runs on its own copy of a

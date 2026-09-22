@@ -55,9 +55,12 @@ namespace EarthGame.Client
             yield return Wait(1.5);
 
             Double3 feet = _player.State.Feet;
-            SteepFace dune = FindSteepFace(feet, DuneSearchM, DuneLeastDeg, DuneMostDeg);
+            // -eg-dune slide: the slide part alone, for a founder the tool has stood at the foot of a face over the limit
+            // (M1.5i's owed proof); the dune's own parts are then not looked for and not gated on.
+            bool slideOnly = LaunchArgs.Get("dune", "all") == "slide";
+            SteepFace dune = slideOnly ? default : FindSteepFace(feet, DuneSearchM, DuneLeastDeg, DuneMostDeg);
             _log.Record(T, Tick, "dune", new JsonObject().With("found", dune.Found).With("face_deg", dune.Deg).With("east", dune.East).With("north", dune.North).With("from_m", dune.FromM));
-            if (!dune.Found)
+            if (!slideOnly && !dune.Found)
             {
                 _errors++;
                 _log.Record(T, Tick, "error", new JsonObject().With("message", "no face of " + DuneLeastDeg + " to " + DuneMostDeg + " degrees within " + DuneSearchM + " m of where the founder stands"));
@@ -66,20 +69,24 @@ namespace EarthGame.Client
                 yield break;
             }
 
-            // To the top: five metres up the fall line from the face's cell, walked by script.
-            yield return WalkTo(dune.East - dune.DownE * 5.0, dune.North - dune.DownN * 5.0, DuneApproachS);
-            yield return Wait(1.0);
-            yield return Capture("dune-top");
+            double downDeg = 0.0, downMs = 0.0, upDeg = 0.0, upMs = 0.0;
+            if (!slideOnly)
+            {
+                // To the top: five metres up the fall line from the face's cell, walked by script.
+                yield return WalkTo(dune.East - dune.DownE * 5.0, dune.North - dune.DownN * 5.0, DuneApproachS);
+                yield return Wait(1.0);
+                yield return Capture("dune-top");
 
-            // Down the fall line, the slope walked and the speed held past the first second; then back up it.
-            yield return WalkAlong(dune.DownE, dune.DownN, DuneWalkS);
-            double downDeg = _walkedDeg, downMs = _walkedMs;
-            _log.Record(T, Tick, "dune_down", new JsonObject().With("slope_deg", downDeg).With("speed_ms", downMs).With("moved_m", _walkedM));
-            yield return Wait(1.0);
-            yield return Capture("dune-bottom");
-            yield return WalkAlong(-dune.DownE, -dune.DownN, DuneWalkS);
-            double upDeg = _walkedDeg, upMs = _walkedMs;
-            _log.Record(T, Tick, "dune_up", new JsonObject().With("slope_deg", upDeg).With("speed_ms", upMs).With("moved_m", _walkedM));
+                // Down the fall line, the slope walked and the speed held past the first second; then back up it.
+                yield return WalkAlong(dune.DownE, dune.DownN, DuneWalkS);
+                downDeg = _walkedDeg; downMs = _walkedMs;
+                _log.Record(T, Tick, "dune_down", new JsonObject().With("slope_deg", downDeg).With("speed_ms", downMs).With("moved_m", _walkedM));
+                yield return Wait(1.0);
+                yield return Capture("dune-bottom");
+                yield return WalkAlong(-dune.DownE, -dune.DownN, DuneWalkS);
+                upDeg = _walkedDeg; upMs = _walkedMs;
+                _log.Record(T, Tick, "dune_up", new JsonObject().With("slope_deg", upDeg).With("speed_ms", upMs).With("moved_m", _walkedM));
+            }
 
             // The slide (M1.5i): the steepest face too steep to stand on, walked into from six metres below its cell; the feet
             // read against the ground every frame.
@@ -106,8 +113,8 @@ namespace EarthGame.Client
                 .With("steepest_under_deg", steepestUnder).With("short_of_foot_m", reachedM));
 
             double flat = Locomotion.SpeedMs(0.0, Gait.Walking, 1.0);
-            bool walkedDown = downDeg >= 15.0 && downMs > 0.5 && downMs < flat;
-            bool slowerUp = upMs < downMs;
+            bool walkedDown = slideOnly || (downDeg >= 15.0 && downMs > 0.5 && downMs < flat);
+            bool slowerUp = slideOnly || upMs < downMs;
             _log.Record(T, Tick, "end", new JsonObject().With("frames", _frames).With("errors", _errors)
                 .With("found", dune.Found).With("face_deg", dune.Deg).With("slope_down_deg", downDeg).With("speed_down_ms", downMs)
                 .With("slope_up_deg", upDeg).With("speed_up_ms", upMs).With("flat_ms", flat)
@@ -115,7 +122,7 @@ namespace EarthGame.Client
                 .With("slide_found", slide.Found).With("slide_face_deg", slide.Deg).With("slide_lowest_under_m", lowestUnder).With("slide_kept_feet", slideOk)
                 .With("slide_steepest_under_deg", steepestUnder));
             _running = false;
-            Finish(_errors == 0 && walkedDown && slowerUp && slideOk && _frames == 2 * Sizes.Length ? 0 : 1);
+            Finish(_errors == 0 && walkedDown && slowerUp && slideOk && (slideOnly || _frames == 2 * Sizes.Length) ? 0 : 1);
         }
 
         /// <summary>A steep face found on the client's ground: its steepness, its cell, how far off it is, and the way down it.</summary>
