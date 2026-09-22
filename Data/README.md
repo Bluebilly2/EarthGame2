@@ -11,6 +11,11 @@ this file; everything else is produced by the tools under `Tools/data/` and `Too
   release and CHELSA v2.1's monthly temperature and rain, fetched by `Tools/atlas/acquire.py` with every file's size
   and SHA-256 in `global/manifest.json`; `--verify` recomputes them. Read once, offline, into the atlas's derived form;
   never shipped.
+- `global/atlas/` — the atlas's own layers, derived from the six datasets by `Tools/atlas/derive.py` (WG.0b): elevation,
+  lithology, ecoregion, the distance to the coast and to the nearest lake at a twelfth of a degree, and twelve months of
+  rain and of temperature at a sixth, each a raw array beside a JSON header (`eg2.atlas`, ARCHITECTURE §10) that names
+  its source file and checksum; `ecoregion_names.json` beside the ecoregion layer. `Tools/verifiers/checks/atlas_check.py`
+  reads known places. Not committed; regenerate with the tool (about a quarter of an hour).
 - `regions/<id>/` — the region rasters (`heights.r32` and its sidecar, later every baked layer) produced by
   `Tools/data/bake_region.py`. The first region is `bherwerre` (§4.2 of the plan).
 - `cache/` — raw tiles as downloaded, so a re-bake needs no network.

@@ -127,3 +127,12 @@ into the atlas's own derived form, and only that derived form travels with the g
 24 file(s), 4.0 GB, under `Data/global/chelsa/`. Licence page: https://chelsa-climate.org/downloads/. Citation: Karger, D.N. et al. (2017): Climatologies at high resolution for the earth's land surface areas. Scientific Data 4: 170122. doi:10.1038/sdata.2017.122. Version 2.1: doi:10.16904/envidat.228.v2.1.
 
 - `CHELSA_tas_01_1981-2010_V.2.1.tif` … `CHELSA_pr_12_1981-2010_V.2.1.tif` (24 files from https://os.zhdk.cloud.switch.ch/chelsav2/GLOBAL/climatologies/1981-2010/, each SHA-256 in `manifest.json`)
+
+## The atlas's derived layers (WG.0b, 2026-09-22)
+
+`Data/global/atlas/` holds layers derived by `Tools/atlas/derive.py` from the six datasets above and from nothing else: the
+elevation from NOAA ETOPO 2022 (public domain); the monthly rain and temperature from CHELSA V2.1 (CC0/CC-BY as the dataset's
+page states); the lithology from GLiM (CC-BY); the ecoregion from RESOLVE Ecoregions 2017 (CC-BY 4.0); the distances to the
+coast and to lakes from Natural Earth (public domain). Each layer's header names the source file and its SHA-256 from
+`Data/global/manifest.json`. What travels with the game is these derived layers, never the raw files; the credits above
+stand for them as for the datasets they are derived from.

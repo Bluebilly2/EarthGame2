@@ -101,4 +101,4 @@ William approved it whole ("all six"): the six datasets it names, and no other, 
 (`--verify` recomputes them; 29 of 29 agreed), each dataset's notice in `THIRD_PARTY_NOTICES.md`. CHELSA's twenty-four came to
 4.0 GB against the 8 GB ceiling; ETOPO's address is NOAA's data directory, not its THREDDS server, which answers 404;
 PANGAEA's handle for GLiM closes the connection after a HEAD, and the tool asks once more on a fresh one. Promise 1 is
-kept; the reading of the datasets into the atlas's derived form is the contract's next promise, unopened.
+kept; the reading of the datasets into the atlas's derived form is WG.0b, built 2026-09-22 (`WG.0b_THE_ATLAS_READ.md`).
