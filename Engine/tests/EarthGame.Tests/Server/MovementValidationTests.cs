@@ -384,6 +384,32 @@ namespace EarthGame.Tests.Server
             Assert.That(rig.Client.LastCorrection.Reason, Does.Contain("below"));
         }
 
+        /// <summary>
+        /// Why the solo server said nothing while William fell through a face on 2026-09-21 (DEBTS): he had developer mode on
+        /// for the panel, and with it on a development server holds nothing but the region's edge on a founder's moves (M1.E,
+        /// ruling 39), the ground included, because a report carries no word of whether the founder is in the noclip flight
+        /// the mode allows. The same report from a founder who has not switched the mode on is corrected as below the ground.
+        /// </summary>
+        [Test]
+        public void ADeveloperBelowTheGroundIsLetBeAndAPlayerIsCorrected()
+        {
+            Heightfield ground = Ground();
+            MoverState buried = MoverState.AtRest(0.0, ground.HeightAt(0.0, 0.0) - 5.0, 0.0);
+            foreach (bool switched in new[] { true, false })
+            {
+                Rig rig = Connect(config: new ServerConfig { Movement = new MovementRules { AllowFlight = true } });
+                if (switched)
+                {
+                    rig.Client.SendDeveloperMode(true);
+                    rig.Pump(2);
+                }
+                rig.Client.SendMove(MoverInput.None, 0f, 0f, buried);
+                rig.Pump(2);
+                if (switched) Assert.That(rig.Client.CorrectionCount, Is.EqualTo(0), "developer mode on: five metres under the ground is let be");
+                else Assert.That(rig.Client.LastCorrection.Reason, Does.Contain("below"), "developer mode off: corrected as below the ground");
+            }
+        }
+
         [Test]
         public void AnAirborneReportAboveTheGroundIsFine()
         {

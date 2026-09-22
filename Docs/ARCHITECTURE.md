@@ -506,6 +506,9 @@ corpus runs, its raw results in the contracted run logs (§10), recomputed indep
   ≤ 2 per minute on the named divergence segment — the cliff edge, the rock platform, and the water's edge on the
   lake or swamp approach (wading is the third place the two collision models disagree); no single correction
   displacing the player by more than 1.0 m; the same budget in SOLO and over the wire at 100 ms / 2%.
+  A founder with developer mode on (M1.E) is held to nothing but the region's edge, the ground included, since a report
+  carries no word of whether they are in the flight the mode allows: the solo server's silence while William fell through
+  a face on 2026-09-21 was this rule, not a fault (DEBTS, paid 2026-09-22).
 - **N3 Disconnect and rejoin without a server restart.** A client's transport is cut mid-walk with no clean leave
   and it rejoins within 60 s. *Held-tick variant (tests the plumbing):* the harness holds the server tick for the
   interval (a test control, not a game feature); pass: the server's world digest before the cut equals the digest
