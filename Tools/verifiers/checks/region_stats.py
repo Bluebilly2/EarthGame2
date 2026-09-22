@@ -18,9 +18,12 @@ Peninsula, not against the sidecar's own min_m, max_m and sea_fraction, which th
   - the ground behind Bherwerre Beach is low land: the cell at 35.159 S 150.6485 E (the site research's first
     wake, withdrawn as a wake by CANON ruling 20 and kept as a probe) lies between 3 and 40 m.
 
-With --world <folder> (M1.2) it checks a created world's heights layer instead: the sea has the floor the rule
+With --world <folder> (M1.2) it checks a created world's heights layer instead, against the bake of the region the
+world's own world.json names: the sea has the floor the rule
 states (WorldLayers: one in twenty from the shore, to 30 m; "the sea has no floor" in DEBTS.md), so every sea
-cell lies between the datum and -30 m, the deepest cell is 30 m down, the depth at sampled sea cells matches
+cell lies between the datum and -30 m, the deepest cell is 30 m down (an inland box, one whose bake has no cell at or
+below the datum, has no sea to floor: those rows print a note and the land row alone judges, since WG.2, 2026-09-22),
+the depth at sampled sea cells matches
 one twentieth of this file's own Euclidean distance to the nearest land cell (within a tenth plus 0.3 m: the
 engine steps along the grid's eight directions, which overstates a straight line by up to 8 %), and the land is
 the bake's, cell for cell.
@@ -45,6 +48,16 @@ SEA_FRACTION_RANGE = (0.10, 0.40)        # sea on two sides of a peninsula box
 PROBE_M_RANGE = (3.0, 40.0)              # low ground behind the beach
 
 
+def region_dir(world):
+    """The bake the world was made from: Data/regions/<region>, the region read off the world's own world.json (a world
+    owns which piece of the Earth it is; Bherwerre when the file does not say, as the worlds before WG.2 were)."""
+    world_json = os.path.join(ROOT, world, "world.json")
+    region = "bherwerre"
+    if os.path.isfile(world_json):
+        region = json.load(open(world_json, encoding="utf-8")).get("region", region)
+    return os.path.join(ROOT, "Data", "regions", region)
+
+
 def cell_of(lat, lon, sidecar):
     R = 6371000.0
     north = math.radians(lat - sidecar["centre_lat"]) * R
@@ -61,15 +74,16 @@ FLOOR_SAMPLES = 400
 def check_world(world):
     """The created world's sea floor against the stated rule, by this file's own distances."""
     layers = os.path.join(ROOT, world, "layers")
+    region = region_dir(world)
     world_sidecar = os.path.join(layers, "heights.json")
-    bake_sidecar = os.path.join(REGION, "heights.json")
+    bake_sidecar = os.path.join(region, "heights.json")
     if not (os.path.isfile(world_sidecar) and os.path.isfile(bake_sidecar)):
         print("the world's heights (%s) or the bake (%s) is missing" % (world_sidecar, bake_sidecar))
         return 2
     ws = json.load(open(world_sidecar, encoding="utf-8"))
     bs = json.load(open(bake_sidecar, encoding="utf-8"))
     world_h = np.fromfile(os.path.join(layers, ws.get("raw", "heights.r32")), dtype="<f4").reshape(ws["height"], ws["width"])
-    bake_h = np.fromfile(os.path.join(REGION, "heights.r32"), dtype="<f4").reshape(bs["height"], bs["width"])
+    bake_h = np.fromfile(os.path.join(region, "heights.r32"), dtype="<f4").reshape(bs["height"], bs["width"])
     failures = []
 
     def expect(name, ok, detail):
@@ -86,6 +100,13 @@ def check_world(world):
     expect("the land is the bake's", bool(np.array_equal(world_h[land], bake_h[land])),
            "greatest difference on land %.3f m" % float(np.abs(world_h[land] - bake_h[land]).max()))
     floor = world_h[sea]
+    if floor.size == 0:
+        print("%-30s note  an inland box: no cell of the bake lies at or below the datum, so there is no sea to floor" % "the sea floor")
+        if failures:
+            print("region_stats: FAIL (%s)" % ", ".join(failures))
+            return 1
+        print("region_stats: ok, the world's land is the bake's (no sea in this box)")
+        return 0
     expect("the sea lies under the datum", floor.size > 0 and float(floor.max()) < 0.0, "shallowest sea cell %.2f m, %d sea cells" % (float(floor.max()) if floor.size else float("nan"), int(floor.size)))
     expect("the floor stops at 30 m", float(floor.min()) >= -SEA_FLOOR_MAX_M - 1e-3 and float(floor.min()) <= -SEA_FLOOR_MAX_M + 0.5,
            "deepest sea cell %.2f m, the rule's cap %.0f m" % (float(floor.min()), SEA_FLOOR_MAX_M))

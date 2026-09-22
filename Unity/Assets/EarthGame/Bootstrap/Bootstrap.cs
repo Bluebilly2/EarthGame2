@@ -72,6 +72,8 @@ namespace EarthGame.Bootstrap
         private CancellationTokenSource _preparationCancellation;
         private readonly ConcurrentQueue<string> _loadingStages = new ConcurrentQueue<string>();
         private Region _loadingRegion;
+        /// <summary>The place the shell chose for a new world (CANON ruling 44); null when continuing, when the saved world's own region rules.</summary>
+        private Region _newWorldRegion;
         private double _loadingStarted;
         private int _loadingUpdates;
         private bool _quitting;
@@ -111,14 +113,16 @@ namespace EarthGame.Bootstrap
             string latest = LatestWorldDir();
             _shell = gameObject.AddComponent<ShellController>();
             _shell.Build(latest != null, latest != null ? "Continue " + Path.GetFileName(latest) : "");
-            _shell.NewWorld += () =>
+            _shell.NewWorldIn += region =>
             {
+                _newWorldRegion = region;
                 _seed = NewSeed();
                 _worldDir = Path.Combine(RegionDataLocator.SavesDir(), "world-" + _seed.ToString(CultureInfo.InvariantCulture));
                 CloseShellAndLaunch();
             };
             _shell.Continue += () =>
             {
+                _newWorldRegion = null;
                 _worldDir = latest;
                 CloseShellAndLaunch();
             };
@@ -138,7 +142,9 @@ namespace EarthGame.Bootstrap
         {
             if (_launched) return;
             _launched = true;
-            _loadingRegion = Region.Bherwerre;
+            // The launch's region (-eg-region, a run's choice; Bherwerre when none): a join's, and the fallback for a world
+            // that names none. A world's own region is read once its folder is known, in BeginPreparation.
+            _loadingRegion = Region.ById(LaunchArgs.Get("region", Region.Bherwerre.Id)) ?? Region.Bherwerre;
             _loadingStarted = Time.realtimeSinceStartupAsDouble;
             _loadingUpdates = 0;
             GameObject overlay = new GameObject("World loading");
@@ -169,6 +175,10 @@ namespace EarthGame.Bootstrap
                 string name = LaunchArgs.Get("world", "world-" + _seed.ToString(CultureInfo.InvariantCulture));
                 _worldDir = Path.Combine(RegionDataLocator.SavesDir(), name);
             }
+            // The region: the place the shell chose for a new world; else the saved world's own (a world owns which piece of
+            // the Earth it is, WG.2 2026-09-22); else the launch's.
+            region = _newWorldRegion ?? RegionOfSavedWorld(_worldDir) ?? region;
+            _loadingRegion = region;
 
             string worldDir = _worldDir;
             string dataDir = RegionDataLocator.DataDir(region);
@@ -498,6 +508,20 @@ namespace EarthGame.Bootstrap
             _serverTransport?.Dispose();
             _opened?.Dispose();
             _opened = null;
+        }
+
+        /// <summary>The region a saved world is set in, read from its own world.json; null for no world there or one this build does not know.</summary>
+        private static Region RegionOfSavedWorld(string worldDir)
+        {
+            try
+            {
+                return WorldSave.RegionOf(worldDir);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("[shell] could not read the region of " + worldDir + ": " + e.Message);
+                return null;
+            }
         }
 
         /// <summary>The most recently written world under the saves folder, or null.</summary>

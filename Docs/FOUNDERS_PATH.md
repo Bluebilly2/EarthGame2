@@ -10,6 +10,12 @@ objectives the founder is met with. This creates a defined length of the game; w
 problem in later versions."* Constraints already fixed by the owner: stranger-shippable bar;
 animals and weather in; procedural sound.
 
+> **Reading this after CANON ruling 44 (2026-09-22).** The acts and their beats are the order the work is built in and
+> the demo lens a developer must see through; they are not a route the founder is led along, and no "first act" is
+> written into a place. The country offers what it offers where the founder wakes (the wake scorer's criteria: water,
+> stone, wood and fibre within a walk), and the founder does what they will. Bherwerre's beach is one wake; the Kangaroo
+> Valley's river bar is another; neither is scripted.
+>
 > **Reading this in EarthGame2 (2026-09-10).** The arc, its purpose and the owner's settled points are binding
 > as signed. Three things in it belong to v1 and are read that way: the place is now Bherwerre on Jervis Bay
 > (CANON ruling 8); the systems it lists as existing and tested exist in v1's engine and are ported into

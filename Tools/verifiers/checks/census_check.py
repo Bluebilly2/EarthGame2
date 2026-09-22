@@ -44,7 +44,11 @@ Rows, each printed with both numbers:
      in the region (CANON ruling 20, which on 2026-09-10 withdrew the point this check once held the region to:
      35.159 S 150.6485 E, recorded as "the Cave Beach swale" though it lies behind Bherwerre Beach).
 
-Exit 0 when every row passes, 1 when any fails, 2 when a layer is missing.
+Every landmark above is Bherwerre's. A world set in another region (world.json's "region", since WG.2, 2026-09-22) has
+no census here yet: the check says so and exits 2 rather than judging the valley by the peninsula's lakes; the
+Kangaroo Valley's census against its own published points is owed (DEBTS.md, "The valley has no census").
+
+Exit 0 when every row passes, 1 when any fails, 2 when a layer is missing or the region has no landmarks here.
 Run from the repository root:  python Tools/verifiers/checks/census_check.py [world folder]
 (default Artefacts/worlds/gate, the folder Tools/world/create.py leaves behind).
 """
@@ -170,6 +174,12 @@ def main(argv):
     world_json = os.path.join(ROOT, world, "world.json")
     if water is None or surface is None or topology is None or heights is None or not os.path.isfile(world_json):
         print("a layer is missing under %s (water, surface, topology, heights and world.json are needed)" % layers)
+        return 2
+    region = json.load(open(world_json, encoding="utf-8")).get("region", "bherwerre")
+    if region != "bherwerre":
+        print("census_check: this file holds Bherwerre's landmarks (Windermere, McKenzie, Blacks Waterhole, Ryans Swamp, Jervis Bay, "
+              "Cave Beach, Steamers Head); the world is set in %s, whose census against published points is owed (DEBTS.md: "
+              "\"The valley has no census\"); no verdict" % region)
         return 2
     frame = Frame(sidecar)
     failures = []

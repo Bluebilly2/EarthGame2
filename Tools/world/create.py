@@ -8,7 +8,8 @@ time. Claude's tool: it creates and lists, it verifies nothing; the verifiers (d
 census_check.py) read the folder it leaves behind.
 
 Usage, from the repository root:
-    python Tools/world/create.py [folder]        default Artefacts/worlds/gate
+    python Tools/world/create.py [folder] [--region kangaroo-valley]        default Artefacts/worlds/gate, bherwerre
+The region names the bake under Data/regions/<region> (the host's own rule) and the region's own wake and station.
 Exit 0 when the host exits 0 and the folder holds a census; 1 otherwise.
 """
 import json
@@ -31,7 +32,17 @@ def run(cmd, log_path):
 
 
 def main(argv):
-    folder = argv[1] if len(argv) > 1 else DEFAULT_FOLDER
+    region = "bherwerre"
+    rest = []
+    i = 1
+    while i < len(argv):
+        if argv[i] == "--region" and i + 1 < len(argv):
+            region = argv[i + 1]
+            i += 2
+            continue
+        rest.append(argv[i])
+        i += 1
+    folder = rest[0] if rest else DEFAULT_FOLDER
     full = os.path.join(ROOT, folder)
     os.makedirs(os.path.dirname(full), exist_ok=True)
     build_log = full + ".build.log"
@@ -42,7 +53,8 @@ def main(argv):
         shutil.rmtree(full)
     started = time.time()
     host_log = full + ".log"
-    code = run(["dotnet", HOST_DLL, "+server.port", str(PORT), "+server.local", "1", "+server.world", folder, "+server.seconds", "1"], host_log)
+    code = run(["dotnet", HOST_DLL, "+server.port", str(PORT), "+server.local", "1", "+server.world", folder, "+server.seconds", "1",
+                "+server.region", region], host_log)
     elapsed = time.time() - started
     census_path = os.path.join(full, "census.txt")
     if code != 0 or not os.path.isfile(census_path):

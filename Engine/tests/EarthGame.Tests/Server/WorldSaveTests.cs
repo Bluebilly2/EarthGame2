@@ -49,6 +49,23 @@ namespace EarthGame.Tests.Server
             Assert.That(back.Region, Is.SameAs(Region.Bherwerre));
         }
 
+        /// <summary>
+        /// A world owns which piece of the Earth it is (WG.2, 2026-09-22): a saved valley world opened by a tool that named no
+        /// region was refused as "opened as 'bherwerre'". The one reading of a saved world's region, for the shell and the host.
+        /// </summary>
+        [Test]
+        public void ASavedWorldNamesItsOwnRegion()
+        {
+            Assert.That(WorldSave.RegionOf(_dir), Is.Null, "no world here yet");
+            WorldClock clock = WorldClock.Resumed(Region.KangarooValley.WakeDayOfYear, Region.KangarooValley.WakeLocalHour, Region.KangarooValley.CentreLongitudeDeg, 0);
+            WorldState world = new WorldState(7UL, Region.KangarooValley, clock, null, 1);
+            WorldSave.Write(_dir, world, null, "2026-09-22T11:30:00Z");
+            Assert.That(WorldSave.RegionOf(_dir), Is.SameAs(Region.KangarooValley));
+            string text = File.ReadAllText(Path.Combine(_dir, "world.json"));
+            File.WriteAllText(Path.Combine(_dir, "world.json"), text.Replace("kangaroo-valley", "atlantis"));
+            Assert.That(WorldSave.RegionOf(_dir), Is.Null, "a region this build does not know is null, for the preparation to refuse with its reason");
+        }
+
         [Test]
         public void TheCreationDateIsWrittenOnceAndCarriedForward()
         {

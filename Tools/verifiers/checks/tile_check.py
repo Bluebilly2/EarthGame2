@@ -11,7 +11,9 @@ The formats, as section 10 states them:
     water-class, ground-cover, stand, loose, far-stand, far-count or stone. Its first four bytes are the CRC-32 (IEEE,
     little-endian) of everything after them.
   - Those bytes are a raw deflate stream (no zlib header).
-  - Inflated, a layer of metres (ground, water-depth) is posts squared signed 16-bit little-endian centimetres,
+  - Inflated, a layer of metres (ground, water-depth) is, since tile version 3, posts rows each of a signed 32-bit
+    little-endian first post in centimetres and posts - 1 signed 16-bit steps between neighbours (version 2 was posts
+    squared signed 16-bit centimetres,
     each row its first post absolute and every later post the difference from the one before.
   - A layer of codes (water-class, ground-cover, stand, loose, far-stand, far-count, stone since BF.1) is posts squared raw bytes.
   - The tile grid is the region's alone: a kilometre tile where the extent divides into kilometres, else the whole
@@ -97,11 +99,15 @@ def tile_size(extent_m):
 
 
 def unpack_metres(body, posts):
-    values = np.frombuffer(zlib.decompress(body, -15), dtype="<i2")
-    if values.size != posts * posts:
-        raise ValueError("%d posts inflated where %d were expected" % (values.size, posts * posts))
-    rows = values.reshape(posts, posts).astype(np.int32)
-    return np.cumsum(rows, axis=1) / 100.0     # each row: the first post, then the differences
+    """A metres layer since tile version 3 (WG.2): each row a 32-bit first post in centimetres, then 16-bit steps between neighbours."""
+    raw = zlib.decompress(body, -15)
+    row_bytes = 4 + 2 * (posts - 1)
+    if len(raw) != posts * row_bytes:
+        raise ValueError("%d bytes inflated where %d were expected for %d posts a side" % (len(raw), posts * row_bytes, posts))
+    rows = np.frombuffer(raw, dtype="u1").reshape(posts, row_bytes)
+    first = rows[:, :4].copy().view("<i4").reshape(posts, 1).astype(np.int64)
+    steps = rows[:, 4:].copy().view("<i2").reshape(posts, posts - 1).astype(np.int64)
+    return np.concatenate([first, first + np.cumsum(steps, axis=1)], axis=1) / 100.0
 
 
 def unpack_codes(body, posts):

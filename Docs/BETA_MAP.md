@@ -27,7 +27,9 @@ The five things a developer must see, unmissably: a real place; an oracle that c
 (damp tinder fails and says why; two flakes off one core are different tools); building judged by physics (the
 windbreak on the wrong side does nothing); a world that made itself.
 
-The player's goals, in the path's order. "Stands" is the honest state on 2026-09-22.
+The player's goals, in the path's order. "Stands" is the honest state on 2026-09-22. Since CANON ruling 44 this order
+is the order of building and the developer's demo lens, never a route the founder is led along: the country offers,
+the founder does what they will.
 
 | | Goal | The path's beat | Stands |
 |---|---|---|---|
@@ -324,9 +326,10 @@ is longer.
 
 ## 8. What waits on William
 
-- **The place: decided.** Bherwerre is a low peninsula and the data is right about it; on 2026-09-22 he chose "a
-  second steeper place" (CANON ruling 42). The candidates measured, the recommendation (Wilsons Promontory, Tidal River
-  to Oberon Bay) and the acquisition manifest are `contracts/WG.2_A_SECOND_PLACE.md`; nothing is fetched until he
-  approves those exact files. BF.4 gives any place its grain below the data; the second place gives the beta its
-  mountains.
+- **The place: decided and made.** Bherwerre is a low peninsula and the data is right about it; on 2026-09-22 he chose "a
+  second steeper place" (CANON ruling 42), then Fitzroy Falls and the Kangaroo Valley (ruling 43), and approved the
+  manifest in `contracts/WG.2_A_SECOND_PLACE.md`: the valley is fetched, baked and made, and the shell offers a new world
+  in either place (ruling 44). What the valley still owes (its census, its own plants and stone, the reservoir's surface,
+  the voids) is in DEBTS; his word on its wake and his eyes on its frames are in the same file's first table. BF.4 gives
+  any place its grain below the data; the valley gives the beta its escarpment.
 - **His eyes** on the ground when BF.4 stands, in frames and in play; **his hands** on the work when BF.2 does.

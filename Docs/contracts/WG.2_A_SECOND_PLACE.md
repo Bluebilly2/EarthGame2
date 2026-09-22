@@ -112,18 +112,20 @@ or `landuse=reservoir` and lists what it excluded in the sidecar, and the census
 and the visitor centre at the falls are not read by anything and leave no mark.
 
 **The station.** The valley floor stands at about 100 m, twenty kilometres west of Nowra RAN Air Station (068072, 109 m),
-whose all-years table the repository already holds (`Data/stations/`, M1.8c): Nowra is the region's station, and the
-valley's colder nights under the escarpment are the inland gradient's debt as they are for Bherwerre. Moss Vale's
-table (068045, 675 m, since 1898) is the plateau's reference and is pasted when William chooses to; nothing waits on it.
+whose all-years table the repository already holds (`Data/stations/`, M1.8c): Nowra is the region's station
+(`Climate`'s second `Station`, its means, dew points and winds Nowra's own; the fronts' widening, the rain, the cloud and
+the cold snap's depth still the lighthouse's fits: DEBTS), and the valley's colder nights under the escarpment are the
+inland gradient's debt as they are for Bherwerre. Moss Vale's table (068045, 675 m, since 1898) is the plateau's
+reference and is pasted when William chooses to; nothing waits on it.
 
-**The first act, inland (for William's approval; the path is his).** Waking: face-down on the river's gravel bar below
-the escarpment, mid-morning, empty-handed, the falls' roar in the ear where the surf was. Thirst: the river drinks at
-once; the first tablet consult is the forecast (the night, and what it does to a bare body) rather than the sea's salt —
-ruling 33's "no lesson anywhere" is kept, and the salt's lesson simply belongs to another place. First stone: the river's
-cobbles — basalt down from the Robertson caps for a hammer, quartzite and whatever chert the gravels hold for an edge,
-sandstone that crumbles — and driftwood along the bar, fibre (Lomandra, saw-sedge) on the banks. Fire and Night 1 as
-written. Act II as written: the camp under the escarpment, the rain, the wet cold. The shorebird gives way to a bird of
-the river or the forest (the superb lyrebird is the valley's own); the kangaroo and the fairy-wren stay.
+**What the valley offers at a wake (ruling 44: no first act is written; the scorer finds the wake and the country offers
+what it offers).** The wake scorer's criteria are the same as Bherwerre's — fresh water within 500 m, stone that knaps
+within a kilometre, fibre and firewood within 500 m, shelter rock within two, standable ground — and here they find a
+river bar or a creek bank under the escarpment: the river and its creeks to drink; river cobbles (basalt down from the
+Robertson caps for a hammer, quartzite and whatever chert the gravels hold for an edge, sandstone that crumbles);
+driftwood along the bar and dead wood under the forest; Lomandra and saw-sedge on the banks; the falls' roar where the
+surf was. The shorebird gives way to a bird of the river or the forest (the superb lyrebird is the valley's own); the
+kangaroo and the fairy-wren stay. Nothing tells the founder what to do with any of it.
 
 **The plant table, to be checked against the Atlas of Living Australia's records for the box after the fetch (ruling
 21):** blackbutt, old-man banksia, heath banksia, the grass tree, bracken, Lomandra, saw-sedge and kangaroo grass stay;
@@ -215,3 +217,49 @@ Bherwerre stays: the first region, the gate world, every scenario's world until 
 
 The files approved and fetched with their sizes as fetched; the world created and every verifier green with its
 numbers; the frames; or "What changed on the way".
+
+### Exit record (2026-09-22, on William's "you have my yes for the files")
+
+**Fetched, as fetched.** 36 Terrarium tiles at zoom 14 (x 15038-15043, y 9872-9877; 3.36 MB, twice the estimate: the
+plateau's relief compresses worse than a peninsula's) and 25 at zoom 11 (x 1878-1882, y 1232-1236; 15 new at 0.69 MB, ten
+already held from Bherwerre's surround, which overlaps); one Overpass response (36.6 KB; the first two asks were 504s
+and the third answered); the records of 16 species (51.4 KB) under `Data/cache/ala/kangaroo-valley/`. Nothing else.
+`THIRD_PARTY_NOTICES.md` names each. Data/ is never committed: the bakes and caches live on this machine.
+
+**Baked.** `heights` 2001 x 2001 at 4 m, 80.7 to 769.5 m; the tiles held SRTM voids read as -4,121 m, and
+`--despike-m 25` rewrote 457 cells (DEBTS, "The valley's voids are invented ground"). `surround` 1001 x 1001 at 64 m.
+`water_bodies`: one body (an unnamed pond of 60 cells); 24 ways left out as humanity's, Fitzroy Falls Lake and 23 farm
+ponds, listed in the sidecar under `excluded`. The station: `Climate`'s `Nowra` from the held table, `HasRecordFor` true.
+
+**What changed on the way.** (1) The first encode of the world's tiles threw: tile format 2 held every height as a
+signed 16-bit centimetre, 327 m, and the plateau stands at 700. Tile format 3 begins each metres row with a 32-bit first
+post (ARCHITECTURE section 10, decision log). (2) A saved world opened by a tool that named no region was refused
+"opened as 'bherwerre'": a world now owns which piece of the Earth it is (`WorldSave.RegionOf`, tested; the host and the
+game read it; sabotaged to answer Bherwerre for every world, the test went red, restored byte for byte). (3) The
+verifiers that judged a world by Bherwerre's landmarks read the region off the world's file and keep their tables per
+region; a row that does not apply inland prints a note, and `census_check` says it holds no landmarks for the valley and
+exits 2 (DEBTS, "The valley has no census"). (4) The falls vantage first stood the founder on the lip, a 35 degree
+face, and the frames show them sliding; it stands 90 m up the creek now.
+
+**The world.** `create.py Artefacts/worlds/valley --region kangaroo-valley` in 9.3 s, 24 layers; the scorer's wake at
+east 436 north -1040, 431 m on the plateau in forest (WG.2 proposed the river's bar; his word, DEBTS' first table).
+
+**The verifiers, as run.** On the valley: `drainage_check` ok (the largest creek 1,727,266 cells by the engine against
+1,726,806 by its own D8, the second 1,647,645 against 1,647,198; the channel law held on 21,651 of 21,689 cells; no water
+off the channels on 3,897,761 cells; no published lake in the region's table, a note); `cover_check` ok (0 of 4,004,001
+posts off the cascade; 8 covers, grass 31.1 %); `species_check` ok with four rows owed (bracken 0.89, Lomandra 0.78,
+saw-sedge 0.43, old-man banksia 0.77 round their records; heath banksia 1.17 ok; every distance-from-the-sea row a note,
+there being no sea; DEBTS, "The valley grows the coast's plant table"); `region_stats --world` ok (the land the bake's to
+0.000 m; no sea to floor, a note); `census_check` exit 2 by design. On the gate world, unchanged: all four green, the
+nine owed rows as before. The suite 801 green; the Unity-shaped compile clean; the harness built by `install.py`.
+
+**The shell (ruling 44).** A new world is made in a chosen place: Bherwerre and the valley offered, "Wilsons Promontory",
+"Blue Mountains, the Grose Valley" and "Alice Springs, the MacDonnell Ranges" greyed "(not yet)". The loading scenario
+through the scripted shell (`Tools/world/loading.py`, `loading_check`): 33 rows PASS, a new world in Bherwerre, the
+continue in the world's own region, the missing-data failure back to the menu.
+
+**Frames.** `Artefacts/frames/valley-20260922`: wake, river, escarpment, falls (the lip, the slide) and reservoir, 14
+frames each at 1440p and 1080p with the 150 m lookout to the four points; `valley-20260922-falls`: the creek above the
+lip. Seen: the escarpment's face above the wake and the gorge from its edge, real relief at last; the coast's plants on
+inland ground; the reservoir's flat as a lake; the river a cell wide (DEBTS); beyond the streamed tiles the far ring
+bare tan, stark from height (the old debt). His eyes owed.

@@ -38,12 +38,27 @@ PLAYER = ROOT / "Build/Harness/EarthGame2.exe"
 HOSTS = [ROOT / "Engine/.build/bin/EarthGame.ServerHost/Release/net10.0/EarthGame.ServerHost.dll",
          ROOT / "Engine/.build/bin/EarthGame.ServerHost/Debug/net10.0/EarthGame.ServerHost.dll"]
 
-# The vantages: M1.4d's three, where the ground's colour was judged, and the wake the scorer chose after M1.2b moved it.
-VANTAGES = {
-    "wake": (-1352, 1904),
-    "shore": (-1332, 1892),
-    "windermere": (-650, 334),
-    "new-wake": (-1392, 2804),
+# The vantages, a table per region (the world's own world.json names its region; WG.2, 2026-09-22). Bherwerre's are M1.4d's
+# three, where the ground's colour was judged, and the wake the scorer chose after M1.2b moved it. The valley's are its
+# world's wake (the scorer's, on the plateau), the river on the floor where the second creek's catchment is greatest, the
+# plateau's edge above the deepest drop within 100 m, the creek above Fitzroy Falls (the lip itself, the greatest catchment
+# above 600 m within 300 m of the lookout's published point 34.6483 S 150.4826 E, is a 35 degree face the founder slid off
+# in the first frames, so the vantage stands 90 m up the creek on 11 degrees), and the flat the reservoir left in the tiles
+# at 662 m, each read off the world's layers on 2026-09-22.
+VANTAGES_BY_REGION = {
+    "bherwerre": {
+        "wake": (-1352, 1904),
+        "shore": (-1332, 1892),
+        "windermere": (-650, 334),
+        "new-wake": (-1392, 2804),
+    },
+    "kangaroo-valley": {
+        "wake": (436, -1040),
+        "river": (2884, -3400),
+        "escarpment": (-2312, 1188),
+        "falls": (-1572, 988),
+        "reservoir": (86, 2751),
+    },
 }
 
 
@@ -71,17 +86,13 @@ def main():
     parser.add_argument("--hold", type=float, default=0.0, help="seconds of a full turn to measure a frame's cost over")
     parser.add_argument("--hide", default=None, help="what the player draws nothing of (-eg-hide), to part what it costs")
     parser.add_argument("--lookout", type=float, default=0.0, help="metres to fly the founder up for four frames to the compass points")
-    parser.add_argument("--only", default=None, help="a comma-separated subset of " + ",".join(VANTAGES))
+    parser.add_argument("--only", default=None, help="a comma-separated subset of the region's vantages (the world's region names the table)")
     parser.add_argument("--out", default=None)
     parser.add_argument("--hour", type=float, default=None, help="the local hour the frames are taken at (-eg-hour, a development game)")
     parser.add_argument("--day", type=int, default=None, help="the day of the year the frames are taken on (-eg-day, a development game)")
     args = parser.parse_args()
     player = (ROOT / args.player).resolve()
     world = (ROOT / args.world).resolve()
-    wanted = [v.strip() for v in args.only.split(",")] if args.only else list(VANTAGES)
-    for name in wanted:
-        if name not in VANTAGES:
-            raise RuntimeError("no vantage called %s; there are %s" % (name, ", ".join(VANTAGES)))
     directory = Path(args.out).resolve() if args.out else ROOT / "Artefacts/frames" / ("vantages-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
     directory.mkdir(parents=True, exist_ok=True)
 
@@ -94,6 +105,14 @@ def main():
         raise RuntimeError("no player at %s; run with --build" % player)
     if not (world / "world.json").is_file():
         raise RuntimeError("no world at %s; run Tools/world/create.py first" % world)
+    region = json.loads((world / "world.json").read_text(encoding="utf-8")).get("region", "bherwerre")
+    VANTAGES = VANTAGES_BY_REGION.get(region)
+    if VANTAGES is None:
+        raise RuntimeError("no vantages for a world set in %s; there are tables for %s" % (region, ", ".join(VANTAGES_BY_REGION)))
+    wanted = [v.strip() for v in args.only.split(",")] if args.only else list(VANTAGES)
+    for name in wanted:
+        if name not in VANTAGES:
+            raise RuntimeError("no vantage called %s; there are %s" % (name, ", ".join(VANTAGES)))
     world = copied(world, directory)
     host = next((h for h in HOSTS if h.is_file()), None)
     if host is None:

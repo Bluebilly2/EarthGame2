@@ -45,8 +45,7 @@ namespace EarthGame.Engine
 
         /// <summary>
         /// The beta's second region (CANON ruling 43, 2026-09-22; WG.2): the Kangaroo Valley under the Morton plateau's escarpment,
-        /// Fitzroy Falls in its box, no coast. The same late-winter wake as Bherwerre's. Its station is Nowra's when the world is
-        /// built; until then <c>Climate.HasRecordFor</c> says no and a world here has no weather.
+        /// Fitzroy Falls in its box, no coast. The same late-winter wake as Bherwerre's; its station is Nowra's (<c>Climate</c>).
         /// </summary>
         public static readonly Region KangarooValley = new Region(
             "kangaroo-valley", "Kangaroo Valley, Fitzroy Falls", -34.660, 150.500, 8000.0, 237, 8.0);

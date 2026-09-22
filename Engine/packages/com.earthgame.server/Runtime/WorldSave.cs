@@ -260,6 +260,16 @@ namespace EarthGame.Server
         public static bool Exists(string dir)
             => !string.IsNullOrEmpty(dir) && (File.Exists(Path.Combine(dir, WorldFile)) || File.Exists(Path.Combine(dir, CommitFile)));
 
+        /// <summary>
+        /// The region a saved world is set in, by its own file: a world owns which piece of the Earth it is (WG.2, 2026-09-22,
+        /// when a second region made the question real). Null when the folder holds no world, or one set in a region this
+        /// build does not know. The game's shell and the server host both continue a saved world in its own region through
+        /// this, so the region is named at a world's creation and never again; until then a valley world opened by a tool
+        /// that named no region was refused as "opened as 'bherwerre'".
+        /// </summary>
+        public static Region RegionOf(string dir)
+            => Exists(dir) ? Region.ById(Read(dir).RegionId) : null;
+
         /// <summary>The world a folder holds, once <see cref="Recover"/> has left it one whole save.</summary>
         public static WorldSaveInfo Read(string dir)
         {

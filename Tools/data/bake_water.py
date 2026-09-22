@@ -11,8 +11,9 @@ grid with its own code, and writes `water_bodies.u8` beside the heights with a l
 level is the median of the bake's heights inside its outline, the cells at or below that level are the lake,
 a wetland's cells are swamp. Without the layer the pipeline falls back to the ground alone.
 
-A way tagged water=reservoir or landuse=reservoir is a dam's lake, humanity's, and is excluded and listed in the sidecar
-(`excluded`), since the constitution's Earth has no dams (WG.2, 2026-09-22).
+A way tagged water=reservoir or landuse=reservoir is a dam's lake, and one tagged water=pond is "man-made in most cases"
+(the OpenStreetMap wiki): humanity's, excluded and listed in the sidecar (`excluded`), since the constitution's Earth has no
+dams and no farms (WG.2, 2026-09-22).
 Kinds: `lake` (natural=water without a salt tag), `wetland` (natural=wetland), `salt` (natural=water tagged
 water=bay, lagoon or harbour, or salt=yes; recorded, not yet used by the pipeline). Relations (St Georges
 Basin, a multipolygon west of the box) are not rasterised.
@@ -49,9 +50,11 @@ QUERY = '[out:json][timeout:90];(way["natural"~"^(water|wetland)$"](%.6f,%.6f,%.
 EARTH_RADIUS_M = 6371000.0
 PAD_M = 1000.0
 SALT_WATER = ("bay", "lagoon", "harbour", "sea")
-# A reservoir is a dam's lake: humanity's, and the constitution's Earth has no dams (GAME_DESIGN section 2). Excluded from
-# the layer and listed in the sidecar, so a census can name what the bake left out (WG.2, 2026-09-22: Lake Yarrunga).
-HUMAN_MADE = ("reservoir",)
+# A reservoir is a dam's lake, and a pond in OpenStreetMap's own words is "man-made in most cases" (water=pond, the wiki):
+# humanity's, and the constitution's Earth has no dams and no farms (GAME_DESIGN section 2). Excluded from the layer and
+# listed in the sidecar, so a census can name what the bake left out (WG.2, 2026-09-22: the Fitzroy Falls reservoir and the
+# Kangaroo Valley's twenty-three farm dams).
+HUMAN_MADE = ("reservoir", "pond")
 
 
 def is_human_made(tags):
@@ -120,7 +123,9 @@ def main():
         if len(nodes) < 4 or nodes[0] != nodes[-1]:
             continue    # an open way is a shoreline or a river bank, not a body
         if is_human_made(way.get("tags", {})):
-            excluded.append({"osm": "way/%d" % way["id"], "name": way.get("tags", {}).get("name", ""), "why": "a reservoir: humanity's, and this Earth has no dams"})
+            excluded.append({"osm": "way/%d" % way["id"], "name": way.get("tags", {}).get("name", ""),
+                             "why": ("a reservoir" if way.get("tags", {}).get("water") == "reservoir" or way.get("tags", {}).get("landuse") == "reservoir" else "a pond, man-made in most cases")
+                                    + ": humanity's, and this Earth has no dams"})
             continue
         points = [to_pixel(n["lat"], n["lon"]) for n in nodes[:-1]]
         code = len(bodies) + 1

@@ -302,3 +302,14 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     no sea. The Founder's Path's first act is re-cut for it — the wake by the river rather than on sand, the river giving
     water at once, river cobbles as the first stone — and the re-cut is put to him in writing before it is built. Ruling 42's
     manifest rule stands: nothing downloaded until he approves the exact files.
+
+44. **The first act is the order of building, not a rail; the new game chooses its place.** Shown the first act re-cut for
+    an inland wake, 2026-09-22: "i dont like the idea of having a first act, i only want to have a first act as the first thing
+    we look into, i dont want anything that is that guiding in the long run." The Founder's Path's acts and beats say what is
+    built first and what a developer must see; nothing in the game leads the founder along them. The country offers what it
+    offers where the founder wakes, the founder does what they will, and the game volunteers only the body's words and the
+    tablet's answers. No wake is written for a place, and no place's first beat is re-cut, because there is no beat to re-cut:
+    a region's wake is what its scorer finds. Asked the same day whether adding the valley means the menu chooses where you
+    spawn, and whether other regions should be stubbed and disabled ("the blue mountains or in land like alice springs ... this
+    sort of allows for the lack of a 'first act' in that there is no predefined set of first actions for the founder"): the new
+    game chooses its place from the regions with a world, and names the others greyed, not yet.

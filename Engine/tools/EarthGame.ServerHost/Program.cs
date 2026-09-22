@@ -49,11 +49,14 @@ namespace EarthGame.ServerHost
             };
             if (config.Movement.AllowFlight) Log("a development server: a founder may fly, and a developer's settings are taken");
             ulong seed = ULong(a, "server.seed", 1347UL);
-            string regionId = Str(a, "server.region", Region.Bherwerre.Id);
-            Region region = Region.ById(regionId);
+            // The region: +server.region when given; else a saved world's own (WorldSave.RegionOf, WG.2 2026-09-22), so a
+            // world set in the Kangaroo Valley continues in the valley without the region named again; else Bherwerre.
+            string worldDir = Str(a, "server.world", null);
+            string regionId = Str(a, "server.region", null);
+            Region region = regionId != null ? Region.ById(regionId) : (SavedRegion(worldDir) ?? Region.Bherwerre);
             if (region == null)
             {
-                Log("unknown region '" + regionId + "'; known: " + Region.Bherwerre.Id);
+                Log("unknown region '" + regionId + "'; known: " + Region.Bherwerre.Id + ", " + Region.KangarooValley.Id);
                 return 2;
             }
 
@@ -95,7 +98,6 @@ namespace EarthGame.ServerHost
             // a saved world's own terrain must load and match its manifest, and the region's bake is never put
             // quietly in its place. This host did that until 2026-09-10, so a world whose heights layer had gone
             // came back standing on different ground without a word, and its digest with it.
-            string worldDir = Str(a, "server.world", null);
             // The world folder is held for this process from its preparation until its last save (M1.3d).
             IDisposable worldHold = null;
             WorldState world;
@@ -548,6 +550,13 @@ namespace EarthGame.ServerHost
                 _log.Record(T, _server.World.Tick, "end", new JsonObject().With("seconds", now).With("players", _server.Sessions.Count)
                     .With("digest", _server.Digest()).With("dropped_seconds", _server.DroppedSeconds));
             }
+        }
+
+        /// <summary>The region a saved world is set in, or null for no world there or one that cannot be read (the preparation says why).</summary>
+        private static Region SavedRegion(string worldDir)
+        {
+            try { return string.IsNullOrEmpty(worldDir) ? null : WorldSave.RegionOf(worldDir); }
+            catch (Exception ex) when (ex is IOException || ex is InvalidDataException || ex is JsonException || ex is KeyNotFoundException) { return null; }
         }
 
         /// <summary>Data/regions/&lt;region&gt; under the repository root (found by global.json above the working directory), else under the working directory.</summary>

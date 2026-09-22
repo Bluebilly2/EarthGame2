@@ -1,24 +1,60 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
+using EarthGame.Engine;
+using EarthGame.Shared;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace EarthGame.Client
 {
     /// <summary>
-    /// The minimal shell: new world, continue, quit (M1.A contract, promise 7). Three buttons in UI Toolkit; the
-    /// bootstrap decides what each does. Never shown when the launch mode came from the command line.
+    /// The minimal shell: a new world in a chosen place, continue, quit (M1.A contract, promise 7; the places since CANON
+    /// ruling 44, 2026-09-22). Buttons in UI Toolkit; the bootstrap decides what each does. Never shown when the launch mode
+    /// came from the command line.
     /// </summary>
     public sealed class ShellController : MonoBehaviour
     {
+        /// <summary>A place the shell offers a new world in (CANON ruling 44): a region with its ground on disk, or a name greyed as not yet.</summary>
+        public sealed class Place
+        {
+            public Region Region;
+            public string Name;
+            public bool Ready;
+            public string Note;
+        }
+
         private UIDocument _document;
         private Button _continue;
         private Label _status;
+        private Region _firstReady;
 
-        public event Action NewWorld;
+        /// <summary>The player chose a place for a new world.</summary>
+        public event Action<Region> NewWorldIn;
         public event Action Continue;
         public event Action Quit;
 
-        public void Build(bool canContinue, string continueLabel)
+        /// <summary>
+        /// The places a new world can be made in (CANON ruling 44): the regions this build knows whose bake is on disk are
+        /// offered; the places named for later are shown greyed as not yet, so the list says where the game is going without
+        /// pretending it is there. A region whose ground is not fetched is greyed the same way, with the reason.
+        /// </summary>
+        public static List<Place> DefaultPlaces()
+        {
+            List<Place> places = new List<Place>();
+            foreach (Region region in new[] { Region.Bherwerre, Region.KangarooValley })
+            {
+                bool ready = File.Exists(Path.Combine(RegionDataLocator.DataDir(region), "heights.json"));
+                places.Add(new Place { Region = region, Name = region.DisplayName, Ready = ready, Note = ready ? "" : "no ground fetched" });
+            }
+            foreach (string name in new[] { "Wilsons Promontory", "Blue Mountains, the Grose Valley", "Alice Springs, the MacDonnell Ranges" })
+                places.Add(new Place { Region = null, Name = name, Ready = false, Note = "not yet" });
+            return places;
+        }
+
+        public void Build(bool canContinue, string continueLabel) => Build(canContinue, continueLabel, null);
+
+        public void Build(bool canContinue, string continueLabel, IReadOnlyList<Place> places)
         {
             PanelSettings panel = Resources.Load<PanelSettings>(HudController.PanelResource);
             if (panel == null)
@@ -39,13 +75,30 @@ namespace EarthGame.Client
             title.style.color = new Color(0.93f, 0.9f, 0.82f);
             title.style.marginBottom = 8;
             root.Add(title);
-            Label sub = new Label("Bherwerre Peninsula, Jervis Bay. One person, a real Earth.");
+            Label sub = new Label("One person, a real Earth.");
             sub.style.fontSize = 16;
             sub.style.color = new Color(0.7f, 0.7f, 0.68f);
-            sub.style.marginBottom = 36;
+            sub.style.marginBottom = 28;
             root.Add(sub);
 
-            root.Add(MakeButton("New world", () => NewWorld?.Invoke()));
+            Label where = new Label("New world in");
+            where.style.fontSize = 16;
+            where.style.color = new Color(0.7f, 0.7f, 0.68f);
+            where.style.marginBottom = 6;
+            root.Add(where);
+            _firstReady = null;
+            foreach (Place place in places ?? DefaultPlaces())
+            {
+                Region region = place.Region;
+                bool offered = place.Ready && region != null;
+                Button b = MakeButton(offered ? place.Name : place.Name + " (" + place.Note + ")", () => { if (region != null) NewWorldIn?.Invoke(region); });
+                b.SetEnabled(offered);
+                if (offered && _firstReady == null) _firstReady = region;
+                root.Add(b);
+            }
+            Label gap = new Label(string.Empty);
+            gap.style.height = 14;
+            root.Add(gap);
             _continue = MakeButton(canContinue ? continueLabel : "Continue (no world yet)", () => Continue?.Invoke());
             _continue.SetEnabled(canContinue);
             root.Add(_continue);
@@ -73,8 +126,11 @@ namespace EarthGame.Client
             if (_status != null) _status.text = text;
         }
 
-        /// <summary>What a scenario does instead of a mouse: the New world button's own action.</summary>
-        public void ClickNewWorld() => NewWorld?.Invoke();
+        /// <summary>What a scenario does instead of a mouse: a new world in the first place that is offered.</summary>
+        public void ClickNewWorld()
+        {
+            if (_firstReady != null) NewWorldIn?.Invoke(_firstReady);
+        }
 
         public void Close()
         {

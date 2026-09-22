@@ -131,17 +131,23 @@ namespace EarthGame.Engine
     /// than as its own surface because the client already holds the ground: measured on the Bherwerre world, the
     /// nine tiles around the wake are 277 KB as a surface of their own against 31 KB as depth over that ground,
     /// which is zero everywhere the ground is dry.</para>
+    ///
+    /// <para>Version 3 (WG.2, 2026-09-22): each row of a metres layer begins with a 32-bit number of centimetres and
+    /// continues in 16-bit steps between neighbouring posts, so a tile carries any height on Earth. Version 2 held every
+    /// height as a 16-bit number of centimetres, ±327 m of the datum, which the sea's coast never reached and the Kangaroo
+    /// Valley's plateau, at 700 m, broke on the first encode.</para>
     /// </summary>
     public static class TileCodec
     {
-        public const int Version = 2;
+        public const int Version = 3;
         /// <summary>
-        /// The largest height a tile can carry, metres either side of the datum. A height beyond it, and a step between
-        /// neighbouring posts too long for a signed 16-bit number of centimetres, are refused at encode, as ARCHITECTURE
-        /// §10 states; until 2026-09-13 the height was clamped and the step wrapped without a word, which would have cut a
-        /// mountain's summit off and turned a cliff's foot into its top.
+        /// The largest height a tile will carry, metres either side of the datum: past the deepest trench and the highest
+        /// summit, so only a number that is no height on Earth is refused. A height beyond it, and a step between neighbouring
+        /// posts too long for a signed 16-bit number of centimetres, are refused at encode, as ARCHITECTURE §10 states; until
+        /// 2026-09-13 the height was clamped and the step wrapped without a word, which would have cut a mountain's summit off
+        /// and turned a cliff's foot into its top; until version 3 the bound was 327 m, a 16-bit number of centimetres.
         /// </summary>
-        public const double MaxHeightM = 327.0;
+        public const double MaxHeightM = 12000.0;
 
         /// <summary>Samples a tile of ground from the heightfield at the raster's own cell pitch and encodes it.</summary>
         public static EncodedTile Encode(Heightfield heightfield, TileGrid grid, TileId id)
@@ -354,7 +360,7 @@ namespace EarthGame.Engine
             return raster[row, col];
         }
 
-        /// <summary>Packs a square of heights: centimetres, row deltas, deflate.</summary>
+        /// <summary>Packs a square of heights: centimetres, each row a 32-bit first post then 16-bit steps between neighbours, deflate (version 3).</summary>
         public static byte[] Pack(float[,] heights, int posts)
         {
             using (MemoryStream output = new MemoryStream())
@@ -368,7 +374,13 @@ namespace EarthGame.Engine
                         for (int x = 0; x < posts; x++)
                         {
                             int cm = ToCentimetres(heights[z, x]);
-                            int step = x == 0 ? cm : cm - previous;
+                            if (x == 0)
+                            {
+                                w.Write(cm);
+                                previous = cm;
+                                continue;
+                            }
+                            int step = cm - previous;
                             if (step < short.MinValue || step > short.MaxValue)
                                 throw new InvalidDataException("a step of " + step / 100.0 + " m between neighbouring posts is longer than a tile can carry");
                             w.Write((short)step);
@@ -395,16 +407,15 @@ namespace EarthGame.Engine
                     int previous = 0;
                     for (int x = 0; x < posts; x++)
                     {
-                        short v;
+                        int cm;
                         try
                         {
-                            v = r.ReadInt16();
+                            cm = x == 0 ? r.ReadInt32() : previous + r.ReadInt16();
                         }
                         catch (EndOfStreamException)
                         {
                             throw new InvalidDataException("tile data ends after " + (z * posts + x) + " of " + (posts * posts) + " posts");
                         }
-                        int cm = x == 0 ? v : previous + v;
                         heights[z, x] = cm / 100f;
                         previous = cm;
                     }

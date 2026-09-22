@@ -300,6 +300,25 @@ namespace EarthGame.Engine
             new[] { 14.2, 14.0, 13.5, 15.0, 16.8, 19.1, 17.7, 17.1, 16.2, 15.2, 15.6, 14.8 },
             new[] { 20.5, 19.3, 18.3, 17.9, 17.9, 19.1, 19.4, 20.5, 21.3, 21.2, 22.5, 21.9 });
 
+        /// <summary>
+        /// Nowra RAN Air Station AWS (068072), 109 m, 34.95°S 150.54°E: the Kangaroo Valley's station (WG.2, CANON ruling 43,
+        /// 2026-09-22), twenty kilometres east of the valley floor at much the same height. The Bureau's all-years table as William
+        /// pasted it on 2026-09-16 (<c>Data/stations/068072_nowra_ran_air_station_aws_all_years.txt</c>): the mean maxima and minima
+        /// by month, 2000–2026; the 9 am and 3 pm dew points and wind speeds by month, 2000–2010. The fronts' widening of the day's
+        /// extremes is the lighthouse's, not yet fitted to Nowra's own deciles, and so are the rain, the cloud and the cold snap's
+        /// depth in <see cref="Synoptic"/> (DEBTS 2026-09-22); the valley's colder nights under the escarpment are the inland
+        /// gradient's debt as Bherwerre's are.
+        /// </summary>
+        private static readonly Station Nowra = new Station(109.0, 2000, 2026,
+            new[] { 27.6, 26.5, 25.3, 22.9, 19.7, 17.0, 16.8, 18.3, 21.2, 23.2, 24.8, 26.3 },
+            new[] { 16.8, 16.7, 15.3, 12.5, 9.4, 7.7, 6.8, 7.1, 8.8, 10.9, 13.5, 15.0 },
+            new[] { 0.16, 0.15, 0.09, 0.07, 0.06, 0.05, 0.06, 0.05, 0.07, 0.09, 0.13, 0.16 },
+            new[] { 0.02, 0.03, 0.06, 0.07, 0.06, 0.14, 0.08, 0.05, 0.02, 0.04, 0.02, 0.01 },
+            new[] { 14.9, 15.9, 14.1, 11.3, 8.3, 6.5, 5.1, 4.6, 6.6, 8.0, 12.3, 12.8 },
+            new[] { 15.3, 16.2, 14.3, 11.3, 8.2, 6.4, 4.9, 4.1, 6.1, 8.4, 12.5, 13.2 },
+            new[] { 11.5, 11.7, 11.7, 13.7, 14.8, 16.8, 16.8, 18.1, 16.8, 14.7, 12.7, 12.2 },
+            new[] { 21.4, 19.5, 19.2, 18.1, 16.7, 16.7, 18.2, 21.8, 22.9, 21.7, 21.3, 22.0 });
+
         private readonly Station _station;
         private readonly double _latitudeDeg;
 
@@ -316,14 +335,23 @@ namespace EarthGame.Engine
         public static Climate ForRegion(Region region)
         {
             if (region == null) throw new ArgumentNullException(nameof(region));
-            if (!HasRecordFor(region))
+            Station station = StationFor(region);
+            if (station == null)
                 throw new ArgumentException("this build holds no weather station's record for region '" + region.Id + "'", nameof(region));
-            return new Climate(PointPerpendicular, region.CentreLatitudeDeg);
+            return new Climate(station, region.CentreLatitudeDeg);
+        }
+
+        /// <summary>The station a region's climate stands on: the lighthouse for Bherwerre, Nowra for the Kangaroo Valley (WG.2); null for a region this build holds none for.</summary>
+        private static Station StationFor(Region region)
+        {
+            if (region == null) return null;
+            if (string.Equals(region.Id, Region.Bherwerre.Id, StringComparison.Ordinal)) return PointPerpendicular;
+            if (string.Equals(region.Id, Region.KangarooValley.Id, StringComparison.Ordinal)) return Nowra;
+            return null;
         }
 
         /// <summary>Whether this build holds a station's record for the region: the one question, asked before the refusal above.</summary>
-        public static bool HasRecordFor(Region region) =>
-            region != null && string.Equals(region.Id, Region.Bherwerre.Id, StringComparison.Ordinal);
+        public static bool HasRecordFor(Region region) => StationFor(region) != null;
 
         /// <summary>The height above the sea of the weather station this climate stands on, metres: where the lapse rate takes nothing off.</summary>
         public double StationElevationM => _station.ElevationM;

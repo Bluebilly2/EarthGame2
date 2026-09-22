@@ -16,7 +16,10 @@ namespace EarthGame.Tests.Engine
             Assert.That(Region.KangarooValley.CentreLongitudeDeg, Is.EqualTo(150.500));
             Assert.That(Region.KangarooValley.ExtentM, Is.EqualTo(8000.0));
             Assert.That(Region.KangarooValley.WakeDayOfYear, Is.EqualTo(Region.Bherwerre.WakeDayOfYear), "the same late-winter wake");
-            Assert.That(Climate.HasRecordFor(Region.KangarooValley), Is.False, "no station bound until the world is built (WG.2)");
+            Assert.That(Climate.HasRecordFor(Region.KangarooValley), Is.True, "Nowra's table (WG.2)");
+            Assert.That(Climate.ForRegion(Region.KangarooValley).StationElevationM, Is.EqualTo(109.0), "Nowra stands at 109 m");
+            Assert.That(Climate.ForRegion(Region.Bherwerre).StationElevationM, Is.EqualTo(85.0), "the lighthouse at 85");
+            Assert.That(Climate.HasRecordFor(new Region("nowhere", "Nowhere", 0.0, 0.0, 8000.0, 1, 8.0)), Is.False);
         }
     }
 }

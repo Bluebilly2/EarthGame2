@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """drainage_check.py: does the engine's catchment layer agree with an independent D8 over the raw raster?
 
-Reads the bake's heights (Data/regions/bherwerre/heights.r32) and the world's water.u8 and catchment.u32 by
-hand: numpy from the sidecars' stated shapes, never the engine, never Tools/data. Then does the drainage again
+Reads the bake's heights (Data/regions/<region>/heights.r32, the region read off the world's own world.json) and the
+world's water.u8 and catchment.u32 by hand: numpy from the sidecars' stated shapes, never the engine, never Tools/data. Then does the drainage again
 its own way:
   - fills depressions with its own priority flood (heapq over a padded grid), seeded from the sea (raw height at
     or below 0 m), from the grid's edge, and from the cells the world's water layer marks as lake (a lake is a
@@ -17,7 +17,9 @@ of one stated method are compared cell for cell where it matters:
   1. the largest creek: the greatest catchment on any land cell that is not a lake, engine and here, with the
      distance between the two cells and this file's greatest catchment within 20 m of the engine's cell;
   2. the second largest creek, at least 600 m from the first, the same way;
-  3. the water gathered into Lake Windermere and Lake McKenzie: the sum of the catchment over every lake cell
+  3. the water gathered into the region's published lakes (LAKES, by region: Bherwerre's Windermere and McKenzie; the
+     Kangaroo Valley's one mapped lake is an unnamed farm-side pond with no published point, so the valley's table is
+     empty and the row prints a note, since WG.2, 2026-09-22): the sum of the catchment over every lake cell
      within reach of each published point (Wikidata: McKenzie Q21908519 at 35.14666 S 150.67079 E to a metre, so
      500 m; Windermere 35 08 S 150 40 E to the minute, so 1500 m), engine and here; a lake's water can lie in
      more than one patch where the bake's ground inside its outline has two hollows, so the cells are summed
@@ -56,14 +58,26 @@ CHANNEL_DEPTH_FLOOR_M = 0.01
 CHANNEL_SHARE = 0.99
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-REGION = os.path.join(ROOT, "Data", "regions", "bherwerre")
 DEFAULT_WORLD = os.path.join("Artefacts", "worlds", "gate")
 EARTH_RADIUS_M = 6371000.0
 FILL_STEP_M = 1e-3
 TOLERANCE = 0.10
-LAKES = (("Lake Windermere", -35.13333333, 150.66666667, 1500.0, "Wikidata Q23759865, to the minute"),
-         ("Lake McKenzie", -35.14666, 150.67079, 500.0, "Wikidata Q21908519, to a metre"))
+LAKES_BY_REGION = {
+    "bherwerre": (("Lake Windermere", -35.13333333, 150.66666667, 1500.0, "Wikidata Q23759865, to the minute"),
+                  ("Lake McKenzie", -35.14666, 150.67079, 500.0, "Wikidata Q21908519, to a metre")),
+    "kangaroo-valley": (),
+}
 NP_DTYPES = {"u8": "u1", "u16": "<u2", "i16": "<i2", "u32": "<u4", "f32": "<f4"}
+
+
+def region_dir(world):
+    """The bake the world was made from: Data/regions/<region>, the region read off the world's own world.json (a world
+    owns which piece of the Earth it is; Bherwerre when the file does not say, as the worlds before WG.2 were)."""
+    world_json = os.path.join(ROOT, world, "world.json")
+    region = "bherwerre"
+    if os.path.isfile(world_json):
+        region = json.load(open(world_json, encoding="utf-8")).get("region", region)
+    return os.path.join(ROOT, "Data", "regions", region)
 
 
 def load(sidecar_path):
@@ -197,12 +211,14 @@ def patches(mask):
 def main(argv):
     world = argv[1] if len(argv) > 1 else DEFAULT_WORLD
     layers = os.path.join(ROOT, world, "layers")
-    sidecar, z = load(os.path.join(REGION, "heights.json"))
+    region = region_dir(world)
+    lakes = LAKES_BY_REGION.get(os.path.basename(region), ())
+    sidecar, z = load(os.path.join(region, "heights.json"))
     _, water = load(os.path.join(layers, "water.json"))
     _, engine = load(os.path.join(layers, "catchment.json"))
     _, surface = load(os.path.join(layers, "surface.json"))
     if z is None or water is None or engine is None or surface is None:
-        print("a raster is missing: the bake under %s and the world's water and catchment layers under %s are needed" % (REGION, layers))
+        print("a raster is missing: the bake under %s and the world's water and catchment layers under %s are needed" % (region, layers))
         return 2
     if water.shape != z.shape or engine.shape != z.shape:
         print("the world's layers are %s, the bake %s" % (water.shape, z.shape))
@@ -254,7 +270,9 @@ def main(argv):
     rr, cc = np.ogrid[0:z.shape[0], 0:z.shape[1]]
     east_grid = cc * cell - half
     north_grid = half - rr * cell
-    for name, lat, lon, radius, source in LAKES:
+    if not lakes:
+        print("%-44s note  no published lake in this region's table; the row does not apply" % "the named lakes gather the same water")
+    for name, lat, lon, radius, source in lakes:
         pe, pn = local(lat, lon, sidecar)
         near = lake & ((east_grid - pe) ** 2 + (north_grid - pn) ** 2 <= radius * radius)
         cells = int(near.sum())

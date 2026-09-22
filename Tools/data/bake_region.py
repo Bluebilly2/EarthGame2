@@ -97,11 +97,14 @@ def main():
     p.add_argument("--centre-lon", type=float, default=terrarium.BHERWERRE_CENTRE_LON)
     p.add_argument("--extent-m", type=float, default=terrarium.BHERWERRE_EXTENT_M)
     p.add_argument("--coast", action="store_true", default=True, help="the region declares a coast (default)")
+    p.add_argument("--inland", action="store_true", help="the region has no coast (WG.2): no cell need lie at or below sea level")
     p.add_argument("--despike-m", type=float, default=0.0,
                    help="replace any cell more than this many metres from its 5x5 median, up or down, with that median (0 = off). "
                         "The zoom-11 surround carries isolated bad cells over the open sea, hundreds of metres high, "
                         "which drew as spikes on the skyline (2026-09-08); the 4 m region raster has none.")
     a = p.parse_args()
+    if a.inland:
+        a.coast = False
 
     started = time.time()
     margin = a.cell_m * 4 + 200.0

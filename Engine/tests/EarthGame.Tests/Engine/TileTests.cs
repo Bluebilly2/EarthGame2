@@ -47,6 +47,7 @@ namespace EarthGame.Tests.Engine
                     heights[z, x] = (float)slope.HeightAt(x * 4.0, z * 4.0);
             byte[] packed = TileCodec.Pack(heights, posts);
             Assert.That(packed.Length, Is.LessThan(posts * posts * 2 / 4), "row deltas of smooth ground deflate well: " + packed.Length + " bytes");
+            Assert.That(packed.Length, Is.GreaterThan(0));
             float[,] back = TileCodec.Unpack(packed, posts);
             for (int z = 0; z < posts; z += 7)
                 for (int x = 0; x < posts; x += 5)
@@ -56,12 +57,14 @@ namespace EarthGame.Tests.Engine
         [Test]
         public void AHeightOrAStepBeyondWhatATileCarriesIsRefusedNotClamped()
         {
-            float[,] ends = { { 327f, 327f }, { -327f, -327f } };
+            // Version 3 (WG.2): a plateau at 700 m and a trench at -4000 m are carried; version 2 stopped at 327 m either way.
+            float[,] ends = { { 700.25f, 700.5f }, { -4000f, -3999.75f } };
             float[,] back = TileCodec.Unpack(TileCodec.Pack(ends, 2), 2);
-            Assert.That(back[0, 0], Is.EqualTo(327f).Within(0.005f), "the range's top is carried");
-            Assert.That(back[1, 0], Is.EqualTo(-327f).Within(0.005f), "and its bottom");
-            Assert.That(() => TileCodec.Pack(new float[,] { { 327.5f, 327.5f }, { 0f, 0f } }, 2), Throws.TypeOf<InvalidDataException>(), "a height past the top");
-            Assert.That(() => TileCodec.Pack(new float[,] { { 0f, 0f }, { -400f, -400f } }, 2), Throws.TypeOf<InvalidDataException>(), "a depth past the bottom");
+            Assert.That(back[0, 0], Is.EqualTo(700.25f).Within(0.005f), "the Kangaroo Valley's plateau is carried");
+            Assert.That(back[0, 1], Is.EqualTo(700.5f).Within(0.005f));
+            Assert.That(back[1, 0], Is.EqualTo(-4000f).Within(0.005f), "and the sea's floor");
+            Assert.That(() => TileCodec.Pack(new float[,] { { 12000.5f, 12000.5f }, { 0f, 0f } }, 2), Throws.TypeOf<InvalidDataException>(), "a height that is no height on Earth");
+            Assert.That(() => TileCodec.Pack(new float[,] { { 0f, 0f }, { -12001f, -12001f } }, 2), Throws.TypeOf<InvalidDataException>(), "a depth that is none");
             Assert.That(() => TileCodec.Pack(new float[,] { { 200f, -200f }, { 0f, 0f } }, 2), Throws.TypeOf<InvalidDataException>(),
                         "a step between neighbours that no 16-bit number of centimetres holds, though both heights are in range");
             Assert.That(() => TileCodec.Pack(new float[,] { { float.NaN, 0f }, { 0f, 0f } }, 2), Throws.TypeOf<InvalidDataException>());
@@ -101,7 +104,7 @@ namespace EarthGame.Tests.Engine
         [Test]
         public void WaterTravelsAsDepthOverTheGroundAndCostsAFractionOfASurface()
         {
-            Assert.That(TileCodec.Version, Is.EqualTo(2));
+            Assert.That(TileCodec.Version, Is.EqualTo(3), "version 3 carries any height on Earth (WG.2)");
             RegionRaster groundRaster = TestRasters.MadeCoast();
             RegionRaster surface = TestRasters.FromLaw(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "surface", PondSurface);
             Heightfield ground = new Heightfield(groundRaster);
