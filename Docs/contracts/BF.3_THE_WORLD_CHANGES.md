@@ -130,4 +130,11 @@ answered for every wood before the log's, put right after the run and not re-run
 foresaw). (8) The corpus loop's join check was not walked with a work in it (DEBTS): two clients agreeing is shown by the
 server tests' client record and the scenario's client, not over a lossy wire. (9) A crosshair rule found in the run: a
 thing lying among tufts is offered before the tuft whose bounds hide it, or nothing put down in bracken could be taken
-up again.
+up again. (10) Found on reading stage three again after the run, before William played it: a tuft's bounds hid the ground
+and the water behind them, so in grass the put-down, the drink and the cord's twist were often not offered (a tuft now
+hides nothing, and the twist, which is about the hands, comes before the standing world); a clearing counted and bundled
+the tufts the place keeps from standing (inside a trunk, in water) and laid its bundles as if every cell were 4 m (the
+ground site now carries the cell's size and those tufts: tests red first, then green, both rules sabotaged and restored);
+and a felling cut re-placed its tile's whole stand at every told second (a change is now drawn again only when what it
+changes is drawn). Proved by the suite, 816 green, and the Unity-shaped compile; the run in the built game waits until
+William's game is closed.

@@ -231,6 +231,10 @@ namespace EarthGame.Tests.Server
             Stand(rig, grass.Centre.X - 2.0, grass.Centre.Z);
             rig.Pump(2);
             int left = grass.TuftsLeft;
+            List<Double3> stood = new List<Double3>();
+            for (int k = 0; k < Math.Min(grass.Tufts.Count, WorldChanges.MostTufts); k++)
+                if (StandingThings.TryFindTuft(world, 3, 2, k, out StandingTuft tuftThere)) stood.Add(tuftThere.At);
+            Assert.That(stood.Count, Is.EqualTo(left), "the tufts left are the ones the server finds"); 
             IntentResultMessage clear = Ask(rig, OnGround(WorkKind.ClearGround, 3, 2));
             Assert.That(clear.Outcome, Is.EqualTo(VerbOutcome.Done));
             Assert.That(clear.Seconds, Is.EqualTo((float)(Work.ClearSecondsPerTuft * left)));
@@ -238,6 +242,14 @@ namespace EarthGame.Tests.Server
             Assert.That(world.Changes.GroundOf(3, 2).Flags & GroundChange.Cleared, Is.EqualTo(GroundChange.Cleared));
             for (int k = 0; k < left; k++) Assert.That(world.Changes.IsTuftTaken(3, 2, k), Is.True, "tuft " + k);
             Assert.That(Count(world, e => e.Definition.Substance == Substance.Plant), Is.EqualTo(left), "a bundle a tuft");
+            // Each bundle where its tuft stood, on this world's 10 m cells (review, 2026-09-23: they were laid out as if every cell were 4 m).
+            foreach (Entity e in world.Entities.All)
+            {
+                if (e.Killed || e.Definition.Substance != Substance.Plant) continue;
+                double nearest = double.MaxValue;
+                foreach (Double3 at in stood) nearest = Math.Min(nearest, Math.Sqrt((e.Position.X - at.X) * (e.Position.X - at.X) + (e.Position.Z - at.Z) * (e.Position.Z - at.Z)));
+                Assert.That(nearest, Is.LessThan(0.01), "a bundle at " + e.Position + " lies where a tuft stood");
+            }
             Assert.That(rig.Client.Changes.GroundOf(3, 2).Flags & GroundChange.Cleared, Is.EqualTo(GroundChange.Cleared), "the client holds the clearing");
             Assert.That(Ask(rig, OnGround(WorkKind.ClearGround, 3, 2)).Outcome, Is.EqualTo(VerbOutcome.WontWork), "cleared already");
             Assert.That(Ask(rig, OnGround(WorkKind.StripTrunk, 3, 2)).Outcome, Is.EqualTo(VerbOutcome.NotNow), "a thing's work names no cell");

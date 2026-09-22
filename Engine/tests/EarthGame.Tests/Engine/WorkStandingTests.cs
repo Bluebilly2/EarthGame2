@@ -49,7 +49,7 @@ namespace EarthGame.Tests.Engine
             return new GroundSite
             {
                 Row = row, Col = col, CoverCode = code, Cover = cover, Quarter = quarter,
-                Tufts = Tufts.OnCell(code, 4.0, row, col), Understory = understory, SoilDepthM = soilM, WaterDepthM = waterM,
+                Tufts = Tufts.OnCell(code, 4.0, row, col), CellM = 4.0, Understory = understory, SoilDepthM = soilM, WaterDepthM = waterM,
                 Centre = new Double3(0, 0, 0),
             };
         }
@@ -154,6 +154,32 @@ namespace EarthGame.Tests.Engine
             GroundSite half = site;
             half.TuftsTaken = 1;
             Assert.That(Work.JudgeGround(WorkKind.ClearGround, null, default, half).Seconds, Is.EqualTo(Work.ClearSecondsPerTuft * (left - 1)), "one taken already, one less to clear");
+
+            // A tuft the place keeps from standing (inside a trunk, in water) is not there to clear, nor to bundle.
+            GroundSite kept = site;
+            kept.Absent = 0b101;
+            Assert.That(kept.TuftsLeft, Is.EqualTo(left - 2), "two tufts the place keeps");
+            Assert.That(kept.Stands(0) || kept.Stands(2), Is.False);
+            Assert.That(Work.JudgeGround(WorkKind.ClearGround, null, default, kept).Seconds, Is.EqualTo(Work.ClearSecondsPerTuft * (left - 2)));
+            GroundResult keptResult = Work.ApplyGround(WorkKind.ClearGround, null, default, kept, 9);
+            Assert.That(keptResult.Made.Count, Is.EqualTo(left - 2), "no bundle for a tuft that was never there");
+            Assert.That(keptResult.TuftsTaken & 0b101, Is.EqualTo(0), "nor is it marked taken");
+
+            // Each bundle lies where its tuft stood, by the cell's own size: a 10 m cell's tufts spread five metres from its centre.
+            GroundSite wide = Site(GroundCover.Grass, 3, PlantSpecies.KangarooGrass, 0.6);
+            wide.CellM = 10.0;
+            wide.Tufts = Tufts.OnCell(wide.CoverCode, 10.0, wide.Row, wide.Col);
+            GroundResult wideResult = Work.ApplyGround(WorkKind.ClearGround, null, default, wide, 9);
+            int w = 0;
+            for (int k = 0; k < Math.Min(wide.Tufts.Count, WorldChanges.MostTufts); k++)
+            {
+                if (!wide.Stands(k)) continue;
+                StandLayout.Place(wide.Row, wide.Col, StandLayout.Kind.Tuft, k, 1000, out int eastCm, out int northCm, out _);
+                Assert.That(wideResult.Made[w].AcrossM, Is.EqualTo(eastCm / 100.0).Within(1e-9), "tuft " + k + " east of the centre");
+                Assert.That(wideResult.Made[w].AlongM, Is.EqualTo(northCm / 100.0).Within(1e-9), "tuft " + k + " north of the centre");
+                w++;
+            }
+            Assert.That(w, Is.EqualTo(wideResult.Made.Count));
         }
 
         [Test]

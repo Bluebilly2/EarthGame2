@@ -139,6 +139,12 @@ namespace EarthGame.Tests.Engine
                 if (found) outside++; else inside++;
             }
             Assert.That(outside + inside, Is.EqualTo(treeCell.Count));
+            // The ground of the tree's cell counts only the tufts that stand (review, 2026-09-23): the ones inside the bark are the place's.
+            Assert.That(StandingThings.TryGround(world, TreeRow, TreeCol, out GroundSite treeGround), Is.True);
+            Assert.That(treeGround.CellM, Is.EqualTo(world.Cover.CellM));
+            for (int k = 0; k < treeCell.Count; k++)
+                Assert.That((treeGround.Absent & (1 << k)) != 0, Is.EqualTo(!StandingThings.TryFindTuft(world, TreeRow, TreeCol, k, out _)), "tuft " + k + ": absent exactly when the server finds none");
+            Assert.That(treeGround.TuftsLeft, Is.EqualTo(outside), "the tufts left are the ones that stand");
         }
 
         [Test]

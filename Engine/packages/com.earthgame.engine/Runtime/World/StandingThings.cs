@@ -47,6 +47,14 @@ namespace EarthGame.Engine
         public CellTufts Tufts;
         /// <summary>The tufts taken, bits by index (<see cref="WorldChanges"/>).</summary>
         public ushort TuftsTaken;
+        /// <summary>
+        /// The tufts the place keeps from standing, bits by index (BF.3, found on review 2026-09-23): inside the cell's trunk,
+        /// or in water deeper than their shape stands in, as <see cref="StandingThings.TryFindTuft"/> finds them. The server
+        /// fills it; a client, which holds no understorey and judges only an offer, leaves it empty.
+        /// </summary>
+        public ushort Absent;
+        /// <summary>The cell's size, m: where each of its tufts stands inside it, and so where a clearing's bundles lie.</summary>
+        public double CellM;
         public bool Cleared;
         public byte DugCm;
         public double SoilDepthM;
@@ -64,13 +72,13 @@ namespace EarthGame.Engine
                 if (Cleared) return 0;
                 int left = 0;
                 int count = Math.Min(Tufts.Count, WorldChanges.MostTufts);
-                for (int k = 0; k < count; k++) if ((TuftsTaken & (1 << k)) == 0) left++;
+                for (int k = 0; k < count; k++) if ((TuftsTaken & (1 << k)) == 0 && (Absent & (1 << k)) == 0) left++;
                 return left;
             }
         }
 
         /// <summary>Whether the k-th tuft still stands on the cell.</summary>
-        public bool Stands(int k) => !Cleared && k >= 0 && k < Math.Min(Tufts.Count, WorldChanges.MostTufts) && (TuftsTaken & (1 << k)) == 0;
+        public bool Stands(int k) => !Cleared && k >= 0 && k < Math.Min(Tufts.Count, WorldChanges.MostTufts) && (TuftsTaken & (1 << k)) == 0 && (Absent & (1 << k)) == 0;
     }
 
     /// <summary>
@@ -185,11 +193,20 @@ namespace EarthGame.Engine
             site.Cover = GroundCovers.CoverOf(code);
             site.Quarter = GroundCovers.QuarterOf(code);
             site.Tufts = Tufts.OnCell(code, cover.CellM, row, col);
+            site.CellM = cover.CellM;
             if (world.Changes.TryGet(row, col, out CellChange change))
             {
                 site.TuftsTaken = change.Tufts;
                 site.Cleared = (change.GroundFlags & GroundChange.Cleared) != 0;
                 site.DugCm = change.DugCm;
+            }
+            // The tufts the place keeps from standing (inside the trunk, in water), found as a tuft is found, so a clearing counts
+            // and bundles only what the client drew.
+            if (!site.Cleared)
+            {
+                int most = Math.Min(site.Tufts.Count, WorldChanges.MostTufts);
+                for (int k = 0; k < most; k++)
+                    if ((site.TuftsTaken & (1 << k)) == 0 && !TryFindTuft(world, row, col, k, out _)) site.Absent |= (ushort)(1 << k);
             }
             site.SoilDepthM = Inside(world.SoilDepth, row, col) ? world.SoilDepth[row, col] : 0.0;
             site.Understory = UnderstoryAt(world, row, col);

@@ -364,6 +364,7 @@ namespace EarthGame.Client
             site.Cover = GroundCovers.CoverOf(code);
             site.Quarter = GroundCovers.QuarterOf(code);
             site.Tufts = Tufts.OnCell(code, cellM, row, col);
+            site.CellM = cellM;
             if (_client.Changes.TryGet(row, col, out CellChange change))
             {
                 site.TuftsTaken = change.Tufts;
@@ -396,28 +397,15 @@ namespace EarthGame.Client
             return Work.First(Work.GroundOffers(tool, toolState, site));
         }
 
-        /// <summary>The work intent the press begins: on the thing aimed at, the trunk, the tuft or the ground, or, with nothing aimed at and a strip in hand, the twist.</summary>
+        /// <summary>
+        /// The work intent the press begins, in the order the verb line offers them: the thing aimed at (an item, one of the
+        /// litter); else, with a strip or a cord in hand, the twist on a strip carried in another place (BF.2), which is about
+        /// the hands and not the eye, so a tuft or a trunk in view does not take it (review, 2026-09-23); else the trunk; else
+        /// the tuft; else, when the tuft has nothing to be done to it, the ground under the crosshair.
+        /// </summary>
         private bool TryWorkIntent(CarryingMessage carrying, out IntentMessage intent)
         {
             intent = default;
-            if (TargetTrunk.HasValue)
-            {
-                TrunkNearby trunk = TargetTrunk.Value;
-                TrunkTarget(trunk, out Definition kind, out ThingState state);
-                WorkOffer? offer = WorkOfferFor(carrying, kind, state);
-                if (!offer.HasValue) return false;
-                intent = new IntentMessage { Verb = Verb.Work, Kind = offer.Value.Kind, Target = IntentMessage.TargetTrunk, Row = trunk.Row, Col = trunk.Col };
-                return true;
-            }
-            if (TargetTuft.HasValue)
-            {
-                UnderstoreyTuft tuft = TargetTuft.Value;
-                if (!TuftTarget(tuft, out Definition kind, out ThingState state)) return false;
-                WorkOffer? offer = WorkOfferFor(carrying, kind, state);
-                if (!offer.HasValue) return false;
-                intent = new IntentMessage { Verb = Verb.Work, Kind = offer.Value.Kind, Target = IntentMessage.TargetTuft, Row = tuft.Row, Col = tuft.Col, Index = tuft.Index };
-                return true;
-            }
             if (Target != null)
             {
                 WorkOffer? offer = WorkOfferFor(carrying, Target.Definition, Target.HasItem ? Target.Item.State : default);
@@ -439,6 +427,29 @@ namespace EarthGame.Client
                 intent = new IntentMessage { Verb = Verb.Work, Kind = WorkKind.Twist, Target = IntentMessage.TargetPlace, Place = place };
                 return true;
             }
+            if (TargetTrunk.HasValue)
+            {
+                TrunkNearby trunk = TargetTrunk.Value;
+                TrunkTarget(trunk, out Definition kind, out ThingState state);
+                WorkOffer? offer = WorkOfferFor(carrying, kind, state);
+                if (!offer.HasValue) return false;
+                intent = new IntentMessage { Verb = Verb.Work, Kind = offer.Value.Kind, Target = IntentMessage.TargetTrunk, Row = trunk.Row, Col = trunk.Col };
+                return true;
+            }
+            if (TargetTuft.HasValue)
+            {
+                UnderstoreyTuft tuft = TargetTuft.Value;
+                if (TuftTarget(tuft, out Definition kind, out ThingState state))
+                {
+                    WorkOffer? offer = WorkOfferFor(carrying, kind, state);
+                    if (offer.HasValue)
+                    {
+                        intent = new IntentMessage { Verb = Verb.Work, Kind = offer.Value.Kind, Target = IntentMessage.TargetTuft, Row = tuft.Row, Col = tuft.Col, Index = tuft.Index };
+                        return true;
+                    }
+                }
+                // A tuft with nothing to be done to it (a woody heath bush) leaves the work button to the ground it stands on.
+            }
             if (GroundCell.HasValue)
             {
                 WorkOffer? ground = GroundOfferFor(carrying);
@@ -458,7 +469,8 @@ namespace EarthGame.Client
 
         /// <summary>
         /// What the crosshair is on within reach: the nearest thing, an entity or one of the litter (M1.5b), or else the
-        /// ground. A thing in front of the ground hides it, whether or not the thing is in reach.
+        /// ground. A thing in front of the ground hides it, whether or not the thing is in reach; a trunk (BF.3) hides it too,
+        /// and a tuft of the understorey does not.
         /// </summary>
         private void Aim()
         {
@@ -491,7 +503,7 @@ namespace EarthGame.Client
             if (PickLying(ray, body, ref nearestM, out lying)) which = 2;
             // A tuft is met by its bounds, which are a metre across on a bracken floor and hide whatever lies among them: a thing,
             // an item or one of the litter, is offered before a tuft whenever the ray meets one within reach, so what was put down
-            // in the understorey can be taken up again; a tuft is offered before the trunk or the ground behind it by distance.
+            // in the understorey can be taken up again; a tuft in front of a trunk is offered before it.
             UnderstoreyTuft tuftHit = default;
             if (which != 1 && which != 2 && _understorey != null && _understorey.Pick(ray, (float)Hands.ReachM, ref nearestM, out tuftHit)) which = 3;
             switch (which)
@@ -508,9 +520,13 @@ namespace EarthGame.Client
                 }
                 case 3:
                 {
+                    // A tuft hides nothing (review, 2026-09-23): its bounds are a box of air round a few blades, and a founder looking
+                    // through the grass at the ground or the water means them. The tuft takes the work button; use still puts a thing
+                    // down on the ground or drinks the water behind it. A trunk behind the tuft hides what lies beyond, as ever.
                     Double3 at = new Double3(tuftHit.East, tuftHit.Up, tuftHit.North);
                     if (Double3.Distance(body, at) <= Hands.ReachM + TuftReachM) TargetTuft = tuftHit;
-                    return;
+                    if (onTrunk) return;
+                    break;
                 }
                 case 4:
                 {
@@ -624,6 +640,10 @@ namespace EarthGame.Client
                 if (work.HasValue) return name + " — hold to " + work.Value.Words + (full ? "" : "; use to pick up");
                 return name + " — " + (full ? "your hands are full" : "pick up");
             }
+            // What use does where the crosshair meets water or the ground, which a tuft does not hide (review, 2026-09-23).
+            string use = WaterAt.HasValue ? "use to drink"
+                       : Ground.HasValue && TryInHand(carrying, out CarriedThing toPut) ? "use to put down " + The(toPut.Definition.DisplayName) : string.Empty;
+            if (TryTwist(carrying, out _, out WorkOffer twist)) return Join("hold to " + twist.Words, use);
             // The standing world (BF.3): a trunk or a tuft named by what it is, with the first work that can be done to it.
             if (TargetTrunk.HasValue)
             {
@@ -634,24 +654,26 @@ namespace EarthGame.Client
                 WorkOffer? work = WorkOfferFor(carrying, kind, state);
                 return work.HasValue ? name + " — hold to " + work.Value.Words : name;
             }
+            // The ground (BF.3): cleared with empty hands, dug with a pointed stick; a thing in hand is put down on it.
+            WorkOffer? ground = GroundCell.HasValue ? GroundOfferFor(carrying) : null;
             if (TargetTuft.HasValue)
             {
                 UnderstoreyTuft tuft = TargetTuft.Value;
-                string name = Tufts.NameOf(tuft.Shape);
-                if (!TuftTarget(tuft, out Definition kind, out ThingState state)) return name;
-                WorkOffer? work = WorkOfferFor(carrying, kind, state);
-                return work.HasValue ? name + " — hold to " + work.Value.Words : name;
+                WorkOffer? work = TuftTarget(tuft, out Definition kind, out ThingState state) ? WorkOfferFor(carrying, kind, state) : null;
+                // A tuft with nothing to be done to it leaves the work button to the ground it stands on.
+                string hold = work.HasValue ? "hold to " + work.Value.Words : ground.HasValue ? "hold to " + ground.Value.Words : string.Empty;
+                string both = Join(hold, use);
+                return both.Length > 0 ? Tufts.NameOf(tuft.Shape) + " — " + both : Tufts.NameOf(tuft.Shape);
             }
-            if (TryTwist(carrying, out _, out WorkOffer twist))
-                return "hold to " + twist.Words + (Ground.HasValue && TryInHand(carrying, out CarriedThing strip) ? "; use to put down " + The(strip.Definition.DisplayName) : "");
             if (WaterAt.HasValue) return "water — drink";
-            // The ground (BF.3): cleared with empty hands, dug with a pointed stick; and a thing in hand is put down on it.
-            WorkOffer? ground = GroundCell.HasValue ? GroundOfferFor(carrying) : null;
             if (Ground.HasValue && TryInHand(carrying, out CarriedThing held))
                 return (ground.HasValue ? "the ground — hold to " + ground.Value.Words + "; " : "") + "put down " + The(held.Definition.DisplayName);
             if (ground.HasValue) return "the ground — hold to " + ground.Value.Words;
             return string.Empty;
         }
+
+        /// <summary>Two parts of the verb line, joined by a semicolon, either left out when empty.</summary>
+        private static string Join(string a, string b) => a.Length == 0 ? b : b.Length == 0 ? a : a + "; " + b;
 
         /// <summary>The place the wheel moves the hand to: through the places that hold something, in order, and the empty hand after the last.</summary>
         private static byte Step(CarryingMessage carrying, int step)

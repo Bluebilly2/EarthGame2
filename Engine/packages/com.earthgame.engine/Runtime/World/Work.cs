@@ -633,7 +633,8 @@ namespace EarthGame.Engine
                 {
                     int count = Math.Min(site.Tufts.Count, WorldChanges.MostTufts);
                     double moisture = LyingProperties.MoistureByQuarter[Tufts.Quarter(site.Quarter)];
-                    int cellCm = 400;
+                    if (!(site.CellM > 0.0)) throw new ArgumentOutOfRangeException(nameof(site), "a ground site names its cell's size; this one's is " + site.CellM);
+                    int cellCm = (int)Math.Round(site.CellM * 100.0);
                     int bundles = 0;
                     for (int k = 0; k < count; k++)
                     {

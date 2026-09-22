@@ -628,6 +628,9 @@ namespace EarthGame.Client
                         StandPreparation.TrunkFlagsIn(_client.Changes, stand, _client.Grid), changed);
         }
 
+        /// <summary>What of each changed cell has been drawn (BF.3): its tufts taken, its trunk's flags and its ground's, so a change that alters none of them is drawn once.</summary>
+        private readonly Dictionary<long, (ushort Tufts, byte TrunkFlags, byte GroundFlags)> _drawnChanges = new Dictionary<long, (ushort, byte, byte)>();
+
         /// <summary>How many times a trunk of each tile had changed (BF.3), so a stripped or felled trunk places its tile again.</summary>
         private readonly Dictionary<TileId, int> _changesVersions = new Dictionary<TileId, int>();
 
@@ -640,8 +643,13 @@ namespace EarthGame.Client
         /// </summary>
         private void OnChanges(CellChange cell)
         {
-            if (cell.HasTuft || cell.HasGround) _understorey?.MarkChanged();
-            if (cell.HasTrunk && _client?.Tiles != null && _client.Grid != null)
+            // Only what changes the drawing places anything again (review, 2026-09-23): a felling cut is told every second, and its
+            // progress is no part of how the tree is drawn, so until then it re-placed the whole tile's stand every second.
+            long key = LooseTaken.Key(cell.Row, cell.Col);
+            _drawnChanges.TryGetValue(key, out (ushort Tufts, byte TrunkFlags, byte GroundFlags) drawn);
+            _drawnChanges[key] = (cell.Tufts, cell.TrunkFlags, cell.GroundFlags);
+            if (cell.Tufts != drawn.Tufts || cell.GroundFlags != drawn.GroundFlags) _understorey?.MarkChanged();
+            if (cell.TrunkFlags != drawn.TrunkFlags && _client?.Tiles != null && _client.Grid != null)
                 foreach (TileId id in new List<TileId>(_client.Tiles.Held.Keys))
                 {
                     ReceivedTile stand = _client.Tiles.Holding(TileLayer.Stand, id);
