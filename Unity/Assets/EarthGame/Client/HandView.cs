@@ -66,7 +66,7 @@ namespace EarthGame.Client
                 return;
             }
             _filter.sharedMesh = mesh;
-            bool stick = definition.Substance == Substance.Wood;
+            bool stick = definition.Substance == Substance.Wood || definition.Substance == Substance.Bark || definition.Substance == Substance.Cord;
             bool flake = DefinitionCatalogue.IsFlake(definition);
             _restAt = stick ? StickAt : flake ? FlakeAt : StoneAt;
             _restTurn = stick ? StickTurn : flake ? FlakeTurn : Quaternion.identity;

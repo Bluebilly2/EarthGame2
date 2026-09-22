@@ -50,6 +50,20 @@ namespace EarthGame.Tests.Engine
         }
 
         [Test]
+        public void BarkIsNamedByItsDrynessAndCordByItsLength()
+        {
+            ThingState strip = default;
+            strip.SetLength(0.3f);
+            strip.SetMoisture(0.25f);
+            Assert.That(ThingWords.Describe(DefinitionCatalogue.BarkOf(PlantSpecies.Bangalay), strip), Is.EqualTo("a strip of bangalay bark, damp"));
+            ThingState cord = default;
+            cord.SetLength(0.27f);
+            cord.SetMass(0.05f);
+            Assert.That(ThingWords.Describe(DefinitionCatalogue.Cord, cord), Is.EqualTo("a cord, forearm-long"));
+            Assert.That(ThingWords.Describe(DefinitionCatalogue.Cord, default), Is.EqualTo("a cord"));
+        }
+
+        [Test]
         public void TheMassSaidIsTheThingsOwnElseItsKinds()
         {
             ThingState own = default;

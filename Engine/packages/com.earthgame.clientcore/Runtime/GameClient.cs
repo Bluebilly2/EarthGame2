@@ -162,6 +162,9 @@ namespace EarthGame.ClientCore
         public event Action<IntentResultMessage> IntentAnswered;
         /// <summary>What this founder carries changed, or was told at the join (M1.5a).</summary>
         public event Action<CarryingMessage> CarryingChanged;
+        /// <summary>The founder's own work as the server last told it (BF.2): its progress, or its end with the words.</summary>
+        public WorkStateMessage WorkState { get; private set; }
+        public event Action<WorkStateMessage> WorkStateChanged;
         /// <summary>The founder's state as the server tells it (FP.1): once a second, and at every change that matters.</summary>
         public event Action<FounderStateMessage> FounderStateChanged;
         /// <summary>The founder died (FP.2): what killed them and the numbers, for the sentence the screen shows.</summary>
@@ -495,6 +498,14 @@ namespace EarthGame.ClientCore
                         reader.ExpectEnd();
                         Carrying = carrying;
                         CarryingChanged?.Invoke(carrying);
+                        break;
+                    }
+                    case MessageKind.WorkState:
+                    {
+                        WorkStateMessage state = WorkStateMessage.Read(reader);
+                        reader.ExpectEnd();
+                        WorkState = state;
+                        WorkStateChanged?.Invoke(state);
                         break;
                     }
                     case MessageKind.FounderState:

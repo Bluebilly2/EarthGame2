@@ -1,6 +1,6 @@
 # Contract BF.2 — Work
 
-**Status:** drafted 2026-09-22, the second of the beta's foundations (`Docs/BETA_MAP.md` §7, CANON ruling 41), on BF.1.
+**Status:** drafted and built 2026-09-22, the second of the beta's foundations (`Docs/BETA_MAP.md` §7, CANON ruling 41), on BF.1.
 Owner: Claude. William's lane: the frames of the new things (bark strips, cord, a pointed stick) and, when he plays, the
 feel of a hold that does something over seconds.
 
@@ -89,6 +89,38 @@ the knap.
 - Docs in the same commit: ARCHITECTURE §5 (work), §10 (protocol 18, the `WorkState` message, the verbs); DEBTS: the
   carving rate to measure, the pointed stick's look; BETA_MAP §7 marks BF.2 built.
 
-## Exit
+## What changed on the way
 
-The promises kept with the counts as run, or "What changed on the way" saying which was not and why.
+- **The built run strips, twists and breaks; it does not knap or point.** The point wants an edge in hand, which wants a
+  knap first, and the scenario's wake has no silcrete to hand; the point is proved by the server's tests
+  (`WorkServerTests`, `WorkTests`) and its built run is a DEBTS row for the fire kit's scenario, which knaps and carves.
+  The break found nothing thin enough within reach of the wake (the swamp paperbark sticks there are wrist-thick) and
+  said so in the log rather than failing: the break is proved by the tests, and the scenario breaks when a thin stick lies
+  near.
+- A record's own key is `kind`; the work records name their work under `work`.
+- Bark is named by its dryness and cord by its length (`ThingWords`), so the hand's cord says "forearm-long".
+
+## Exit record (2026-09-22)
+
+1. `Work.Judge`, `Offers`, `First`, `Apply` (`WorkTests`, 6 tests): the bangalay stick breaks at 18 mm and not at 35, in
+   words; bark strips only from a tree whose bark strips and only once; a point wants an edge ≥ 0.2 and a stick under
+   30 mm and takes 1.8× longer in blackbutt than in coast banksia; cord wants a strip in another place and grows by the
+   strip; the offers come in the stated order.
+2. The four works by their numbers as promised; the moment, the rates and the shares as stated in the contract.
+3. `Verb.Work` (6), `Verb.StopWork` (7), `IntentResult.Seconds`, `WorkState` (25), outcomes 15 and 16, protocol 18
+   (`WorkWireTests`, 3 tests); `WorkInProgress` on the session, `AdvanceWork` at the body's capacity, stopped on a move
+   of half a metre, a vanished target and a changed hand, told once a second, applied at the end (`WorkServerTests`,
+   5 tests: two sticks from one where it lay; strips beside a stick of the litter taken from the layer and lying on
+   stripped; cord in the hand where the strip was and told to the client with its length).
+4. The client's press and release, the offer's words, the bar, the twist with nothing aimed at (`VerbController`).
+5. `StandMeshes.Strip` and `Cord`, drawn by `ItemLooks` (`ItemLooksTests`, edit mode, passed); frames from the work run
+   at 1440p and 1080p (`Artefacts/frames/work-20260922T094504Z/frames/`), for William's eyes.
+6. The work run on the harness build (BF.2, 16e8e17e6+dirty): a swamp paperbark stick of the litter, "a pace long,
+   wrist-thick, sodden", stripped in 5.6 s into three strips, two of them laid into cord in 15 s, "two strips laid into
+   cord, forearm-long", the hand holding "a cord, forearm-long"; 0 errors, 0 corrections, 4 frames; `save_check.py`
+   GREEN on its world (one thing carried, one taken), `tile_check.py` GREEN on its cache.
+
+Counts as run: `dotnet test Engine/tests/EarthGame.Tests` 795 passed, 0 failed (780 before; 15 new); sabotage three of
+three caught (the knee's moment doubled: 1 of 17 failed; the capacity ignored: 1 of 5; the strip spent with no cord: 2
+of 22), each file restored byte for byte; the Unity-shaped compile green; edit mode 10 of the project's 10 (the untracked
+probe's failure as before).

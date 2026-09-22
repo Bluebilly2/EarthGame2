@@ -57,6 +57,9 @@ namespace EarthGame.Server
         public readonly Dictionary<ulong, long> Interest = new Dictionary<ulong, long>();
         /// <summary>What this founder carries and which place is the hand (M1.5a), taken over from the saved player at the join.</summary>
         public readonly Hands Hands = new Hands();
+
+        /// <summary>The founder's work in progress (BF.2), or null; never saved.</summary>
+        public WorkInProgress Work;
         /// <summary>The water in this founder's body (FP.1), lost on the world's clock, restored from their save at the join.</summary>
         public readonly Hydration Hydration = new Hydration();
         /// <summary>The warmth of this founder's body (FP.2): its core and the heat balance, run every step in the surroundings below.</summary>

@@ -21,8 +21,10 @@ namespace EarthGame.Tests.Engine
                 Assert.That(DefinitionCatalogue.ById(d.Id), Is.SameAs(d));
                 Assert.That(DefinitionCatalogue.ByKey(d.Key), Is.SameAs(d));
             }
-            Assert.That(DefinitionCatalogue.All.Count, Is.EqualTo(1 + PlantSpecies.All.Count + StoneType.All.Count + AnimalSpecies.All.Count + 2 + 2 * StoneType.All.Count + StandCodes.Tall.Count),
-                "the player, the tables, the plain cobble and the stick, a cobble and a flake of every stone, and a stick of every tall plant (BF.1)");
+            int barks = 0;
+            foreach (PlantSpecies tall in StandCodes.Tall) if (tall.StrippableBarkM > 0.0) barks++;
+            Assert.That(DefinitionCatalogue.All.Count, Is.EqualTo(1 + PlantSpecies.All.Count + StoneType.All.Count + AnimalSpecies.All.Count + 2 + 2 * StoneType.All.Count + StandCodes.Tall.Count + barks + 1),
+                "the player, the tables, the plain cobble and the stick, a cobble and a flake of every stone, a stick of every tall plant (BF.1), a bark strip of every tree whose bark strips and the cord (BF.2)");
         }
 
         [Test]
@@ -45,6 +47,8 @@ namespace EarthGame.Tests.Engine
             foreach (StoneType stone in StoneType.All) items.Add(DefinitionCatalogue.CobbleOf(stone));
             foreach (StoneType stone in StoneType.All) items.Add(DefinitionCatalogue.FlakeOf(stone));
             foreach (PlantSpecies tall in StandCodes.Tall) items.Add(DefinitionCatalogue.StickOf(tall));
+            foreach (PlantSpecies tall in StandCodes.Tall) if (tall.StrippableBarkM > 0.0) items.Add(DefinitionCatalogue.BarkOf(tall));
+            items.Add(DefinitionCatalogue.Cord);
             Assert.That(DefinitionCatalogue.Spawnable, Is.EquivalentTo(items));
             foreach (Definition d in DefinitionCatalogue.Spawnable)
             {

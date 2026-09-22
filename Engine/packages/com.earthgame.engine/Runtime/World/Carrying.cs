@@ -20,6 +20,10 @@ namespace EarthGame.Engine
         /// another place. The wind-up says how hard; the stone decides the rest (<see cref="Knapping.Strike"/>).
         /// </summary>
         Knap = 5,
+        /// <summary>Begin a work (BF.2): its kind on its target, an entity, a lying thing or a place of the hands; the server judges it and runs it over its seconds.</summary>
+        Work = 6,
+        /// <summary>Let go of the work in progress (BF.2).</summary>
+        StopWork = 7,
     }
 
     /// <summary>What came of an intent (M1.5a). Wire-visible and never renumbered.</summary>
@@ -49,6 +53,10 @@ namespace EarthGame.Engine
         NoHammer = 13,
         /// <summary>The thing aimed at is no stone to knap (FP.3): a stick, or a cobble of no stone the country names.</summary>
         NotStone = 14,
+        /// <summary>The hand lacks what the work needs (BF.2): an edge to carve with, a strip to lay cord with. The words say which.</summary>
+        NoTool = 15,
+        /// <summary>The thing's own properties refuse the work (BF.2): too thick to break, no bark to strip, already pointed. The words say why.</summary>
+        WontWork = 16,
     }
 
     /// <summary>A thing a founder carries: out of the world, in one of the hands' places, keeping the id it had lying down.</summary>
@@ -254,6 +262,17 @@ namespace EarthGame.Engine
             if (place > Places) return VerbOutcome.NoSuchPlace;
             Hand = place;
             return VerbOutcome.Done;
+        }
+
+        /// <summary>Puts a thing into a place, in place of whatever was there (BF.2: the cord laid where the strip was); the hand takes the place when it had none.</summary>
+        public void Put(byte place, CarriedThing thing)
+        {
+            if (place < 1 || place > Places) throw new ArgumentOutOfRangeException(nameof(place), "a place is 1 to " + Places + ", not " + place);
+            if (thing.Definition == null) throw new ArgumentException("a thing put into the hands has no definition", nameof(thing));
+            Remove(place);
+            thing.Place = place;
+            Insert(thing);
+            if (Hand == 0) Hand = place;
         }
 
         private void Insert(CarriedThing thing)

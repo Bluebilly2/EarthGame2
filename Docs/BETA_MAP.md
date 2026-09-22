@@ -297,6 +297,8 @@ does. The order is the dependency order; leverage decides ties.
    **Built 2026-09-22** (`contracts/BF.1_THINGS_WITH_PROPERTIES.md`): the stone layer travels as a tile with it.
 2. **BF.2 Work** (F2). The process model on the server; the first processes: break, strip, cut, point, split, twist;
    knapping folded in; the offer by the rule. With BF.1 this makes fibre and cord (G4) and the fire kit's parts.
+   **Built 2026-09-22** (`contracts/BF.2_WORK.md`): break, strip, point and twist; split and notch wait for the fire's
+   kit; the knap stays a blow of its own, the offer rule shared.
 3. **BF.3 The world changes** (F3). The change record, tile re-encoding, felling and fallen wood, clearing, digging,
    a plant's yield spent.
 4. **BF.4 The ground below the data** (F4). Relief below 4 m on both sides; rock that stands; ground condition; the

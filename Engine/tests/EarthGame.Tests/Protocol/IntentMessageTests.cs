@@ -191,8 +191,9 @@ namespace EarthGame.Tests.Protocol
             m.Sequence = 41;
             m.Outcome = VerbOutcome.HandsFull;
             m.Note = null;
+            m.Seconds = 0f;
             m.Write(w);
-            Assert.That(w.Written.Length, Is.EqualTo(1 + 4 + 1 + 2), "an answer with no words carries an empty string's length");
+            Assert.That(w.Written.Length, Is.EqualTo(1 + 4 + 1 + 2 + 4), "an answer with no words carries an empty string's length, and its seconds (BF.2)");
             PacketReader r = Reader(w);
             IntentResultMessage back = IntentResultMessage.Read(r);
             r.ExpectEnd();

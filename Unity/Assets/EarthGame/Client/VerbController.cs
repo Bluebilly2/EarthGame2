@@ -73,6 +73,8 @@ namespace EarthGame.Client
         private float _now;
         private bool _workHeld;
         private float _workSince;
+        /// <summary>Whether a work (BF.2) was begun on the press and not yet let go or ended.</summary>
+        private bool _working;
 
         /// <summary>The thing under the crosshair within reach, or null.</summary>
         public EntityView Target { get; private set; }
@@ -114,12 +116,14 @@ namespace EarthGame.Client
             {
                 _client.IntentAnswered -= OnAnswered;
                 _client.CarryingChanged -= OnCarrying;
+                _client.WorkStateChanged -= OnWorkState;
             }
             _client = client;
             _entities = entities;
             if (_client == null) return;
             _client.IntentAnswered += OnAnswered;
             _client.CarryingChanged += OnCarrying;
+            _client.WorkStateChanged += OnWorkState;
             OnCarrying(_client.Carrying);
         }
 
@@ -140,6 +144,14 @@ namespace EarthGame.Client
             if (!string.IsNullOrEmpty(result.Note)) Note(result.Note, NoteSeconds);
             else if (result.Outcome == VerbOutcome.Done) _answer = string.Empty;
             else Note(Say(result.Outcome));
+        }
+
+        /// <summary>A work's end (BF.2): done or stopped, the server's words are said; while it runs the line is its bar.</summary>
+        private void OnWorkState(WorkStateMessage state)
+        {
+            if (state.Ended == WorkStateMessage.Running) return;
+            _working = false;
+            if (!string.IsNullOrEmpty(state.Note)) Note(state.Note, NoteSeconds);
         }
 
         private void OnCarrying(CarryingMessage carrying)
@@ -188,12 +200,31 @@ namespace EarthGame.Client
             else if (presses.HandStep != 0) _client.SendIntent(new IntentMessage { Verb = Verb.Hold, Place = Step(carrying, presses.HandStep) });
 
             Aim();
-            // The work button (FP.3): held, the arm winds up; let go, the stone in hand comes down on the stone aimed at.
-            if (presses.Work && !_workHeld) _workSince = now;
-            WindUp01 = presses.Work ? Mathf.Clamp01((now - _workSince) / WindUpSeconds) : 0f;
-            if (!presses.Work && _workHeld) Strike(carrying, Mathf.Clamp01((now - _workSince) / WindUpSeconds));
+            // The work button: with a stone in hand on stone it is the knap's wind-up (FP.3): held, the arm winds up; let go, the
+            // stone comes down. On anything with an offer it is work (BF.2): begun on the press, let go on the release, run and
+            // timed by the server, which says how it went.
+            bool knapping = KnapApplies(carrying);
+            if (presses.Work && !_workHeld)
+            {
+                _workSince = now;
+                if (!knapping && TryWorkIntent(carrying, out IntentMessage start))
+                {
+                    _client.SendIntent(start);
+                    _working = true;
+                }
+            }
+            WindUp01 = presses.Work && knapping ? Mathf.Clamp01((now - _workSince) / WindUpSeconds) : 0f;
+            if (!presses.Work && _workHeld)
+            {
+                if (knapping) Strike(carrying, Mathf.Clamp01((now - _workSince) / WindUpSeconds));
+                if (_working)
+                {
+                    _client.SendIntent(new IntentMessage { Verb = Verb.StopWork });
+                    _working = false;
+                }
+            }
             _workHeld = presses.Work;
-            _hand?.WindUp(WindUp01);
+            _hand?.WindUp(knapping ? WindUp01 : _working ? 0.35f + 0.25f * Mathf.PingPong(now * 2.5f, 1f) : 0f);
             if (presses.Use)
             {
                 // The punch on use (M1.5c): the hand swings whether or not there is anything for it to do.
@@ -212,8 +243,80 @@ namespace EarthGame.Client
                     _client.SendIntent(new IntentMessage { Verb = Verb.PutDown, East = at.x, Up = at.y, North = at.z });
                 }
             }
-            Line = now < _answerUntil && _answer.Length > 0 ? _answer : Offer(carrying);
+            WorkStateMessage work = _client.WorkState;
+            Line = _working && work.Kind != WorkKind.None && work.Ended == WorkStateMessage.Running ? WorkLine(work)
+                 : now < _answerUntil && _answer.Length > 0 ? _answer : Offer(carrying);
             _hud?.SetVerb(Line);
+        }
+
+        /// <summary>Whether the work button is the knap's (FP.3): a stone in hand and stone aimed at.</summary>
+        private bool KnapApplies(CarryingMessage carrying) =>
+            TryInHand(carrying, out CarriedThing held) && KnappingItems.IsHammer(held.Definition)
+            && ((Target != null && KnappingItems.IsStone(Target.Definition)) || (TargetLying.HasValue && TargetLying.Value.Kind == StandLayout.Kind.Cobble));
+
+        /// <summary>The first work that can be done to a thing with what is in hand, by the engine's own judgement (BF.2), or none.</summary>
+        private WorkOffer? WorkOfferFor(CarryingMessage carrying, Definition target, in ThingState targetState)
+        {
+            Definition tool = null;
+            ThingState toolState = default;
+            if (TryInHand(carrying, out CarriedThing held))
+            {
+                tool = held.Definition;
+                toolState = held.Item.State;
+            }
+            return Work.First(Work.Offers(tool, toolState, target, targetState));
+        }
+
+        /// <summary>With a strip or a cord in hand, the twist offered on a strip in another place of the hands (BF.2).</summary>
+        private bool TryTwist(CarryingMessage carrying, out byte place, out WorkOffer offer)
+        {
+            place = 0;
+            offer = default;
+            if (!TryInHand(carrying, out CarriedThing held) || (held.Definition.Substance != Substance.Bark && held.Definition.Substance != Substance.Cord)) return false;
+            foreach (CarriedThing t in carrying.Things)
+            {
+                if (t.Place == carrying.Hand || t.Definition.Substance != Substance.Bark) continue;
+                offer = Work.Judge(WorkKind.Twist, held.Definition, held.Item.State, t.Definition, t.Item.State);
+                if (!offer.Possible) continue;
+                place = t.Place;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>The work intent the press begins: on the thing aimed at, or, with nothing aimed at and a strip in hand, the twist.</summary>
+        private bool TryWorkIntent(CarryingMessage carrying, out IntentMessage intent)
+        {
+            intent = default;
+            if (Target != null)
+            {
+                WorkOffer? offer = WorkOfferFor(carrying, Target.Definition, Target.HasItem ? Target.Item.State : default);
+                if (!offer.HasValue) return false;
+                intent = new IntentMessage { Verb = Verb.Work, Kind = offer.Value.Kind, Target = IntentMessage.TargetEntity, EntityId = Target.Id.Value };
+                return true;
+            }
+            if (TargetLying.HasValue)
+            {
+                LyingThing thing = TargetLying.Value;
+                LyingSite site = LyingSiteReader.Of(_client.Tiles, _client.Grid, thing);
+                WorkOffer? offer = WorkOfferFor(carrying, LyingProperties.DefinitionOf(thing.Kind, site), LyingProperties.StateOf(thing, site));
+                if (!offer.HasValue) return false;
+                intent = new IntentMessage { Verb = Verb.Work, Kind = offer.Value.Kind, Target = IntentMessage.TargetLying, Lying = thing };
+                return true;
+            }
+            if (TryTwist(carrying, out byte place, out _))
+            {
+                intent = new IntentMessage { Verb = Verb.Work, Kind = WorkKind.Twist, Target = IntentMessage.TargetPlace, Place = place };
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>The line while a work runs: its words, a bar of ten, and the seconds left at the body's capacity.</summary>
+        private static string WorkLine(WorkStateMessage state)
+        {
+            int filled = Mathf.Clamp(Mathf.RoundToInt(state.Progress01 * 10f), 0, 10);
+            return state.Note + "  " + new string('|', filled) + new string('.', 10 - filled) + "  " + Mathf.CeilToInt(state.SecondsLeft) + " s";
         }
 
         /// <summary>
@@ -332,18 +435,27 @@ namespace EarthGame.Client
             bool hammer = TryInHand(carrying, out CarriedThing inHand) && KnappingItems.IsHammer(inHand.Definition);
             if (Target != null)
             {
-                string name = ThingWords.Describe(Target.Definition, Target.HasItem ? Target.Item.State : default);
+                ThingState state = Target.HasItem ? Target.Item.State : default;
+                string name = ThingWords.Describe(Target.Definition, state);
                 if (hammer && KnappingItems.IsStone(Target.Definition)) return name + " — knap (hold to strike harder)" + (full ? "" : ", or pick up");
+                WorkOffer? work = WorkOfferFor(carrying, Target.Definition, state);
+                if (work.HasValue) return name + " — hold to " + work.Value.Words + (full ? "" : "; use to pick up");
                 return name + " — " + (full ? "your hands are full" : "pick up");
             }
             if (TargetLying.HasValue)
             {
                 LyingThing thing = TargetLying.Value;
                 LyingSite site = LyingSiteReader.Of(_client.Tiles, _client.Grid, thing);
-                string name = ThingWords.Describe(LyingProperties.DefinitionOf(thing.Kind, site), LyingProperties.StateOf(thing, site));
+                Definition kind = LyingProperties.DefinitionOf(thing.Kind, site);
+                ThingState state = LyingProperties.StateOf(thing, site);
+                string name = ThingWords.Describe(kind, state);
                 if (hammer && thing.Kind == StandLayout.Kind.Cobble) return name + " — knap (hold to strike harder)" + (full ? "" : ", or pick up");
+                WorkOffer? work = WorkOfferFor(carrying, kind, state);
+                if (work.HasValue) return name + " — hold to " + work.Value.Words + (full ? "" : "; use to pick up");
                 return name + " — " + (full ? "your hands are full" : "pick up");
             }
+            if (TryTwist(carrying, out _, out WorkOffer twist))
+                return "hold to " + twist.Words + (Ground.HasValue && TryInHand(carrying, out CarriedThing strip) ? "; use to put down " + The(strip.Definition.DisplayName) : "");
             if (WaterAt.HasValue) return "water — drink";
             if (Ground.HasValue && TryInHand(carrying, out CarriedThing held))
                 return "put down " + The(held.Definition.DisplayName);

@@ -68,7 +68,8 @@ namespace EarthGame.Client
         public static bool IsKnown(string scenario) => scenario == Scenario || scenario == CarryScenario || scenario == LitterScenario
                                                        || scenario == WadeScenario || scenario == ControlsScenario || scenario == SwimScenario
                                                        || scenario == TrunkScenario || scenario == DrinkScenario || scenario == NightScenario
-                                                       || scenario == LooksScenario || scenario == KnapScenario || scenario == IdleScenario || scenario == DuneScenario;
+                                                       || scenario == LooksScenario || scenario == KnapScenario || scenario == IdleScenario || scenario == DuneScenario
+                                                       || scenario == WorkScenario;
         private static readonly (int Width, int Height, string Tag)[] Sizes = { (2560, 1440, "1440p"), (1920, 1080, "1080p") };
 
         private string _dir;
@@ -141,7 +142,7 @@ namespace EarthGame.Client
                 : _scenario == TrunkScenario ? RunTrunk() : _scenario == ControlsScenario ? RunControls()
                 : _scenario == DrinkScenario ? RunDrink() : _scenario == NightScenario ? RunNight()
                 : _scenario == LooksScenario ? RunLooks() : _scenario == KnapScenario ? RunKnap()
-                : _scenario == IdleScenario ? RunIdle() : _scenario == DuneScenario ? RunDune() : Run());
+                : _scenario == IdleScenario ? RunIdle() : _scenario == DuneScenario ? RunDune() : _scenario == WorkScenario ? RunWork() : Run());
         }
 
         private double T => _clock.Elapsed.TotalSeconds;

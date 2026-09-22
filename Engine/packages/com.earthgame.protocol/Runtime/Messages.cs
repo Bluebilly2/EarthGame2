@@ -61,6 +61,8 @@ namespace EarthGame.Protocol
         /// the server answers with what it granted and whether it refused.
         /// </summary>
         DeveloperMode = 24,
+        /// <summary>Server → client (BF.2, protocol 18): a work's progress once a second, and its end, done or stopped, with the words.</summary>
+        WorkState = 25,
     }
 
     /// <summary>One tile of one layer the client wants, with the checksum of the copy it already holds (zero for none).</summary>
@@ -932,6 +934,8 @@ namespace EarthGame.Protocol
         public byte Place;
         /// <summary>How far a knap's swing was wound up (FP.3): 0 a tap, 255 the arm's full swing.</summary>
         public byte WindUp;
+        /// <summary>The kind of work a work intent begins (BF.2).</summary>
+        public WorkKind Kind;
 
         /// <summary>The wind-up as the physics takes it, 0 to 1.</summary>
         public double WindUp01 => WindUp / 255.0;
@@ -961,6 +965,12 @@ namespace EarthGame.Protocol
                 case Verb.Knap:
                     WriteTarget(w, "a knap", allowPlace: true);
                     w.WriteByte(WindUp);
+                    break;
+                case Verb.Work:
+                    WriteTarget(w, "a work", allowPlace: true);
+                    w.WriteByte((byte)Kind);
+                    break;
+                case Verb.StopWork:
                     break;
                 default:
                     throw new ProtocolException("verb " + (byte)Verb + " has no layout");
@@ -1009,6 +1019,13 @@ namespace EarthGame.Protocol
                     m.ReadTarget(r, "a knap", allowPlace: true);
                     m.WindUp = r.ReadByte();
                     break;
+                case Verb.Work:
+                    m.ReadTarget(r, "a work", allowPlace: true);
+                    m.Kind = (WorkKind)r.ReadByte();
+                    if (m.Kind == WorkKind.None || (byte)m.Kind > (byte)WorkKind.Twist) throw new ProtocolException("a work of kind " + (byte)m.Kind + " is not one this build knows");
+                    break;
+                case Verb.StopWork:
+                    break;
                 default:
                     throw new ProtocolException("verb " + (byte)m.Verb + " is not one this build knows");
             }
@@ -1045,6 +1062,8 @@ namespace EarthGame.Protocol
         public uint Sequence;
         public VerbOutcome Outcome;
         public string Note;
+        /// <summary>A started work's seconds at full capacity (BF.2, protocol 18); zero for every other answer.</summary>
+        public float Seconds;
 
         public void Write(PacketWriter w)
         {
@@ -1052,6 +1071,7 @@ namespace EarthGame.Protocol
             w.WriteUInt32(Sequence);
             w.WriteByte((byte)Outcome);
             w.WriteString(Note ?? string.Empty);
+            w.WriteSingle(Seconds);
         }
 
         public static IntentResultMessage Read(PacketReader r)
@@ -1059,7 +1079,51 @@ namespace EarthGame.Protocol
             IntentResultMessage m;
             m.Sequence = r.ReadUInt32();
             m.Outcome = (VerbOutcome)r.ReadByte();
-            if ((byte)m.Outcome > (byte)VerbOutcome.NotStone) throw new ProtocolException("intent outcome " + (byte)m.Outcome + " is not one this build knows");
+            if ((byte)m.Outcome > (byte)VerbOutcome.WontWork) throw new ProtocolException("intent outcome " + (byte)m.Outcome + " is not one this build knows");
+            m.Note = r.ReadString();
+            m.Seconds = r.ReadSingle();
+            if (!BodyWire.Finite(m.Seconds) || m.Seconds < 0f) throw new ProtocolException("a work of " + m.Seconds + " seconds is no work");
+            return m;
+        }
+    }
+
+    /// <summary>
+    /// Server → client, reliable (BF.2, protocol 18): how a founder's own work is going — its kind, its progress, the seconds
+    /// left at the body's present capacity — once a second while it runs, and once more when it ends, done with the words for
+    /// what it made, or stopped with the words for why.
+    /// </summary>
+    public struct WorkStateMessage
+    {
+        public const byte Running = 0;
+        public const byte Done = 1;
+        public const byte Stopped = 2;
+
+        public WorkKind Kind;
+        public float Progress01;
+        public float SecondsLeft;
+        public byte Ended;
+        public string Note;
+
+        public void Write(PacketWriter w)
+        {
+            w.WriteByte((byte)MessageKind.WorkState);
+            w.WriteByte((byte)Kind);
+            w.WriteByte((byte)Math.Round(SimMath.Clamp01(Progress01) * 255.0));
+            w.WriteSingle(SecondsLeft);
+            w.WriteByte(Ended);
+            w.WriteString(Note ?? string.Empty);
+        }
+
+        public static WorkStateMessage Read(PacketReader r)
+        {
+            WorkStateMessage m;
+            m.Kind = (WorkKind)r.ReadByte();
+            if (m.Kind == WorkKind.None || (byte)m.Kind > (byte)WorkKind.Twist) throw new ProtocolException("a work of kind " + (byte)m.Kind + " is not one this build knows");
+            m.Progress01 = r.ReadByte() / 255f;
+            m.SecondsLeft = r.ReadSingle();
+            if (!BodyWire.Finite(m.SecondsLeft) || m.SecondsLeft < 0f) throw new ProtocolException("a work with " + m.SecondsLeft + " seconds left is no work");
+            m.Ended = r.ReadByte();
+            if (m.Ended > Stopped) throw new ProtocolException("a work's ending " + m.Ended + " is not one this build knows");
             m.Note = r.ReadString();
             return m;
         }

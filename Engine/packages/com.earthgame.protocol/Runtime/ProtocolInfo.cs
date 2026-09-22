@@ -33,9 +33,12 @@ namespace EarthGame.Protocol
         /// and the server answering with what it granted and whether it refused. A development server's settings and its
         /// flight are then the switched-on player's alone, not every player's;
         /// 17 — BF.1 things with properties: an item's component carries what the thing has of its own as one masked record
-        /// (ThingWire) in place of FP.3's four stone fields, and the carrying message carries each carried thing's state with it.
+        /// (ThingWire) in place of FP.3's four stone fields, and the carrying message carries each carried thing's state with it;
+        /// 18 — BF.2 work: an intent has a sixth verb, work, naming its kind and its target (an entity, a lying thing or a place of
+        /// the hands), and a seventh, stop work; an intent's answer carries a started work's seconds; WorkState (25) tells a client
+        /// its own work's progress and its end; outcomes 15 no tool and 16 won't work.
         /// </summary>
-        public const ushort Version = 17;
+        public const ushort Version = 18;
 
         /// <summary>Bytes of tile data per TileChunk; well under <see cref="MaxMessageBytes"/> with the header.</summary>
         public const int TileChunkBytes = 16 * 1024;

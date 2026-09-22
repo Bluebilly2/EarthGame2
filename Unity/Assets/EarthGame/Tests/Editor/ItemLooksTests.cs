@@ -41,6 +41,14 @@ namespace EarthGame.Tests.Editor
             lay.SetLook(3);
             Assert.That(ItemLooks.TryLook(DefinitionCatalogue.StickOf(PlantSpecies.Blackbutt), 7, lay, out Mesh kept, out _), Is.True);
             Assert.That(kept, Is.SameAs(StandMeshes.Stick(3)), "the look its state carries, not its id's");
+
+            // A strip of bark and a cord (BF.2) have looks of their own, and every spawnable kind still has one (the audit above).
+            Assert.That(ItemLooks.TryLook(DefinitionCatalogue.BarkOf(PlantSpecies.Bangalay), 2, default, out Mesh strip, out _), Is.True);
+            Assert.That(strip, Is.SameAs(StandMeshes.Strip(2)));
+            Assert.That(strip.bounds.size.x, Is.InRange(0.2f, 0.35f), "about 0.3 m of strip");
+            Assert.That(ItemLooks.TryLook(DefinitionCatalogue.Cord, 4, default, out Mesh cord, out _), Is.True);
+            Assert.That(cord, Is.SameAs(StandMeshes.Cord(4)));
+            Assert.That(cord.bounds.size.x, Is.InRange(0.08f, 0.16f), "a coil a hand across");
         }
     }
 }

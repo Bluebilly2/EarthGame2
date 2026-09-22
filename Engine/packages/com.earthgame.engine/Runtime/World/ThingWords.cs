@@ -29,6 +29,14 @@ namespace EarthGame.Engine
                 if (state.Has(ThingFields.Edge)) sb.Append(", ").Append(EdgeWord(state.Edge01));
                 if (state.Has(ThingFields.Mass)) sb.Append(", ").Append(MassWord(state.MassKg));
             }
+            else if (definition.Substance == Substance.Bark)
+            {
+                if (state.Has(ThingFields.Moisture)) sb.Append(", ").Append(MoistureWord(state.Moisture));
+            }
+            else if (definition.Substance == Substance.Cord)
+            {
+                if (state.Has(ThingFields.Length)) sb.Append(", ").Append(LengthWord(state.LengthM));
+            }
             return sb.ToString();
         }
 

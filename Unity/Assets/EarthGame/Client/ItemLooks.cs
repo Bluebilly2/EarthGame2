@@ -24,6 +24,18 @@ namespace EarthGame.Client
                 scale = 1f;
                 return true;
             }
+            if (definition != null && definition.Substance == Substance.Bark)
+            {
+                mesh = StandMeshes.Strip(variant);
+                scale = 1f;
+                return true;
+            }
+            if (definition != null && definition.Substance == Substance.Cord)
+            {
+                mesh = StandMeshes.Cord(variant);
+                scale = 1f;
+                return true;
+            }
             // The plain cobble and every stone's cobble (M1.5b) are one shape; a cobble's stone is in what it is, not how it looks yet.
             if (definition != null && definition.Substance == Substance.Stone)
             {

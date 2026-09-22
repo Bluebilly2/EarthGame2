@@ -50,6 +50,8 @@ namespace EarthGame.Client
         private static readonly Dictionary<int, float> Widths = new Dictionary<int, float>();
         private static readonly Dictionary<int, Mesh> FarTrees = new Dictionary<int, Mesh>();
         private static readonly Dictionary<int, Mesh> Sticks = new Dictionary<int, Mesh>();
+        private static readonly Dictionary<int, Mesh> Strips = new Dictionary<int, Mesh>();
+        private static readonly Dictionary<int, Mesh> Cords = new Dictionary<int, Mesh>();
         private static readonly Dictionary<int, Mesh> Cobbles = new Dictionary<int, Mesh>();
         private static readonly Dictionary<int, Mesh> Tufts = new Dictionary<int, Mesh>();
 
@@ -117,6 +119,64 @@ namespace EarthGame.Client
             AddTube(data, centres, dirs, radii, Range(rand, 0f, Mathf.PI * 2f), v, colour, colour, -1f);
             mesh = data.ToMesh("Stick " + v);
             Sticks[v] = mesh;
+            return mesh;
+        }
+
+        /// <summary>A strip of bark (BF.2): 0.3 m of thin curled ribbon, drawn as a slender bent tube of the stick's colour, lying on the ground.</summary>
+        public static Mesh Strip(int variant)
+        {
+            int v = Wrap(variant);
+            if (Strips.TryGetValue(v, out Mesh mesh)) return mesh;
+            System.Random rand = new System.Random(v * 977 + 11);
+            MeshData data = new MeshData();
+            float length = 0.3f;
+            float radius = Range(rand, 0.006f, 0.009f);
+            int segments = 6;
+            Vector3[] centres = new Vector3[segments + 1];
+            Vector3[] dirs = new Vector3[segments + 1];
+            float[] radii = new float[segments + 1];
+            Vector3 direction = Vector3.right;
+            centres[0] = new Vector3(-0.5f * length, radius, 0f);
+            float curl = Range(rand, 6f, 16f);
+            for (int i = 0; i < segments; i++)
+            {
+                dirs[i] = direction;
+                centres[i + 1] = centres[i] + direction * (length / segments);
+                direction = Quaternion.AngleAxis(curl, Vector3.up) * direction;
+            }
+            dirs[segments] = dirs[segments - 1];
+            for (int i = 0; i <= segments; i++) radii[i] = radius;
+            Color colour = ToColor(StandForms.Stick);
+            AddTube(data, centres, dirs, radii, 0f, v, colour, colour, -1f);
+            mesh = data.ToMesh("Strip " + v);
+            Strips[v] = mesh;
+            return mesh;
+        }
+
+        /// <summary>A cord (BF.2): a coil of thin tube a hand across, of the stick's colour, lying flat.</summary>
+        public static Mesh Cord(int variant)
+        {
+            int v = Wrap(variant);
+            if (Cords.TryGetValue(v, out Mesh mesh)) return mesh;
+            System.Random rand = new System.Random(v * 431 + 5);
+            MeshData data = new MeshData();
+            float coil = Range(rand, 0.05f, 0.07f);
+            const float radius = 0.004f;
+            int segments = 16;
+            Vector3[] centres = new Vector3[segments + 1];
+            Vector3[] dirs = new Vector3[segments + 1];
+            float[] radii = new float[segments + 1];
+            for (int i = 0; i <= segments; i++)
+            {
+                float a = i / (float)segments * Mathf.PI * 2f * 0.96f;
+                centres[i] = new Vector3(Mathf.Cos(a) * coil, radius + 0.003f * i / segments, Mathf.Sin(a) * coil);
+                dirs[i] = new Vector3(-Mathf.Sin(a), 0f, Mathf.Cos(a));
+                radii[i] = radius;
+            }
+            Color colour = ToColor(StandForms.Stick);
+            AddTube(data, centres, dirs, radii, 0f, v, colour, colour, -1f);
+            mesh = data.ToMesh("Cord " + v);
+            Cords[v] = mesh;
             return mesh;
         }
 

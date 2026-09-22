@@ -54,6 +54,10 @@ namespace EarthGame.Engine
         None = 0,
         Stone = 1,
         Wood = 2,
+        /// <summary>A strip of bark off a stick (BF.2): tinder and the fibre cord is laid from.</summary>
+        Bark = 3,
+        /// <summary>Cord laid from strips (BF.2).</summary>
+        Cord = 4,
     }
 
     /// <summary>
@@ -128,6 +132,10 @@ namespace EarthGame.Engine
         private static readonly Dictionary<StoneType, Definition> _cobbles = new Dictionary<StoneType, Definition>();
         private static readonly Dictionary<StoneType, Definition> _flakes = new Dictionary<StoneType, Definition>();
         private static readonly Dictionary<PlantSpecies, Definition> _sticks = new Dictionary<PlantSpecies, Definition>();
+        private static readonly Dictionary<PlantSpecies, Definition> _barks = new Dictionary<PlantSpecies, Definition>();
+
+        /// <summary>Cord laid from bark strips (BF.2): its length is its own; the kind's mass is a short length's.</summary>
+        public static readonly Definition Cord;
         private static readonly Dictionary<AnimalSpecies, Definition> _animals = new Dictionary<AnimalSpecies, Definition>();
         private static readonly List<Definition> _all = new List<Definition>();
         private static readonly List<Definition> _spawnable = new List<Definition>();
@@ -168,6 +176,21 @@ namespace EarthGame.Engine
                 _sticks[species] = Add(new Definition("item/stick-" + Slug(species.Name), DefinitionKind.Item, (StartsWithVowel(name) ? "an " : "a ") + name + " stick",
                     true, wood != null ? Stick.MassKg * wood.DensityDryKgM3 / LyingProperties.PlainStickDensityKgM3 : Stick.MassKg, Stick.RadiusM, species, Substance.Wood));
             }
+            // A strip of bark comes off a stick of a tree whose bark strips (BF.2): tinder, and the fibre cord is laid from.
+            foreach (PlantSpecies species in PlantSpecies.All)
+            {
+                if (!StandCodes.IsTall(species) || species.StrippableBarkM <= 0.0) continue;
+                _barks[species] = Add(new Definition("item/bark-" + Slug(species.Name), DefinitionKind.Item, "a strip of " + species.DisplayName + " bark",
+                    true, 0.02, 0.02, species, Substance.Bark));
+            }
+            Cord = Add(new Definition("item/cord", DefinitionKind.Item, "a cord", true, 0.05, 0.03, null, Substance.Cord));
+        }
+
+        /// <summary>The bark strip of a tall plant whose bark strips (BF.2); a plant whose bark stays on has none.</summary>
+        public static Definition BarkOf(PlantSpecies species)
+        {
+            if (species == null || !_barks.TryGetValue(species, out Definition d)) throw new KeyNotFoundException("no bark strip for the plant '" + (species == null ? "nothing" : species.Name) + "'");
+            return d;
         }
 
         /// <summary>The stick of a tall plant (BF.1), which a stick taken from under it becomes; the plain stick for a plant that stands as no tree, and for none.</summary>

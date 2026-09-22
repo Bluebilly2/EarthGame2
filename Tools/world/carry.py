@@ -57,7 +57,7 @@ def run(args, timeout):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build", action="store_true")
-    parser.add_argument("--scenario", choices=("carry", "litter", "controls", "trunk"), default="carry")
+    parser.add_argument("--scenario", choices=("carry", "litter", "controls", "trunk", "work"), default="carry")
     parser.add_argument("--dev", action="store_true",
                         help="a development game (-eg-dev): the founder can fly, and the controls scenario checks the fly key")
     parser.add_argument("--player", default=str(PLAYER))

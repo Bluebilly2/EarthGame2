@@ -200,6 +200,7 @@ namespace EarthGame.Server
                 if (Paused) continue;
                 World.Step(_accumulator.StepSeconds);
                 AdvanceFounders(_accumulator.StepSeconds);
+                AdvanceWork(_accumulator.StepSeconds);
                 Stepped?.Invoke(World, _accumulator.StepSeconds);
                 stepped = true;
             }
@@ -305,6 +306,7 @@ namespace EarthGame.Server
         /// </summary>
         private void Die(PlayerSession session, CauseOfDeath cause)
         {
+            session.Work = null;
             Double3 fell = session.Body.Feet;
             Warmth warmth = session.Warmth;
             Death death = new Death(cause, World.Clock.LocalHourOfDay(World.Region.CentreLongitudeDeg), session.Surroundings.AirC,
@@ -900,6 +902,7 @@ namespace EarthGame.Server
         {
             VerbOutcome outcome;
             string note = string.Empty;
+            float seconds = 0f;
             if (Paused || !session.HasBody || session.SnapshotPending) outcome = VerbOutcome.NotNow;
             else
             {
@@ -926,6 +929,12 @@ namespace EarthGame.Server
                     case Verb.Knap:
                         outcome = Knap(session, intent, eye, out note);
                         break;
+                    case Verb.Work:
+                        outcome = StartWork(session, intent, eye, out note, out seconds);
+                        break;
+                    case Verb.StopWork:
+                        outcome = StopWork(session, "let go") ? VerbOutcome.Done : VerbOutcome.NotNow;
+                        break;
                     default:
                         outcome = VerbOutcome.NotNow;
                         break;
@@ -935,6 +944,7 @@ namespace EarthGame.Server
             result.Sequence = intent.Sequence;
             result.Outcome = outcome;
             result.Note = note;
+            result.Seconds = seconds;
             _writer.Reset();
             result.Write(_writer);
             session.Connection.Send(_writer.Written, Delivery.Reliable);
@@ -1081,6 +1091,248 @@ namespace EarthGame.Server
         }
 
         /// <summary>Where a founder's eye is, as the server holds their body: a verb's reach is measured from here.</summary>
+        /// <summary>How far a founder may move from where a work began before it stops, m: a shuffle, not a step away.</summary>
+        public const double WorkStillM = 0.5;
+
+        /// <summary>
+        /// A work begins (BF.2): the target is found as a knap's is (an item, one of the litter with what its place says of it, or a
+        /// thing held in another place), the thing in hand is the tool, and <see cref="Work.Judge"/> says whether, how long and in
+        /// what words. A work that cannot be done is answered with its reason and starts nothing; one that can replaces any work
+        /// in progress and is answered with its seconds.
+        /// </summary>
+        private VerbOutcome StartWork(PlayerSession session, IntentMessage intent, Double3 eye, out string note, out float seconds)
+        {
+            note = string.Empty;
+            seconds = 0f;
+            Hands hands = session.Hands;
+            Definition tool = null;
+            ThingState toolState = default;
+            if (hands.TryAt(hands.Hand, out CarriedThing inHand))
+            {
+                tool = inHand.Definition;
+                toolState = inHand.Item.State;
+            }
+            Definition target;
+            ThingState targetState;
+            switch (intent.Target)
+            {
+                case IntentMessage.TargetEntity:
+                {
+                    if (!World.Entities.TryGet(intent.EntityId, out Entity e) || e.Killed || !e.HasItem) return VerbOutcome.NotThere;
+                    if (Double3.Distance(eye, e.Position) > Hands.ReachM + e.Definition.RadiusM) return VerbOutcome.OutOfReach;
+                    target = e.Definition;
+                    targetState = e.Item.State;
+                    break;
+                }
+                case IntentMessage.TargetLying:
+                {
+                    if (!LyingThings.TryFind(World, intent.Lying, out Double3 at)) return VerbOutcome.NotThere;
+                    LyingSite site = LyingSites.Of(World, intent.Lying);
+                    target = LyingProperties.DefinitionOf(intent.Lying.Kind, site);
+                    if (Double3.Distance(eye, at) > Hands.ReachM + target.RadiusM) return VerbOutcome.OutOfReach;
+                    targetState = LyingProperties.StateOf(intent.Lying, site);
+                    break;
+                }
+                case IntentMessage.TargetPlace:
+                {
+                    if (intent.Place == hands.Hand || !hands.TryAt(intent.Place, out CarriedThing held)) return VerbOutcome.NotThere;
+                    target = held.Definition;
+                    targetState = held.Item.State;
+                    break;
+                }
+                default:
+                    return VerbOutcome.NotNow;
+            }
+            WorkOffer offer = Work.Judge(intent.Kind, tool, toolState, target, targetState);
+            note = offer.Words;
+            if (!offer.Possible) return offer.Outcome;
+            if (session.Work != null) StopWork(session, "a new work began");
+            session.Work = new WorkInProgress
+            {
+                Kind = intent.Kind, Target = intent.Target, EntityId = intent.EntityId, Lying = intent.Lying, Place = intent.Place,
+                ToolPlace = hands.Hand, Seconds = offer.Seconds, Progress = 0.0, StartedAt = session.Body.Feet, ToldTick = World.Tick, Words = offer.Words,
+            };
+            seconds = (float)offer.Seconds;
+            return VerbOutcome.Done;
+        }
+
+        /// <summary>Drops a work in progress, telling the client why; false when there was none.</summary>
+        private bool StopWork(PlayerSession session, string why)
+        {
+            WorkInProgress w = session.Work;
+            if (w == null) return false;
+            session.Work = null;
+            SendWorkState(session, w, WorkStateMessage.Stopped, why);
+            return true;
+        }
+
+        /// <summary>
+        /// Every work in progress advanced by the step at the body's capacity (BF.2): stopped when the founder has moved, when the
+        /// hand has changed or when the target is gone or out of reach; told once a second; finished when its seconds are done.
+        /// </summary>
+        private void AdvanceWork(double stepSeconds)
+        {
+            for (int i = _sessions.Count - 1; i >= 0; i--)
+            {
+                PlayerSession s = _sessions[i];
+                WorkInProgress w = s.Work;
+                if (w == null) continue;
+                if (!s.HasBody) { s.Work = null; continue; }
+                if (Double3.Distance(s.Body.Feet, w.StartedAt) > WorkStillM) { StopWork(s, "you moved"); continue; }
+                if (s.Hands.Hand != w.ToolPlace) { StopWork(s, "the hand changed"); continue; }
+                if (!TargetStands(s, w)) { StopWork(s, "it is gone"); continue; }
+                w.Progress += stepSeconds * s.Hydration.WorkCapacity01;
+                if (w.Progress >= w.Seconds) FinishWork(s, w);
+                else if (World.Tick - w.ToldTick >= _config.TickRate)
+                {
+                    w.ToldTick = World.Tick;
+                    SendWorkState(s, w, WorkStateMessage.Running, w.Words);
+                }
+            }
+        }
+
+        private bool TargetStands(PlayerSession s, WorkInProgress w)
+        {
+            Double3 eye = Eye(s);
+            switch (w.Target)
+            {
+                case IntentMessage.TargetEntity:
+                    return World.Entities.TryGet(w.EntityId, out Entity e) && !e.Killed && e.HasItem && Double3.Distance(eye, e.Position) <= Hands.ReachM + e.Definition.RadiusM;
+                case IntentMessage.TargetLying:
+                    return LyingThings.TryFind(World, w.Lying, out Double3 at) && Double3.Distance(eye, at) <= Hands.ReachM + 0.1;
+                case IntentMessage.TargetPlace:
+                    return w.Place != s.Hands.Hand && s.Hands.TryAt(w.Place, out _);
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// A work's end (BF.2): judged again on what the world holds now and applied by <see cref="Work.Apply"/>, then committed —
+        /// the target killed, changed or, for one of the litter, taken from the layer and lying on as an item where it lay; the tool
+        /// spent or worn; cord put into the hand where the strip was; everything else made let go beside the target to fall — and
+        /// told, with the words for what was made.
+        /// </summary>
+        private void FinishWork(PlayerSession session, WorkInProgress w)
+        {
+            session.Work = null;
+            Hands hands = session.Hands;
+            Definition tool = null;
+            ThingState toolState = default;
+            CarriedThing inHand = default;
+            if (hands.TryAt(hands.Hand, out inHand))
+            {
+                tool = inHand.Definition;
+                toolState = inHand.Item.State;
+            }
+            Definition target;
+            ThingState targetState;
+            Double3 at;
+            Entity entity = null;
+            CarriedThing held = default;
+            if (w.Target == IntentMessage.TargetEntity)
+            {
+                World.Entities.TryGet(w.EntityId, out entity);
+                target = entity.Definition;
+                targetState = entity.Item.State;
+                at = entity.Position;
+            }
+            else if (w.Target == IntentMessage.TargetLying)
+            {
+                LyingThings.TryFind(World, w.Lying, out at);
+                LyingSite site = LyingSites.Of(World, w.Lying);
+                target = LyingProperties.DefinitionOf(w.Lying.Kind, site);
+                targetState = LyingProperties.StateOf(w.Lying, site);
+            }
+            else
+            {
+                hands.TryAt(w.Place, out held);
+                target = held.Definition;
+                targetState = held.Item.State;
+                at = Ahead(session, FlakeAheadM);
+            }
+            ulong salt = (ulong)World.Tick * 0x9E3779B97F4A7C15UL ^ session.SessionId ^ w.EntityId;
+            WorkResult r = Work.Apply(w.Kind, tool, toolState, target, targetState, salt);
+
+            if (w.Target == IntentMessage.TargetEntity)
+            {
+                if (r.TargetSpent) World.Entities.Kill(entity);
+                else if (r.TargetChanged)
+                {
+                    ItemComponent item = entity.Item;
+                    item.State = r.TargetAfter;
+                    entity.SetItem(item, World.Tick);
+                }
+            }
+            else if (w.Target == IntentMessage.TargetLying)
+            {
+                World.Taken.Take(w.Lying);
+                BroadcastTaken(w.Lying.Row, w.Lying.Col);
+                if (!r.TargetSpent)
+                {
+                    Entity lying = World.Entities.Return(World.Entities.AllocateId(), target, at, LyingThings.YawOf(w.Lying, World.Loose.CellM), World.Tick, World.Tick);
+                    ItemComponent item = default;
+                    item.Resting = true;
+                    item.State = r.TargetChanged ? r.TargetAfter : targetState;
+                    lying.SetItem(item, World.Tick);
+                }
+            }
+            else
+            {
+                if (r.TargetSpent) hands.Discard(w.Place);
+                else if (r.TargetChanged)
+                {
+                    ItemComponent item = held.Item;
+                    item.State = r.TargetAfter;
+                    hands.TryUpdate(w.Place, item);
+                }
+            }
+            byte toolPlace = hands.Hand;
+            if (tool != null)
+            {
+                if (r.ToolSpent) hands.Discard(toolPlace);
+                else if (r.ToolChanged)
+                {
+                    ItemComponent item = inHand.Item;
+                    item.State = r.ToolAfter;
+                    hands.TryUpdate(toolPlace, item);
+                }
+            }
+            for (int i = 0; i < r.Made.Count; i++)
+            {
+                MadeThing made = r.Made[i];
+                if (made.Definition.Substance == Substance.Cord && toolPlace != 0)
+                {
+                    ItemComponent item = default;
+                    item.Resting = true;
+                    item.State = made.State;
+                    hands.Put(toolPlace, new CarriedThing { Id = World.Entities.AllocateId(), Definition = made.Definition, SpawnTick = World.Tick, Place = toolPlace, Item = item });
+                    continue;
+                }
+                double east = at.X + 0.25 * (i % 3 - 1), north = at.Z + 0.25 * (i / 3);
+                Entity e = World.SpawnItem(made.Definition, east, north, World.GroundAt(east, north) + Hands.ReleaseM, session.YawDeg);
+                ItemComponent fall = default;
+                fall.Resting = false;
+                fall.State = made.State;
+                e.SetItem(fall, World.Tick);
+            }
+            SendWorkState(session, w, WorkStateMessage.Done, r.Words);
+            SendCarrying(session);
+        }
+
+        private void SendWorkState(PlayerSession session, WorkInProgress w, byte ended, string note)
+        {
+            WorkStateMessage m;
+            m.Kind = w.Kind;
+            m.Progress01 = (float)Math.Min(1.0, w.Seconds > 0.0 ? w.Progress / w.Seconds : 1.0);
+            m.SecondsLeft = (float)Math.Max(0.0, (w.Seconds - w.Progress) / Math.Max(0.05, session.Hydration.WorkCapacity01));
+            m.Ended = ended;
+            m.Note = note ?? string.Empty;
+            _writer.Reset();
+            m.Write(_writer);
+            session.Connection.Send(_writer.Written, Delivery.Reliable);
+        }
+
         private Double3 Eye(PlayerSession s) => new Double3(s.Body.East, s.Body.Up + _config.Mover.EyeHeight(s.Body.Stance), s.Body.North);
 
         /// <summary>What a founder carries, sent to them alone.</summary>
