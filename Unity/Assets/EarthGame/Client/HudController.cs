@@ -208,7 +208,7 @@ namespace EarthGame.Client
                 if (things != null)
                     foreach (CarriedThing t in things)
                         if (t.Place == place)
-                            what = t.Definition.DisplayName + "   " + t.Definition.MassKg.ToString("0.0", CultureInfo.InvariantCulture) + " kg";
+                            what = ThingWords.Describe(t.Definition, t.Item.State) + "   " + ThingWords.MassOf(t.Definition, t.Item.State).ToString("0.00", CultureInfo.InvariantCulture) + " kg";
                 bool inHand = place == hand;
                 row.text = place + "    " + what + (inHand ? "    in hand" : "");
                 row.style.color = inHand ? HandColour : Color.white;

@@ -21,8 +21,8 @@ namespace EarthGame.Tests.Engine
                 Assert.That(DefinitionCatalogue.ById(d.Id), Is.SameAs(d));
                 Assert.That(DefinitionCatalogue.ByKey(d.Key), Is.SameAs(d));
             }
-            Assert.That(DefinitionCatalogue.All.Count, Is.EqualTo(1 + PlantSpecies.All.Count + StoneType.All.Count + AnimalSpecies.All.Count + 2 + 2 * StoneType.All.Count),
-                "the player, the tables, the plain cobble and the stick, and a cobble and a flake of every stone");
+            Assert.That(DefinitionCatalogue.All.Count, Is.EqualTo(1 + PlantSpecies.All.Count + StoneType.All.Count + AnimalSpecies.All.Count + 2 + 2 * StoneType.All.Count + StandCodes.Tall.Count),
+                "the player, the tables, the plain cobble and the stick, a cobble and a flake of every stone, and a stick of every tall plant (BF.1)");
         }
 
         [Test]
@@ -44,6 +44,7 @@ namespace EarthGame.Tests.Engine
             List<Definition> items = new List<Definition> { DefinitionCatalogue.Cobble, DefinitionCatalogue.Stick };
             foreach (StoneType stone in StoneType.All) items.Add(DefinitionCatalogue.CobbleOf(stone));
             foreach (StoneType stone in StoneType.All) items.Add(DefinitionCatalogue.FlakeOf(stone));
+            foreach (PlantSpecies tall in StandCodes.Tall) items.Add(DefinitionCatalogue.StickOf(tall));
             Assert.That(DefinitionCatalogue.Spawnable, Is.EquivalentTo(items));
             foreach (Definition d in DefinitionCatalogue.Spawnable)
             {

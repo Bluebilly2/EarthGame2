@@ -361,6 +361,9 @@ namespace EarthGame.Client
                 yield break;
             }
             LyingThing first = found.Value.Thing;
+            // What the crosshair would call it (BF.1): the words from the tiles by the server's own rule, kept in the run's log.
+            LyingSite site = LyingSiteReader.Of(_client.Tiles, _client.Grid, first);
+            string looked = ThingWords.Describe(LyingProperties.DefinitionOf(first.Kind, site), LyingProperties.StateOf(first, site));
             Face(At(found.Value));
             until = T + 4.0;
             while (T < until && !(_verbs.TargetLying.HasValue && _verbs.TargetLying.Value.Equals(first))) yield return null;
@@ -399,6 +402,7 @@ namespace EarthGame.Client
             _client.IntentAnswered -= OnAnswered;
             _log.Record(T, Tick, "end", WithFeet(new JsonObject().With("frames", _frames).With("errors", _errors)
                 .With("picked_up", picked).With("put_down", put).With("kept_carried", kept).With("answers", string.Join(",", _answers))
+                .With("looked", looked).With("held", HeldWords())
                 .With("corrections", _player.Corrections).With("moves_sent", (int)_player.MovesSent)
                 .With("east", _player.State.East).With("up", _player.State.Up).With("north", _player.State.North)));
             _running = false;
@@ -429,6 +433,16 @@ namespace EarthGame.Client
         private static Double3 At(LyingNearby n) => new Double3(n.Instance.East, n.Instance.Up, n.Instance.North);
 
         /// <summary>The id of the thing in the hand, 0 when the hand is empty.</summary>
+        /// <summary>What the hand holds, in the words the Tab window shows (BF.1); empty for an empty hand.</summary>
+        private string HeldWords()
+        {
+            CarryingMessage carrying = _client.Carrying;
+            if (carrying.Things != null && carrying.Hand != 0)
+                foreach (CarriedThing t in carrying.Things)
+                    if (t.Place == carrying.Hand) return ThingWords.Describe(t.Definition, t.Item.State);
+            return string.Empty;
+        }
+
         private ulong InHand()
         {
             CarryingMessage carrying = _client.Carrying;

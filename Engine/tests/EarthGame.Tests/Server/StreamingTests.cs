@@ -129,8 +129,11 @@ namespace EarthGame.Tests.Server
         private static RegionRaster Loose() => TestRasters.FromCodes(5, 10.0, 40.0, "tiny_loose", "loose",
             (row, col) => LooseCodes.Pack(Math.Abs(row - 2) + Math.Abs(col - 3) <= 1 ? 3 : 0, col == 2 ? 1 : 0), null);
 
+        /// <summary>Silcrete on every cell: the stone layer travels since BF.1, and a world with every layer has it.</summary>
+        private static RegionRaster Stone() => TestRasters.FromCodes(5, 10.0, 40.0, "tiny_stone", "stone", (row, col) => 9u, null);
+
         private static WorldState WateredWorld() =>
-            new WorldState(1, FixtureRegion, FixtureRegion.WakeClock(), Ground(), 0, null, Water(), Cover(), Stand(), Loose());
+            new WorldState(1, FixtureRegion, FixtureRegion.WakeClock(), Ground(), 0, null, Water(), Cover(), Stand(), Loose(), Stone());
 
         /// <summary>
         /// The water reaches the client beside the ground (M1.4b promises 3 to 5): the depth standing over the

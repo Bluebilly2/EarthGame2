@@ -106,14 +106,14 @@ namespace EarthGame.Engine
             return true;
         }
 
-        /// <summary>What a thing becomes when it is taken up: a stick a stick, and a cobble one of the stone its cell's stone layer names, the plain cobble where none is named.</summary>
-        public static Definition DefinitionOf(WorldState world, LyingThing thing)
+        /// <summary>What a thing becomes when it is taken up (BF.1): the stick of the tree over it or the plain stick, the cobble of its cell's stone or the plain cobble.</summary>
+        public static Definition DefinitionOf(WorldState world, LyingThing thing) => LyingProperties.DefinitionOf(thing.Kind, LyingSites.Of(world, thing));
+
+        /// <summary>The yaw a thing lies at, degrees clockwise from north, as the layout put it (BF.1): what it keeps when a blow turns it into an item where it lay.</summary>
+        public static float YawOf(LyingThing thing, double cellM)
         {
-            if (thing.Kind == StandLayout.Kind.Stick) return DefinitionCatalogue.Stick;
-            RegionRaster stone = world.Stone;
-            if (stone == null || thing.Row < 0 || thing.Col < 0 || thing.Row >= stone.Height || thing.Col >= stone.Width) return DefinitionCatalogue.Cobble;
-            uint code = stone.Code(thing.Row, thing.Col);
-            return code >= 1 && code <= StoneType.All.Count ? DefinitionCatalogue.CobbleOf(StoneType.All[(int)code - 1]) : DefinitionCatalogue.Cobble;
+            StandLayout.Place(thing.Row, thing.Col, thing.Kind, thing.Index, (int)Math.Round(cellM * 100.0), out _, out _, out int yawDeg);
+            return yawDeg;
         }
     }
 }

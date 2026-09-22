@@ -30,6 +30,8 @@ namespace EarthGame.Engine
         FarStand = 6,
         /// <summary>How many trees stand in the square of stand cells round each far post, to a byte (M1.6d).</summary>
         FarCount = 7,
+        /// <summary>Each post's stone as the world's stone layer codes it (BF.1): <see cref="StoneType.All"/>'s index plus one, zero for none, so a client can name a cobble's stone before it is taken up.</summary>
+        Stone = 8,
     }
 
     /// <summary>Every layer a tile can carry. Both ends walk this, so neither has to be told the set.</summary>
@@ -38,7 +40,7 @@ namespace EarthGame.Engine
         public static readonly TileLayer[] All =
         {
             TileLayer.Ground, TileLayer.WaterDepth, TileLayer.WaterClass, TileLayer.GroundCover, TileLayer.Stand, TileLayer.Loose,
-            TileLayer.FarStand, TileLayer.FarCount,
+            TileLayer.FarStand, TileLayer.FarCount, TileLayer.Stone,
         };
 
         /// <summary>
@@ -67,7 +69,8 @@ namespace EarthGame.Engine
                 case TileLayer.Stand:
                 case TileLayer.Loose:
                 case TileLayer.FarStand:
-                case TileLayer.FarCount: return true;
+                case TileLayer.FarCount:
+                case TileLayer.Stone: return true;
                 default: return false;
             }
         }
@@ -95,6 +98,7 @@ namespace EarthGame.Engine
                 case TileLayer.Loose: return "loose";
                 case TileLayer.FarStand: return "far-stand";
                 case TileLayer.FarCount: return "far-count";
+                case TileLayer.Stone: return "stone";
                 default: throw new ArgumentOutOfRangeException(nameof(layer), "no such layer: " + layer);
             }
         }

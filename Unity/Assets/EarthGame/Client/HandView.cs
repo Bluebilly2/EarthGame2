@@ -57,21 +57,21 @@ namespace EarthGame.Client
             _held.SetActive(false);
         }
 
-        /// <summary>Draws a thing in the hand; one with no look, or none, empties it.</summary>
-        public void Show(Definition definition, ulong id)
+        /// <summary>Draws a thing in the hand, in the shape its state keeps (BF.1) and at its own mass; one with no look, or none, empties it.</summary>
+        public void Show(Definition definition, ulong id, in ThingState state)
         {
-            if (definition == null || !ItemLooks.TryLook(definition, id, out Mesh mesh, out float scale))
+            if (definition == null || !ItemLooks.TryLook(definition, id, state, out Mesh mesh, out float scale))
             {
                 Hide();
                 return;
             }
             _filter.sharedMesh = mesh;
-            bool stick = ReferenceEquals(definition, DefinitionCatalogue.Stick);
+            bool stick = definition.Substance == Substance.Wood;
             bool flake = DefinitionCatalogue.IsFlake(definition);
             _restAt = stick ? StickAt : flake ? FlakeAt : StoneAt;
             _restTurn = stick ? StickTurn : flake ? FlakeTurn : Quaternion.identity;
             _restScale = flake ? FlakeSquash * scale : Vector3.one * scale;
-            _massKg = definition.MassKg;
+            _massKg = (float)ThingWords.MassOf(definition, state);
             // A thing newly in hand starts where it rests, rather than swinging in from where the last one was.
             if (id != Showing)
             {

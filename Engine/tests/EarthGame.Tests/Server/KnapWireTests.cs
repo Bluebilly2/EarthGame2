@@ -224,7 +224,7 @@ namespace EarthGame.Tests.Server
             Assert.That(answer.Outcome, Is.EqualTo(VerbOutcome.Bounced));
             Assert.That(answer.Note, Does.Contain("bounced"));
             Assert.That(world.Entities.TryGet(core, out Entity struck), Is.True);
-            Assert.That(struck.Item.HasStoneState, Is.False, "nothing happened to the core");
+            Assert.That(struck.Item.HasOwnState, Is.False, "nothing happened to the core");
             Assert.That(world.Entities.All.Count, Is.EqualTo(entities), "and no flake came away");
             Assert.That(Flakes(rig), Is.Empty);
         }
@@ -252,7 +252,7 @@ namespace EarthGame.Tests.Server
             Assert.That(Ask(rig, KnapHeld(1, 255)).Outcome, Is.EqualTo(VerbOutcome.NotStone), "the stick held in place 1");
             Assert.That(Ask(rig, KnapHeld(2, 255)).Outcome, Is.EqualTo(VerbOutcome.NotStone), "the hammer is not its own core");
             Assert.That(Ask(rig, KnapHeld(3, 255)).Outcome, Is.EqualTo(VerbOutcome.NotThere), "nothing in place 3");
-            Assert.That(world.Entities.TryGet(core, out Entity untouched) && !untouched.Item.HasStoneState, Is.True, "and no blow landed");
+            Assert.That(world.Entities.TryGet(core, out Entity untouched) && !untouched.Item.HasOwnState, Is.True, "and no blow landed");
             Assert.That(Flakes(rig), Is.Empty);
 
             rig.Server.Paused = true;
@@ -306,12 +306,14 @@ namespace EarthGame.Tests.Server
 
             int entities = world.Entities.All.Count;
             IntentResultMessage answer = Ask(rig, KnapLying(first, 255));
-            KnapResult expected = FullSwingOnFreshSilcrete(out StoneCore worked);
+            // The litter cobble is struck as what its place says it is (BF.1): a core of its own hashed mass, not its kind's.
+            StoneCore worked = new StoneCore(StoneType.Silcrete, LyingProperties.StateOf(first, LyingSites.Of(world, first)).MassKg);
+            KnapResult expected = Knapping.Strike(worked, StoneType.Silcrete, Silcrete.MassKg, Knapping.SwingEnergyJ(1.0, Silcrete.MassKg, 1.0));
             Assert.That(answer.Outcome, Is.EqualTo(VerbOutcome.Flaked));
             Assert.That(world.Taken.IsTaken(first), Is.True, "the struck cobble left the layer for good");
             Assert.That(world.Entities.All.Count, Is.EqualTo(entities + 2), "and lies on as an item, with the flake beside it");
             Entity lying = null;
-            foreach (Entity e in world.Entities.All) if (ReferenceEquals(e.Definition, Silcrete) && e.Item.HasStoneState) lying = e;
+            foreach (Entity e in world.Entities.All) if (ReferenceEquals(e.Definition, Silcrete) && e.Item.HasOwnState) lying = e;
             Assert.That(lying, Is.Not.Null);
             Assert.That(lying.Position.X, Is.EqualTo(at.X).Within(1e-9), "where it lay");
             Assert.That(lying.Position.Z, Is.EqualTo(at.Z).Within(1e-9));
@@ -369,7 +371,7 @@ namespace EarthGame.Tests.Server
             Assert.That(Ask(rig, PickUp(core)).Outcome, Is.EqualTo(VerbOutcome.Done), "the worked core into the hands");
             rig.Pump(2);
             CarriedThing carriedCore = rig.Session.Hands.Things[1];
-            Assert.That(carriedCore.Item.HasStoneState, Is.True);
+            Assert.That(carriedCore.Item.HasOwnState, Is.True);
 
             string before = rig.Server.Digest();
             rig.Server.Save(_dir, Now);

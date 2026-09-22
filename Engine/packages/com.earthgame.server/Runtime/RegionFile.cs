@@ -32,23 +32,24 @@ namespace EarthGame.Server
     }
 
     /// <summary>
-    /// The region file, format <c>eg2.region</c> version 3 (ARCHITECTURE §6 and §10): one per 512 m cell
+    /// The region file, format <c>eg2.region</c> version 4 (ARCHITECTURE §6 and §10): one per 512 m cell
     /// (<see cref="RegionCells"/>), holding the entities whose position lies in the cell and, since version 2 (M1.5b),
     /// the layer diffs of the raster cells whose centres lie in it. Little-endian: the magic <c>EG2R</c>, u16 version,
     /// i32 cell x, i32 cell z, f64 cell size, u32 entity count, u32 layer-diff count, u32 CRC-32 of everything that
     /// follows, then per entity: u64 id, the key as a u16 UTF-8 byte length and the bytes, f64 east, up and north, f32
     /// yaw, i64 spawn tick, u8 component mask (1 = item), and for an item u8 resting and f32 fall speed and, since
-    /// version 3 (FP.3), the state a blow gave it, f32 mass kg, f32 edge, f32 platform degrees and u16 flakes taken, as
-    /// the wire carries it (<see cref="EntityWire.WriteItem"/>); then per diff: u8 the layer by its tile byte (5, the
+    /// version 4 (BF.1), what the thing has of its own in <see cref="ThingWire"/>'s one layout, as the wire carries it
+    /// (<see cref="EntityWire.WriteItem"/>; version 3, FP.3, carried f32 mass kg, f32 edge, f32 platform degrees and u16
+    /// flakes taken instead); then per diff: u8 the layer by its tile byte (5, the
     /// loose layer, the only one yet), u16 row and u16 column of the world's raster, and for the loose layer u16 the
-    /// sticks taken and u16 the cobbles taken, a bit for each index. Version 1 had no diffs, version 2 no stone state,
-    /// and both are still read: a thing from before reads as one that weighs what its definition says. The server writes
+    /// sticks taken and u16 the cobbles taken, a bit for each index. Version 1 had no diffs, version 2 nothing of a thing's
+    /// own, and versions 1 to 3 are still read: a thing from before reads as one that weighs what its definition says. The server writes
     /// and reads it; save_check.py restates the layout in Python and reads it too.
     /// </summary>
     public static class RegionFile
     {
         public const string Folder = "regions";
-        public const ushort Version = 3;
+        public const ushort Version = 4;
         public const int HeaderBytes = 4 + 2 + 4 + 4 + 8 + 4 + 4 + 4;
         private static readonly byte[] Magic = { (byte)'E', (byte)'G', (byte)'2', (byte)'R' };
 
@@ -117,7 +118,7 @@ namespace EarthGame.Server
                 if (bytes[i] != Magic[i]) throw new InvalidDataException("not a region file (magic)");
             PacketReader head = new PacketReader(bytes, 4, HeaderBytes - 4);
             ushort version = head.ReadUInt16();
-            if (version != Version && version != 2 && version != 1) throw new InvalidDataException("region file version " + version + "; this build reads 1, 2 and " + Version);
+            if (version != Version && version != 3 && version != 2 && version != 1) throw new InvalidDataException("region file version " + version + "; this build reads 1, 2, 3 and " + Version);
             cellX = head.ReadInt32();
             cellZ = head.ReadInt32();
             double cellM = head.ReadDouble();
@@ -141,7 +142,7 @@ namespace EarthGame.Server
                 byte components = r.ReadByte();
                 if ((components & ~EntityWire.ComponentItem) != 0) throw new InvalidDataException("entity " + e.Id + " carries components this build does not know: " + components);
                 e.HasItem = (components & EntityWire.ComponentItem) != 0;
-                try { e.Item = !e.HasItem ? default : version >= 3 ? EntityWire.ReadItem(r) : EntityWire.ReadRestAndFall(r); }
+                try { e.Item = !e.HasItem ? default : version >= 4 ? EntityWire.ReadItem(r) : version == 3 ? EntityWire.ReadItemOfStruckStone(r) : EntityWire.ReadRestAndFall(r); }
                 catch (ProtocolException ex) { throw new InvalidDataException("entity " + e.Id + " carries " + ex.Message); }
                 entities.Add(e);
             }
@@ -163,20 +164,20 @@ namespace EarthGame.Server
     }
 
     /// <summary>
-    /// A player's resting place, format <c>eg2.player</c> version 6 (binary; versions 2 to 5 are still read, and version
+    /// A player's resting place, format <c>eg2.player</c> version 7 (binary; versions 2 to 6 are still read, and version
     /// 1, JSON, too): the magic <c>EG2P</c>, u16 version, the name as a u16 UTF-8 byte length and the bytes, f64 east, up
     /// and north, f32 yaw, f32 pitch, u8 flags (1 grounded, 2 wading, 4 crouching, as <see cref="BodyWire"/> packs
     /// them), i64 saved tick; since version 3 (M1.5a) the hand's place as a u8, and what is carried as a u8 count and,
-    /// per thing, u8 place, u64 id, the key as a u16 UTF-8 byte length and the bytes, i64 spawn tick and, since version 6
-    /// (FP.3), the state a blow gave the thing, f32 mass kg, f32 edge, f32 platform degrees and u16 flakes taken
-    /// (<see cref="EntityWire.WriteStone"/>); since version 4 (FP.1) f64 the fraction of body water lost; since version 5
+    /// per thing, u8 place, u64 id, the key as a u16 UTF-8 byte length and the bytes, i64 spawn tick and, since version 7
+    /// (BF.1), what the thing has of its own in <see cref="ThingWire"/>'s one layout, where version 6 (FP.3) carried f32 mass
+    /// kg, f32 edge, f32 platform degrees and u16 flakes taken; since version 4 (FP.1) f64 the fraction of body water lost; since version 5
     /// (FP.2) f64 how far below normal the core was; then u32 CRC-32 of everything before it. Version 1 dropped wading and
     /// stance, which the round trip's digest needs; version 2 had no hands; version 3 no water; version 4 no core; version
     /// 5 no stone's state, so a thing carried through it weighs what its definition says.
     /// </summary>
     public static class PlayerFile
     {
-        public const ushort Version = 6;
+        public const ushort Version = 7;
         public const string Extension = ".egp";
         private static readonly byte[] Magic = { (byte)'E', (byte)'G', (byte)'2', (byte)'P' };
 
@@ -203,7 +204,7 @@ namespace EarthGame.Server
                 w.WriteUInt64(t.Id);
                 w.WriteString(t.Definition.Key);
                 w.WriteInt64(t.SpawnTick);
-                EntityWire.WriteStone(w, t.Item);
+                ThingWire.Write(w, t.Item.State);
             }
             w.WriteDouble(p.WaterLoss);
             w.WriteDouble(p.CoreDeficitC);
@@ -229,7 +230,7 @@ namespace EarthGame.Server
             if (stated != actual) throw new InvalidDataException("player file CRC " + actual.ToString("x8") + " differs from the stated " + stated.ToString("x8"));
             PacketReader r = new PacketReader(bytes, 4, bodyLength - 4);
             ushort version = r.ReadUInt16();
-            if (version != Version && version != 5 && version != 4 && version != 3 && version != 2) throw new InvalidDataException("player file version " + version + "; this build reads 2, 3, 4, 5 and " + Version);
+            if (version != Version && version != 6 && version != 5 && version != 4 && version != 3 && version != 2) throw new InvalidDataException("player file version " + version + "; this build reads 2 to 6 and " + Version);
             SavedPlayer p = default;
             p.Name = r.ReadString();
             p.Body = MoverState.AtRest(r.ReadDouble(), r.ReadDouble(), r.ReadDouble());
@@ -260,7 +261,7 @@ namespace EarthGame.Server
                     item.Resting = true;
                     if (version >= 6)
                     {
-                        try { EntityWire.ReadStone(r, ref item); }
+                        try { item.State = version >= 7 ? ThingWire.Read(r) : ThingWire.ReadStruckStone(r); }
                         catch (ProtocolException ex) { throw new InvalidDataException("player " + p.Name + " carries entity " + id + " with " + ex.Message); }
                     }
                     p.Carried[i] = new CarriedThing { Id = id, Definition = definition, SpawnTick = spawnTick, Place = place, Item = item };

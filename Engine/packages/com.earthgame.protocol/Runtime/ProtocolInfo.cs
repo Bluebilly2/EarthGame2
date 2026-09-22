@@ -31,9 +31,11 @@ namespace EarthGame.Protocol
         /// intent's answer carries the words for what the stone did;
         /// 16 — M1.E the developer's switch: DeveloperMode, both ways, the player asking for developer mode on or off (F2)
         /// and the server answering with what it granted and whether it refused. A development server's settings and its
-        /// flight are then the switched-on player's alone, not every player's.
+        /// flight are then the switched-on player's alone, not every player's;
+        /// 17 — BF.1 things with properties: an item's component carries what the thing has of its own as one masked record
+        /// (ThingWire) in place of FP.3's four stone fields, and the carrying message carries each carried thing's state with it.
         /// </summary>
-        public const ushort Version = 16;
+        public const ushort Version = 17;
 
         /// <summary>Bytes of tile data per TileChunk; well under <see cref="MaxMessageBytes"/> with the header.</summary>
         public const int TileChunkBytes = 16 * 1024;

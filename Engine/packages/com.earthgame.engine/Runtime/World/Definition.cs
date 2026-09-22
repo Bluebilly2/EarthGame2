@@ -48,6 +48,14 @@ namespace EarthGame.Engine
         public static bool operator !=(DefinitionId a, DefinitionId b) => a.Value != b.Value;
     }
 
+    /// <summary>What a thing is made of (BF.1), so a rule asks its properties rather than its key: stone, wood, or nothing that has properties.</summary>
+    public enum Substance : byte
+    {
+        None = 0,
+        Stone = 1,
+        Wood = 2,
+    }
+
     /// <summary>
     /// One kind of thing the world can hold, by a stable string key (<c>plant/blackbutt</c>, <c>stone/silcrete</c>,
     /// <c>animal/eastern-grey-kangaroo</c>, <c>item/cobble</c>, <c>player</c>). Whether it is spawnable as an entity
@@ -69,10 +77,13 @@ namespace EarthGame.Engine
         public double RadiusM { get; }
         /// <summary>The table row behind a plant, stone or animal definition (<see cref="PlantSpecies"/>, <see cref="StoneType"/>, <see cref="AnimalSpecies"/>); null otherwise.</summary>
         public object Row { get; }
+        /// <summary>What an item is made of (BF.1): the stone of a cobble or a flake, the wood of a stick; none for what is not an item.</summary>
+        public Substance Substance { get; }
 
-        internal Definition(string key, DefinitionKind kind, string displayName, bool spawnable, double massKg, double radiusM, object row)
+        internal Definition(string key, DefinitionKind kind, string displayName, bool spawnable, double massKg, double radiusM, object row, Substance substance = Substance.None)
         {
             Key = key;
+            Substance = substance;
             Id = DefinitionId.Of(key);
             Kind = kind;
             DisplayName = displayName;
@@ -116,6 +127,7 @@ namespace EarthGame.Engine
 
         private static readonly Dictionary<StoneType, Definition> _cobbles = new Dictionary<StoneType, Definition>();
         private static readonly Dictionary<StoneType, Definition> _flakes = new Dictionary<StoneType, Definition>();
+        private static readonly Dictionary<PlantSpecies, Definition> _sticks = new Dictionary<PlantSpecies, Definition>();
         private static readonly Dictionary<AnimalSpecies, Definition> _animals = new Dictionary<AnimalSpecies, Definition>();
         private static readonly List<Definition> _all = new List<Definition>();
         private static readonly List<Definition> _spawnable = new List<Definition>();
@@ -131,23 +143,38 @@ namespace EarthGame.Engine
                 Add(new Definition("stone/" + Slug(stone.Name), DefinitionKind.Stone, stone.Name, false, 0.0, 0.0, stone));
             foreach (AnimalSpecies animal in AnimalSpecies.All)
                 _animals[animal] = Add(new Definition("animal/" + Slug(animal.Name), DefinitionKind.Animal, animal.DisplayName, false, 0.0, 0.0, animal));
-            Cobble = Add(new Definition("item/cobble", DefinitionKind.Item, "a cobble", true, 0.6, 0.05, null));
-            Stick = Add(new Definition("item/stick", DefinitionKind.Item, "a stick", true, 0.3, 0.02, null));
+            Cobble = Add(new Definition("item/cobble", DefinitionKind.Item, "a cobble", true, 0.6, 0.05, null, Substance.Stone));
+            Stick = Add(new Definition("item/stick", DefinitionKind.Item, "a stick", true, 0.3, 0.02, null, Substance.Wood));
             // A cobble taken up from the ground is of the stone its cell names (M1.5b): the same shape, weighing by its density.
             foreach (StoneType stone in StoneType.All)
             {
                 string name = stone.Name.ToLowerInvariant();
                 _cobbles[stone] = Add(new Definition("item/cobble-" + Slug(stone.Name), DefinitionKind.Item, (StartsWithVowel(name) ? "an " : "a ") + name + " cobble",
-                    true, Cobble.MassKg * stone.DensityKgM3 / CobbleDensityKgM3, Cobble.RadiusM, stone));
+                    true, Cobble.MassKg * stone.DensityKgM3 / CobbleDensityKgM3, Cobble.RadiusM, stone, Substance.Stone));
             }
             // A flake struck off a core is of the core's stone (FP.3): one for every stone, its mass and edge its own once struck.
             foreach (StoneType stone in StoneType.All)
             {
                 string name = stone.Name.ToLowerInvariant();
                 _flakes[stone] = Add(new Definition("item/flake-" + Slug(stone.Name), DefinitionKind.Item, (StartsWithVowel(name) ? "an " : "a ") + name + " flake",
-                    true, FlakeMassKg, FlakeRadiusM, stone));
+                    true, FlakeMassKg, FlakeRadiusM, stone, Substance.Stone));
+            }
+            // A stick taken from under a tree is of that tree (BF.1): the same shape, weighing by its wood against the plain stick's middle density.
+            foreach (PlantSpecies species in PlantSpecies.All)
+            {
+                if (!StandCodes.IsTall(species)) continue;
+                Wood wood = Wood.Of(species);
+                string name = species.DisplayName;
+                _sticks[species] = Add(new Definition("item/stick-" + Slug(species.Name), DefinitionKind.Item, (StartsWithVowel(name) ? "an " : "a ") + name + " stick",
+                    true, wood != null ? Stick.MassKg * wood.DensityDryKgM3 / LyingProperties.PlainStickDensityKgM3 : Stick.MassKg, Stick.RadiusM, species, Substance.Wood));
             }
         }
+
+        /// <summary>The stick of a tall plant (BF.1), which a stick taken from under it becomes; the plain stick for a plant that stands as no tree, and for none.</summary>
+        public static Definition StickOf(PlantSpecies species) => species != null && _sticks.TryGetValue(species, out Definition d) ? d : Stick;
+
+        /// <summary>The wood an item is of (BF.1): a stick of a tree's; null for the plain stick, a stone and anything that is not an item.</summary>
+        public static Wood WoodOf(Definition definition) => definition != null && definition.Kind == DefinitionKind.Item ? Wood.Of(definition.Row as PlantSpecies) : null;
 
         /// <summary>The cobble of a stone, as a thing taken from a cell of it becomes; the plain cobble for a stone this catalogue has none for.</summary>
         public static Definition CobbleOf(StoneType stone) => stone != null && _cobbles.TryGetValue(stone, out Definition d) ? d : Cobble;

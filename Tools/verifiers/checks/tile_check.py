@@ -8,12 +8,12 @@ by a reader that did not drift with it.
 
 The formats, as section 10 states them:
   - A cache file is <root>/<region>/<layer>/<ix>_<iz>.tile, the layer folder being ground, water-depth,
-    water-class, ground-cover, stand, loose, far-stand or far-count. Its first four bytes are the CRC-32 (IEEE,
+    water-class, ground-cover, stand, loose, far-stand, far-count or stone. Its first four bytes are the CRC-32 (IEEE,
     little-endian) of everything after them.
   - Those bytes are a raw deflate stream (no zlib header).
   - Inflated, a layer of metres (ground, water-depth) is posts squared signed 16-bit little-endian centimetres,
     each row its first post absolute and every later post the difference from the one before.
-  - A layer of codes (water-class, ground-cover, stand, loose, far-stand, far-count) is posts squared raw bytes.
+  - A layer of codes (water-class, ground-cover, stand, loose, far-stand, far-count, stone since BF.1) is posts squared raw bytes.
   - The tile grid is the region's alone: a kilometre tile where the extent divides into kilometres, else the whole
     region as one tile; tile (0, 0) at the south-west corner; a tile's origin is (-extent/2 + ix * size,
     -extent/2 + iz * size) and it has size/cell + 1 posts a side, sharing an edge post with each neighbour.
@@ -66,7 +66,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.a
 DEFAULT_WORLD = os.path.join("Artefacts", "worlds", "gate")
 NP_DTYPES = {"u8": "u1", "u16": "<u2", "i16": "<i2", "u32": "<u4", "f32": "<f4"}
 GROUND, DEPTH, CLASS, COVER = "ground", "water-depth", "water-class", "ground-cover"
-STAND, LOOSE = "stand", "loose"
+STAND, LOOSE, STONE = "stand", "loose", "stone"
 FAR_STAND, FAR_COUNT = "far-stand", "far-count"
 # Half a centimetre is what rounding to int16 centimetres costs; the nanometre is for the float that carries it.
 GROUND_TOLERANCE_M = 0.005 + 1e-9
@@ -188,6 +188,7 @@ def main(argv):
     cover_sidecar, cover = layer(world, "cover")
     stand_sidecar, stand = layer(world, "stand")
     loose_sidecar, loose = layer(world, "loose")
+    stone_sidecar, stone = layer(world, "stone")
     if heights is None or surface is None or water is None:
         print("the world's heights, surface and water layers are needed under %s" % os.path.join(ROOT, world, "layers"))
         return 2
@@ -212,9 +213,9 @@ def main(argv):
         print("no tiles cached under %s" % cache_root)
         return 2
 
-    counts = {GROUND: 0, DEPTH: 0, CLASS: 0, COVER: 0, STAND: 0, LOOSE: 0, FAR_STAND: 0, FAR_COUNT: 0}
-    codes = {CLASS: (water, water_sidecar), COVER: (cover, cover_sidecar), STAND: (stand, stand_sidecar), LOOSE: (loose, loose_sidecar)}
-    wrong_codes = {CLASS: 0, COVER: 0, STAND: 0, LOOSE: 0, FAR_STAND: 0, FAR_COUNT: 0}
+    counts = {GROUND: 0, DEPTH: 0, CLASS: 0, COVER: 0, STAND: 0, LOOSE: 0, FAR_STAND: 0, FAR_COUNT: 0, STONE: 0}
+    codes = {CLASS: (water, water_sidecar), COVER: (cover, cover_sidecar), STAND: (stand, stand_sidecar), LOOSE: (loose, loose_sidecar), STONE: (stone, stone_sidecar)}
+    wrong_codes = {CLASS: 0, COVER: 0, STAND: 0, LOOSE: 0, FAR_STAND: 0, FAR_COUNT: 0, STONE: 0}
     span, far_tables, stand_trees = far_squares(stand, stand_sidecar) if stand is not None else (0, None, 0)
     far_trees = 0
     bad_crc, bad_shape = [], []
@@ -283,7 +284,7 @@ def main(argv):
            "%d posts disagree of %d class tiles" % (wrong_codes[CLASS], counts[CLASS]))
     expect("the ground cover matches post for post", counts[COVER] > 0 and wrong_codes[COVER] == 0,
            "%d posts disagree of %d cover tiles" % (wrong_codes[COVER], counts[COVER]))
-    for folder, what in ((STAND, "what stands"), (LOOSE, "what lies loose")):
+    for folder, what in ((STAND, "what stands"), (LOOSE, "what lies loose"), (STONE, "the stone (BF.1)")):
         if codes[folder][0] is None:
             expect(what + " matches post for post", counts[folder] == 0,
                    "this world has no %s layer, and %d %s tiles are cached" % (folder, counts[folder], folder))

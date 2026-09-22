@@ -108,7 +108,7 @@ namespace EarthGame.Client
             if (_drawn.TryGetValue(view.Id.Value, out Drawn old) && old.Transform != null) Object.Destroy(old.Transform.gameObject);
             Drawn d = new Drawn { View = view };
             GameObject go;
-            if (ItemLooks.TryLook(view.Definition, view.Id.Value, out Mesh mesh, out float scale))
+            if (ItemLooks.TryLook(view.Definition, view.Id.Value, view.HasItem ? view.Item.State : default, out Mesh mesh, out float scale))
             {
                 go = new GameObject();
                 d.Local = mesh.bounds;

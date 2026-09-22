@@ -55,7 +55,7 @@ namespace EarthGame.ClientCore
     public static class StandPreparation
     {
         /// <summary>How many shapes each form, and the sticks and the cobbles, are drawn in; a thing's cell picks one.</summary>
-        public const int Variants = 6;
+        public const int Variants = StandLayout.Looks;
 
         /// <param name="taken">What has been taken from the tile's cells (M1.5b), a copy the worker alone reads (<see cref="TakenIn"/>); those things are not placed.</param>
         /// <summary>The deepest water a stick or a cobble is seen and reached under, m: a hand. Deeper, the lake bed keeps its things to itself (M1.6e).</summary>
@@ -177,7 +177,7 @@ namespace EarthGame.ClientCore
                 Up = (float)TileGround.HeightAt(ground, east, north),
                 North = (float)north,
                 YawDeg = yaw,
-                Variant = VariantOf(row, col, (ulong)kind << 8 | (uint)(index + 1)),
+                Variant = StandLayout.LookOf(row, col, kind, index),
             };
         }
 

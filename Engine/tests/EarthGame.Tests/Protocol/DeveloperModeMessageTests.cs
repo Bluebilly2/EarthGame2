@@ -39,7 +39,7 @@ namespace EarthGame.Tests.Protocol
         [Test]
         public void TheProtocolSaysItsVersion()
         {
-            Assert.That(ProtocolInfo.Version, Is.EqualTo(16), "M1.E's switch is protocol 16");
+            Assert.That(ProtocolInfo.Version, Is.EqualTo(17), "BF.1's thing state is protocol 17");
         }
     }
 }

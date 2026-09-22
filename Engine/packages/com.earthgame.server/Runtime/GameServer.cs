@@ -980,9 +980,13 @@ namespace EarthGame.Server
                 case IntentMessage.TargetLying:
                 {
                     if (!LyingThings.TryFind(World, intent.Lying, out at)) return VerbOutcome.NotThere;
-                    coreDefinition = LyingThings.DefinitionOf(World, intent.Lying);
+                    LyingSite site = LyingSites.Of(World, intent.Lying);
+                    coreDefinition = LyingProperties.DefinitionOf(intent.Lying.Kind, site);
                     if (Double3.Distance(eye, at) > Hands.ReachM + coreDefinition.RadiusM) return VerbOutcome.OutOfReach;
+                    // A cobble of the litter is struck as what its place says it is (BF.1): its own mass by its stone, the shape it lies in.
                     coreItem = default;
+                    coreItem.Resting = true;
+                    coreItem.State = LyingProperties.StateOf(intent.Lying, site);
                     break;
                 }
                 case IntentMessage.TargetPlace:
@@ -1030,7 +1034,7 @@ namespace EarthGame.Server
                 World.Taken.Take(intent.Lying);
                 if (!core.IsSpent)
                 {
-                    Entity lying = World.Entities.Return(World.Entities.AllocateId(), coreDefinition, at, 0f, World.Tick, World.Tick);
+                    Entity lying = World.Entities.Return(World.Entities.AllocateId(), coreDefinition, at, LyingThings.YawOf(intent.Lying, World.Loose.CellM), World.Tick, World.Tick);
                     after.Resting = true;
                     after.FallSpeed = 0f;
                     lying.SetItem(after, World.Tick);

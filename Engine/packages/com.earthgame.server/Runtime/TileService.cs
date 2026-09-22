@@ -20,6 +20,7 @@ namespace EarthGame.Server
         private readonly RegionRaster _cover;
         private readonly RegionRaster _stand;
         private readonly RegionRaster _loose;
+        private readonly RegionRaster _stone;
         private readonly TileGrid _grid;
         private readonly Dictionary<(TileLayer Layer, TileId Id), EncodedTile> _encoded = new Dictionary<(TileLayer, TileId), EncodedTile>();
         private readonly PacketWriter _writer = new PacketWriter(ProtocolInfo.TileChunkBytes + 64);
@@ -32,6 +33,7 @@ namespace EarthGame.Server
             _cover = world.Cover;
             _stand = world.Stand;
             _loose = world.Loose;
+            _stone = world.Stone;
             _grid = new TileGrid(world.Region.ExtentM);
         }
 
@@ -45,6 +47,7 @@ namespace EarthGame.Server
                 case TileLayer.GroundCover: return _cover != null;
                 case TileLayer.Stand: return _stand != null;
                 case TileLayer.Loose: return _loose != null;
+                case TileLayer.Stone: return _stone != null;
                 case TileLayer.FarStand:
                 case TileLayer.FarCount: return TileCodec.FarSpan(_stand) > 0;
                 default: return _water != null;
@@ -92,6 +95,7 @@ namespace EarthGame.Server
                     case TileLayer.GroundCover: tile = TileCodec.EncodeCodes(_cover, TileLayer.GroundCover, _grid, id); break;
                     case TileLayer.Stand: tile = TileCodec.EncodeCodes(_stand, TileLayer.Stand, _grid, id); break;
                     case TileLayer.Loose: tile = TileCodec.EncodeCodes(_loose, TileLayer.Loose, _grid, id); break;
+                    case TileLayer.Stone: tile = TileCodec.EncodeCodes(_stone, TileLayer.Stone, _grid, id); break;
                     case TileLayer.FarStand:
                     case TileLayer.FarCount: tile = TileCodec.EncodeFar(_stand, layer, _grid, id); break;
                     default: throw new ArgumentOutOfRangeException(nameof(layer), "no such layer: " + layer);

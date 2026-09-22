@@ -190,7 +190,7 @@ namespace EarthGame.Tests.Engine
             Assert.That(after.PlatformDeg, Is.EqualTo((float)core.PlatformAngleDeg));
             Assert.That(after.FlakesTaken, Is.EqualTo((ushort)3));
             Assert.That(after.Resting, Is.True, "how it lies is not the blow's to change");
-            Assert.That(after.HasStoneState, Is.True);
+            Assert.That(after.HasOwnState, Is.True);
 
             ItemComponent flake = KnappingItems.FlakeOf(r);
             Assert.That(flake.MassKg, Is.EqualTo((float)r.FlakeMassKg));

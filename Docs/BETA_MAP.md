@@ -294,6 +294,7 @@ does. The order is the dependency order; leverage decides ties.
 
 1. **BF.1 Things with properties** (F1). The substrate for everything made. Pays the fixed record, the carrying
    message, the lost shape (DEBTS 2026-09-11, 2026-09-16 ×2), the wood table, the lying thing's properties, inspection.
+   **Built 2026-09-22** (`contracts/BF.1_THINGS_WITH_PROPERTIES.md`): the stone layer travels as a tile with it.
 2. **BF.2 Work** (F2). The process model on the server; the first processes: break, strip, cut, point, split, twist;
    knapping folded in; the offer by the rule. With BF.1 this makes fibre and cord (G4) and the fire kit's parts.
 3. **BF.3 The world changes** (F3). The change record, tile re-encoding, felling and fallen wood, clearing, digging,

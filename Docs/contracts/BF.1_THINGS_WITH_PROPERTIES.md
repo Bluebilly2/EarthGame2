@@ -1,6 +1,6 @@
 # Contract BF.1 — Things with properties
 
-**Status:** drafted 2026-09-22, the first of the beta's foundations (`Docs/BETA_MAP.md` §7, CANON ruling 41). Owner:
+**Status:** drafted and built 2026-09-22, the first of the beta's foundations (`Docs/BETA_MAP.md` §7, CANON ruling 41). Owner:
 Claude. William's lane: nothing in this slice needs his eyes or hands; the built run is the proof.
 
 ## Why this first
@@ -90,6 +90,42 @@ the new record).
   region 4, player 7, the digest's line); DEBTS: 2026-09-11 (shape) and 2026-09-16 (yaw and mass told) paid, the wood
   table's re-reading opened; BETA_MAP §7 marks BF.1 built.
 
-## Exit
+## What changed on the way
 
-The promises kept with the counts as run, or "What changed on the way" saying which was not and why.
+- **The stone travels as a tile.** Promise 3 says a client reads a lying thing's site from its tiles through the server's own
+  rule; no tile carried the stone, so a cobble on the ground could not be named. `TileLayer.Stone` (8, a code layer like the
+  cover) was added, served by `TileService`, asked for with the rest, checked by `tile_check.py`'s new row; the tile format's
+  version is unchanged, a layer byte being additive. A test world that "has every layer" now has a stone raster.
+- **FP.3's four names stay.** `ItemComponent.MassKg`, `Edge01`, `PlatformDeg` and `FlakesTaken` are properties that read and
+  write the record and mark the field the thing's own, so the knap's arithmetic and its tests are written as they were;
+  `HasStoneState` became `HasOwnState`, since a stick as it lay has state of its own too.
+- **The built run is the litter scenario, not the controls scenario.** The controls scenario's stick and cobble are spawned by
+  `-eg-items` and lie nowhere, so they have nothing of their own to show; the litter scenario takes a stick of the world's own
+  litter, and its recorder now writes the words the crosshair gave the stick on the ground and the words the hand gives it.
+  Both scenarios were run; both worlds were verified.
+- The Unity edit-mode run reports one failure, `ReviewOpusProbe.ObserveEviction`, from the untracked probe file in the working
+  tree that is never committed; the project's own ten tests, `ItemLooksTests` among them, pass.
+
+## Exit record (2026-09-22)
+
+1. `Wood`: six rows (the five tall plants and the grass tree's stalk), each with a source; `WoodTests` holds every tall plant to
+   a row and the derived softness and friction-fire band to the numbers. The re-reading of the numbers against the tables is a
+   DEBTS row.
+2. `ThingState`, `ThingFields`, `ThingWire`: the one layout in the entity wire, the carrying message, the region file (4), the
+   player file (7) and the digest; region files 1 to 3 and player files 2 to 6 read as before (`RegionSaveTests`' fixtures).
+   `save_check.py` restates the record and the digest's line.
+3. `LyingProperties.StateOf`, `LyingSites` (the server's rasters), `LyingSiteReader` (a client's tiles): the same words on both
+   sides — the litter run's crosshair and hand both said "a swamp paperbark stick, a pace long, wrist-thick, sodden"; a taken
+   stick keeps its state and a struck litter cobble its yaw (`LyingPropertiesTests`).
+4. `DefinitionCatalogue.StickOf`, `Substance`, `WoodOf`: five stick definitions, 56 definitions in all (`DefinitionTests`).
+5. `ThingWords.Describe` and `MassOf`: the verb line and the Tab window name a thing by them (`ThingWordsTests`).
+6. `ItemLooks.TryLook` draws the state's look; `StandLayout.LookOf` is the one rule (`ItemLooksTests`, edit mode, passed).
+7. The built runs on the harness build (`Build/Harness`, BF.1, e71072f2e+dirty): `carry.py --scenario controls`, 40 checks, none
+   failed, 10 answers Done, 0 errors, 0 corrections; `carry.py --scenario litter`, picked up, put down and kept carried, 3
+   answers Done, 0 errors, the words above in its `run.jsonl`. `save_check.py` GREEN on both worlds (a version-4 region file and
+   a version-7 player file each; the digest rebuilt equal); `tile_check.py` GREEN on both caches, 191 files, 9 stone tiles
+   agreeing post for post.
+
+Counts as run: `dotnet test Engine/tests/EarthGame.Tests` 780 passed, 0 failed (762 before; 18 new); sabotage three of three
+caught (the mask's field order swapped: 2 of 6 failed; the state dropped from the carrying message: 2 of 16; the species
+ignored: 1 of 7), each file restored byte for byte; the Unity-shaped compile green; edit mode 10 of the project's 10.

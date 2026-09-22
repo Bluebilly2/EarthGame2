@@ -45,26 +45,30 @@ namespace EarthGame.Engine
     }
 
     /// <summary>
-    /// A thing lying in the world: whether it has come to rest, how fast it is falling while it has not, and since FP.3 the
-    /// state a stone earns by being struck. A thing's mass and edge live on its definition until a blow gives it its own:
-    /// a flake weighs what the blow took and carries the edge the stone and the blow made, and a core grows lighter with
-    /// every flake. Zero means "none of its own", so every stick and cobble written before FP.3 reads as it was.
+    /// A thing lying in the world: whether it has come to rest, how fast it is falling while it has not, and what it has of
+    /// its own (<see cref="ThingState"/>, BF.1): since FP.3 the state a stone earns by being struck, and since BF.1 whatever
+    /// its place gave it — a stick's tree, length, thickness and water, the shape it lay in. A thing's mass and edge live on
+    /// its definition until something gives it its own. FP.3's four stone fields stay as names that read and write the
+    /// state, so a blow's arithmetic is written as it was; setting one makes the field the thing's own.
     /// </summary>
     public struct ItemComponent
     {
         public bool Resting;
         public float FallSpeed;
-        /// <summary>The thing's own mass, kg, once a blow has given it one; zero for a thing that weighs what its definition says.</summary>
-        public float MassKg;
-        /// <summary>The edge a flake carries, 0 to 1; zero for a thing with none.</summary>
-        public float Edge01;
-        /// <summary>The angle the struck edge of a core presents, degrees; zero for a stone never struck, which presents a fresh cobble's.</summary>
-        public float PlatformDeg;
-        /// <summary>Flakes taken off a core so far.</summary>
-        public ushort FlakesTaken;
+        /// <summary>What the thing has of its own; the mask says which fields.</summary>
+        public ThingState State;
 
-        /// <summary>Whether a blow has given this thing state of its own (a flake as struck, a core worked).</summary>
-        public bool HasStoneState => MassKg > 0f;
+        /// <summary>The thing's own mass, kg; zero when it has none of its own.</summary>
+        public float MassKg { get => State.MassKg; set => State.SetMass(value); }
+        /// <summary>The edge a flake carries, 0 to 1.</summary>
+        public float Edge01 { get => State.Edge01; set => State.SetEdge(value); }
+        /// <summary>The angle the struck edge of a core presents, degrees; zero for a stone never struck, which presents a fresh cobble's.</summary>
+        public float PlatformDeg { get => State.PlatformDeg; set => State.SetPlatform(value); }
+        /// <summary>Flakes taken off a core so far.</summary>
+        public ushort FlakesTaken { get => State.FlakesTaken; set => State.SetFlakes(value); }
+
+        /// <summary>Whether the thing has anything of its own: a flake as struck, a core worked, a stick as it lay.</summary>
+        public bool HasOwnState => State.HasAny;
     }
 
     /// <summary>What an animal is doing (M1.7a), as one of the codes <see cref="AnimalPose"/> names.</summary>

@@ -287,7 +287,7 @@ namespace EarthGame.Tests.Protocol
             };
             PacketWriter w = new PacketWriter(64);
             m.Write(w);
-            Assert.That(w.Written.Length, Is.EqualTo(1 + 1 + 1 + 2 * (1 + 8 + 4)));
+            Assert.That(w.Written.Length, Is.EqualTo(1 + 1 + 1 + 2 * (1 + 8 + 4 + 2)), "each thing its place, id, definition and the mask of a thing with nothing of its own (BF.1)");
             PacketReader r = Reader(w);
             CarryingMessage back = CarryingMessage.Read(r);
             r.ExpectEnd();

@@ -736,22 +736,22 @@ namespace EarthGame.Protocol
             return animal;
         }
 
-        /// <summary>An item's rest and fall, then (protocol 15, FP.3) the state a blow gave it: its own mass, its edge, its platform's angle and the flakes taken.</summary>
+        /// <summary>An item's rest and fall, then what it has of its own (BF.1, protocol 17): <see cref="ThingWire"/>'s one layout.</summary>
         public static void WriteItem(PacketWriter w, in ItemComponent item)
         {
             w.WriteBool(item.Resting);
             w.WriteSingle(item.FallSpeed);
-            WriteStone(w, item);
+            ThingWire.Write(w, item.State);
         }
 
         public static ItemComponent ReadItem(PacketReader r)
         {
             ItemComponent item = ReadRestAndFall(r);
-            ReadStone(r, ref item);
+            item.State = ThingWire.Read(r);
             return item;
         }
 
-        /// <summary>An item's rest and fall alone: the whole of an item before protocol 15, which the region file's older versions still carry.</summary>
+        /// <summary>An item's rest and fall alone: the whole of an item before protocol 15, which region files 1 and 2 still carry.</summary>
         public static ItemComponent ReadRestAndFall(PacketReader r)
         {
             ItemComponent item = default;
@@ -760,25 +760,12 @@ namespace EarthGame.Protocol
             return item;
         }
 
-        /// <summary>The state a blow gave a stone (FP.3): f32 mass kg, f32 edge, f32 platform degrees, u16 flakes; zeros for a thing with none of its own.</summary>
-        public static void WriteStone(PacketWriter w, in ItemComponent item)
+        /// <summary>An item as protocol 15 and region file 3 wrote it (FP.3): its rest and fall, then the four fields of a struck stone.</summary>
+        public static ItemComponent ReadItemOfStruckStone(PacketReader r)
         {
-            w.WriteSingle(item.MassKg);
-            w.WriteSingle(item.Edge01);
-            w.WriteSingle(item.PlatformDeg);
-            w.WriteUInt16(item.FlakesTaken);
-        }
-
-        /// <summary>The stone's state read onto an item; a mass, edge or angle that is not a number, or one no stone could have, is refused (M1.5g's rule).</summary>
-        public static void ReadStone(PacketReader r, ref ItemComponent item)
-        {
-            item.MassKg = r.ReadSingle();
-            item.Edge01 = r.ReadSingle();
-            item.PlatformDeg = r.ReadSingle();
-            item.FlakesTaken = r.ReadUInt16();
-            if (!BodyWire.Finite(item.MassKg) || item.MassKg < 0f || !BodyWire.Finite(item.Edge01) || item.Edge01 < 0f || item.Edge01 > 1f
-                || !BodyWire.Finite(item.PlatformDeg) || item.PlatformDeg < 0f || item.PlatformDeg > 180f)
-                throw new ProtocolException("a stone's state of mass " + item.MassKg + ", edge " + item.Edge01 + " and platform " + item.PlatformDeg + " is none a stone could have");
+            ItemComponent item = ReadRestAndFall(r);
+            item.State = ThingWire.ReadStruckStone(r);
+            return item;
         }
     }
 
@@ -1081,6 +1068,7 @@ namespace EarthGame.Protocol
     /// <summary>
     /// Server → client, reliable (protocol v6): what you carry, place by place, and which place is the hand; sent at the
     /// join, before the snapshot's end, and after every verb that changed it. A thing's spawn tick stays with the server.
+    /// Since protocol 17 (BF.1) each thing's own state rides with it, so the hand knows a hammer's mass and a stick's tree.
     /// </summary>
     public struct CarryingMessage
     {
@@ -1098,6 +1086,7 @@ namespace EarthGame.Protocol
                 w.WriteByte(Things[i].Place);
                 w.WriteUInt64(Things[i].Id);
                 w.WriteUInt32(Things[i].Definition.Id.Value);
+                ThingWire.Write(w, Things[i].Item.State);
             }
         }
 
@@ -1117,7 +1106,10 @@ namespace EarthGame.Protocol
                 DefinitionId definitionId = new DefinitionId(r.ReadUInt32());
                 if (!DefinitionCatalogue.TryById(definitionId, out Definition definition))
                     throw new ProtocolException("carried thing " + id + " has definition " + definitionId + ", which this build does not know");
-                m.Things[i] = new CarriedThing { Id = id, Definition = definition, Place = place };
+                ItemComponent item = default;
+                item.Resting = true;
+                item.State = ThingWire.Read(r);
+                m.Things[i] = new CarriedThing { Id = id, Definition = definition, Place = place, Item = item };
             }
             return m;
         }

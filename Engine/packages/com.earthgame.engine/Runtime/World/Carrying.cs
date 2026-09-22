@@ -197,12 +197,17 @@ namespace EarthGame.Engine
         public VerbOutcome PickUpLying(WorldState world, LyingThing thing, Double3 eye)
         {
             if (!LyingThings.TryFind(world, thing, out Double3 at)) return VerbOutcome.NotThere;
-            Definition definition = LyingThings.DefinitionOf(world, thing);
+            LyingSite site = LyingSites.Of(world, thing);
+            Definition definition = LyingProperties.DefinitionOf(thing.Kind, site);
             if (Double3.Distance(eye, at) > ReachM + definition.RadiusM) return VerbOutcome.OutOfReach;
             byte place = FreePlace();
             if (place == 0) return VerbOutcome.HandsFull;
             world.Taken.Take(thing);
-            Insert(new CarriedThing { Id = world.Entities.AllocateId(), Definition = definition, SpawnTick = world.Tick, Place = place });
+            // What its place said of it comes with it (BF.1): its tree, its size, its water, the shape it lay in.
+            ItemComponent item = default;
+            item.Resting = true;
+            item.State = LyingProperties.StateOf(thing, site);
+            Insert(new CarriedThing { Id = world.Entities.AllocateId(), Definition = definition, SpawnTick = world.Tick, Place = place, Item = item });
             if (!TryAt(Hand, out _)) Hand = place;
             return VerbOutcome.Done;
         }

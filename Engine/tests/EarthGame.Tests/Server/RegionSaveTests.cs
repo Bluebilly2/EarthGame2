@@ -250,7 +250,7 @@ namespace EarthGame.Tests.Server
             SavedEntity savedFlake = info.Entities.Find(e => e.Id == flake.Id.Value);
             Assert.That(savedFlake.Key, Is.EqualTo("item/flake-silcrete"));
             Assert.That(savedFlake.Item.Edge01, Is.EqualTo(0.545f), "and the flake's edge");
-            Assert.That(info.Entities.Find(e => e.Id == 1UL).Item.HasStoneState, Is.False, "a cobble never struck has none");
+            Assert.That(info.Entities.Find(e => e.Id == 1UL).Item.HasOwnState, Is.False, "a cobble never struck has none");
             CarriedThing carried = info.Players["William"].Carried[0];
             Assert.That(carried.Item.MassKg, Is.EqualTo(0.55f), "the carried core's own mass rides the player file");
             Assert.That(carried.Item.PlatformDeg, Is.EqualTo(73.05f));
@@ -272,7 +272,7 @@ namespace EarthGame.Tests.Server
             List<SavedEntity> old = RegionFile.Decode(v2, out _, out _, out _);
             Assert.That(old.Count, Is.EqualTo(1));
             Assert.That(old[0].Item.Resting, Is.True);
-            Assert.That(old[0].Item.HasStoneState, Is.False, "a stone written before FP.3 weighs what its definition says");
+            Assert.That(old[0].Item.HasOwnState, Is.False, "a stone written before FP.3 weighs what its definition says");
             Assert.That(KnappingItems.MassOf(DefinitionCatalogue.ByKey(old[0].Key), old[0].Item), Is.EqualTo(0.6).Within(1e-12));
 
             // A version-5 player file, as FP.2 wrote it: a carried thing is its place, id, key and spawn tick, and no stone's state.
@@ -291,7 +291,7 @@ namespace EarthGame.Tests.Server
             pw.WriteDouble(1.75);
             SavedPlayer oldPlayer = PlayerFile.Decode(WithCrc(pw.Written.ToArray()));
             Assert.That(oldPlayer.Carried.Length, Is.EqualTo(1));
-            Assert.That(oldPlayer.Carried[0].Item.HasStoneState, Is.False, "a cobble carried through version 5 weighs what its definition says");
+            Assert.That(oldPlayer.Carried[0].Item.HasOwnState, Is.False, "a cobble carried through version 5 weighs what its definition says");
             Assert.That(oldPlayer.Carried[0].Item.Resting, Is.True);
             Assert.That(oldPlayer.CoreDeficitC, Is.EqualTo(1.75), "and the rest of the file is read as before");
         }
@@ -346,7 +346,7 @@ namespace EarthGame.Tests.Server
             Assert.That(back.Carried[0].Item.MassKg, Is.EqualTo(0.41f), "and what a blow made of a carried stone since version 6 (FP.3)");
             Assert.That(back.Carried[0].Item.PlatformDeg, Is.EqualTo(77.5f));
             Assert.That(back.Carried[0].Item.FlakesTaken, Is.EqualTo((ushort)3));
-            Assert.That(back.Carried[1].Item.HasStoneState, Is.False, "the stick has none");
+            Assert.That(back.Carried[1].Item.HasOwnState, Is.False, "the stick has none");
             Assert.That(back.Hand, Is.EqualTo((byte)4));
             Assert.That(back.Carried.Length, Is.EqualTo(2));
             Assert.That(back.Carried[1].Id, Is.EqualTo(11UL));

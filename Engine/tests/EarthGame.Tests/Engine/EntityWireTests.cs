@@ -16,12 +16,13 @@ namespace EarthGame.Tests.Engine
         }
 
         /// <summary>An item's component on the wire: its rest and fall, and since protocol 15 (FP.3) the fourteen bytes of the state a blow gave it.</summary>
-        private const int ItemBytes = 1 + 4 + 4 + 4 + 4 + 2;
+        /// <summary>Rest, fall and the mask of a thing with nothing of its own (BF.1).</summary>
+        private const int ItemBytes = 1 + 4 + 2;
 
         [Test]
         public void TheProtocolIsVersionSixteenAndItsKindsKeepTheirNumbers()
         {
-            Assert.That(ProtocolInfo.Version, Is.EqualTo((ushort)16), "4 carried the entities, 5 the layer on each tile message, 6 the verbs, 7 the taking of what lies, 8 the far forest's layers, 9 an animal's pose and the interest radius, 10 a developer's settings and the clock on the pong, 11 the clock's scale on the pong, 12 the fleeing pose, 13 the founder's water and the drink, 14 the founder's core and the death, 15 the stone's state on an item, the knap and the answer's words, 16 the developer's switch");
+            Assert.That(ProtocolInfo.Version, Is.EqualTo((ushort)17), "4 carried the entities, 5 the layer on each tile message, 6 the verbs, 7 the taking of what lies, 8 the far forest's layers, 9 an animal's pose and the interest radius, 10 a developer's settings and the clock on the pong, 11 the clock's scale on the pong, 12 the fleeing pose, 13 the founder's water and the drink, 14 the founder's core and the death, 15 the stone's state on an item, the knap and the answer's words, 16 the developer's switch, 17 a thing's own state as one record and the carrying with it");
             Assert.That((byte)MessageKind.EntitySpawn, Is.EqualTo((byte)14));
             Assert.That((byte)MessageKind.EntityState, Is.EqualTo((byte)15));
             Assert.That((byte)MessageKind.EntityGone, Is.EqualTo((byte)16));
@@ -59,7 +60,7 @@ namespace EarthGame.Tests.Engine
             Assert.That(back.HasItem, Is.True);
             Assert.That(back.Item.Resting, Is.False);
             Assert.That(back.Item.FallSpeed, Is.EqualTo(2.5f));
-            Assert.That(back.Item.HasStoneState, Is.False, "a cobble never struck has no state of its own");
+            Assert.That(back.Item.HasOwnState, Is.False, "a cobble never struck has no state of its own");
             Assert.That(w.Written.Length, Is.EqualTo(1 + 8 + 4 + 8 + 24 + 4 + 1 + ItemBytes), "the spawn's bytes are what the budget counts");
         }
 
@@ -77,7 +78,7 @@ namespace EarthGame.Tests.Engine
             EntitySpawnMessage back = EntitySpawnMessage.Read(Reader(w));
             Assert.That(back.Item.MassKg, Is.EqualTo(0.0207f));
             Assert.That(back.Item.Edge01, Is.EqualTo(0.545f));
-            Assert.That(back.Item.HasStoneState, Is.True);
+            Assert.That(back.Item.HasOwnState, Is.True);
             Assert.That(DefinitionCatalogue.ById(new DefinitionId(back.DefinitionId)), Is.SameAs(DefinitionCatalogue.FlakeOf(StoneType.Silcrete)));
 
             EntityStateMessage core = default;
@@ -86,7 +87,7 @@ namespace EarthGame.Tests.Engine
             core.Item = new ItemComponent { Resting = true, MassKg = 0.5793f, PlatformDeg = 80.2f, FlakesTaken = 2 };
             w.Reset();
             core.Write(w);
-            Assert.That(w.Written.Length, Is.EqualTo(1 + 8 + 8 + 1 + ItemBytes));
+            Assert.That(w.Written.Length, Is.EqualTo(1 + 8 + 8 + 1 + 1 + 4 + 2 + 4 + 4 + 2), "rest, fall, the mask, then the mass, the platform and the flakes it has of its own (BF.1)");
             EntityStateMessage coreBack = EntityStateMessage.Read(Reader(w));
             Assert.That(coreBack.Item.PlatformDeg, Is.EqualTo(80.2f));
             Assert.That(coreBack.Item.FlakesTaken, Is.EqualTo((ushort)2));
@@ -108,10 +109,10 @@ namespace EarthGame.Tests.Engine
                 w.WriteByte((byte)EntityFields.Item);
                 w.WriteBool(true);
                 w.WriteSingle(0f);
+                w.WriteUInt16((ushort)(ThingFields.Mass | ThingFields.Edge | ThingFields.Platform));
                 w.WriteSingle(mass);
                 w.WriteSingle(edge);
                 w.WriteSingle(platform);
-                w.WriteUInt16(0);
                 Assert.Throws<ProtocolException>(() => EntityStateMessage.Read(Reader(w)), what);
             }
         }

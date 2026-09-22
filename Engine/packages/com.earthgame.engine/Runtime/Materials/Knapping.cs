@@ -260,8 +260,8 @@ namespace EarthGame.Engine
         public static bool IsHammer(Definition definition) =>
             IsStone(definition) || ReferenceEquals(definition, DefinitionCatalogue.Cobble);
 
-        /// <summary>What a thing weighs, kg: its own mass once a blow gave it one, else its definition's.</summary>
-        public static double MassOf(Definition definition, in ItemComponent item) => item.MassKg > 0f ? item.MassKg : definition.MassKg;
+        /// <summary>What a thing weighs, kg: its own mass once a blow or its place gave it one (BF.1), else its definition's.</summary>
+        public static double MassOf(Definition definition, in ItemComponent item) => item.State.Has(ThingFields.Mass) ? item.State.MassKg : definition.MassKg;
 
         /// <summary>The core a stone item is, to be struck: its stone, its mass, the platform it presents and the flakes taken so far.</summary>
         public static StoneCore CoreOf(Definition definition, in ItemComponent item)

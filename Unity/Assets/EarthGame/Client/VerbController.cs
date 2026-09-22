@@ -146,7 +146,7 @@ namespace EarthGame.Client
         {
             _hud?.SetCarrying(carrying.Hand, carrying.Things);
             if (_hand == null) return;
-            if (TryInHand(carrying, out CarriedThing held)) _hand.Show(held.Definition, held.Id);
+            if (TryInHand(carrying, out CarriedThing held)) _hand.Show(held.Definition, held.Id, held.Item.State);
             else _hand.Hide();
         }
 
@@ -321,21 +321,28 @@ namespace EarthGame.Client
             return found;
         }
 
-        /// <summary>What the mouse would do now, in words: the right button's use, and with a stone in hand on stone, the left button's blow (FP.3).</summary>
+        /// <summary>
+        /// What the mouse would do now, in words: the right button's use, and with a stone in hand on stone, the left button's
+        /// blow (FP.3). The thing is named by what it is (BF.1, <see cref="ThingWords"/>): a lying thing by what its place says
+        /// of it, read from the tiles by the server's own rule, and a thing in the world by the state it carries.
+        /// </summary>
         private string Offer(CarryingMessage carrying)
         {
             bool full = carrying.Things != null && carrying.Things.Length >= Hands.Places;
             bool hammer = TryInHand(carrying, out CarriedThing inHand) && KnappingItems.IsHammer(inHand.Definition);
             if (Target != null)
             {
-                if (hammer && KnappingItems.IsStone(Target.Definition)) return Target.Definition.DisplayName + " — knap (hold to strike harder)" + (full ? "" : ", or pick up");
-                return Target.Definition.DisplayName + " — " + (full ? "your hands are full" : "pick up");
+                string name = ThingWords.Describe(Target.Definition, Target.HasItem ? Target.Item.State : default);
+                if (hammer && KnappingItems.IsStone(Target.Definition)) return name + " — knap (hold to strike harder)" + (full ? "" : ", or pick up");
+                return name + " — " + (full ? "your hands are full" : "pick up");
             }
             if (TargetLying.HasValue)
             {
-                Definition kind = TargetLying.Value.Kind == StandLayout.Kind.Stick ? DefinitionCatalogue.Stick : DefinitionCatalogue.Cobble;
-                if (hammer && TargetLying.Value.Kind == StandLayout.Kind.Cobble) return kind.DisplayName + " — knap (hold to strike harder)" + (full ? "" : ", or pick up");
-                return kind.DisplayName + " — " + (full ? "your hands are full" : "pick up");
+                LyingThing thing = TargetLying.Value;
+                LyingSite site = LyingSiteReader.Of(_client.Tiles, _client.Grid, thing);
+                string name = ThingWords.Describe(LyingProperties.DefinitionOf(thing.Kind, site), LyingProperties.StateOf(thing, site));
+                if (hammer && thing.Kind == StandLayout.Kind.Cobble) return name + " — knap (hold to strike harder)" + (full ? "" : ", or pick up");
+                return name + " — " + (full ? "your hands are full" : "pick up");
             }
             if (WaterAt.HasValue) return "water — drink";
             if (Ground.HasValue && TryInHand(carrying, out CarriedThing held))

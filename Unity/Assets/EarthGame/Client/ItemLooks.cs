@@ -9,22 +9,23 @@ namespace EarthGame.Client
     /// What an item looks like (M1.5a): the stand's own meshes (<see cref="StandMeshes"/>, from <c>StandForms</c>), so a
     /// stick picked up, carried and put down is drawn as the sticks lying in the litter are. It replaced M1.3's prefab
     /// registry, whose placeholder prefabs drew a spawned stick unlike a lying one with nothing to make the two agree
-    /// (DEBTS, 2026-09-11). A thing's variant is its id, so it keeps its look wherever it goes.
+    /// (DEBTS, 2026-09-11). A thing's variant is the look its state carries — the shape it lay in, kept wherever it goes
+    /// (BF.1) — and its id's for a thing that lay nowhere.
     /// </summary>
     public static class ItemLooks
     {
         /// <summary>The mesh an item is drawn by and the scale it is drawn at; false for a definition that has no look.</summary>
-        public static bool TryLook(Definition definition, ulong id, out Mesh mesh, out float scale)
+        public static bool TryLook(Definition definition, ulong id, in ThingState state, out Mesh mesh, out float scale)
         {
-            int variant = (int)(id % (ulong)StandPreparation.Variants);
-            if (ReferenceEquals(definition, DefinitionCatalogue.Stick))
+            int variant = state.Has(ThingFields.Look) ? state.Look % StandPreparation.Variants : (int)(id % (ulong)StandPreparation.Variants);
+            if (definition != null && definition.Substance == Substance.Wood)
             {
                 mesh = StandMeshes.Stick(variant);
                 scale = 1f;
                 return true;
             }
             // The plain cobble and every stone's cobble (M1.5b) are one shape; a cobble's stone is in what it is, not how it looks yet.
-            if (ReferenceEquals(definition, DefinitionCatalogue.Cobble) || (definition != null && definition.Kind == DefinitionKind.Item && definition.Row is StoneType))
+            if (definition != null && definition.Substance == Substance.Stone)
             {
                 mesh = StandMeshes.Cobble(variant);
                 scale = StandViews.CobbleSizeM;
@@ -55,7 +56,7 @@ namespace EarthGame.Client
         {
             List<string> wrong = new List<string>();
             foreach (Definition d in DefinitionCatalogue.Spawnable)
-                if (!TryLook(d, 1, out Mesh mesh, out _) || mesh == null) wrong.Add("spawnable '" + d.Key + "' has no look");
+                if (!TryLook(d, 1, default, out Mesh mesh, out _) || mesh == null) wrong.Add("spawnable '" + d.Key + "' has no look");
             return wrong;
         }
     }

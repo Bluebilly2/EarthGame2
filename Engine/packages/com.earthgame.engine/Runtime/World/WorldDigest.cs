@@ -24,7 +24,7 @@ namespace EarthGame.Engine
         /// <summary>Yaw is named to the microdegree; a fall speed to the micrometre per second.</summary>
         public const double DegreeResolution = 1e-6;
 
-        /// <summary>A stone's own mass is named to the milligram, and an edge to the millionth (FP.3).</summary>
+        /// <summary>A thing's own mass is named to the milligram, and an edge, a water share and a condition to the millionth (FP.3, BF.1).</summary>
         public const double MassResolution = 1e-6;
         public const double EdgeResolution = 1e-6;
 
@@ -83,21 +83,32 @@ namespace EarthGame.Engine
             if (r.HasItem)
             {
                 sb.Append(" item ").Append(r.Item.Resting ? 'r' : 'f').Append(' ').Append(Fixed(r.Item.FallSpeed, MetreResolution));
-                AppendStone(sb, r.Item);
+                AppendThing(sb, r.Item.State);
             }
             if (r.HasAnimal) sb.Append(" animal ").Append(r.Animal.Pose.ToString(CultureInfo.InvariantCulture));
             sb.Append('\n');
         }
 
         /// <summary>
-        /// What a blow made of a stone (FP.3): its own mass, its edge, its platform's angle and the flakes taken, only when it
-        /// has state of its own, so a world saved before any stone was struck keeps its name.
+        /// What a thing has of its own (BF.1): the mask of its fields, then each field the mask names in the mask's order at its
+        /// resolution — mass to the milligram, a length and a thickness to the micrometre, water, an edge and a condition to the
+        /// millionth, a platform to the microdegree, flakes, look and marks as counts; nothing for a thing with nothing of its
+        /// own, so a world saved before anything was struck or taken up keeps its name.
         /// </summary>
-        private static void AppendStone(StringBuilder sb, in ItemComponent item)
+        private static void AppendThing(StringBuilder sb, in ThingState s)
         {
-            if (!item.HasStoneState) return;
-            sb.Append(" stone ").Append(Fixed(item.MassKg, MassResolution)).Append(' ').Append(Fixed(item.Edge01, EdgeResolution))
-              .Append(' ').Append(Fixed(item.PlatformDeg, DegreeResolution)).Append(' ').Append(item.FlakesTaken.ToString(CultureInfo.InvariantCulture));
+            if (!s.HasAny) return;
+            sb.Append(" thing ").Append(((int)s.Fields).ToString(CultureInfo.InvariantCulture));
+            if (s.Has(ThingFields.Mass)) sb.Append(' ').Append(Fixed(s.MassKg, MassResolution));
+            if (s.Has(ThingFields.Length)) sb.Append(' ').Append(Fixed(s.LengthM, MetreResolution));
+            if (s.Has(ThingFields.Diameter)) sb.Append(' ').Append(Fixed(s.DiameterM, MetreResolution));
+            if (s.Has(ThingFields.Moisture)) sb.Append(' ').Append(Fixed(s.Moisture, EdgeResolution));
+            if (s.Has(ThingFields.Edge)) sb.Append(' ').Append(Fixed(s.Edge01, EdgeResolution));
+            if (s.Has(ThingFields.Platform)) sb.Append(' ').Append(Fixed(s.PlatformDeg, DegreeResolution));
+            if (s.Has(ThingFields.Flakes)) sb.Append(' ').Append(s.FlakesTaken.ToString(CultureInfo.InvariantCulture));
+            if (s.Has(ThingFields.Look)) sb.Append(' ').Append(s.Look.ToString(CultureInfo.InvariantCulture));
+            if (s.Has(ThingFields.Condition)) sb.Append(' ').Append(Fixed(s.Condition01, EdgeResolution));
+            if (s.Has(ThingFields.Marks)) sb.Append(' ').Append(s.Marks.ToString(CultureInfo.InvariantCulture));
         }
 
         /// <summary>
@@ -114,7 +125,7 @@ namespace EarthGame.Engine
             {
                 sb.Append("carried ").Append(c.Name).Append(' ').Append(t.Place.ToString(CultureInfo.InvariantCulture)).Append(' ')
                   .Append(t.Id.ToString(CultureInfo.InvariantCulture)).Append(' ').Append(t.Definition.Key);
-                AppendStone(sb, t.Item);
+                AppendThing(sb, t.Item.State);
                 sb.Append('\n');
             }
         }

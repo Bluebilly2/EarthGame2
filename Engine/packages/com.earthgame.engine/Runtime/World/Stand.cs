@@ -113,6 +113,16 @@ namespace EarthGame.Engine
             Tuft = 4,
         }
 
+        /// <summary>How many shapes a lying thing can be drawn in (BF.1): the client draws this many variants of a stick and a cobble, and a thing's look names one.</summary>
+        public const int Looks = 6;
+
+        /// <summary>
+        /// The shape a thing lying at this address is drawn in, 0 to <see cref="Looks"/> less one (BF.1; the rule the client's
+        /// preparation has used since M1.6a): a hash of the cell, the kind and the index. A thing taken up keeps it as its look.
+        /// </summary>
+        public static int LookOf(int row, int col, Kind kind, int index) =>
+            (int)(Mix((((ulong)(uint)row << 32) | (uint)col) ^ (((((ulong)kind) << 8) | (uint)(index + 1)) << 40)) % (ulong)Looks);
+
         /// <summary>
         /// A thing's offset from its cell's centre, whole centimetres east and north, each inside the cell, and its yaw,
         /// whole degrees clockwise from north.
