@@ -15,6 +15,7 @@ Shader "EarthGame/StandLit"
         _Band ("Band: 0 near, 1 far", Float) = 0
         _SplitM ("Near and far split, m", Float) = 250
         _Eye ("The eye the bands are measured from", Vector) = (0, 0, 0, 0)
+        _Vary ("How far an instance's shade strays from its colour, by a hash of where it stands (M1.6e)", Range(0, 0.5)) = 0
     }
 
     SubShader
@@ -28,7 +29,19 @@ Shader "EarthGame/StandLit"
             float _Band;
             float _SplitM;
             float4 _Eye;
+            float _Vary;
         CBUFFER_END
+
+        // An instance's own shade: brighter or darker by up to _Vary, and a touch yellower when brighter, from where it stands,
+        // so two tufts of one mesh side by side are not one tuft twice. Called after UNITY_SETUP_INSTANCE_ID.
+        half3 OwnShade()
+        {
+            float2 at = float2(UNITY_MATRIX_M._m03, UNITY_MATRIX_M._m23);
+            float3 q = frac(float3(at.xyx) * float3(0.1031, 0.1030, 0.0973));
+            q += dot(q, q.yzx + 33.33);
+            float u = frac((q.x + q.y) * q.z) * 2.0 - 1.0;
+            return half3(1.0 + _Vary * u * 1.1, 1.0 + _Vary * u, 1.0 + _Vary * u * 0.8);
+        }
 
         // One when this instance is drawn in this material's band, zero when the other material draws it. Called after
         // UNITY_SETUP_INSTANCE_ID, so the object matrix is the instance's.
@@ -82,7 +95,7 @@ Shader "EarthGame/StandLit"
                 output.positionWS = positionWS;
                 output.positionCS = TransformWorldToHClip(positionWS);
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
-                output.color = input.color;
+                output.color = float4(input.color.rgb * OwnShade(), input.color.a);
                 output.fog = ComputeFogFactor(output.positionCS.z);
                 return output;
             }

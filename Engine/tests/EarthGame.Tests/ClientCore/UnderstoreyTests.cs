@@ -78,19 +78,30 @@ namespace EarthGame.Tests.ClientCore
             List<UnderstoreyTuft> grass = At(client, East + 30.0, North, 6.0);
             List<UnderstoreyTuft> sand = At(client, East + 80.0, North, 6.0);
 
+            // Since M1.6e a cover grows its companion between its own shape and herbs under both, so the cover's own shape is
+            // the greater part of what is not a herb, and a tuft's size runs wider.
             Assert.That(heath, Is.Not.Empty, "the heath grows shrubs");
+            int shrubs = 0, heathOthers = 0;
             foreach (UnderstoreyTuft tuft in heath)
             {
-                Assert.That(tuft.Shape, Is.EqualTo(TuftShape.Shrub));
+                if (tuft.Shape == TuftShape.Herb) continue;
+                if (tuft.Shape == TuftShape.Shrub) shrubs++; else { heathOthers++; Assert.That(tuft.Shape, Is.EqualTo(TuftShape.Tussock), "the heath's companion"); continue; }
                 double stands = Understorey.HeightIn(0.90, HeathQuarter);
-                Assert.That(tuft.HeightM, Is.InRange(stands * 0.8 - 1e-4, stands * 1.2 + 1e-4), "its height, with its own size");
+                Assert.That(tuft.HeightM, Is.InRange(stands * Understorey.SmallestSize - 1e-4, stands * Understorey.LargestSize + 1e-4), "its height, with its own size");
                 Assert.That(tuft.AcrossM / tuft.HeightM, Is.EqualTo(Understorey.AcrossShare(TuftShape.Shrub)).Within(1e-5), "a bush spreads");
                 Assert.That(tuft.Variant, Is.InRange(0, StandPreparation.Variants - 1));
                 Assert.That(tuft.YawDeg, Is.InRange(0f, 359f));
             }
+            Assert.That(shrubs, Is.GreaterThan(heathOthers), "shrubs are the greater part of the heath");
             Assert.That(grass, Is.Not.Empty, "the grass grows tussocks");
-            foreach (UnderstoreyTuft tuft in grass) Assert.That(tuft.Shape, Is.EqualTo(TuftShape.Tussock));
-            Assert.That(grass.Count, Is.GreaterThan(2 * heath.Count), "and thicker on the ground than the heath, as the covers say");
+            int tussocks = 0, grassOthers = 0;
+            foreach (UnderstoreyTuft tuft in grass)
+            {
+                if (tuft.Shape == TuftShape.Herb) continue;
+                if (tuft.Shape == TuftShape.Tussock) tussocks++; else { grassOthers++; Assert.That(tuft.Shape, Is.EqualTo(TuftShape.Clump), "the grass's companion"); }
+            }
+            Assert.That(tussocks, Is.GreaterThan(grassOthers), "tussocks are the greater part of the grass");
+            Assert.That(tussocks + grassOthers, Is.GreaterThan(2 * (shrubs + heathOthers)), "and thicker on the ground than the heath, as the covers say");
             Assert.That(sand, Is.Empty, "nothing grows on sand");
         }
 

@@ -45,6 +45,9 @@ namespace EarthGame.ClientCore
                     if (x < 0 || z < 0 || x >= loose.Posts || z >= loose.Posts) continue;
                     byte code = loose.Codes[z, x];
                     if (code == 0) continue;
+                    // What the lake bed keeps to itself is neither seen nor reached (M1.6e): the same rule as the drawing's.
+                    ReceivedTile depth = tiles.Holding(TileLayer.WaterDepth, id);
+                    if (depth?.Heights != null && !StandPreparation.LiesUnder(TileGround.HeightAt(depth, centreEast, centreNorth))) continue;
                     Add(row, col, StandLayout.Kind.Stick, LooseCodes.SticksOf(code), ground, cell, grid.ExtentM, taken, into);
                     Add(row, col, StandLayout.Kind.Cobble, LooseCodes.CobblesOf(code), ground, cell, grid.ExtentM, taken, into);
                 }

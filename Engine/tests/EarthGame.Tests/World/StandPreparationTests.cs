@@ -95,6 +95,27 @@ namespace EarthGame.Tests.World
             Assert.That(again.Sticks[2].East, Is.EqualTo(prepared.Sticks[2].East), "the same every time");
         }
 
+        /// <summary>
+        /// Nothing lies where water stands (M1.6e): the rows of dark specks across Windermere were the lake bed's sticks and
+        /// cobbles drawn through clear water. A cell under more than a hand of water gives up its things; a dry cell keeps them.
+        /// </summary>
+        [Test]
+        public void NothingLiesWhereWaterStands()
+        {
+            TileId id = new TileId(2, 2);
+            ReceivedTile stand = Tile(id, TileLayer.Stand, (z, x) => 0);
+            ReceivedTile loose = Tile(id, TileLayer.Loose, (z, x) => (z == 5 && x == 6) || (z == 9 && x == 6) ? LooseCodes.Pack(3, 2) : (byte)0);
+            ReceivedTile depth = Tile(id, TileLayer.WaterDepth, heights: (z, x) => z >= 8 ? 1.0f : 0f);
+            PreparedStand prepared = StandPreparation.Prepare(stand, loose, Ground(id), Grid, null, depth);
+            Assert.That(prepared.Sticks.Length, Is.EqualTo(3), "the dry cell's sticks, and not the drowned cell's");
+            Assert.That(prepared.Cobbles.Length, Is.EqualTo(2));
+            foreach (LooseInstance stick in prepared.Sticks) Assert.That(stick.North, Is.LessThan((float)(stand.OriginNorth + 7 * Cell)), "all on the dry cell");
+            Assert.That(StandPreparation.Prepare(stand, loose, Ground(id), Grid).Sticks.Length, Is.EqualTo(6), "with no depth held, everything lies as before");
+            Assert.That(StandPreparation.LiesUnder(0.0), Is.True);
+            Assert.That(StandPreparation.LiesUnder(StandPreparation.DeepestLyingM), Is.True, "a hand of water over a cobble is still a cobble seen");
+            Assert.That(StandPreparation.LiesUnder(StandPreparation.DeepestLyingM + 0.01), Is.False);
+        }
+
         /// <summary>What has been taken is not drawn, and the rest keep their places (M1.5b promise 4).</summary>
         [Test]
         public void WhatHasBeenTakenIsNotDrawnAndTheRestKeepTheirPlaces()

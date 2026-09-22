@@ -579,7 +579,12 @@ leg rather than to the whole lap. `corpus_check.py` reads what the bodies lived 
   makes that the tile's own terrain layer, one texture stretched once over the kilometre. Two texels a post is
   what a blend needs; a metre a texel costs four times the work and shows the same 4 m raster. The ingredients do
   not travel: measured on the nine tiles around the wake, wetness is 476 KB and soil depth 501 KB against the
-  ground's own 418 KB, and the byte they come to is 96 KB on the wire.
+  ground's own 418 KB, and the byte they come to is 96 KB on the wire. Since M1.6e (2026-09-22) the tile's picture is
+  drawn by `EarthGame/Ground`, a terrain shader of this project's own in place of the pipeline's: a Lambert lit as the
+  stand is, which multiplies the map's colour by a grain made in the shader from the world position (a fine scale of
+  0.35 m and a coarse one of 1.7 m, moving a sixth of the brightness, the troughs a touch darker and warmer) and tilts
+  the normal by the grain's slope so the sun shows it; the grain fades out by 110 m so the far ground stays the map's
+  colour and never shimmers. `-eg-hide grain` flattens it, so its cost can be parted from the rest.
 - **What a streamed tile costs, and where** (M1.4e, 2026-09-10). Sampling a tile's posts and building its colour
   map are pure over the tile alone and run on a worker (`TilePreparation` in ClientCore): 21.9 ms and 7.1 ms a
   tile in Release, off the main thread. The main thread does only what Unity requires — `SetHeights`, the
@@ -619,10 +624,16 @@ leg rather than to the whole lap. `corpus_check.py` reads what the bodies lived 
   less its shadows and its main thread, against the trees' 2.0). The sticks and cobbles cost 0.2 ms, and 0.6 ms on
   the wake's beach of cobbles, against 0.7 ms. The understorey (M1.6c) is drawn the same way, from the cover byte
   rather than a layer of its own: the tufts within 45 m of the founder, placed again when they have walked 6 m or when
-  a cover tile arrives, instanced in four shapes and six variants and casting no shadows. Measured the same way, it
+  a cover tile arrives, instanced in five shapes and six variants and casting no shadows. Since M1.6e (2026-09-22)
+  a cover grows its own shape with a companion at a stated share between (tussocks in the heath and the bracken,
+  clumps of sedge in the grass, tussocks in the sedge), a low herb stands between them on every growing cover, the
+  tufts run from six tenths to one and a half of their cover's height, the density comes in patches five cells wide
+  by a smooth hash of the cell grid with the stated density as its mean, each tuft takes its own shade from a hash of
+  where it stands (`_Vary` on the stand's shader, zero for the trees), and nothing stands where the client's own
+  water-depth tile says water does, save a sedge's clump in water a hand deep or less. Measured the same way, it
   costs 0.1 to 0.4 ms of the median frame (6.7 ms against 6.3 at the new wake, 6.8 against 6.7 beside Windermere),
   against the 3.0 ms §8 gives grass and the understorey, and its placing costs the main thread half a millisecond once
-  every six metres. The far forest (M1.6d) stands beyond the stand tiles a client holds: one far tree to each 40 m square of the region that holds a tree, from the far stand and the far count the client is sent once at the join, as tall as the square's trees on average and as wide as their crowns together, drawn in the far band's own mesh and material in quarter-tile blocks chosen by the view, and only where that tile's own stand is not held. Measured the same way, it costs 0.1 to 0.3 ms of the median frame (7.4 ms against 7.2 at the wake, 8.2 against 8.1 beside Windermere, 7.5 against 7.2 at the new wake), its 28,842 far trees drawn unthinned and casting no shadow. §8's own protocol, in a visible window, is still owed (DEBTS.md). On the wire the two layers are small beside the ground: the nine tiles round the gate world's wake
+  every six metres (0.9 to 1.5 ms since M1.6e's herbs doubled what is placed, measured at the four vantages). The far forest (M1.6d) stands beyond the stand tiles a client holds: one far tree to each 40 m square of the region that holds a tree, from the far stand and the far count the client is sent once at the join, as tall as the square's trees on average and as wide as their crowns together, drawn in the far band's own mesh and material in quarter-tile blocks chosen by the view, and only where that tile's own stand is not held. Measured the same way, it costs 0.1 to 0.3 ms of the median frame (7.4 ms against 7.2 at the wake, 8.2 against 8.1 beside Windermere, 7.5 against 7.2 at the new wake), its 28,842 far trees drawn unthinned and casting no shadow. §8's own protocol, in a visible window, is still owed (DEBTS.md). On the wire the two layers are small beside the ground: the nine tiles round the gate world's wake
   are 110,056 bytes of stand and 119,421 of loose as cached, deflated, against the ground's 282,686 (the M1.6
   gate's shaped join, 2026-09-11).
 - **Things lying and in hand** (M1.5a, 2026-09-11): an item is drawn from the stand's own mesh for it (`ItemLooks`: a
@@ -673,9 +684,9 @@ leg rather than to the whole lap. `corpus_check.py` reads what the bodies lived 
   3 × 3 around each player collidable; the coarse ring over the region and the 64 km skirt beyond it at 1025,
   `CoarsePosts`). Each streamed tile carries its own terrain layer, whose
   picture is that tile's cover (above); the coarse ring and the skirt keep the flat layer, because a cover is a
-  fact of a world and they are read from the region's bake. Grain underfoot waits for a terrain material that can
-  multiply a tiled detail texture by the colour map: the stock layer blends, and a blend washes the colour out
-  (DEBTS.md, 2026-09-10). No "build all now" path.
+  fact of a world and they are read from the region's bake. The grain underfoot is the ground shader's own (M1.6e,
+  above): the stock layer could carry the colour or a tiled detail but not both without blending, and a blend washes
+  the colour out (DEBTS.md, 2026-09-10, paid). No "build all now" path.
 - Flora: grass and shrubs by Terrain detail instancing first, BatchRendererGroup only if measured over 3 ms. Trees
   are drawn instanced from the stand layer (above), not as prefabs: the plan's parametric skeleton, with v1's vertex
   colour in place of authored leaf and bark materials and a near and a far band in place of a LODGroup and
@@ -969,3 +980,4 @@ mandatory in every file from the first write.
 | 2026-09-21 | M1.4h: ripples are slopes on the water's normal in the shader — four waves at the dispersion relation's speeds, steepened by the wind, faded with distance — never a displaced mesh, and their clock is the game's awake seconds | William's "ripples now". A displaced mesh would move the wading and the depth column M1.4g had just made agree with the world; a normal moves only what the eye sees. The dispersion relation is one law where four tuned speeds would be four facts; the wind ties the look to the weather the game already computes (M1.8a); and a ripple on real time would have moved while the world stood still (M1.E) |
 | 2026-09-21 | M1.5h: the founder's second-by-second speed is a table of measured walking speeds on slopes, reached by acceleration and left by braking, on ground no steeper than 35°; Tobler stays as the journey's hour-average | William's ruling 34: a founder walked down a dune slower than a stroll, because Tobler's hiking function, fitted to journey times with the pauses in them, was used as a stepping pace and floored. The stepping pace and the journey's pace are two facts with two owners now; the acceleration is the third step's (Gait & Posture 2021) and the brake v1's; the repose is where loose ground stops standing. His hands judge the feel (ruling 12) |
 | 2026-09-22 | M1.5j: a footstep is an impact and the ground's own answer to it — a heel and a forefoot, each answered by a body, modes and grains from the ground's numbers — and heath is a footing of its own; the tests assert the numbers an ear would give (a second strike, a ring's autocorrelation, the count of snaps, the splash's length, a brightness share) and the tool writes the same sounds as WAV files for the owner's ears, blind | William heard every M1.5c ground as "a static sounding noise" (ruling 37): one burst of filtered noise differs by brightness and length only. What an ear tells apart is the structure of the sound, and a test can only hold that structure if it measures it; whether the result sounds like a foot on that ground stays his, so the proof ends with a blind set rather than a claim. |
+| 2026-09-22 | M1.6e: the ground's grain is made in a terrain shader of the project's own (the map's colour multiplied by a two-scale noise of the world position, the normal tilted by its slope, faded by 110 m), never a detail texture from a file; and the understorey's variety comes from the cover's own numbers — a companion shape at a share, herbs between, patches by a hash of the cell grid, a shade per tuft — with nothing standing where the water-depth tile says water stands | William judged the understorey "a smooth green floor with some small bits scattered around weirdly" (ruling 37) and the ground had no grain since M1.4d. A grain from a file would be the project's first imported picture and would tile visibly; a grain from the position tiles never and costs a few hashes a pixel. Variety from the cover's numbers keeps one owner for what grows where, and the water rule reads a tile the client already holds rather than adding a layer. |

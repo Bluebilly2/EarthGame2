@@ -18,7 +18,7 @@ namespace EarthGame.Editor
     public static class ProjectSetup
     {
         public const string ResourcesFolder = "Assets/EarthGame/Resources/EarthGame";
-        public const string TerrainMaterialPath = ResourcesFolder + "/TerrainLit.mat";
+        public const string TerrainMaterialPath = ResourcesFolder + "/Ground.mat";
         public const string GroundTexturePath = ResourcesFolder + "/GroundTex.asset";
         public const string GroundLayerPath = ResourcesFolder + "/GroundLayer.terrainlayer";
         public const string SkyMaterialPath = ResourcesFolder + "/Sky.mat";
@@ -113,28 +113,11 @@ namespace EarthGame.Editor
                 created.Add(GroundLayerPath);
             }
 
-            EnsureMaterial(TerrainMaterialPath, "Universal Render Pipeline/Terrain/Lit", created);
-            {
-                // The terrain draws instanced, and a player build strips a shader's instancing variants unless a
-                // material in the project enables instancing. Without this the built player drew no terrain at
-                // all and nothing logged it; the brown "ground" in the first frames was the skybox's lower half
-                // (2026-09-08). Applied every run, because the flag is the difference between a world and a void.
-                Material terrainMaterial = AssetDatabase.LoadAssetAtPath<Material>(TerrainMaterialPath);
-                if (terrainMaterial != null && !terrainMaterial.enableInstancing)
-                {
-                    terrainMaterial.enableInstancing = true;
-                    EditorUtility.SetDirty(terrainMaterial);
-                    created.Add(TerrainMaterialPath + " (instancing on)");
-                }
-                // The URP terrain material defaults every layer to a smoothness of 0.5, which is wet rock; dry
-                // sand and litter facing away from the sun then mirrored the sky and read as water (2026-09-08).
-                if (terrainMaterial != null && terrainMaterial.GetFloat("_Smoothness0") > 0.2f)
-                {
-                    for (int i = 0; i < 4; i++) terrainMaterial.SetFloat("_Smoothness" + i, 0.12f);
-                    EditorUtility.SetDirty(terrainMaterial);
-                    created.Add(TerrainMaterialPath + " (dry)");
-                }
-            }
+            // The ground's own shader since M1.6e (2026-09-22): a Lambert with the tile's colour map and a grain made in
+            // the shader, no smoothness to go glossy on (the pipeline's terrain material defaulted every layer to wet
+            // rock, 2026-09-08) and no instancing to be stripped (the terrain draws non-instanced; the stock material
+            // needed instancing on or the built player drew no terrain at all, 2026-09-08).
+            EnsureMaterial(TerrainMaterialPath, "EarthGame/Ground", created);
             EnsureMaterial(SkyMaterialPath, "Skybox/Procedural", created);
             if (EnsureMaterial(SeaMaterialPath, "Universal Render Pipeline/Lit", created))
             {

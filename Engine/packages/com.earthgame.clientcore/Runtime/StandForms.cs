@@ -158,6 +158,7 @@ namespace EarthGame.ClientCore
                 case TuftShape.Shrub: return new Rgb(0.21f, 0.24f, 0.16f);
                 case TuftShape.Clump: return new Rgb(0.25f, 0.30f, 0.20f);
                 case TuftShape.Frond: return new Rgb(0.23f, 0.30f, 0.16f);
+                case TuftShape.Herb: return new Rgb(0.20f, 0.26f, 0.14f);
                 default: return new Rgb(0.33f, 0.35f, 0.20f);
             }
         }
@@ -170,6 +171,7 @@ namespace EarthGame.ClientCore
                 case TuftShape.Shrub: return new Rgb(0.30f, 0.36f, 0.22f);
                 case TuftShape.Clump: return new Rgb(0.40f, 0.45f, 0.28f);
                 case TuftShape.Frond: return new Rgb(0.38f, 0.46f, 0.24f);
+                case TuftShape.Herb: return new Rgb(0.34f, 0.42f, 0.22f);
                 default: return new Rgb(0.56f, 0.52f, 0.29f);
             }
         }

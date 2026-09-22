@@ -174,6 +174,9 @@ namespace EarthGame.Client
                 case TuftShape.Frond:
                     Fronds(data, rand, 4, low, high);
                     break;
+                case TuftShape.Herb:
+                    Rosette(data, rand, low, high);
+                    break;
                 default:
                     Bush(data, rand, low, high);
                     break;
@@ -223,6 +226,25 @@ namespace EarthGame.Client
                 // The blade: a leaf a third of the tuft wide, hanging a little under the frond's line.
                 Vector3 wide = across * Range(rand, 0.16f, 0.26f);
                 Blade(data, fork - wide, fork + wide, tip + wide * 0.35f, tip - wide * 0.35f, Color.Lerp(low, high, 0.4f), high);
+            }
+        }
+
+        /// <summary>A herb between the tufts (M1.6e): a rosette of five to seven flat leaves laid out from the root, ankle-high at most, the leaves lifting a little at their tips.</summary>
+        private static void Rosette(MeshData data, System.Random rand, Color low, Color high)
+        {
+            int leaves = rand.Next(5, 8);
+            for (int i = 0; i < leaves; i++)
+            {
+                float yaw = (i + Range(rand, -0.3f, 0.3f)) * Mathf.PI * 2f / leaves;
+                float reach = Range(rand, 0.5f, 1.0f);
+                Vector3 along = new Vector3(Mathf.Sin(yaw), 0f, Mathf.Cos(yaw));
+                Vector3 across = new Vector3(along.z, 0f, -along.x) * Range(rand, 0.12f, 0.2f);
+                Vector3 root = Vector3.up * 0.02f;
+                Vector3 middle = root + along * (reach * 0.5f) + Vector3.up * 0.06f;
+                Vector3 tip = root + along * reach + Vector3.up * Range(rand, 0.12f, 0.3f);
+                Color mid = Color.Lerp(low, high, 0.5f);
+                Blade(data, root - across * 0.3f, root + across * 0.3f, middle + across, middle - across, low, mid);
+                Blade(data, middle - across, middle + across, tip + across * 0.2f, tip - across * 0.2f, mid, high);
             }
         }
 

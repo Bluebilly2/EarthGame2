@@ -602,7 +602,8 @@ namespace EarthGame.Client
             ReceivedTile loose = _client.Tiles.Holding(TileLayer.Loose, id);
             _takenVersions.TryGetValue(id, out int version);
             _stand.Want(_client.Tiles.Holding(TileLayer.Stand, id), loose, _client.Tiles.Holding(TileLayer.Ground, id),
-                        StandPreparation.TakenIn(_client.Taken, loose, _client.Grid), version);
+                        StandPreparation.TakenIn(_client.Taken, loose, _client.Grid), version,
+                        _client.Tiles.Holding(TileLayer.WaterDepth, id));
         }
 
         /// <summary>
@@ -646,7 +647,8 @@ namespace EarthGame.Client
                 WantRing(tile.Id);
                 return;
             }
-            if (tile.Layer == TileLayer.Stand || tile.Layer == TileLayer.Loose || tile.Layer == TileLayer.Ground) WantStand(tile.Id);
+            // The water's depth too (M1.6e): a lake bed's sticks and cobbles are placed again, and left out, when it arrives.
+            if (tile.Layer == TileLayer.Stand || tile.Layer == TileLayer.Loose || tile.Layer == TileLayer.Ground || tile.Layer == TileLayer.WaterDepth) WantStand(tile.Id);
             // The water a tile carries is drawn as its own mesh (M1.4c); the ground is what a Terrain is built
             // from. Either can arrive first, so both paths ask for the pair.
             if (tile.Layer != TileLayer.Ground)
@@ -863,7 +865,8 @@ namespace EarthGame.Client
             _bakedRegion = RegionDataLocator.TryLoadHeightfield(_region, out string message);
             Debug.Log("[client] " + message);
 
-            _terrainMaterial = Resources.Load<Material>("EarthGame/TerrainLit");
+            // The ground with its own grain (M1.6e), in place of the pipeline's terrain shader since 2026-09-22.
+            _terrainMaterial = Resources.Load<Material>("EarthGame/Ground");
             _groundLayer = Resources.Load<TerrainLayer>("EarthGame/GroundLayer");
             Material skyMaterial = Resources.Load<Material>("EarthGame/Sky");
             _waterMaterial = Resources.Load<Material>("EarthGame/Water");
@@ -949,7 +952,7 @@ namespace EarthGame.Client
             // -eg-hide a,b,c: objects by name switched off after the view is built, to bisect what is drawn. "trees"
             // ("near" and "far" for one band of them, "shadows" for the near trees' shadows alone), "loose" and
             // "understorey" switch off what stands, lies and grows on the ground, which is drawn without objects
-            // (M1.6a, M1.6c).
+            // (M1.6a, M1.6c); "grain" flattens the ground's own grain (M1.6e).
             string hide = LaunchArgs.Get("hide", null);
             if (!string.IsNullOrEmpty(hide))
             {
@@ -966,6 +969,14 @@ namespace EarthGame.Client
                     {
                         _understorey.Drawn = false;
                         Debug.Log("[client] -eg-hide understorey: hidden");
+                        continue;
+                    }
+                    if (name == "grain" && _terrainMaterial != null)
+                    {
+                        // The ground's grain and its relief (M1.6e), so what they cost the frame can be parted from the rest.
+                        _terrainMaterial.SetFloat("_Grain", 0f);
+                        _terrainMaterial.SetFloat("_Relief", 0f);
+                        Debug.Log("[client] -eg-hide grain: hidden");
                         continue;
                     }
                     if (_stand != null && (name == "trees" || name == "near" || name == "far" || name == "loose" || name == "shadows"))

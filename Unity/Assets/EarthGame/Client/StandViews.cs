@@ -100,8 +100,8 @@ namespace EarthGame.Client
         private readonly Material _looseMaterial;
         private readonly Dictionary<TileId, TileStand> _held = new Dictionary<TileId, TileStand>();
         private readonly Dictionary<TileId, Task<TileStand>> _building = new Dictionary<TileId, Task<TileStand>>();
-        private readonly Dictionary<TileId, (ReceivedTile Stand, ReceivedTile Loose, ReceivedTile Ground, LooseTaken Taken, int TakenVersion)> _wanted =
-            new Dictionary<TileId, (ReceivedTile, ReceivedTile, ReceivedTile, LooseTaken, int)>();
+        private readonly Dictionary<TileId, (ReceivedTile Stand, ReceivedTile Loose, ReceivedTile Ground, LooseTaken Taken, int TakenVersion, ReceivedTile Depth)> _wanted =
+            new Dictionary<TileId, (ReceivedTile, ReceivedTile, ReceivedTile, LooseTaken, int, ReceivedTile)>();
         private readonly Dictionary<TileId, TileStand> _ring = new Dictionary<TileId, TileStand>();
         private readonly Dictionary<TileId, Task<TileStand>> _ringBuilding = new Dictionary<TileId, Task<TileStand>>();
         private readonly List<Matrix4x4>[] _nearGather;
@@ -174,6 +174,8 @@ namespace EarthGame.Client
             public uint StandCrc;
             public uint LooseCrc;
             public uint GroundCrc;
+            /// <summary>The water-depth tile it was placed against, or zero for none (M1.6e): a lake bed keeps its things to itself.</summary>
+            public uint DepthCrc;
             /// <summary>How many times something had been taken from the tile when it was placed (M1.5b).</summary>
             public int TakenVersion;
             public Block[] Blocks;
@@ -229,12 +231,12 @@ namespace EarthGame.Client
         /// <paramref name="taken"/> is the tile's takings, a copy the worker alone reads, and <paramref name="takenVersion"/>
         /// counts them); a request while one is running is kept and answered when that one is taken.
         /// </summary>
-        public void Want(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, LooseTaken taken = null, int takenVersion = 0)
+        public void Want(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, LooseTaken taken = null, int takenVersion = 0, ReceivedTile depth = null)
         {
             if (stand == null || stand.Codes == null || ground == null || ground.Heights == null) return;
             TileId id = stand.Id;
-            _wanted[id] = (stand, loose, ground, taken, takenVersion);
-            if (!_building.ContainsKey(id) && !IsBuiltFrom(id, stand, loose, ground, takenVersion)) Start(id);
+            _wanted[id] = (stand, loose, ground, taken, takenVersion, depth);
+            if (!_building.ContainsKey(id) && !IsBuiltFrom(id, stand, loose, ground, takenVersion, depth)) Start(id);
         }
 
         /// <summary>Swaps in one finished tile; false when none has finished. A dictionary write, so it keeps inside the streaming budget.</summary>
@@ -259,7 +261,7 @@ namespace EarthGame.Client
             }
             if (!_wanted.TryGetValue(done, out var want)) return true;
             _held[done] = task.Result;
-            if (!IsBuiltFrom(done, want.Stand, want.Loose, want.Ground, want.TakenVersion)) Start(done);
+            if (!IsBuiltFrom(done, want.Stand, want.Loose, want.Ground, want.TakenVersion, want.Depth)) Start(done);
             return true;
         }
 
@@ -437,26 +439,27 @@ namespace EarthGame.Client
             UnityEngine.Object.Destroy(_looseMaterial);
         }
 
-        private bool IsBuiltFrom(TileId id, ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, int takenVersion) =>
+        private bool IsBuiltFrom(TileId id, ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, int takenVersion, ReceivedTile depth) =>
             _held.TryGetValue(id, out TileStand have) && have.StandCrc == stand.Crc32 && have.GroundCrc == ground.Crc32
-            && have.LooseCrc == (loose != null ? loose.Crc32 : 0u) && have.TakenVersion == takenVersion;
+            && have.LooseCrc == (loose != null ? loose.Crc32 : 0u) && have.TakenVersion == takenVersion && have.DepthCrc == (depth != null ? depth.Crc32 : 0u);
 
         private void Start(TileId id)
         {
             var want = _wanted[id];
-            _building[id] = Task.Run(() => Build(want.Stand, want.Loose, want.Ground, want.Taken, want.TakenVersion));
+            _building[id] = Task.Run(() => Build(want.Stand, want.Loose, want.Ground, want.Taken, want.TakenVersion, want.Depth));
         }
 
         /// <summary>On a worker: the tile's things placed, less what was taken, and the matrices every one of them is drawn by, sorted into the tile's blocks.</summary>
-        private TileStand Build(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, LooseTaken taken, int takenVersion)
+        private TileStand Build(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, LooseTaken taken, int takenVersion, ReceivedTile depth)
         {
-            PreparedStand prepared = StandPreparation.Prepare(stand, loose, ground, _grid, taken);
+            PreparedStand prepared = StandPreparation.Prepare(stand, loose, ground, _grid, taken, depth);
             _grid.Origin(stand.Id, out double originEast, out double originNorth);
             TileStand tile = new TileStand
             {
                 StandCrc = prepared.StandCrc,
                 LooseCrc = prepared.LooseCrc,
                 GroundCrc = prepared.GroundCrc,
+                DepthCrc = depth != null ? depth.Crc32 : 0u,
                 TakenVersion = takenVersion,
                 Blocks = new Block[_blocksPerSide * _blocksPerSide],
                 Trees = prepared.Trees.Length,

@@ -18,6 +18,8 @@ namespace EarthGame.ClientCore
         Frond = 2,
         /// <summary>Grass: a tuft of blades.</summary>
         Tussock = 3,
+        /// <summary>A low herb between the others (M1.6e): a rosette of flat leaves, ankle-high.</summary>
+        Herb = 4,
     }
 
     /// <summary>One tuft of the understorey as the client draws it (M1.6c): where it stands, which way it faces, how tall and how wide.</summary>
@@ -46,7 +48,26 @@ namespace EarthGame.ClientCore
     public static class Understorey
     {
         /// <summary>How many shapes there are, each drawn in <see cref="StandPreparation.Variants"/> variants.</summary>
-        public const int Shapes = 4;
+        public const int Shapes = 5;
+
+        /// <summary>A tuft's size runs from this share of its cover's height (M1.6e; 0.8 before it) ...</summary>
+        public const double SmallestSize = 0.6;
+
+        /// <summary>... to this one (1.2 before).</summary>
+        public const double LargestSize = 1.5;
+
+        /// <summary>Water shallower than this over a tuft's foot is a damp foot, not water standing, m.</summary>
+        public const double WetFootM = 0.02;
+
+        /// <summary>The deepest water a margin's sedge stands in, m; nothing stands in deeper (M1.6e promise 2).</summary>
+        public const double DeepestTuftM = 0.25;
+
+        /// <summary>How many herbs stand on a square metre of any growing cover, between the cover's own tufts, and how tall they are, m.</summary>
+        public const double HerbPerSquareM = 0.5;
+        public const double HerbHeightM = 0.12;
+
+        /// <summary>How many cells wide the patches of thick and thin growth are.</summary>
+        public const int PatchCells = 5;
 
         /// <summary>How far a tuft's foot is set into the ground, m, so a slope shows no gap under it.</summary>
         public const double SinkM = 0.05;
@@ -97,9 +118,52 @@ namespace EarthGame.ClientCore
             }
         }
 
-        /// <summary>How wide a shape stands for the height it stands at: a bush spreads, a tussock does not.</summary>
+        /// <summary>How wide a shape stands for the height it stands at: a bush spreads, a tussock does not, a herb's rosette lies wider than it is tall.</summary>
         public static double AcrossShare(TuftShape shape) =>
-            shape == TuftShape.Shrub ? 1.2 : shape == TuftShape.Frond ? 1.1 : shape == TuftShape.Clump ? 1.0 : 0.9;
+            shape == TuftShape.Shrub ? 1.2 : shape == TuftShape.Frond ? 1.1 : shape == TuftShape.Clump ? 1.0 : shape == TuftShape.Herb ? 1.6 : 0.9;
+
+        /// <summary>The height a shape stands at on its own cover, m, for a companion standing on another's.</summary>
+        public static double NaturalHeightM(TuftShape shape) =>
+            shape == TuftShape.Shrub ? 0.90 : shape == TuftShape.Frond ? 0.80 : shape == TuftShape.Clump ? 0.70 : shape == TuftShape.Herb ? HerbHeightM : 0.45;
+
+        /// <summary>
+        /// The shape that stands between a cover's own, and what share of the tufts it is (M1.6e promise 3): tussocks between the
+        /// heath's shrubs and the bracken's fronds, clumps of sedge in the grass, tussocks in the sedge; a swamp's floor grows clumps alone.
+        /// </summary>
+        public static bool Companion(GroundCover cover, out TuftShape shape, out double share)
+        {
+            switch (cover)
+            {
+                case GroundCover.Heath: shape = TuftShape.Tussock; share = 0.30; return true;
+                case GroundCover.Bracken: shape = TuftShape.Tussock; share = 0.25; return true;
+                case GroundCover.Grass: shape = TuftShape.Clump; share = 0.15; return true;
+                case GroundCover.Sedge: shape = TuftShape.Tussock; share = 0.20; return true;
+                default: shape = TuftShape.Tussock; share = 0.0; return false;
+            }
+        }
+
+        /// <summary>Whether a shape stands with water of a depth over its foot: anything on a damp foot, only a sedge's clump in the shallows, nothing in deeper.</summary>
+        public static bool Stands(TuftShape shape, double waterDepthM) =>
+            waterDepthM < WetFootM || (shape == TuftShape.Clump && waterDepthM <= DeepestTuftM);
+
+        /// <summary>
+        /// How thick a cell's growth is against its cover's density, 0.55 to 1.45 with 1 the mean: a smooth hash over the cell grid
+        /// at <see cref="PatchCells"/>, so growth comes in patches, thick here and thin there, and never in speckle.
+        /// </summary>
+        public static double PatchAt(int row, int col)
+        {
+            int i = FloorDiv(row, PatchCells), j = FloorDiv(col, PatchCells);
+            double u = (row - i * PatchCells) / (double)PatchCells, v = (col - j * PatchCells) / (double)PatchCells;
+            u = u * u * (3.0 - 2.0 * u);
+            v = v * v * (3.0 - 2.0 * v);
+            double a = Corner(i, j), b = Corner(i + 1, j), c = Corner(i, j + 1), d = Corner(i + 1, j + 1);
+            double noise = (a + (b - a) * u) + ((c + (d - c) * u) - (a + (b - a) * u)) * v;
+            return 0.55 + 0.9 * noise;
+        }
+
+        private static double Corner(int i, int j) => ((StandLayout.Mix((((ulong)(uint)i << 32) | (uint)j) ^ 0x5A5A5A5A00000000UL) >> 11) % 1024) / 1023.0;
+
+        private static int FloorDiv(int a, int b) => a >= 0 ? a / b : -((-a + b - 1) / b);
 
         /// <summary>How many stand on a square metre of a cover in that quarter of the land's wetness: the wettest grows two-thirds more than the driest.</summary>
         public static double PerSquareMetreIn(double perSquareM, int quarter) => perSquareM * (0.75 + 0.17 * Quarter(quarter));
@@ -135,15 +199,23 @@ namespace EarthGame.ClientCore
                     int z = (int)Math.Round((centreNorth - cover.OriginNorth) / cell);
                     if (x < 0 || z < 0 || x >= cover.Posts || z >= cover.Posts) continue;
                     byte code = cover.Codes[z, x];
-                    if (!Grows(GroundCovers.CoverOf(code), out TuftShape shape, out double perSquareM, out double heightM)) continue;
+                    GroundCover kind = GroundCovers.CoverOf(code);
+                    if (!Grows(kind, out TuftShape shape, out double perSquareM, out double heightM)) continue;
                     int quarter = GroundCovers.QuarterOf(code);
-                    int count = CountOn(row, col, PerSquareMetreIn(perSquareM, quarter) * cell * cell);
-                    if (count <= 0) continue;
-                    double across = AcrossShare(shape);
+                    // The cover's own tufts come in patches (M1.6e); the herbs between them fill the ground evenly.
+                    int count = CountOn(row, col, PerSquareMetreIn(perSquareM, quarter) * cell * cell * PatchAt(row, col));
+                    int herbs = CountOn(row, col, HerbPerSquareM * cell * cell, 1);
+                    if (count + herbs <= 0) continue;
                     double stands = HeightIn(heightM, quarter);
+                    bool companions = Companion(kind, out TuftShape companion, out double share);
+                    double companionStands = HeightIn(NaturalHeightM(companion), quarter);
+                    // Water standing over the cell's ground, where the client holds it: what stands in it is the shape's own rule.
+                    // Read at a point by its own raster, so it need not share the cover's posts.
+                    ReceivedTile depth = tiles.Holding(TileLayer.WaterDepth, id);
+                    if (depth?.Heights == null) depth = null;
                     Trunk(tiles.Holding(TileLayer.Stand, id), cover, row, col, cellCm, centreEast, centreNorth,
                           out double trunkEast, out double trunkNorth, out double trunkRadius);
-                    for (int k = 0; k < count; k++)
+                    for (int k = 0; k < count + herbs; k++)
                     {
                         StandLayout.Place(row, col, StandLayout.Kind.Tuft, k, cellCm, out int eastCm, out int northCm, out int yaw);
                         double tuftEast = centreEast + eastCm / 100.0;
@@ -155,18 +227,22 @@ namespace EarthGame.ClientCore
                             double tx = tuftEast - trunkEast, tz = tuftNorth - trunkNorth;
                             if (tx * tx + tz * tz < trunkRadius * trunkRadius) continue;
                         }
-                        // Each tuft of a cell is its own size and its own shape of the six, from one more hash of the cell.
+                        // Each tuft of a cell is its own size, its own shape of the six, and the companion at its share, from one
+                        // more hash of the cell; the herbs are the tail of the count.
                         ulong h = StandLayout.Mix((((ulong)(uint)row << 32) | (uint)col) ^ ((ulong)StandLayout.Kind.Tuft << 56) ^ (uint)(k + 1));
-                        double size = 0.8 + 0.4 * (((h >> 11) % 1024) / 1023.0);
+                        TuftShape own = k >= count ? TuftShape.Herb : companions && ((h >> 44) % 1024) / 1023.0 < share ? companion : shape;
+                        double tall = k >= count ? HerbHeightM : own == shape ? stands : companionStands;
+                        if (depth != null && !Stands(own, TileGround.HeightAt(depth, tuftEast, tuftNorth))) continue;
+                        double size = SmallestSize + (LargestSize - SmallestSize) * (((h >> 11) % 1024) / 1023.0);
                         into.Add(new UnderstoreyTuft
                         {
                             East = (float)tuftEast,
                             Up = (float)(TileGround.HeightAt(ground, tuftEast, tuftNorth) - SinkM),
                             North = (float)tuftNorth,
                             YawDeg = yaw,
-                            HeightM = (float)(stands * size),
-                            AcrossM = (float)(stands * size * across),
-                            Shape = shape,
+                            HeightM = (float)(tall * size),
+                            AcrossM = (float)(tall * size * AcrossShare(own)),
+                            Shape = own,
                             Variant = (int)((h >> 32) % (ulong)StandPreparation.Variants),
                         });
                     }
@@ -205,12 +281,15 @@ namespace EarthGame.ClientCore
         }
 
         /// <summary>How many tufts stand on a cell: the whole of the density, and one more as often as its fraction, by the cell's own hash.</summary>
-        public static int CountOn(int row, int col, double perCell)
+        public static int CountOn(int row, int col, double perCell) => CountOn(row, col, perCell, 0);
+
+        /// <summary>The same, salted, so a cell's herbs are counted apart from its tufts.</summary>
+        public static int CountOn(int row, int col, double perCell, int salt)
         {
             if (!(perCell > 0.0)) return 0;
             int whole = (int)Math.Floor(perCell);
             double part = perCell - whole;
-            ulong h = StandLayout.Mix((((ulong)(uint)row << 32) | (uint)col) ^ ((ulong)StandLayout.Kind.Tuft << 56));
+            ulong h = StandLayout.Mix((((ulong)(uint)row << 32) | (uint)col) ^ ((ulong)StandLayout.Kind.Tuft << 56) ^ ((ulong)(uint)salt << 48));
             if (part > 0.0 && (((h >> 21) % 1024) / 1023.0) < part) whole++;
             return whole > MostPerCell ? MostPerCell : whole;
         }

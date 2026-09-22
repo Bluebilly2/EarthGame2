@@ -58,7 +58,14 @@ namespace EarthGame.ClientCore
         public const int Variants = 6;
 
         /// <param name="taken">What has been taken from the tile's cells (M1.5b), a copy the worker alone reads (<see cref="TakenIn"/>); those things are not placed.</param>
-        public static PreparedStand Prepare(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, TileGrid grid, LooseTaken taken = null)
+        /// <summary>The deepest water a stick or a cobble is seen and reached under, m: a hand. Deeper, the lake bed keeps its things to itself (M1.6e).</summary>
+        public const double DeepestLyingM = 0.10;
+
+        /// <summary>Whether a thing lying on the ground is seen and reached with water of a depth over it.</summary>
+        public static bool LiesUnder(double waterDepthM) => waterDepthM <= DeepestLyingM;
+
+        /// <param name="depth">The tile of the water's depth over the same ground, where the client holds it: a cell under more than a hand of water gives up its sticks and cobbles (M1.6e). Null draws them all, as before.</param>
+        public static PreparedStand Prepare(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, TileGrid grid, LooseTaken taken = null, ReceivedTile depth = null)
         {
             if (stand == null) throw new ArgumentNullException(nameof(stand));
             if (ground == null) throw new ArgumentNullException(nameof(ground));
@@ -107,6 +114,7 @@ namespace EarthGame.ClientCore
                     if (loose == null) continue;
                     byte things = loose.Codes[z, x];
                     if (things == 0) continue;
+                    if (depth?.Heights != null && !LiesUnder(TileGround.HeightAt(depth, postEast, postNorth))) continue;
                     LooseTaken.Cell gone = default;
                     taken?.TryGet(row, col, out gone);
                     for (int k = 0; k < LooseCodes.SticksOf(things); k++)

@@ -26,6 +26,9 @@ namespace EarthGame.Client
         /// <summary>How far the founder walks before what grows round them is worked out again, m.</summary>
         public const float RelayM = 6f;
 
+        /// <summary>How far a tuft's shade strays from its shape's colour, by a hash of where it stands.</summary>
+        public const float VaryShade = 0.12f;
+
         private const int Chunk = 1023;
         private static readonly int EyeId = Shader.PropertyToID("_Eye");
 
@@ -56,6 +59,8 @@ namespace EarthGame.Client
             _material = new Material(template) { name = "Understorey", enableInstancing = true };
             _material.SetFloat("_Band", 0f);
             _material.SetFloat("_SplitM", DrawM);
+            // Each tuft its own shade (M1.6e promise 4); the trees' materials leave this at zero.
+            _material.SetFloat("_Vary", VaryShade);
             int groups = Understorey.Shapes * StandPreparation.Variants;
             _meshes = new Mesh[groups];
             _drawn = new List<Matrix4x4>[groups];
