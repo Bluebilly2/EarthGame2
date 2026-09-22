@@ -151,6 +151,61 @@ namespace EarthGame.Tests.Client
         }
 
         /// <summary>Two bodies at different levels never merge across their boundary, however they meet.</summary>
+        /// <summary>
+        /// A post inside a lake whose bed reaches the surface (its depth reads zero) is not a bank: the water passes over it
+        /// at the body's height. Sat on the ground instead, the water and the bed fought for the same pixels at every such
+        /// post, and Windermere was drawn with rows of dark dents (DEBTS 2026-09-22, M1.4g's). A post beside a dry cell is
+        /// still the shore, and still tapers to it.
+        /// </summary>
+        [Test]
+        public void APostInsideALakeWhoseBedReachesTheSurfaceTakesTheBodysSurface()
+        {
+            ReceivedTile ground = Tile(TileLayer.Ground, (z, x) => z == 2 && x == 2 ? 12.004f : 10f);
+            ReceivedTile depth = Tile(TileLayer.WaterDepth, (z, x) => z == 2 && x == 2 ? 0f : 2f);
+            List<WaterQuad> quads = WaterSurface.Build(ground, depth);
+            Assert.That(quads, Is.Not.Empty);
+            int touching = 0;
+            foreach (WaterQuad quad in quads)
+            {
+                // The post (2, 2) is at local (0, 0): every quad that covers it — since the body is flat there, the cells
+                // round the post merge into their rows' runs — holds the body's surface everywhere and dips nowhere.
+                if (quad.EastFrom > 1e-6 || quad.EastTo < -1e-6 || quad.NorthFrom > 1e-6 || quad.NorthTo < -1e-6) continue;
+                touching++;
+                Assert.That(quad.LowestUp, Is.EqualTo(12f).Within(0.0005f), "no corner dips to the bed at the shallow post");
+                Assert.That(quad.SurfaceUp, Is.EqualTo(12f).Within(0.0005f));
+            }
+            Assert.That(touching, Is.GreaterThan(0), "the cells round the post are drawn");
+            // The shore's law stands: a dry post beside dry ground still sits on its ground.
+            List<WaterQuad> shore = WaterSurface.Build(Tile(TileLayer.Ground, (z, x) => 10f), Tile(TileLayer.WaterDepth, (z, x) => x <= 1 ? 2f : 0f));
+            Assert.That(shore.Exists(q => q.LowestUp < 10.5f), "the bank corner is on the sand");
+        }
+
+        /// <summary>
+        /// A flat lake comes off the wire with its posts rounded to the centimetre, so its corners read 16.20, 16.21 and 16.22
+        /// at random. A cell whose four corners spread two centimetres is still the same flat body, and is drawn flat at the
+        /// body's level with its row, never with its own corners standing a step above its neighbours: that step, seen along the
+        /// water at a grazing angle, was the rows of dark dashes across Windermere in every frame since M1.4g (DEBTS 2026-09-22).
+        /// </summary>
+        [Test]
+        public void AFlatLakeRoundedToTheCentimetreIsDrawnFlat()
+        {
+            // The rounding's noise, deterministic: each post a centimetre up, down or level by its own hash.
+            float Noise(int z, int x) => ((z * 31 + x * 17) % 3 - 1) * 0.01f;
+            ReceivedTile ground = Tile(TileLayer.Ground, (z, x) => 10f + Noise(z, x));
+            ReceivedTile depth = Tile(TileLayer.WaterDepth, (z, x) => 6.21f - Noise(z, x) + Noise(z + 1, x + 2));
+            List<WaterQuad> quads = WaterSurface.Build(ground, depth);
+            Assert.That(quads, Is.Not.Empty);
+            float lowest = float.MaxValue, highest = float.MinValue;
+            foreach (WaterQuad quad in quads)
+            {
+                Assert.That(quad.SurfaceUp - quad.LowestUp, Is.LessThan(0.0005f), "every quad is flat: no cell stands with its own corners");
+                lowest = Math.Min(lowest, quad.LowestUp);
+                highest = Math.Max(highest, quad.SurfaceUp);
+            }
+            Assert.That(highest - lowest, Is.LessThan(0.015f), "and the rows sit within a centimetre and a half of one another");
+            Assert.That(quads.Count, Is.EqualTo(Posts - 1), "one quad a row, as a flat body is");
+        }
+
         [Test]
         public void TwoLevelsAreTwoQuads()
         {

@@ -39,7 +39,7 @@ namespace EarthGame.ClientCore
     /// Turns the depth a client was streamed (M1.4b) into the rectangles a view draws (M1.4c). Engine-free, so
     /// what is drawn can be asserted without a renderer.
     ///
-    /// <para>A cell wholly under water sits at the lowest of its four surfaces, so it never stands above its own
+    /// <para>A cell wholly under water and flat sits at the mean of its four surfaces (the lowest until 2026-09-22), so it never stands above its own
     /// bank. A cell with dry corners — a shore, or a channel narrower than the 4 m between posts — takes the
     /// highest wet corner's surface, held down to the lowest dry corner's ground and drawn only while a
     /// centimetre of water is still left above the wettest corner's bed. Until 2026-09-20 such a cell was not
@@ -56,8 +56,13 @@ namespace EarthGame.ClientCore
         /// <summary>Below this a post is dry: the wire rounds to the centimetre, so a centimetre is noise.</summary>
         public const float MinDepthM = 0.01f;
 
-        /// <summary>Two posts are one surface within this, in metres; a flat body is flat to the centimetre it travelled as.</summary>
-        public const float SameSurfaceM = 0.011f;
+        /// <summary>
+        /// Four corners are one flat surface within this, in metres. A flat body's posts travel rounded to the centimetre, so
+        /// its corners read a centimetre up or down at random and a cell can spread two; 1.1 cm (until 2026-09-22) called such
+        /// a cell not flat and drew it with its own corners, a step above its row that showed as a dark dash along the water at
+        /// a grazing angle: the rows of specks across Windermere since M1.4g (DEBTS 2026-09-22).
+        /// </summary>
+        public const float SameSurfaceM = 0.025f;
 
         /// <summary>
         /// The quads for a tile, or an empty list when none of it is under water. The two tiles must be the same
@@ -76,28 +81,42 @@ namespace EarthGame.ClientCore
 
             int posts = ground.Posts;
             double cell = ground.CellM;
+            // Every post's height and whether it is wet, read once: a wet post its water's surface, a dry one the ground
+            // it stands on, a millimetre under it so the two do not fight for the same pixel. So the surface of a creek
+            // falls with its bed, and it tapers to nothing exactly where the bank begins instead of standing over it.
+            // Neighbouring cells share their posts, so the skin is continuous along a channel. Flat plates a cell wide,
+            // which is what this was until 2026-09-20, made a creek a staircase of panes stepping down the slope with
+            // gaps between them (William's own frame of that morning).
+            bool[,] wetPost = new bool[posts, posts];
+            float[,] upPost = new float[posts, posts];
+            for (int z = 0; z < posts; z++)
+                for (int x = 0; x < posts; x++)
+                {
+                    wetPost[z, x] = Surface(ground, depth, z, x, out float surface, out float bed);
+                    upPost[z, x] = wetPost[z, x] ? surface : bed - GroundBiasM;
+                }
+            // A dry post with wet posts on every side of it is not a bank but a shallow inside the body — its bed reaching
+            // the surface, or a hair over it as the wire rounds — and the water passes over it at the body's own height.
+            // Sat on the ground instead, the water and the bed fought for the same pixels at every such post, and a lake
+            // was drawn with rows of dark dents (Windermere, DEBTS 2026-09-22). A post at the tile's edge takes what it
+            // can see and assumes the body goes on beyond it.
+            for (int z = 0; z < posts; z++)
+                for (int x = 0; x < posts; x++)
+                {
+                    if (wetPost[z, x]) continue;
+                    if (!Inside(wetPost, upPost, z, x, posts, out float body)) continue;
+                    wetPost[z, x] = true;
+                    upPost[z, x] = body;
+                }
             for (int z = 0; z + 1 < posts; z++)
             {
                 int runFrom = -1;
                 float runUp = 0f;
                 for (int x = 0; x + 1 < posts; x++)
                 {
-                    bool southWest = Surface(ground, depth, z, x, out float sw, out float gsw);
-                    bool southEast = Surface(ground, depth, z, x + 1, out float se, out float gse);
-                    bool northWest = Surface(ground, depth, z + 1, x, out float nw, out float gnw);
-                    bool northEast = Surface(ground, depth, z + 1, x + 1, out float ne, out float gne);
+                    bool southWest = wetPost[z, x], southEast = wetPost[z, x + 1], northWest = wetPost[z + 1, x], northEast = wetPost[z + 1, x + 1];
                     int wetCorners = (southWest ? 1 : 0) + (southEast ? 1 : 0) + (northWest ? 1 : 0) + (northEast ? 1 : 0);
-
-                    // Every corner takes its own height: a wet one its water's surface, a dry one the ground it stands
-                    // on, a millimetre under it so the two do not fight for the same pixel. So the surface of a creek
-                    // falls with its bed, and it tapers to nothing exactly where the bank begins instead of standing
-                    // over it. Neighbouring cells share their posts, so the skin is continuous along a channel.
-                    // Flat plates a cell wide, which is what this was until 2026-09-20, made a creek a staircase of
-                    // panes stepping down the slope with gaps between them (William's own frame of that morning).
-                    float upSW = southWest ? sw : gsw - GroundBiasM;
-                    float upNW = northWest ? nw : gnw - GroundBiasM;
-                    float upNE = northEast ? ne : gne - GroundBiasM;
-                    float upSE = southEast ? se : gse - GroundBiasM;
+                    float upSW = upPost[z, x], upNW = upPost[z + 1, x], upNE = upPost[z + 1, x + 1], upSE = upPost[z, x + 1];
 
                     // Nothing to draw where no corner is wet, and nothing of the sea's own plane: the view passes the
                     // datum and the sea has had a plane at it since 2026-09-08.
@@ -107,7 +126,9 @@ namespace EarthGame.ClientCore
                     // a quad a row instead of two hundred and fifty. A cell that is not flat is its own quad.
                     bool flat = wet && wetCorners == 4
                         && Math.Max(Math.Max(upSW, upNW), Math.Max(upNE, upSE)) - Math.Min(Math.Min(upSW, upNW), Math.Min(upNE, upSE)) <= SameSurfaceM;
-                    float up = flat ? Math.Min(Math.Min(upSW, upNW), Math.Min(upNE, upSE)) : 0f;
+                    // A flat cell sits at the mean of its corners, not the lowest: the rounding's noise then cancels between rows
+                    // instead of stepping every row down to its unluckiest post.
+                    float up = flat ? 0.25f * (upSW + upNW + upNE + upSE) : 0f;
                     bool joins = flat && runFrom >= 0 && Math.Abs(up - runUp) <= SameSurfaceM;
                     if (!joins && runFrom >= 0)
                     {
@@ -124,6 +145,25 @@ namespace EarthGame.ClientCore
                 if (runFrom >= 0) quads.Add(Flat(ground, cell, z, runFrom, posts - 1, runUp));
             }
             return quads;
+        }
+
+        /// <summary>
+        /// Whether a dry post has wet posts on every side of it that the tile holds, and the body's surface there: the
+        /// highest of those neighbours', since a standing body is flat and a creek's neighbour above is the one to meet.
+        /// </summary>
+        private static bool Inside(bool[,] wetPost, float[,] upPost, int z, int x, int posts, out float body)
+        {
+            body = float.MinValue;
+            int seen = 0;
+            for (int k = 0; k < 4; k++)
+            {
+                int nz = z + (k == 0 ? -1 : k == 1 ? 1 : 0), nx = x + (k == 2 ? -1 : k == 3 ? 1 : 0);
+                if (nz < 0 || nx < 0 || nz >= posts || nx >= posts) continue;
+                if (!wetPost[nz, nx]) return false;
+                seen++;
+                if (upPost[nz, nx] > body) body = upPost[nz, nx];
+            }
+            return seen > 0;
         }
 
         /// <summary>The water's surface and the ground at a post, and whether any water stands there at all.</summary>

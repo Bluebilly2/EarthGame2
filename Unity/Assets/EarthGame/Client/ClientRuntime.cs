@@ -988,6 +988,14 @@ namespace EarthGame.Client
                         Debug.Log("[client] -eg-hide " + name + ": hidden");
                         continue;
                     }
+                    if (name == "ripples" && _waterMaterial != null)
+                    {
+                        // The water drawn flat (M1.4h's waves stilled), to part what the ripples do to the far water from the rest.
+                        _waterMaterial.SetFloat("_RippleSlope", 0f);
+                        _waterMaterial.SetFloat("_RippleCalm", 0f);
+                        Debug.Log("[client] -eg-hide ripples: hidden");
+                        continue;
+                    }
                     if (name == "water")
                     {
                         // The sea's plane and every water tile to come: the frame's cost with and without water (M1.4h).
