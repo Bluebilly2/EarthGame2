@@ -13,6 +13,7 @@ questions asked once died unasked again. A row leaves by his word, and the slice
 
 | Since | Waiting on him | What it costs him | Why it matters |
 |---|---|---|---|
+| 2026-09-22 | **The beta's place.** Bherwerre is a low sand peninsula: 8 % of its land is over 10° and the data holds nothing below 4 m. `BETA_MAP.md`'s BF.4 gives the ground its grain wherever the region is, and not a mountain. Whether the beta stays a faithful Bherwerre, or a second, steeper place is fetched for it (a 30 m elevation model and its water under an acquisition manifest, the row of the same date below), is his. | His word, one sentence | `BETA_MAP.md` §3 measures the place and §8 states the choice; the systems are built to be true of any place, and only the place itself is his. |
 
 | Since | Debt | Owner | Pay by |
 |---|---|---|---|

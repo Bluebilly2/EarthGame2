@@ -13,6 +13,8 @@ points here rather than repeating them: one file, one set of rules, no drift bet
 - `Docs/DEBTS.md` — what is owed and by whom. There are no TODO comments in code.
 - `Docs/WORKING.md` — how the work is done here: the loop, working with the owner, the checklist before a commit,
   and this machine's traps.
+- `Docs/BETA_MAP.md` — the beta worked backward (2026-09-22): the audit, the dependency map and the order of building;
+  the `BF.` contracts follow it.
 - The current contract under `Docs/contracts/` — what the slice in flight promises and how it is proved.
 
 ## Layering and the commands

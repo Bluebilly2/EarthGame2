@@ -270,3 +270,18 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     talking about something else. i only care about using a keyboard and mouse for this game." The game is played with a
     keyboard and a mouse; the gamepad bindings the controls asset carries (M1.5a) stay as they are and nothing more is spent
     on them, and no slice is judged by a controller.
+
+41. **The beta is built backward from its arc, as systems, and the world is a foundational system.** Reading the state of
+    the project against First Light, 2026-09-22: "Work backward intuitively and systematically from the intended finished beta
+    arc. Do not just look at what is currently implemented and add the next obvious feature. Instead, reason backward from what
+    the player should be able to accomplish in the beta, then recursively identify everything that must exist underneath those
+    experiences for them to be believable, systemic, and playable." And: "There is still a huge amount of missing content and
+    foundational gameplay. I want you to identify it and build it out rather than treating the current implementation as the
+    boundary of the game." Of the world: "The current scene is essentially flat land covered in trees. That is not sufficient
+    for the intended survival experience. Treat the world itself as a missing foundational system, not as decoration that can be
+    added later." and "The player should be making decisions about where they are, not simply moving around an infinite flat
+    plane." Of how: "Build systems, not isolated content." "Prioritise implementation by dependency and leverage, not by whichever
+    feature is easiest to add. If one foundational system unlocks 20 downstream features, build that before implementing 20
+    isolated features." "Do not assume the current implementation defines the scope of the game. The intended beta does." The
+    audit and the dependency map made on this ruling are `BETA_MAP.md`, and its order of building (the `BF.` contracts) is the
+    work's order from here: ruling 31's beats are reached through their foundations, not ahead of them.
