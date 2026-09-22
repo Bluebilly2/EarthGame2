@@ -136,5 +136,7 @@ hides nothing, and the twist, which is about the hands, comes before the standin
 the tufts the place keeps from standing (inside a trunk, in water) and laid its bundles as if every cell were 4 m (the
 ground site now carries the cell's size and those tufts: tests red first, then green, both rules sabotaged and restored);
 and a felling cut re-placed its tile's whole stand at every told second (a change is now drawn again only when what it
-changes is drawn). Proved by the suite, 816 green, and the Unity-shaped compile; the run in the built game waits until
-William's game is closed.
+changes is drawn). Proved by the suite, 816 green, and the Unity-shaped compile; then in the built game on 62a71bf, with
+William's game closed: the `changes` scenario again (every work done, 0 errors, 126 changes told to the client; save_check
+and tile_check green), `drink` (drank at the creek by the wake through its sedge, the sea refused with salt, 0 errors),
+`carry` (picked up, put down, kept carried, 0 errors) and `controls` (44 checks, none failed); installed into his folder.
