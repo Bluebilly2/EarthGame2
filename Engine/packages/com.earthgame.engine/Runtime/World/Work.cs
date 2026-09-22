@@ -578,6 +578,7 @@ namespace EarthGame.Engine
             {
                 case WorkKind.ClearGround:
                 {
+                    if (tool != null) return Refuse(kind, VerbOutcome.WontWork, "clearing wants empty hands: put " + tool.DisplayName + " down");
                     if (site.Cleared) return Refuse(kind, VerbOutcome.WontWork, "the ground is cleared already");
                     int left = site.TuftsLeft;
                     if (left == 0) return Refuse(kind, VerbOutcome.WontWork, "nothing grows here to clear");

@@ -1672,6 +1672,21 @@ namespace EarthGame.Server
                     World.SpawnItem(definition, east, north, null, session.YawDeg);
                     break;
                 }
+                case DevSettings.SpawnKeenFlake:
+                case DevSettings.SpawnChopper:
+                {
+                    // The panel's edges (BF.3): a keen flake as a good blow leaves one, and a chopper, a heavy keen core, which the
+                    // hands have no way to make yet but a scenario needs to fell a tree in minutes rather than days.
+                    bool chopper = setting.Name == DevSettings.SpawnChopper;
+                    Definition definition = chopper ? DefinitionCatalogue.CobbleOf(StoneType.Silcrete) : DefinitionCatalogue.FlakeOf(StoneType.Silcrete);
+                    Ahead(session, out double east, out double north);
+                    Entity edge = World.SpawnItem(definition, east, north, null, session.YawDeg);
+                    ItemComponent item = edge.Item;
+                    item.State.SetMass(chopper ? 1.5f : 0.03f);
+                    item.State.SetEdge(chopper ? 0.8f : 0.7f);
+                    edge.SetItem(item, World.Tick);
+                    break;
+                }
                 case DevSettings.SpawnKangaroo:
                 case DevSettings.SpawnOystercatcher:
                 {

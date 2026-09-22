@@ -209,6 +209,7 @@ namespace EarthGame.Client
             _client.TileDropped += OnTileDropped;
             _client.PlayerLeft += OnPlayerLeft;
             _client.LooseTakenChanged += OnLooseTaken;
+            _client.ChangesChanged += OnChanges;
             _client.FounderStateChanged += OnFounderState;
             _client.Died += OnDied;
             _client.DeveloperModeChanged += OnDeveloperModeChanged;
@@ -354,6 +355,7 @@ namespace EarthGame.Client
                 _client.TileDropped -= OnTileDropped;
                 _client.PlayerLeft -= OnPlayerLeft;
                 _client.LooseTakenChanged -= OnLooseTaken;
+                _client.ChangesChanged -= OnChanges;
                 _client.FounderStateChanged -= OnFounderState;
                 _client.Died -= OnDied;
                 _client.DeveloperModeChanged -= OnDeveloperModeChanged;
@@ -398,8 +400,8 @@ namespace EarthGame.Client
                 }
                 DrainPreparations();
                 // The trunks round the body are given their capsules before the mover's next step walks into them (M1.6b).
-                _trunks?.Follow(_player.State.East, _player.State.North, _client.Tiles, _client.Grid);
-                _understorey?.Follow(_player.State.East, _player.State.North, _client.Tiles, _client.Grid);
+                _trunks?.Follow(_player.State.East, _player.State.North, _client.Tiles, _client.Grid, _client.Changes);
+                _understorey?.Follow(_player.State.East, _player.State.North, _client.Tiles, _client.Grid, _client.Changes);
                 if (_stand != null && _camera != null) _stand.Draw(_camera, _sun);
                 if (_camera != null) _understorey?.Draw(_camera);
                 // Things are drawn where they were a stated delay ago, between the positions the server stated, as the
@@ -617,10 +619,68 @@ namespace EarthGame.Client
         {
             if (_stand == null || _client?.Tiles == null) return;
             ReceivedTile loose = _client.Tiles.Holding(TileLayer.Loose, id);
+            ReceivedTile stand = _client.Tiles.Holding(TileLayer.Stand, id);
             _takenVersions.TryGetValue(id, out int version);
-            _stand.Want(_client.Tiles.Holding(TileLayer.Stand, id), loose, _client.Tiles.Holding(TileLayer.Ground, id),
+            _changesVersions.TryGetValue(id, out int changed);
+            _stand.Want(stand, loose, _client.Tiles.Holding(TileLayer.Ground, id),
                         StandPreparation.TakenIn(_client.Taken, loose, _client.Grid), version,
-                        _client.Tiles.Holding(TileLayer.WaterDepth, id));
+                        _client.Tiles.Holding(TileLayer.WaterDepth, id),
+                        StandPreparation.TrunkFlagsIn(_client.Changes, stand, _client.Grid), changed);
+        }
+
+        /// <summary>How many times a trunk of each tile had changed (BF.3), so a stripped or felled trunk places its tile again.</summary>
+        private readonly Dictionary<TileId, int> _changesVersions = new Dictionary<TileId, int>();
+
+        /// <summary>The hollows dug into the client's ground (BF.3), by cell, as deep as they have been applied, cm.</summary>
+        private readonly Dictionary<long, int> _dugApplied = new Dictionary<long, int>();
+
+        /// <summary>
+        /// A cell of the world changed (BF.3): a tuft taken or a cell cleared places the understorey again; a trunk stripped or felled
+        /// places its tile's stand again, less the felled and the stripped pale; a dig lowers the client's ground there.
+        /// </summary>
+        private void OnChanges(CellChange cell)
+        {
+            if (cell.HasTuft || cell.HasGround) _understorey?.MarkChanged();
+            if (cell.HasTrunk && _client?.Tiles != null && _client.Grid != null)
+                foreach (TileId id in new List<TileId>(_client.Tiles.Held.Keys))
+                {
+                    ReceivedTile stand = _client.Tiles.Holding(TileLayer.Stand, id);
+                    if (stand == null || !StandPreparation.Covers(stand, _client.Grid, cell.Row, cell.Col)) continue;
+                    _changesVersions[id] = (_changesVersions.TryGetValue(id, out int version) ? version : 0) + 1;
+                    WantStand(id);
+                }
+            if (cell.DugCm > 0) DigCell(cell.Row, cell.Col, cell.DugCm);
+        }
+
+        /// <summary>The client's ground lowered by what a dig has taken out of a cell since the hollow was last drawn.</summary>
+        private void DigCell(int row, int col, int dugCm)
+        {
+            if (_client?.Tiles == null || _client.Grid == null) return;
+            long key = LooseTaken.Key(row, col);
+            _dugApplied.TryGetValue(key, out int applied);
+            if (dugCm <= applied) return;
+            ReceivedTile cover = _client.Tiles.Holding(TileLayer.GroundCover, _client.Grid.ForPosition(_player.State.East, _player.State.North));
+            double cellM = cover != null ? cover.CellM : 4.0;
+            StandLayout.CellCentre(row, col, cellM, _client.Grid.ExtentM, out double east, out double north);
+            if (!_tileTerrains.TryGetValue(_client.Grid.ForPosition(east, north), out Terrain terrain) || terrain == null) return;
+            TerrainTileBuilder.Dig(terrain, east, north, cellM, (dugCm - applied) / 100.0);
+            _dugApplied[key] = dugCm;
+        }
+
+        /// <summary>A tile built anew has no hollows: every dig the world holds on it is drawn again.</summary>
+        private void RedigTile(TileId id)
+        {
+            if (_client?.Changes == null || _client.Grid == null) return;
+            foreach (CellChange cell in _client.Changes.Cells())
+            {
+                if (cell.DugCm == 0) continue;
+                ReceivedTile cover = _client.Tiles.Holding(TileLayer.GroundCover, _client.Grid.ForPosition(_player.State.East, _player.State.North));
+                double cellM = cover != null ? cover.CellM : 4.0;
+                StandLayout.CellCentre(cell.Row, cell.Col, cellM, _client.Grid.ExtentM, out double east, out double north);
+                if (!_client.Grid.ForPosition(east, north).Equals(id)) continue;
+                _dugApplied.Remove(LooseTaken.Key(cell.Row, cell.Col));
+                DigCell(cell.Row, cell.Col, cell.DugCm);
+            }
         }
 
         /// <summary>
@@ -798,6 +858,7 @@ namespace EarthGame.Client
             double objectMs = Since(ref at);
             _tileTerrains[prepared.Id] = terrain;
             _tileCrcs[prepared.Id] = prepared.GroundCrc;
+            RedigTile(prepared.Id);
             BuildWater(prepared.Id);
             if (_coarse != null)
                 TerrainTileBuilder.CutHole(_coarse, _coarse.transform.position.x, _coarse.transform.position.z, prepared.OriginEast, prepared.OriginNorth, prepared.SizeM);
@@ -1085,7 +1146,7 @@ namespace EarthGame.Client
 
             // The verbs (M1.5a): what the crosshair is on, the verb line, the carrying window and the thing in hand.
             if (_stand != null) _hand = new HandView(_camera, _stand.LooseMaterial);
-            _verbs = new VerbController(_client, _entityViews, _player, _camera, _hud, _hand, _ground, _ground != null ? new StreamedWater(_ground, _depth) : null);
+            _verbs = new VerbController(_client, _entityViews, _player, _camera, _hud, _hand, _ground, _ground != null ? new StreamedWater(_ground, _depth) : null, _trunks, _understorey);
             // The developer's panel (M1.D), on an object of its own, since an object holds one UIDocument and the HUD's is on
             // this one. Built in every game since M1.E and opened only while developer mode is on, which F2 turns on and off.
             _devPanel = new GameObject("Developer panel").AddComponent<DevPanelController>();

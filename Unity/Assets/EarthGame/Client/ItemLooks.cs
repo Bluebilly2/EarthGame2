@@ -18,6 +18,13 @@ namespace EarthGame.Client
         public static bool TryLook(Definition definition, ulong id, in ThingState state, out Mesh mesh, out float scale)
         {
             int variant = state.Has(ThingFields.Look) ? state.Look % StandPreparation.Variants : (int)(id % (ulong)StandPreparation.Variants);
+            // A log is wood too (BF.3): its own look comes before the stick's, or a felled trunk lies as a twig (the first changes run, 2026-09-23).
+            if (definition != null && DefinitionCatalogue.IsLog(definition))
+            {
+                mesh = StandMeshes.Log(variant);
+                scale = 1f;
+                return true;
+            }
             if (definition != null && definition.Substance == Substance.Wood)
             {
                 mesh = StandMeshes.Stick(variant);
@@ -36,6 +43,26 @@ namespace EarthGame.Client
                 scale = 1f;
                 return true;
             }
+            // BF.3's yield: fibre is drawn as a strip, a bundle as a small tussock lying, a tuber as a lump, a log as a log (the looks are a debt).
+            if (definition != null && definition.Substance == Substance.Fibre)
+            {
+                mesh = StandMeshes.Strip(variant);
+                scale = 1f;
+                return true;
+            }
+            if (definition != null && definition.Substance == Substance.Plant)
+            {
+                mesh = StandMeshes.Tuft(TuftShape.Tussock, variant);
+                scale = 0.35f;
+                return true;
+            }
+            if (definition != null && definition.Substance == Substance.Food)
+            {
+                mesh = StandMeshes.Cobble(variant);
+                scale = 0.06f;
+                return true;
+            }
+
             // The plain cobble and every stone's cobble (M1.5b) are one shape; a cobble's stone is in what it is, not how it looks yet.
             if (definition != null && definition.Substance == Substance.Stone)
             {

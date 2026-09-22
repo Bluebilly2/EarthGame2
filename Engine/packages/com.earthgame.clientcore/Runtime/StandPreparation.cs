@@ -18,6 +18,10 @@ namespace EarthGame.ClientCore
         public int Tall;
         /// <summary>Which of the drawn variants of its form, from its cell.</summary>
         public int Variant;
+        /// <summary>Whether its bark has been taken (BF.3): drawn pale.</summary>
+        public bool Stripped;
+        public int Row;
+        public int Col;
     }
 
     /// <summary>A stick or a cobble as the client draws it: where it lies and which way it points.</summary>
@@ -66,6 +70,10 @@ namespace EarthGame.ClientCore
 
         /// <param name="depth">The tile of the water's depth over the same ground, where the client holds it: a cell under more than a hand of water gives up its sticks and cobbles (M1.6e). Null draws them all, as before.</param>
         public static PreparedStand Prepare(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, TileGrid grid, LooseTaken taken = null, ReceivedTile depth = null)
+            => Prepare(stand, loose, ground, grid, taken, depth, null);
+
+        /// <param name="trunkFlags">What has been done to the tile's trunks (BF.3), a copy the worker alone reads (<see cref="TrunkFlagsIn"/>): a felled trunk is not placed, a stripped one is marked.</param>
+        public static PreparedStand Prepare(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, TileGrid grid, LooseTaken taken, ReceivedTile depth, Dictionary<long, byte> trunkFlags)
         {
             if (stand == null) throw new ArgumentNullException(nameof(stand));
             if (ground == null) throw new ArgumentNullException(nameof(ground));
@@ -93,7 +101,9 @@ namespace EarthGame.ClientCore
                     TileCodec.CellOf(grid.ExtentM, cell, postEast, postNorth, out int row, out int col);
                     byte code = stand.Codes[z, x];
                     PlantSpecies species = code == 0 ? null : StandCodes.SpeciesOf(code);
-                    if (species != null)
+                    byte flags = 0;
+                    if (trunkFlags != null) trunkFlags.TryGetValue(LooseTaken.Key(row, col), out flags);
+                    if (species != null && (flags & TrunkChange.Felled) == 0)
                     {
                         StandLayout.Place(row, col, StandLayout.Kind.Trunk, 0, cellCm, out int eastCm, out int northCm, out int yaw);
                         double east = postEast + eastCm / 100.0;
@@ -109,6 +119,9 @@ namespace EarthGame.ClientCore
                             CrownM = (float)(species.CrownShare * height),
                             Tall = TallIndex(species),
                             Variant = VariantOf(row, col, 0UL),
+                            Stripped = (flags & TrunkChange.BarkTaken) != 0,
+                            Row = row,
+                            Col = col,
                         });
                     }
                     if (loose == null) continue;
@@ -154,6 +167,16 @@ namespace EarthGame.ClientCore
             if (taken == null || taken.Count == 0 || tile == null || grid == null) return copy;
             foreach (LooseTaken.Cell cell in taken.Cells())
                 if (Covers(tile, grid, cell.Row, cell.Col)) copy.Merge(cell);
+            return copy;
+        }
+
+        /// <summary>The trunks' changes on a tile's cells, copied (BF.3): the flags of every cell with a trunk change, keyed as the takings are.</summary>
+        public static Dictionary<long, byte> TrunkFlagsIn(WorldChanges changes, ReceivedTile tile, TileGrid grid)
+        {
+            Dictionary<long, byte> copy = new Dictionary<long, byte>();
+            if (changes == null || tile == null || grid == null) return copy;
+            foreach (CellChange cell in changes.Cells())
+                if (cell.HasTrunk && cell.TrunkFlags != 0 && Covers(tile, grid, cell.Row, cell.Col)) copy[LooseTaken.Key(cell.Row, cell.Col)] = cell.TrunkFlags;
             return copy;
         }
 

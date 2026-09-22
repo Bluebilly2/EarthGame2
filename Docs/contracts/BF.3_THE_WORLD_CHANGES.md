@@ -1,7 +1,7 @@
 # Contract BF.3 — The world changes
 
 **Status:** drafted 2026-09-22, the third of the beta's foundations; stage one (promise 1, the record of change) built the same day (`Docs/BETA_MAP.md` §7, CANON ruling 41), on BF.1
-and BF.2; stage two (promises 2 to 5 on the server: standing targets, the works on them, the dig, the cut and the fall, the lift limit) built 2026-09-23; stage three (promise 6, the client's side, and promise 7, the built game) follows. Owner: Claude. William's lane: the frames of a cleared patch, a stripped trunk and a cut tuft; his hands on
+and BF.2; stage two (promises 2 to 5 on the server: standing targets, the works on them, the dig, the cut and the fall, the lift limit) built 2026-09-23; stage three (promise 6, the client's side, and promise 7, the built game) built the same day: the exit record below. Owner: Claude. William's lane: the frames of a cleared patch, a stripped trunk and a cut tuft; his hands on
 the work when he plays.
 
 ## Why this next
@@ -97,3 +97,37 @@ it; the mover walks the raster); no new lying kinds in the loose layer (driftwoo
 ## Exit
 
 The promises kept with the counts as run, or "What changed on the way" saying which was not and why.
+
+### Exit record (2026-09-23)
+
+**Kept.** Promise 1 (stage one, 3c0c8be). Promises 2 to 5 (stage two, 5dc207f): `StandingThingsTests` (a trunk and a tuft
+found where the layout puts them and refused when felled, taken, cleared, inside a trunk or past the sixteen; every tuft
+the client draws found by the server to the centimetre), `WorkStandingTests`, `StandingWorkServerTests` and the wire;
+816 green; sabotaged in turn (the cut not kept, the lift limit removed, a taken tuft still found), each red, each
+restored byte for byte. Promises 6 and 7 (stage three): the `changes` scenario in the built game
+(`Artefacts/frames/changes-20260922T222454Z`), 0 errors, 1 correction, player exit 0: a 5 m swamp paperbark stripped
+("the bark came away in 6 strips round the trunk", the strips in a ring at its foot, the trunk drawn pale), a lomandra
+clump cut with the panel's keen flake ("3 strips of lomandra fibre cut", the clump gone), two strips laid into cord
+("arm-long"), a bracken frond pulled ("a bundle"), the cell under the crosshair cleared with empty hands ("4 bundles lie
+on it", 8 s), a bangalay stick pointed with the flake (39.4 s, "the edge is sharp"), the cleared cell dug with it (20 s,
+"0.1 m down; a bracken tuber came up", the hollow in the client's ground) and a 4 m swamp paperbark cut through with the
+panel's chopper (118.3 s, the cut kept in the cell as it went, "1 log and 1 limb lie where it fell", the trunk gone from
+the stand and its body); 126 change records told to the client; the crosshair's own lines recorded ("a swamp paperbark,
+5 m — hold to strip the bark off the swamp paperbark, about 30 s"). `save_check` GREEN on the world the run saved
+(the digest rebuilt by hand equal to the server's, 38 lines) and `tile_check` GREEN on the run's cache (4,055,591 posts
+agree: no tile changed). Twelve frames at 1440p and 1080p. The Unity edit-mode tests 10 of 10 (the item looks audited).
+
+**What changed on the way.** (1) The hands lift 23 kg, NIOSH's load constant, not the 25 the contract rounded to.
+(2) A third target kind, a cell of the ground (6), since clearing and digging name a cell and not a thing. (3) Strip and
+pull are done with whatever is in hand, as BF.2's break is; only clearing wants empty hands, because it is offered before
+the dig on the same cell. (4) The tuft rule and the trees' geometry moved into the engine so the server could find and
+measure what the client draws; the fixtures' 10 m cells showed the sixteen-tuft cap (DEBTS). (5) The felling rate came out
+at days for a stone chopper against a blackbutt as stout as the stand draws it (DEBTS: the trees' stoutness), so the
+scenario fells a 4 m paperbark with a heavy keen core the panel sets down; a founder's own knapped core would take an
+hour on the same tree. (6) The stripped trunk is pale from the foot to the crown, a cleared cell keeps its cover's colour,
+and the new things wear borrowed looks (DEBTS); in the run's felled frame the log lies as a stick, because the stick's look
+answered for every wood before the log's, put right after the run and not re-run. (7) The hollow is the client's terrain alone (DEBTS, as the contract
+foresaw). (8) The corpus loop's join check was not walked with a work in it (DEBTS): two clients agreeing is shown by the
+server tests' client record and the scenario's client, not over a lossy wire. (9) A crosshair rule found in the run: a
+thing lying among tufts is offered before the tuft whose bounds hide it, or nothing put down in bracken could be taken
+up again.

@@ -66,6 +66,8 @@ namespace EarthGame.Client
         private readonly HandView _hand;
         private readonly IHeightSource _ground;
         private readonly StreamedWater _water;
+        private readonly TrunkBodies _trunks;
+        private readonly UnderstoreyViews _understorey;
         private GameClient _client;
         private EntityViews _entities;
         private string _answer = string.Empty;
@@ -91,6 +93,21 @@ namespace EarthGame.Client
         /// <summary>Where the crosshair meets the ground within reach, when it does and no thing is in front of it.</summary>
         public Vector3? Ground { get; private set; }
 
+        /// <summary>The trunk under the crosshair within reach (BF.3), met through its body, or null.</summary>
+        public TrunkNearby? TargetTrunk { get; private set; }
+
+        /// <summary>The tuft of the understorey under the crosshair within reach (BF.3), or null.</summary>
+        public UnderstoreyTuft? TargetTuft { get; private set; }
+
+        /// <summary>The cell of the ground the crosshair meets within reach (BF.3), when it meets the ground, or null.</summary>
+        public (int Row, int Col)? GroundCell { get; private set; }
+
+        /// <summary>How much further than the reach a tuft's own place may lie: it spreads that far (the server's own allowance).</summary>
+        private const double TuftReachM = 0.5;
+
+        /// <summary>The soil's depth a client assumes under a cell it looks at, m: it holds no soil tile, so the offer is the server's to refuse.</summary>
+        private const double AssumedSoilM = 1.0;
+
         /// <summary>Where the crosshair meets the streamed water's surface within reach (FP.1), when no thing is in front of it.</summary>
         public Vector3? WaterAt { get; private set; }
 
@@ -98,7 +115,7 @@ namespace EarthGame.Client
         public string Line { get; private set; } = string.Empty;
 
         public VerbController(GameClient client, EntityViews entities, PlayerController player, Camera camera, HudController hud, HandView hand,
-                              IHeightSource ground = null, StreamedWater water = null)
+                              IHeightSource ground = null, StreamedWater water = null, TrunkBodies trunks = null, UnderstoreyViews understorey = null)
         {
             _player = player;
             _camera = camera;
@@ -106,6 +123,8 @@ namespace EarthGame.Client
             _hand = hand;
             _ground = ground;
             _water = water;
+            _trunks = trunks;
+            _understorey = understorey;
             Rebind(client, entities);
         }
 
@@ -187,6 +206,9 @@ namespace EarthGame.Client
                 }
                 Target = null;
                 TargetLying = null;
+                TargetTrunk = null;
+                TargetTuft = null;
+                GroundCell = null;
                 Ground = null;
                 Line = string.Empty;
                 _workHeld = false;
@@ -284,10 +306,118 @@ namespace EarthGame.Client
             return false;
         }
 
-        /// <summary>The work intent the press begins: on the thing aimed at, or, with nothing aimed at and a strip in hand, the twist.</summary>
+        /// <summary>The cover byte of a cell, read off the cover tile the client holds for it; zero when none is held.</summary>
+        private byte CoverCodeAt(int row, int col)
+        {
+            if (_client?.Tiles == null || _client.Grid == null) return 0;
+            ReceivedTile here = _client.Tiles.Holding(TileLayer.GroundCover, _client.Grid.ForPosition(_player.State.East, _player.State.North));
+            double cellM = here != null ? here.CellM : 4.0;
+            StandLayout.CellCentre(row, col, cellM, _client.Grid.ExtentM, out double east, out double north);
+            ReceivedTile cover = _client.Tiles.Holding(TileLayer.GroundCover, _client.Grid.ForPosition(east, north));
+            if (cover?.Codes == null) return 0;
+            int x = (int)Math.Round((east - cover.OriginEast) / cover.CellM);
+            int z = (int)Math.Round((north - cover.OriginNorth) / cover.CellM);
+            if (x < 0 || z < 0 || x >= cover.Posts || z >= cover.Posts) return 0;
+            return cover.Codes[z, x];
+        }
+
+        /// <summary>The cell of the world's raster a point on the ground lies in, by the cover tile's cell; false when no cover tile is held there.</summary>
+        private bool TryCellOf(Vector3 point, out int row, out int col)
+        {
+            row = col = -1;
+            if (_client?.Tiles == null || _client.Grid == null) return false;
+            ReceivedTile cover = _client.Tiles.Holding(TileLayer.GroundCover, _client.Grid.ForPosition(point.x, point.z));
+            if (cover == null || !(cover.CellM > 0.0)) return false;
+            TileCodec.CellOf(_client.Grid.ExtentM, cover.CellM, point.x, point.z, out row, out col);
+            return row >= 0 && col >= 0;
+        }
+
+        /// <summary>A trunk as the work model's target (BF.3): its plant's definition and the state the server would make of it, from the tiles and the changes the client holds.</summary>
+        private void TrunkTarget(in TrunkNearby trunk, out Definition definition, out ThingState state)
+        {
+            (byte flags, byte cut) = _client.Changes.TrunkOf(trunk.Row, trunk.Col);
+            definition = StandingThings.TrunkDefinition(trunk.Species);
+            state = StandingThings.TrunkState(trunk.Species, trunk.HeightM, flags, cut, GroundCovers.QuarterOf(CoverCodeAt(trunk.Row, trunk.Col)));
+        }
+
+        /// <summary>A tuft as the work model's target (BF.3): the shape's representative plant (the client holds no understorey layer) and its state.</summary>
+        private bool TuftTarget(in UnderstoreyTuft tuft, out Definition definition, out ThingState state)
+        {
+            definition = StandingThings.TuftDefinition(tuft.Shape, null);
+            state = StandingThings.TuftState(tuft.HeightM, GroundCovers.QuarterOf(CoverCodeAt(tuft.Row, tuft.Col)));
+            return definition != null;
+        }
+
+        /// <summary>The cell of the ground under the crosshair as a work on it reads it (BF.3), from the tiles and the changes the client holds; the soil's depth is assumed, the server's to refuse.</summary>
+        private bool TryGroundSite(out GroundSite site)
+        {
+            site = default;
+            if (!GroundCell.HasValue || !Ground.HasValue) return false;
+            (int row, int col) = GroundCell.Value;
+            byte code = CoverCodeAt(row, col);
+            if (code == 0) return false;
+            ReceivedTile here = _client.Tiles.Holding(TileLayer.GroundCover, _client.Grid.ForPosition(_player.State.East, _player.State.North));
+            double cellM = here != null ? here.CellM : 4.0;
+            site.Row = row;
+            site.Col = col;
+            site.CoverCode = code;
+            site.Cover = GroundCovers.CoverOf(code);
+            site.Quarter = GroundCovers.QuarterOf(code);
+            site.Tufts = Tufts.OnCell(code, cellM, row, col);
+            if (_client.Changes.TryGet(row, col, out CellChange change))
+            {
+                site.TuftsTaken = change.Tufts;
+                site.Cleared = (change.GroundFlags & GroundChange.Cleared) != 0;
+                site.DugCm = change.DugCm;
+            }
+            site.SoilDepthM = AssumedSoilM;
+            Vector3 at = Ground.Value;
+            if (_water != null && _ground != null)
+            {
+                double surface = _water.HeightAt(at.x, at.z), ground = _ground.HeightAt(at.x, at.z);
+                site.WaterDepthM = !double.IsNaN(surface) && !double.IsNaN(ground) && surface > ground + WorldState.StandingWaterM ? surface - ground : 0.0;
+            }
+            StandLayout.CellCentre(row, col, cellM, _client.Grid.ExtentM, out double east, out double north);
+            site.Centre = new Double3(east, at.y, north);
+            return true;
+        }
+
+        /// <summary>The first work on the ground under the crosshair that can be done with what is in hand (BF.3), or none.</summary>
+        private WorkOffer? GroundOfferFor(CarryingMessage carrying)
+        {
+            if (!TryGroundSite(out GroundSite site)) return null;
+            Definition tool = null;
+            ThingState toolState = default;
+            if (TryInHand(carrying, out CarriedThing held))
+            {
+                tool = held.Definition;
+                toolState = held.Item.State;
+            }
+            return Work.First(Work.GroundOffers(tool, toolState, site));
+        }
+
+        /// <summary>The work intent the press begins: on the thing aimed at, the trunk, the tuft or the ground, or, with nothing aimed at and a strip in hand, the twist.</summary>
         private bool TryWorkIntent(CarryingMessage carrying, out IntentMessage intent)
         {
             intent = default;
+            if (TargetTrunk.HasValue)
+            {
+                TrunkNearby trunk = TargetTrunk.Value;
+                TrunkTarget(trunk, out Definition kind, out ThingState state);
+                WorkOffer? offer = WorkOfferFor(carrying, kind, state);
+                if (!offer.HasValue) return false;
+                intent = new IntentMessage { Verb = Verb.Work, Kind = offer.Value.Kind, Target = IntentMessage.TargetTrunk, Row = trunk.Row, Col = trunk.Col };
+                return true;
+            }
+            if (TargetTuft.HasValue)
+            {
+                UnderstoreyTuft tuft = TargetTuft.Value;
+                if (!TuftTarget(tuft, out Definition kind, out ThingState state)) return false;
+                WorkOffer? offer = WorkOfferFor(carrying, kind, state);
+                if (!offer.HasValue) return false;
+                intent = new IntentMessage { Verb = Verb.Work, Kind = offer.Value.Kind, Target = IntentMessage.TargetTuft, Row = tuft.Row, Col = tuft.Col, Index = tuft.Index };
+                return true;
+            }
             if (Target != null)
             {
                 WorkOffer? offer = WorkOfferFor(carrying, Target.Definition, Target.HasItem ? Target.Item.State : default);
@@ -309,6 +439,13 @@ namespace EarthGame.Client
                 intent = new IntentMessage { Verb = Verb.Work, Kind = WorkKind.Twist, Target = IntentMessage.TargetPlace, Place = place };
                 return true;
             }
+            if (GroundCell.HasValue)
+            {
+                WorkOffer? ground = GroundOfferFor(carrying);
+                if (!ground.HasValue) return false;
+                intent = new IntentMessage { Verb = Verb.Work, Kind = ground.Value.Kind, Target = IntentMessage.TargetGround, Row = GroundCell.Value.Row, Col = GroundCell.Value.Col };
+                return true;
+            }
             return false;
         }
 
@@ -327,33 +464,66 @@ namespace EarthGame.Client
         {
             Target = null;
             TargetLying = null;
+            TargetTrunk = null;
+            TargetTuft = null;
+            GroundCell = null;
             Ground = null;
             WaterAt = null;
             Transform eye = _camera.transform;
             Ray ray = new Ray(eye.position, eye.forward);
             float within = (float)Hands.ReachM + LookBeyondM;
-            bool onGround = Physics.Raycast(ray, out RaycastHit hit, within, Layers.Mask(Layers.Terrain), QueryTriggerInteraction.Ignore);
-            float nearestM = onGround ? hit.distance : within;
+            // The ground, or a trunk's body (BF.3), whichever the ray meets first; then the things in front of either.
+            bool hitAny = Physics.Raycast(ray, out RaycastHit hit, within, Layers.Mask(Layers.Terrain) | Layers.Mask(Layers.Props), QueryTriggerInteraction.Ignore);
+            bool onGround = hitAny && hit.collider != null && hit.collider.gameObject.layer == Layers.Terrain;
+            TrunkNearby trunkHit = default;
+            bool onTrunk = hitAny && !onGround && _trunks != null && _trunks.TryTrunkOf(hit.collider, out trunkHit);
+            float nearestM = hitAny ? hit.distance : within;
+            int which = onTrunk ? 4 : onGround ? 5 : 0;
             Double3 body = _player.Eye;
             EntityView entity = null;
             if (_entities != null && _entities.Pick(ray, nearestM, out EntityView picked, out float pickedM))
             {
                 entity = picked;
                 nearestM = pickedM;
+                which = 1;
             }
-            if (PickLying(ray, body, ref nearestM, out LyingNearby lying))
+            LyingNearby lying = default;
+            if (PickLying(ray, body, ref nearestM, out lying)) which = 2;
+            // A tuft is met by its bounds, which are a metre across on a bracken floor and hide whatever lies among them: a thing,
+            // an item or one of the litter, is offered before a tuft whenever the ray meets one within reach, so what was put down
+            // in the understorey can be taken up again; a tuft is offered before the trunk or the ground behind it by distance.
+            UnderstoreyTuft tuftHit = default;
+            if (which != 1 && which != 2 && _understorey != null && _understorey.Pick(ray, (float)Hands.ReachM, ref nearestM, out tuftHit)) which = 3;
+            switch (which)
             {
-                Definition kind = lying.Thing.Kind == StandLayout.Kind.Stick ? DefinitionCatalogue.Stick : DefinitionCatalogue.Cobble;
-                Double3 at = new Double3(lying.Instance.East, lying.Instance.Up, lying.Instance.North);
-                if (Double3.Distance(body, at) <= Hands.ReachM + kind.RadiusM) TargetLying = lying.Thing;
-                return;
+                case 1:
+                    if (Double3.Distance(body, entity.Position) <= Hands.ReachM + entity.Definition.RadiusM) Target = entity;
+                    return;
+                case 2:
+                {
+                    Definition kind = lying.Thing.Kind == StandLayout.Kind.Stick ? DefinitionCatalogue.Stick : DefinitionCatalogue.Cobble;
+                    Double3 at = new Double3(lying.Instance.East, lying.Instance.Up, lying.Instance.North);
+                    if (Double3.Distance(body, at) <= Hands.ReachM + kind.RadiusM) TargetLying = lying.Thing;
+                    return;
+                }
+                case 3:
+                {
+                    Double3 at = new Double3(tuftHit.East, tuftHit.Up, tuftHit.North);
+                    if (Double3.Distance(body, at) <= Hands.ReachM + TuftReachM) TargetTuft = tuftHit;
+                    return;
+                }
+                case 4:
+                {
+                    Double3 at = new Double3(hit.point.x, hit.point.y, hit.point.z);
+                    if (Double3.Distance(body, at) <= Hands.ReachM + 0.1) TargetTrunk = trunkHit;
+                    return;
+                }
             }
-            if (entity != null)
+            if (onGround && Double3.Distance(body, new Double3(hit.point.x, hit.point.y, hit.point.z)) <= Hands.ReachM)
             {
-                if (Double3.Distance(body, entity.Position) <= Hands.ReachM + entity.Definition.RadiusM) Target = entity;
-                return;
+                Ground = hit.point;
+                if (TryCellOf(hit.point, out int row, out int col)) GroundCell = (row, col);
             }
-            if (onGround && Double3.Distance(body, new Double3(hit.point.x, hit.point.y, hit.point.z)) <= Hands.ReachM) Ground = hit.point;
 
             // Water under the crosshair within reach (FP.1): the eye's ray walked out a quarter of a metre at a time until it
             // goes under the streamed water's surface, or under the ground first, which is the bank.
@@ -454,11 +624,32 @@ namespace EarthGame.Client
                 if (work.HasValue) return name + " — hold to " + work.Value.Words + (full ? "" : "; use to pick up");
                 return name + " — " + (full ? "your hands are full" : "pick up");
             }
+            // The standing world (BF.3): a trunk or a tuft named by what it is, with the first work that can be done to it.
+            if (TargetTrunk.HasValue)
+            {
+                TrunkNearby trunk = TargetTrunk.Value;
+                (byte flags, byte cut) = _client.Changes.TrunkOf(trunk.Row, trunk.Col);
+                string name = ThingWords.TrunkWords(trunk.Species, trunk.HeightM, (flags & TrunkChange.BarkTaken) != 0, cut);
+                TrunkTarget(trunk, out Definition kind, out ThingState state);
+                WorkOffer? work = WorkOfferFor(carrying, kind, state);
+                return work.HasValue ? name + " — hold to " + work.Value.Words : name;
+            }
+            if (TargetTuft.HasValue)
+            {
+                UnderstoreyTuft tuft = TargetTuft.Value;
+                string name = Tufts.NameOf(tuft.Shape);
+                if (!TuftTarget(tuft, out Definition kind, out ThingState state)) return name;
+                WorkOffer? work = WorkOfferFor(carrying, kind, state);
+                return work.HasValue ? name + " — hold to " + work.Value.Words : name;
+            }
             if (TryTwist(carrying, out _, out WorkOffer twist))
                 return "hold to " + twist.Words + (Ground.HasValue && TryInHand(carrying, out CarriedThing strip) ? "; use to put down " + The(strip.Definition.DisplayName) : "");
             if (WaterAt.HasValue) return "water — drink";
+            // The ground (BF.3): cleared with empty hands, dug with a pointed stick; and a thing in hand is put down on it.
+            WorkOffer? ground = GroundCell.HasValue ? GroundOfferFor(carrying) : null;
             if (Ground.HasValue && TryInHand(carrying, out CarriedThing held))
-                return "put down " + The(held.Definition.DisplayName);
+                return (ground.HasValue ? "the ground — hold to " + ground.Value.Words + "; " : "") + "put down " + The(held.Definition.DisplayName);
+            if (ground.HasValue) return "the ground — hold to " + ground.Value.Words;
             return string.Empty;
         }
 
@@ -510,6 +701,7 @@ namespace EarthGame.Client
                 // A blow's own outcomes come with the server's words; these are the two refusals that have none.
                 case VerbOutcome.NoHammer: return "nothing in hand to strike with";
                 case VerbOutcome.NotStone: return "that is no stone to knap";
+                case VerbOutcome.TooHeavy: return "too heavy to lift";
                 default: return "not now";
             }
         }

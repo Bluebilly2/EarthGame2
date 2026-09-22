@@ -307,8 +307,10 @@ does. The order is the dependency order; leverage decides ties.
    the wire, in the region file (5) and the digest; no tile is re-encoded, the diffs ride beside immutable layers.
    **Stage two built 2026-09-23**: a trunk, a tuft and a cell of the ground are targets on the wire (protocol 20); bark
    stripped from a trunk, fibre cut and tufts pulled, a cell cleared, a hole dug with its tuber, a tree cut through (the cut
-   kept) and felled into logs the hands refuse. Stage three (the client draws what changed and aims at what stands; the
-   built game's scenario) follows.
+   kept) and felled into logs the hands refuse. **Stage three built 2026-09-23**: the crosshair names a trunk, a tuft and
+   a cell of the ground and offers the work; the felled are left out, the stripped drawn pale, the taken and cleared
+   gone, the dug a hollow in the client's ground; the `changes` scenario in the built game. BF.3 is built; what it owes
+   is in DEBTS (the hollow the server does not walk, the corpus's walk, the borrowed looks, the rates, the stout trees).
 4. **BF.4 The ground below the data** (F4). Relief below 4 m on both sides; rock that stands; ground condition; the
    stone of the place; things placed by the country. Frames, and William's eyes. (This is the slice that answers
    "flat land covered in trees" wherever the region is.)

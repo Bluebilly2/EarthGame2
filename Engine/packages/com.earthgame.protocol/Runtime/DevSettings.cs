@@ -70,6 +70,10 @@ namespace EarthGame.Protocol
         /// developer can strike a flake to look at, and the knap scenario has stones that answer.
         /// </summary>
         public const string SpawnSilcreteCobble = "spawn.silcrete_cobble";
+        /// <summary>A keen silcrete flake, an edge to cut and carve with (BF.3): what a knapper's good blow gives, set down for a scenario.</summary>
+        public const string SpawnKeenFlake = "spawn.keen_flake";
+        /// <summary>A chopper: a heavy silcrete core with a keen edge (BF.3), the hand's nearest thing to an axe until one is hafted.</summary>
+        public const string SpawnChopper = "spawn.chopper";
         /// <summary>A deed: one kangaroo is stood two metres ahead of the founder who asks, broadside (M1.7b), to be looked at.</summary>
         public const string SpawnKangaroo = "spawn.kangaroo";
         /// <summary>A deed: one oystercatcher, the same way.</summary>
@@ -104,6 +108,8 @@ namespace EarthGame.Protocol
             new DevSetting(SpawnStick, "A stick, two metres ahead", 0.0, 0.0, 0.0, deed: true),
             new DevSetting(SpawnCobble, "A cobble, two metres ahead", 0.0, 0.0, 0.0, deed: true),
             new DevSetting(SpawnSilcreteCobble, "A silcrete cobble, two metres ahead (it knaps)", 0.0, 0.0, 0.0, deed: true),
+            new DevSetting(SpawnKeenFlake, "A keen silcrete flake, two metres ahead (it cuts)", 0.0, 0.0, 0.0, deed: true),
+            new DevSetting(SpawnChopper, "A silcrete chopper, two metres ahead: heavy and keen (it fells)", 0.0, 0.0, 0.0, deed: true),
             new DevSetting(SpawnKangaroo, "A kangaroo, two metres ahead", 0.0, 0.0, 0.0, deed: true),
             new DevSetting(SpawnOystercatcher, "An oystercatcher, two metres ahead", 0.0, 0.0, 0.0, deed: true),
         };

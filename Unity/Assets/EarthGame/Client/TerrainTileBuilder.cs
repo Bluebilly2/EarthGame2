@@ -124,6 +124,39 @@ namespace EarthGame.Client
             return terrain;
         }
 
+        /// <summary>
+        /// A hollow dug into a placed tile (BF.3): the posts of a cell lowered by a depth, full at the cell's centre and easing to
+        /// nothing three-quarters of a cell out, so a dig reads as a bowl in the ground the founder walks; the server's ground is
+        /// unchanged (DEBTS). Idempotent by the caller's account of what was applied: the depth passed is the further depth.
+        /// </summary>
+        public static void Dig(Terrain terrain, double cellEast, double cellNorth, double cellM, double furtherM)
+        {
+            if (terrain == null || terrain.terrainData == null || !(furtherM > 0.0)) return;
+            TerrainData data = terrain.terrainData;
+            int res = data.heightmapResolution;
+            if (res < 2 || !(data.size.y > 0f)) return;
+            float spacing = data.size.x / (res - 1);
+            Vector3 origin = terrain.transform.position;
+            double reach = 0.75 * cellM;
+            int x0 = Mathf.Clamp(Mathf.FloorToInt((float)((cellEast - reach - origin.x) / spacing)), 0, res - 1);
+            int x1 = Mathf.Clamp(Mathf.CeilToInt((float)((cellEast + reach - origin.x) / spacing)), 0, res - 1);
+            int z0 = Mathf.Clamp(Mathf.FloorToInt((float)((cellNorth - reach - origin.z) / spacing)), 0, res - 1);
+            int z1 = Mathf.Clamp(Mathf.CeilToInt((float)((cellNorth + reach - origin.z) / spacing)), 0, res - 1);
+            if (x1 < x0 || z1 < z0) return;
+            float[,] heights = data.GetHeights(x0, z0, x1 - x0 + 1, z1 - z0 + 1);
+            float delta = (float)(furtherM / data.size.y);
+            for (int z = z0; z <= z1; z++)
+                for (int x = x0; x <= x1; x++)
+                {
+                    double dx = origin.x + x * spacing - cellEast, dz = origin.z + z * spacing - cellNorth;
+                    double share = 1.0 - System.Math.Min(1.0, System.Math.Sqrt(dx * dx + dz * dz) / reach);
+                    if (share <= 0.0) continue;
+                    heights[z - z0, x - x0] = Mathf.Max(0f, heights[z - z0, x - x0] - delta * (float)share);
+                }
+            data.SetHeightsDelayLOD(x0, z0, heights);
+            data.SyncHeightmap();
+        }
+
         /// <summary>Builds and places the near tile in the scene: collidable, full detail.</summary>
         public static Terrain Build(IHeightSource heightfield, double originEast, double originNorth, Material material, TerrainLayer layer, string name)
             => Build(heightfield, originEast, originNorth, TileSizeM, TilePosts, material, layer, name, true, 0f);

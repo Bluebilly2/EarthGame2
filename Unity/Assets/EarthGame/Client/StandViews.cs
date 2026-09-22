@@ -100,13 +100,18 @@ namespace EarthGame.Client
         private readonly Material _looseMaterial;
         private readonly Dictionary<TileId, TileStand> _held = new Dictionary<TileId, TileStand>();
         private readonly Dictionary<TileId, Task<TileStand>> _building = new Dictionary<TileId, Task<TileStand>>();
-        private readonly Dictionary<TileId, (ReceivedTile Stand, ReceivedTile Loose, ReceivedTile Ground, LooseTaken Taken, int TakenVersion, ReceivedTile Depth)> _wanted =
-            new Dictionary<TileId, (ReceivedTile, ReceivedTile, ReceivedTile, LooseTaken, int, ReceivedTile)>();
+        private readonly Dictionary<TileId, (ReceivedTile Stand, ReceivedTile Loose, ReceivedTile Ground, LooseTaken Taken, int TakenVersion, ReceivedTile Depth, Dictionary<long, byte> TrunkFlags, int ChangesVersion)> _wanted =
+            new Dictionary<TileId, (ReceivedTile, ReceivedTile, ReceivedTile, LooseTaken, int, ReceivedTile, Dictionary<long, byte>, int)>();
         private readonly Dictionary<TileId, TileStand> _ring = new Dictionary<TileId, TileStand>();
         private readonly Dictionary<TileId, Task<TileStand>> _ringBuilding = new Dictionary<TileId, Task<TileStand>>();
         private readonly List<Matrix4x4>[] _nearGather;
         private readonly List<Matrix4x4>[] _shadowGather;
         private readonly List<Matrix4x4>[] _plainGather;
+        /// <summary>The trunks whose bark is taken (BF.3), drawn pale from meshes of their own, gathered as the near trees are.</summary>
+        private readonly Mesh[] _nearStripped;
+        private readonly List<Matrix4x4>[] _strippedGather;
+        private readonly List<Matrix4x4>[] _strippedShadowGather;
+        private readonly List<Matrix4x4>[] _strippedPlainGather;
         private readonly List<Matrix4x4>[] _farGather;
         private readonly float _tallestM;
         private readonly List<Matrix4x4>[] _stickGather;
@@ -147,6 +152,8 @@ namespace EarthGame.Client
             /// <summary>The block's trees from the lowest foot to the highest crown, which the view is tested against.</summary>
             public Bounds Bounds;
             public List<Matrix4x4>[] Near;
+            /// <summary>The block's stripped trunks (BF.3), by group as <see cref="Near"/>.</summary>
+            public List<Matrix4x4>[] NearStripped;
             public List<Matrix4x4>[] Far;
             public List<Matrix4x4>[] FarHalf;
             public List<Matrix4x4>[] FarQuarter;
@@ -178,6 +185,8 @@ namespace EarthGame.Client
             public uint DepthCrc;
             /// <summary>How many times something had been taken from the tile when it was placed (M1.5b).</summary>
             public int TakenVersion;
+            /// <summary>How many times a trunk of the tile had changed when it was placed (BF.3).</summary>
+            public int ChangesVersion;
             public Block[] Blocks;
             public int Trees;
             /// <summary>All the tile's trees, foot to crown, when it has any: a whole tile out of the view and out of reach is passed over.</summary>
@@ -196,12 +205,14 @@ namespace EarthGame.Client
             _ringBlocksPerSide = (int)Math.Ceiling(grid.TileSizeM / RingBlockM);
             int groups = _tall * StandPreparation.Variants;
             _near = new Mesh[groups];
+            _nearStripped = new Mesh[groups];
             _widths = new float[groups];
             for (int t = 0; t < _tall; t++)
                 for (int v = 0; v < StandPreparation.Variants; v++)
                 {
                     int g = t * StandPreparation.Variants + v;
                     _near[g] = StandMeshes.Tree(t, v, out float width);
+                    _nearStripped[g] = StandMeshes.StrippedTree(t, v);
                     _widths[g] = Mathf.Max(0.05f, width);
                 }
             _far = new Mesh[_tall];
@@ -219,6 +230,9 @@ namespace EarthGame.Client
             _nearGather = Lists(groups);
             _shadowGather = Lists(groups);
             _plainGather = Lists(groups);
+            _strippedGather = Lists(groups);
+            _strippedShadowGather = Lists(groups);
+            _strippedPlainGather = Lists(groups);
             _farGather = Lists(_tall);
             foreach (PlantSpecies species in StandCodes.Tall) _tallestM = Mathf.Max(_tallestM, (float)species.MaxHeightM);
             _stickGather = Lists(StandPreparation.Variants);
@@ -232,11 +246,15 @@ namespace EarthGame.Client
         /// counts them); a request while one is running is kept and answered when that one is taken.
         /// </summary>
         public void Want(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, LooseTaken taken = null, int takenVersion = 0, ReceivedTile depth = null)
+            => Want(stand, loose, ground, taken, takenVersion, depth, null, 0);
+
+        /// <param name="trunkFlags">What has been done to the tile's trunks (BF.3), a copy the worker alone reads; <paramref name="changesVersion"/> counts the changes, as the takings are counted.</param>
+        public void Want(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, LooseTaken taken, int takenVersion, ReceivedTile depth, Dictionary<long, byte> trunkFlags, int changesVersion)
         {
             if (stand == null || stand.Codes == null || ground == null || ground.Heights == null) return;
             TileId id = stand.Id;
-            _wanted[id] = (stand, loose, ground, taken, takenVersion, depth);
-            if (!_building.ContainsKey(id) && !IsBuiltFrom(id, stand, loose, ground, takenVersion, depth)) Start(id);
+            _wanted[id] = (stand, loose, ground, taken, takenVersion, depth, trunkFlags, changesVersion);
+            if (!_building.ContainsKey(id) && !IsBuiltFrom(id, stand, loose, ground, takenVersion, depth, changesVersion)) Start(id);
         }
 
         /// <summary>Swaps in one finished tile; false when none has finished. A dictionary write, so it keeps inside the streaming budget.</summary>
@@ -261,7 +279,7 @@ namespace EarthGame.Client
             }
             if (!_wanted.TryGetValue(done, out var want)) return true;
             _held[done] = task.Result;
-            if (!IsBuiltFrom(done, want.Stand, want.Loose, want.Ground, want.TakenVersion, want.Depth)) Start(done);
+            if (!IsBuiltFrom(done, want.Stand, want.Loose, want.Ground, want.TakenVersion, want.Depth, want.ChangesVersion)) Start(done);
             return true;
         }
 
@@ -363,6 +381,9 @@ namespace EarthGame.Client
             Clear(_nearGather);
             Clear(_shadowGather);
             Clear(_plainGather);
+            Clear(_strippedGather);
+            Clear(_strippedShadowGather);
+            Clear(_strippedPlainGather);
             Clear(_farGather);
             Clear(_stickGather);
             Clear(_cobbleGather);
@@ -386,8 +407,16 @@ namespace EarthGame.Client
                         if (DrawNear && d < SplitM + BlockReach)
                         {
                             bool casts = DrawShadows && d - BlockReach < castM;
-                            if (inView) Gather(block.Near, casts ? _nearGather : _plainGather);
-                            else if (casts) Gather(block.Near, _shadowGather);
+                            if (inView)
+                            {
+                                Gather(block.Near, casts ? _nearGather : _plainGather);
+                                Gather(block.NearStripped, casts ? _strippedGather : _strippedPlainGather);
+                            }
+                            else if (casts)
+                            {
+                                Gather(block.Near, _shadowGather);
+                                Gather(block.NearStripped, _strippedShadowGather);
+                            }
                         }
                         if (DrawFar && inView && d + BlockReach >= SplitM)
                             Gather(d < FarHalfM ? block.Far : d < FarQuarterM ? block.FarHalf : block.FarQuarter, _farGather);
@@ -416,6 +445,9 @@ namespace EarthGame.Client
                 Submit(_nearMaterial, _near[g], _nearGather[g], near, ShadowCastingMode.On);
                 Submit(_nearMaterial, _near[g], _plainGather[g], near, ShadowCastingMode.Off);
                 Submit(_nearMaterial, _near[g], _shadowGather[g], near, ShadowCastingMode.ShadowsOnly);
+                Submit(_nearMaterial, _nearStripped[g], _strippedGather[g], near, ShadowCastingMode.On);
+                Submit(_nearMaterial, _nearStripped[g], _strippedPlainGather[g], near, ShadowCastingMode.Off);
+                Submit(_nearMaterial, _nearStripped[g], _strippedShadowGather[g], near, ShadowCastingMode.ShadowsOnly);
             }
             Bounds far = new Bounds(eye, new Vector3(2f * (float)_grid.ExtentM, 4000f, 2f * (float)_grid.ExtentM));
             for (int t = 0; t < _tall; t++) Submit(_farMaterial, _far[t], _farGather[t], far, ShadowCastingMode.Off);
@@ -439,20 +471,21 @@ namespace EarthGame.Client
             UnityEngine.Object.Destroy(_looseMaterial);
         }
 
-        private bool IsBuiltFrom(TileId id, ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, int takenVersion, ReceivedTile depth) =>
+        private bool IsBuiltFrom(TileId id, ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, int takenVersion, ReceivedTile depth, int changesVersion) =>
             _held.TryGetValue(id, out TileStand have) && have.StandCrc == stand.Crc32 && have.GroundCrc == ground.Crc32
-            && have.LooseCrc == (loose != null ? loose.Crc32 : 0u) && have.TakenVersion == takenVersion && have.DepthCrc == (depth != null ? depth.Crc32 : 0u);
+            && have.LooseCrc == (loose != null ? loose.Crc32 : 0u) && have.TakenVersion == takenVersion && have.DepthCrc == (depth != null ? depth.Crc32 : 0u)
+            && have.ChangesVersion == changesVersion;
 
         private void Start(TileId id)
         {
             var want = _wanted[id];
-            _building[id] = Task.Run(() => Build(want.Stand, want.Loose, want.Ground, want.Taken, want.TakenVersion, want.Depth));
+            _building[id] = Task.Run(() => Build(want.Stand, want.Loose, want.Ground, want.Taken, want.TakenVersion, want.Depth, want.TrunkFlags, want.ChangesVersion));
         }
 
-        /// <summary>On a worker: the tile's things placed, less what was taken, and the matrices every one of them is drawn by, sorted into the tile's blocks.</summary>
-        private TileStand Build(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, LooseTaken taken, int takenVersion, ReceivedTile depth)
+        /// <summary>On a worker: the tile's things placed, less what was taken and felled, and the matrices every one of them is drawn by, sorted into the tile's blocks.</summary>
+        private TileStand Build(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, LooseTaken taken, int takenVersion, ReceivedTile depth, Dictionary<long, byte> trunkFlags, int changesVersion)
         {
-            PreparedStand prepared = StandPreparation.Prepare(stand, loose, ground, _grid, taken, depth);
+            PreparedStand prepared = StandPreparation.Prepare(stand, loose, ground, _grid, taken, depth, trunkFlags);
             _grid.Origin(stand.Id, out double originEast, out double originNorth);
             TileStand tile = new TileStand
             {
@@ -461,6 +494,7 @@ namespace EarthGame.Client
                 GroundCrc = prepared.GroundCrc,
                 DepthCrc = depth != null ? depth.Crc32 : 0u,
                 TakenVersion = takenVersion,
+                ChangesVersion = changesVersion,
                 Blocks = new Block[_blocksPerSide * _blocksPerSide],
                 Trees = prepared.Trees.Length,
                 Ground = new Bounds(new Vector3((float)(originEast + 0.5 * _grid.TileSizeM), 0f, (float)(originNorth + 0.5 * _grid.TileSizeM)),
@@ -474,12 +508,15 @@ namespace EarthGame.Client
                 if (block.Near == null)
                 {
                     block.Near = new List<Matrix4x4>[_near.Length];
+                    block.NearStripped = new List<Matrix4x4>[_near.Length];
                     block.Far = new List<Matrix4x4>[_tall];
                     block.FarHalf = new List<Matrix4x4>[_tall];
                     block.FarQuarter = new List<Matrix4x4>[_tall];
                 }
                 int nth = block.Trees++;
-                (block.Near[g] ?? (block.Near[g] = new List<Matrix4x4>())).Add(Trs(t.East, t.Up - SinkM, t.North, t.YawDeg, across, t.HeightM, across));
+                // A stripped trunk is drawn from its own mesh (BF.3), pale; far off it is the tree it was.
+                List<Matrix4x4>[] near = t.Stripped ? block.NearStripped : block.Near;
+                (near[g] ?? (near[g] = new List<Matrix4x4>())).Add(Trs(t.East, t.Up - SinkM, t.North, t.YawDeg, across, t.HeightM, across));
                 (block.Far[t.Tall] ?? (block.Far[t.Tall] = new List<Matrix4x4>())).Add(Trs(t.East, t.Up - SinkM, t.North, t.YawDeg, t.CrownM, t.HeightM, t.CrownM));
                 // One tree in two, and one in four, stand for the rest when a block is far off, their crowns spread by the
                 // root of how many each stands for, so the cover of the canopy holds.

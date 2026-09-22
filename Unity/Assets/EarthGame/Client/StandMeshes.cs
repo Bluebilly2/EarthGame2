@@ -55,6 +55,11 @@ namespace EarthGame.Client
         private static readonly Dictionary<int, Mesh> Cords = new Dictionary<int, Mesh>();
         private static readonly Dictionary<int, Mesh> Cobbles = new Dictionary<int, Mesh>();
         private static readonly Dictionary<int, Mesh> Tufts = new Dictionary<int, Mesh>();
+        private static readonly Dictionary<int, Mesh> StrippedTrees = new Dictionary<int, Mesh>();
+        private static readonly Dictionary<int, Mesh> Logs = new Dictionary<int, Mesh>();
+
+        /// <summary>The colour of a trunk whose bark is taken (BF.3): the pale sapwood, wet.</summary>
+        private static readonly Color Sapwood = new Color(0.86f, 0.80f, 0.66f);
 
         /// <summary>
         /// A near tree of a tall plant (<c>StandCodes.Tall</c> index) in one of its variants, built on first use and kept,
@@ -70,6 +75,46 @@ namespace EarthGame.Client
                 Widths[key] = width;
             }
             crownWidth = Widths[key];
+            return mesh;
+        }
+
+        /// <summary>
+        /// The same tree with its bark taken (BF.3): grown from the same seed, so it stands as it stood, its trunk the sapwood's
+        /// pale from the foot to the crown, its limbs and crown as they were.
+        /// </summary>
+        public static Mesh StrippedTree(int tall, int variant)
+        {
+            int key = tall * 64 + Wrap(variant);
+            if (StrippedTrees.TryGetValue(key, out Mesh mesh)) return mesh;
+            mesh = BuildTree(tall * 7919 + Wrap(variant) * 104729 + 17, StandForms.ForTall(tall), out _, stripped: true);
+            StrippedTrees[key] = mesh;
+            return mesh;
+        }
+
+        /// <summary>A log (BF.3): two metres of a felled trunk, a stout tube lying along x, in the bark's own brown; the client scales it by the log's own length and thickness.</summary>
+        public static Mesh Log(int variant)
+        {
+            int v = Wrap(variant);
+            if (Logs.TryGetValue(v, out Mesh mesh)) return mesh;
+            System.Random rand = new System.Random(v * 271 + 9);
+            MeshData data = new MeshData();
+            const float length = 2f, radius = 0.15f;
+            int segments = 2;
+            Vector3[] centres = new Vector3[segments + 1];
+            Vector3[] dirs = new Vector3[segments + 1];
+            float[] radii = new float[segments + 1];
+            centres[0] = new Vector3(-0.5f * length, radius, 0f);
+            for (int i = 0; i < segments; i++)
+            {
+                dirs[i] = Vector3.right;
+                centres[i + 1] = centres[i] + Vector3.right * (length / segments);
+            }
+            dirs[segments] = Vector3.right;
+            for (int i = 0; i <= segments; i++) radii[i] = radius * Mathf.Lerp(1f, 0.85f, i / (float)segments);
+            Color colour = ToColor(StandForms.Stick);
+            AddTube(data, centres, dirs, radii, Range(rand, 0f, Mathf.PI * 2f), v, colour, colour, -1f);
+            mesh = data.ToMesh("Log " + v);
+            Logs[v] = mesh;
             return mesh;
         }
 
@@ -366,7 +411,7 @@ namespace EarthGame.Client
         /// clumps of leaves along the outer part of whatever tips there are, two at least on each. Built roughly to
         /// height and then scaled exactly to it.
         /// </summary>
-        private static Mesh BuildTree(int seed, TreeForm form, out float crownWidth)
+        private static Mesh BuildTree(int seed, TreeForm form, out float crownWidth, bool stripped = false)
         {
             System.Random rand = new System.Random(seed);
             FacetMeshData data = new FacetMeshData();
@@ -403,7 +448,8 @@ namespace EarthGame.Client
             float stocking = form.StockingShare <= 0f
                 ? -1f
                 : Mathf.Clamp(trunkLength * form.StockingShare + Range(rand, -StockingJitter, StockingJitter) * 0.5f, 0.05f, trunkLength * 1.2f);
-            FacetTube(data, TrunkSides, centres, ringDirs, radii, Range(rand, 0f, Mathf.PI * 2f), seed, ToColor(form.BarkLow), ToColor(form.BarkHigh), stocking);
+            if (stripped) FacetTube(data, TrunkSides, centres, ringDirs, radii, Range(rand, 0f, Mathf.PI * 2f), seed, Sapwood, Sapwood, -1f);
+            else FacetTube(data, TrunkSides, centres, ringDirs, radii, Range(rand, 0f, Mathf.PI * 2f), seed, ToColor(form.BarkLow), ToColor(form.BarkHigh), stocking);
 
             List<Vector3> tips = new List<Vector3> { centres[TrunkSegments] };
             List<Vector3> inner = new List<Vector3> { centres[TrunkSegments - 1] };

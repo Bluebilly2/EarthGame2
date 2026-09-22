@@ -37,9 +37,11 @@ namespace EarthGame.Client
         private readonly List<Matrix4x4>[] _drawn;
         private readonly List<UnderstoreyTuft> _found = new List<UnderstoreyTuft>();
         private readonly Stopwatch _clock = new Stopwatch();
+        private readonly Dictionary<int, Bounds> _bounds = new Dictionary<int, Bounds>();
         private double _atEast, _atNorth;
         private int _tiles = -1;
         private bool _placed;
+        private int _changes;
 
         /// <summary>Whether the understorey is drawn at all; <c>-eg-hide understorey</c> turns it off, so what it costs can be measured.</summary>
         public bool Drawn { get; set; } = true;
@@ -79,16 +81,22 @@ namespace EarthGame.Client
         /// first tiles landed stood on bare ground until they had walked six metres: the four vantages' first frames
         /// were bare that way (2026-09-12).
         /// </summary>
-        public void Follow(double east, double north, TileReceiver tiles, TileGrid grid)
+        public void Follow(double east, double north, TileReceiver tiles, TileGrid grid) => Follow(east, north, tiles, grid, null);
+
+        /// <summary>The same, less what the world's changes say is taken or cleared (BF.3); a change asks for the placing again (<see cref="MarkChanged"/>).</summary>
+        public void Follow(double east, double north, TileReceiver tiles, TileGrid grid, WorldChanges changes)
         {
             if (!Drawn || tiles == null || grid == null) return;
             int held = tiles.CountOf(TileLayer.GroundCover);
             double de = east - _atEast, dn = north - _atNorth;
-            if (_placed && held == _tiles && de * de + dn * dn < RelayM * RelayM) return;
+            if (_placed && held == _tiles && _changes == 0 && de * de + dn * dn < RelayM * RelayM) return;
             _tiles = held;
+            _changes = 0;
             _clock.Restart();
             _found.Clear();
             Understorey.Find(east, north, DrawM + RelayM, tiles, grid, _found);
+            if (changes != null && changes.Count > 0)
+                _found.RemoveAll(t => changes.IsTuftTaken(t.Row, t.Col, t.Index) || (changes.GroundOf(t.Row, t.Col).Flags & GroundChange.Cleared) != 0);
             foreach (List<Matrix4x4> list in _drawn) list.Clear();
             foreach (UnderstoreyTuft tuft in _found)
             {
@@ -128,6 +136,37 @@ namespace EarthGame.Client
                     Graphics.RenderMeshInstanced(parameters, _meshes[g], 0, list, Mathf.Min(Chunk, list.Count - start), start);
             }
             LastDrawMs = _clock.Elapsed.TotalMilliseconds;
+        }
+
+        /// <summary>A tuft or a cell changed (BF.3): what grows round the founder is placed again on the next follow.</summary>
+        public void MarkChanged() => _changes++;
+
+        /// <summary>
+        /// The nearest drawn tuft the ray meets before a distance, by its mesh's bounds where it is drawn, as the litter is picked
+        /// (BF.3); the distance becomes where it was met. Only the tufts within a reach of the ray's origin are tried.
+        /// </summary>
+        public bool Pick(Ray ray, float reachM, ref float nearestM, out UnderstoreyTuft best)
+        {
+            best = default;
+            bool found = false;
+            if (!_placed) return false;
+            float reach2 = (reachM + 2f) * (reachM + 2f);
+            foreach (UnderstoreyTuft tuft in _found)
+            {
+                if (tuft.Shape == TuftShape.Herb) continue;
+                float dx = tuft.East - ray.origin.x, dz = tuft.North - ray.origin.z;
+                if (dx * dx + dz * dz > reach2) continue;
+                int g = (int)tuft.Shape * StandPreparation.Variants + tuft.Variant;
+                if (g < 0 || g >= _meshes.Length || _meshes[g] == null) continue;
+                if (!_bounds.TryGetValue(g, out Bounds bounds)) _bounds[g] = bounds = _meshes[g].bounds;
+                Matrix4x4 toLocal = Matrix4x4.TRS(new Vector3(tuft.East, tuft.Up, tuft.North), Quaternion.Euler(0f, tuft.YawDeg, 0f),
+                                                  new Vector3(tuft.AcrossM, tuft.HeightM, tuft.AcrossM)).inverse;
+                if (!EntityViews.Meets(ray, bounds, toLocal, out float metres) || metres > nearestM) continue;
+                nearestM = metres;
+                best = tuft;
+                found = true;
+            }
+            return found;
         }
 
         /// <summary>How many of each shape stand round the founder as they were last placed, for the census a run records (M1.6c promise 5).</summary>

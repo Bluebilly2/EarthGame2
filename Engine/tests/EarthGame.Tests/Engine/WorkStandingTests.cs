@@ -150,6 +150,7 @@ namespace EarthGame.Tests.Engine
             Assert.That(Work.JudgeGround(WorkKind.ClearGround, null, default, cleared).Outcome, Is.EqualTo(VerbOutcome.WontWork), "cleared already");
             GroundSite sand = Site(GroundCover.Sand, 0, null, 0.05);
             Assert.That(Work.JudgeGround(WorkKind.ClearGround, null, default, sand).Outcome, Is.EqualTo(VerbOutcome.WontWork), "nothing grows on sand");
+            Assert.That(Work.JudgeGround(WorkKind.ClearGround, DefinitionCatalogue.Stick, PointedStick(), site).Outcome, Is.EqualTo(VerbOutcome.WontWork), "clearing wants empty hands");
             GroundSite half = site;
             half.TuftsTaken = 1;
             Assert.That(Work.JudgeGround(WorkKind.ClearGround, null, default, half).Seconds, Is.EqualTo(Work.ClearSecondsPerTuft * (left - 1)), "one taken already, one less to clear");
