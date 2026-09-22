@@ -1,6 +1,8 @@
-# Draft contract WG.0 — Can the atlas describe a chosen place?
+# Contract WG.0 — Can the atlas describe a chosen place?
 
-**Status:** drafted 2026-09-13, unopened. Owner: Claude since 2026-09-18 (Codex, its author, retired: CANON ruling 26 as
+**Status:** drafted 2026-09-13; promise 1 kept 2026-09-21 (the six datasets fetched), promise 2's reading built as WG.0b on
+2026-09-22, and promises 2 to 6 built the same day on William's "open the choosing of a place next" (the exit record's
+second part). Owner: Claude since 2026-09-18 (Codex, its author, retired: CANON ruling 26 as
 amended). Acquisition requires William's permission for the exact
 files; the contributor opens implementation contracts. The completed research is
 [WORLD_GENERATION_DESIGN.md](../WORLD_GENERATION_DESIGN.md). The bounded inspection of data already present is
@@ -102,3 +104,35 @@ William approved it whole ("all six"): the six datasets it names, and no other, 
 4.0 GB against the 8 GB ceiling; ETOPO's address is NOAA's data directory, not its THREDDS server, which answers 404;
 PANGAEA's handle for GLiM closes the connection after a HEAD, and the tool asks once more on a fresh one. Promise 1 is
 kept; the reading of the datasets into the atlas's derived form is WG.0b, built 2026-09-22 (`WG.0b_THE_ATLAS_READ.md`).
+
+## Exit record, the choosing of a place (2026-09-22)
+
+**Promise 2, the inspection tool.** `Tools/atlas/choose.py --lat --lon` reports every field the atlas holds at a place —
+the relief, twelve months of rain and of temperature, the rock, the ecoregion with its biome and realm, the distance to
+the coast and to the nearest lake — each with its source, the source's resolution, the atlas's cell, its unit and whether
+it is missing there. A bad coordinate is refused (exit 2) and a missing atlas named (exit 1); nothing is ever answered
+with a default region. Reading is through memory maps, so the tool opens in milliseconds.
+
+**Promise 3, the eight probes.** `Tools/atlas/probes.json` pins the design's three walkthroughs (Bherwerre, the Simpson
+Desert, Sagarmatha), Taveuni either side of the date line, both poles and the open South Pacific, with expectations
+written from references named beside each before the lookup ran. `choose.py --probes` writes the report
+(`eg2.atlas_probes`, `Artefacts/atlas/probes-20260922T081153Z.json`).
+
+**Promise 4, independent comparisons.** `Tools/verifiers/checks/atlas_check.py --probes` judges the report's places by
+its own reading of the layers, 67 checks over the eight probes beside the fourteen of WG.0b. The first run failed seven:
+three were the references' own errors (the Simpson Desert's salt lakes 25 km off, Easter Island 1,100 km from the
+open-ocean probe, the eastern probe in the Somosomo Strait rather than on Taveuni), one a source's limit (GLiM's
+half-degree grid empty at a coastal cell) and three the distance grid's (no wrap at the date line, the poles' last rows).
+Each is revised in the open in `probes.json`, with what was first pinned and why, and the limits are DEBTS rows; the
+rerun is 67 of 67. Missing data stays missing throughout: the north pole's climate, the sea's rock and region.
+
+**Promise 5, the costs.** Downloaded 6.4 GB (WG.0's manifest); derived 188 MB in 234 s (WG.0b); the eight probes
+answered cold in 8 ms and warm in under a millisecond; the derivation's peak memory is a block of rows, not a file.
+Not available anywhere: a rock class at the coast at half a degree; HydroLAKES, fetched and unread (its own row).
+
+**Promise 6, the recommendation.** The atlas is sufficient for a first landscape experiment's *questions*: what the
+climate, the rock, the region and the shores of a chosen place are, anywhere on Earth, to about 9 km. It is not the
+ground of a playable region: Bherwerre's bake stands on a local elevation model at tens of metres and on mapped water,
+and the atlas holds relief at 900 m. The minimum data package for an experiment away from Bherwerre is therefore a
+30 m elevation model of that place (Copernicus GLO-30 or SRTM) and OpenStreetMap water round it, fetched under an
+acquisition manifest as the six were and only on William's approval of the exact files: a DEBTS row, on his word.

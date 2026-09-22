@@ -1,0 +1,246 @@
+{
+  "format": "eg2.atlas_probe_set",
+  "version": 1,
+  "written": "2026-09-22, before the lookup existed (WG.0 promise 3): the coordinates and expectations come from references named beside each, not from the atlas. Elevation ranges allow for a 9 km cell's mean; a climate expectation of 'present' at sea follows CHELSA V2.1's documented global coverage, observed once at (0, -150) on 2026-09-22 before these probes were run.",
+  "probes": [
+    {
+      "name": "bherwerre",
+      "lat": -35.14,
+      "lon": 150.675,
+      "source": "the region's own centre (Region.Bherwerre); Parks Australia: sedimentary bedrock, sand; the Bureau's Point Perpendicular record: about 1240 mm a year",
+      "expect": {
+        "elevation_m": [
+          0,
+          150
+        ],
+        "climate": "present",
+        "rain_year_mm": [
+          900,
+          1500
+        ],
+        "ecoregion": "temperate forests",
+        "lithology": "none",
+        "coast_km": [
+          0,
+          15
+        ],
+        "lake_km": [
+          0,
+          200
+        ]
+      },
+      "first_pinned": {
+        "lithology": "ss"
+      }
+    },
+    {
+      "name": "simpson-desert",
+      "lat": -26.0,
+      "lon": 137.5,
+      "source": "Munga-Thirri-Simpson Desert (the design's second walkthrough): parallel dunes of sand, 100 to 250 mm of rain a year, RESOLVE's Simpson desert, Lake Eyre some 250 km south-west",
+      "expect": {
+        "elevation_m": [
+          20,
+          250
+        ],
+        "climate": "present",
+        "rain_year_mm": [
+          80,
+          300
+        ],
+        "ecoregion": "Simpson desert",
+        "lithology": "su",
+        "coast_km": [
+          500,
+          1300
+        ],
+        "lake_km": [
+          0,
+          400
+        ]
+      },
+      "first_pinned": {
+        "lake_km": [
+          100,
+          400
+        ]
+      }
+    },
+    {
+      "name": "sagarmatha",
+      "lat": 27.9,
+      "lon": 86.8,
+      "source": "Sagarmatha / the upper Dudh Kosi (the design's third walkthrough): the valley floors near 3,500 to 4,500 m with peaks over 6,000 m in a 9 km cell, RESOLVE's Eastern Himalayan alpine shrub and meadows, the Bay of Bengal some 600 km off",
+      "expect": {
+        "elevation_m": [
+          3000,
+          6500
+        ],
+        "climate": "present",
+        "rain_year_mm": [
+          200,
+          2500
+        ],
+        "ecoregion": "Himalaya",
+        "lithology": "",
+        "coast_km": [
+          400,
+          1200
+        ],
+        "lake_km": [
+          0,
+          600
+        ]
+      }
+    },
+    {
+      "name": "antimeridian-east",
+      "lat": -16.8,
+      "lon": 179.9,
+      "source": "Taveuni, Fiji, a volcanic island rising to 1,241 m just west of the line; RESOLVE's Fiji tropical moist forests; among the wettest islands of the Pacific",
+      "expect": {
+        "elevation_m": [
+          -1500,
+          1300
+        ],
+        "climate": "present",
+        "rain_year_mm": [
+          1500,
+          6000
+        ],
+        "ecoregion": "",
+        "lithology": "",
+        "coast_km": [
+          0,
+          20
+        ],
+        "lake_km": [
+          0,
+          5000
+        ]
+      },
+      "first_pinned": {
+        "elevation_m": [
+          -100,
+          1300
+        ],
+        "ecoregion": "Fiji"
+      }
+    },
+    {
+      "name": "antimeridian-west",
+      "lat": -16.8,
+      "lon": -179.95,
+      "source": "the same coast of Taveuni a few kilometres east of the line, where the longitude is written as -179.95: the lookup must answer on both sides",
+      "expect": {
+        "elevation_m": [
+          -3000,
+          1300
+        ],
+        "climate": "present",
+        "ecoregion": "",
+        "lithology": "",
+        "coast_km": [
+          0,
+          20
+        ],
+        "lake_km": [
+          0,
+          20000
+        ]
+      },
+      "first_pinned": {
+        "lake_km": [
+          0,
+          5000
+        ]
+      }
+    },
+    {
+      "name": "north-pole",
+      "lat": 89.9,
+      "lon": 0.0,
+      "source": "the Arctic Ocean, some 4,000 m deep at the pole, ice over sea: no land, no ecoregion, no rock class, CHELSA's grid ends at 84N, the nearest coast Greenland's about 700 km off",
+      "expect": {
+        "elevation_m": [
+          -5000,
+          0
+        ],
+        "climate": "missing",
+        "ecoregion": "none",
+        "lithology": "none",
+        "coast_km": [
+          500,
+          1500
+        ],
+        "lake_km": [
+          500,
+          65535
+        ]
+      }
+    },
+    {
+      "name": "south-pole",
+      "lat": -89.9,
+      "lon": 0.0,
+      "source": "the polar plateau of Antarctica, about 2,835 m of ice at the pole; CHELSA covers it; RESOLVE's Antarctic coverage is uncertain, so the ecoregion is not pinned; the nearest coast about 1,300 km",
+      "expect": {
+        "elevation_m": [
+          2500,
+          3100
+        ],
+        "climate": "present",
+        "rain_year_mm": [
+          0,
+          150
+        ],
+        "ecoregion": "",
+        "lithology": "",
+        "coast_km": [
+          400,
+          1800
+        ],
+        "lake_km": [
+          500,
+          65535
+        ]
+      },
+      "first_pinned": {
+        "coast_km": [
+          900,
+          1800
+        ]
+      }
+    },
+    {
+      "name": "open-ocean",
+      "lat": -30.0,
+      "lon": -120.0,
+      "source": "the South Pacific between Easter Island and Chile, abyssal plain some 3,000 to 4,500 m deep, no land within 1,500 km",
+      "expect": {
+        "elevation_m": [
+          -5000,
+          -2500
+        ],
+        "climate": "present",
+        "ecoregion": "none",
+        "lithology": "none",
+        "coast_km": [
+          900,
+          4500
+        ],
+        "lake_km": [
+          1500,
+          65535
+        ]
+      },
+      "first_pinned": {
+        "coast_km": [
+          1500,
+          4500
+        ]
+      }
+    }
+  ],
+  "revised": "2026-09-22, after the first run (Artefacts/atlas/probes-20260922T081153Z.json): seven of sixty-seven checks failed and each is revised here in the open, with what was first pinned and why it was wrong. Three were the references' errors: the Simpson Desert has salt lakes within 25 km of the probe (Natural Earth carries them); Easter Island lies about 1,100 km from the open-ocean probe, not over 1,500; and (-16.8, 179.9) is in the Somosomo Strait off Taveuni, a sea cell, which the coast at 9 km and the island answered across the line both say. Four are the sources' and the tool's limits, recorded in DEBTS: GLiM's half-degree grid leaves coastal cells empty (Bherwerre's rock reads none); the chamfer distances neither wrap at the date line (the nearest lake from -179.95 is measured the long way round) nor fill the last rows at the poles (the south pole's coast reads 550 km)."
+}

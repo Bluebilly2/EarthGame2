@@ -66,9 +66,55 @@ def site(path):
     return lat, lon, float(m.group(5))
 
 
+def check_probes(folder, verdict):
+    """
+    The eight pinned probes (WG.0 promise 3, Tools/atlas/probes.json, written before the lookup existed) read here by this
+    verifier's own Layer class, never by choose.py: each expectation printed beside what the layers hold. A missing field is
+    an answer and is checked as one; it is never a zero.
+    """
+    probes = json.loads((ROOT / "Tools/atlas/probes.json").read_text(encoding="utf-8"))["probes"]
+    elevation, eco, lith = Layer(folder, "elevation"), Layer(folder, "ecoregion"), Layer(folder, "lithology")
+    coast, lake = Layer(folder, "coast_km"), Layer(folder, "lake_km")
+    names = json.loads((folder / "ecoregion_names.json").read_text(encoding="utf-8"))
+    rain = [Layer(folder, "pr_%02d" % m) for m in range(1, 13)]
+    for pr in probes:
+        lat, lon, want, src = pr["lat"], pr["lon"], pr["expect"], pr["source"]
+        tag = "probe %s (%.3f, %.3f)" % (pr["name"], lat, lon)
+        e = elevation.at(lat, lon)
+        if want["elevation_m"] == "missing":
+            verdict(tag + ": elevation missing", e == elevation.nodata, "missing", str(e), src)
+        else:
+            lo, hi = want["elevation_m"]
+            verdict(tag + ": elevation in [%d, %d] m" % (lo, hi), e != elevation.nodata and lo <= e <= hi, "%d to %d m" % (lo, hi), "%d m" % e, src)
+        months = [r.at(lat, lon) for r in rain]
+        present = any(v != rain[0].nodata for v in months)
+        verdict(tag + ": climate " + want["climate"], present == (want["climate"] == "present"), want["climate"], "present" if present else "missing", src)
+        if want["climate"] == "present" and "rain_year_mm" in want:
+            lo, hi = want["rain_year_mm"]
+            year = sum(v for v in months if v != rain[0].nodata) / 10.0
+            verdict(tag + ": the year's rain in [%d, %d] mm" % (lo, hi), lo <= year <= hi, "%d to %d mm" % (lo, hi), "%.0f mm" % year, src)
+        region = eco.at(lat, lon)
+        name = names.get(str(region), {}).get("eco_name") or "none"
+        if want["ecoregion"] == "none":
+            verdict(tag + ": no ecoregion", region == 0, "none", name, src)
+        else:
+            verdict(tag + ": ecoregion named like '%s'" % want["ecoregion"], want["ecoregion"].lower() in name.lower(), want["ecoregion"], name, src)
+        cls = lith.at(lat, lon)
+        cls_name = lith.head["classes"].get(str(cls), "none")
+        if want["lithology"] == "none":
+            verdict(tag + ": no lithology", cls == 0, "none", cls_name, src)
+        else:
+            verdict(tag + ": lithology %s" % want["lithology"], cls_name.startswith(want["lithology"]), want["lithology"], cls_name, src)
+        lo, hi = want["coast_km"]
+        verdict(tag + ": the coast in [%d, %d] km" % (lo, hi), lo <= coast.at(lat, lon) <= hi, "%d to %d km" % (lo, hi), "%d km" % coast.at(lat, lon), src)
+        lo, hi = want["lake_km"]
+        verdict(tag + ": a lake in [%d, %d] km" % (lo, hi), lo <= lake.at(lat, lon) <= hi, "%d to %d km" % (lo, hi), "%d km" % lake.at(lat, lon), src)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--atlas", default="Data/global/atlas")
+    parser.add_argument("--probes", action="store_true", help="also the eight pinned probes of Tools/atlas/probes.json")
     args = parser.parse_args()
     folder = ROOT / args.atlas
     failed = 0
@@ -132,6 +178,8 @@ def main():
     verdict("Lake Eyre's centre within 10 km of a lake", lake.at(-28.4, 137.3) <= 10, "0 km", "%d km" % lake.at(-28.4, 137.3), "Natural Earth's lakes include Lake Eyre")
     verdict("Alice Springs over 100 km from any lake", lake.at(-23.7, 133.88) >= 100, "no lake near", "%d km" % lake.at(-23.7, 133.88), "any atlas of Australia")
 
+    if args.probes:
+        check_probes(folder, verdict)
     print("atlas_check: %s" % ("GREEN" if failed == 0 else "RED, %d failed" % failed))
     return 0 if failed == 0 else 1
 

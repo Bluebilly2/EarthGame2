@@ -147,6 +147,7 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     floats, swims or is held back was his to decide (DEBTS, "water over the head"): "swimming needs implementing, and
     when we have a player model and character, animation too." A founder swims in water too deep to stand in; when
     the founder has a body that is drawn, the swimming is animated.
+    **His word on the feel, 2026-09-22:** "swimming/wading are fine for now. definitely needs improving much later though."
 
 ### Rulings of 2026-09-12
 
@@ -250,7 +251,8 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     footstep must sound like a foot on that ground, not like noise shaped by it. Neither is scheduled by this ruling.
     **The footsteps answered for now, 2026-09-22** (M1.5j, the steps built as impacts the ground answers; seven walks sent to him
     blind): "im not sure what the sounds are at all to be honest, but they are good enough for now. better than the plain
-    static we had before". The understorey stands as ruled.
+    static we had before". **The understorey answered, 2026-09-22** (M1.6e): with the frames and the game in front of him, "the
+    other older rows are all green as far as i can tell".
 38. **An idle game pauses itself, and says so.** "the game is not in a playable state yet, there is no content to play.
     if the game is ever open, and idle, i am not playing, i was looking at something or somethings. maybe add a flag or
     something that notices when the player has gone idle. a small message that displays when idle, the game is paused,
