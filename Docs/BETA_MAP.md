@@ -314,6 +314,9 @@ does. The order is the dependency order; leverage decides ties.
 4. **BF.4 The ground below the data** (F4). Relief below 4 m on both sides; rock that stands; ground condition; the
    stone of the place; things placed by the country. Frames, and William's eyes. (This is the slice that answers
    "flat land covered in trees" wherever the region is.)
+   **Drafted 2026-09-23** (`contracts/BF.4_THE_GROUND_BELOW_THE_DATA.md`) in three stages: one ground on both sides with
+   relief below the data (and the dug hollow in it); the ground underfoot felt by the walk and the body; rock that stands,
+   the stone of the place and the country's things.
 5. **BF.5 Fire** (F5). Ignition, the fire in the world, its warmth on the body, the bridge down. G6, G7.
 6. **BF.6 Parts and the camp** (F6). Structures of parts, placement, the shelter terms. G9, G10.
 7. **BF.7 The body's rest** (F7). Hunger and food, wetness and rain, sleep. G8, G11, G12's night.
