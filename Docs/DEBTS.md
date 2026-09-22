@@ -13,7 +13,6 @@ questions asked once died unasked again. A row leaves by his word, and the slice
 
 | Since | Waiting on him | What it costs him | Why it matters |
 |---|---|---|---|
-| 2026-09-11 | **The gamepad's layout** (M1.5a): right trigger to work, left to use, the shoulders for the wheel, select for carrying. It is the agent's guess, pressed by a scenario, judged by nobody. | A few minutes with a controller | The verb rule (CANON 2026-08-26) says an action comes from what you look at and hold, never from a memorised key; a layout nobody has felt is an untested claim about that. |
 
 | Since | Debt | Owner | Pay by |
 |---|---|---|---|
@@ -80,6 +79,7 @@ questions asked once died unasked again. A row leaves by his word, and the slice
 ## Paid
 
 | Since | Debt | Paid |
+| 2026-09-11 | The gamepad's layout (M1.5a), the agent's guess, judged by nobody. | 2026-09-22, closed by his word: "i dont care about a gamepad ... i only care about using a keyboard and mouse for this game." The bindings stay in the asset and nothing more is spent on them (CANON). |
 | 2026-09-22 | The ground and what grows on it (M1.6e, ruling 37): whether the grained ground and the understorey's variety read as country underfoot. | 2026-09-22, in the game and on the frames, his word on 2026-09-22: "the other older rows are all green as far as i can tell". Ruling 37's understorey half is closed by it. |
 | 2026-09-11 | How swimming and wading feel (M1.5d, M1.5e). | 2026-09-22, his word: "swimming/wading are fine for now. definitely needs improving much later though"; the improving is its own row. |
 | 2026-09-13 | Stepping off a cliff slides instead of snapping back (M1.5f), the autosave no longer catches every half minute (M1.3c), a second copy refuses a world already open (M1.3d). | 2026-09-22, his word on 2026-09-22: "the other older rows are all green as far as i can tell". |

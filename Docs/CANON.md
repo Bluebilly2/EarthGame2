@@ -265,3 +265,8 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     What `-eg-dev` grants at launch — the panel, the flight, the settings the server will take — is turned on and off
     by F2 while the game runs, and F3 opens the panel only while it is on. The launch flag stays for the scenarios and
     the runs, which have no hands to press anything.
+
+40. **Keyboard and mouse only.** Asked what the gamepad's layout was, 2026-09-22: "i dont care about a gamepad, i thought you were
+    talking about something else. i only care about using a keyboard and mouse for this game." The game is played with a
+    keyboard and a mouse; the gamepad bindings the controls asset carries (M1.5a) stay as they are and nothing more is spent
+    on them, and no slice is judged by a controller.
