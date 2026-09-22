@@ -711,7 +711,8 @@ leg rather than to the whole lap. `corpus_check.py` reads what the bodies lived 
   rule) and whether the window has the focus —
   a minute untouched or the focus lost sends it to sleep, any touch or the focus coming back wakes it, and the edges are
   reported once. Asleep, the bootstrap steps its SOLO server not at all and drops the slept time rather than catching it
-  up, the client's clock stands, the founder is held, the frames are held to ten a second and the HUD shows one line;
+  up, the client's clock stands, the founder is held, the frames are held to ten a second (the display sync a played game
+  keeps while awake is dropped for it, 2026-09-22, since a capped frame cannot also be a synced one) and the HUD shows one line;
   the waking frame's presses, and the jump or flight they queued, are thrown away, so the key that wakes the game does
   nothing else. A recorded run drives its founder by a scripted source whose frames carry no touch, so the idle scenario,
   like the controls one, takes the real source and presses its waking key on a keyboard of its own. Only a SOLO game with

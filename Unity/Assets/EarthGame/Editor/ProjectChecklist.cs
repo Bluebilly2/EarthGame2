@@ -106,8 +106,9 @@ namespace EarthGame.Editor
             EditorUtility.SetDirty(asset);
             EditorUtility.SetDirty(renderer);
 
-            // Quality: one level, no vsync by default (the measurement protocol wants uncapped; the player's own
-            // setting will re-enable it), the URP asset on it.
+            // Quality: one level, no vsync by default (the measurement protocol wants uncapped, and the pause's frame cap
+            // needs it off; a played game syncs its own frames while awake, ClientRuntime.SyncFrames, 2026-09-22), the URP
+            // asset on it.
             if (QualitySettings.vSyncCount != 0) { QualitySettings.vSyncCount = 0; changed.Add("vsync off by default"); }
 
             // Named layers, written from the one list in Shared.Layers.

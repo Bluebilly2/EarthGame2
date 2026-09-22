@@ -290,12 +290,28 @@ namespace EarthGame.Client
             Debug.Log("[developer] " + words);
         }
 
+        /// <summary>
+        /// Whether this game is played with hands at it rather than recorded or scripted: such a game syncs its frames to the
+        /// display while awake (2026-09-22, William: "there is screen tearing"), and every other kind stays unsynced as the
+        /// project's checklist sets it, so the recorder's frame costs are the frame's own and the pause's cap can bite.
+        /// </summary>
+        private bool Played => !Application.isBatchMode && _recordDir == null && _scenario == null;
+
+        /// <summary>The frames synced to the display, or not: on only for a played game that is awake.</summary>
+        private void SyncFrames(bool on)
+        {
+            int wanted = on && Played ? 1 : 0;
+            if (QualitySettings.vSyncCount != wanted) QualitySettings.vSyncCount = wanted;
+        }
+
         /// <summary>Asleep (M1.E): the founder held where they are, the frames slowed and the line shown.</summary>
         private void Sleep()
         {
             _frozenBeforeSleep = _player != null && _player.Frozen;
             if (_player != null) _player.Frozen = true;
             _frameRateBeforeSleep = Application.targetFrameRate;
+            // The cap is ignored while the frames are synced, so the sync goes first.
+            SyncFrames(false);
             Application.targetFrameRate = SleepingFrameRate;
             _hud?.SetPaused(true);
             Debug.Log("[idle] asleep: the world and its clock wait");
@@ -313,6 +329,7 @@ namespace EarthGame.Client
                 _player.DropPresses();
             }
             Application.targetFrameRate = _frameRateBeforeSleep;
+            SyncFrames(true);
             _hud?.SetPaused(false);
             Debug.Log("[idle] awake");
         }
@@ -1024,6 +1041,8 @@ namespace EarthGame.Client
             _camera.farClipPlane = 40000f;
             // Every automated run is muted: a windowless one, and any a script drives (the client has had sounds since M1.5c).
             if (Application.isBatchMode || _recordDir != null || _scenario != null) AudioListener.volume = 0f;
+            // A played game syncs its frames to the display; a recorded or scripted one stays as the checklist set it.
+            SyncFrames(true);
             if (LaunchArgs.Has("plain")) RenderPlainly();
 
             // The sun is always this component's own light, so no scene setting can quietly change what the
