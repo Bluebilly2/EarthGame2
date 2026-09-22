@@ -1,7 +1,7 @@
 # Contract BF.3 — The world changes
 
 **Status:** drafted 2026-09-22, the third of the beta's foundations; stage one (promise 1, the record of change) built the same day (`Docs/BETA_MAP.md` §7, CANON ruling 41), on BF.1
-and BF.2. Owner: Claude. William's lane: the frames of a cleared patch, a stripped trunk and a cut tuft; his hands on
+and BF.2; stage two (promises 2 to 5 on the server: standing targets, the works on them, the dig, the cut and the fall, the lift limit) built 2026-09-23; stage three (promise 6, the client's side, and promise 7, the built game) follows. Owner: Claude. William's lane: the frames of a cleared patch, a stripped trunk and a cut tuft; his hands on
 the work when he plays.
 
 ## Why this next

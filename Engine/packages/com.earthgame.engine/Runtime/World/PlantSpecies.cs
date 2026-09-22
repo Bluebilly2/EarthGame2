@@ -146,6 +146,19 @@ namespace EarthGame.Engine
         /// </summary>
         public double SticksPerMetre { get; }
 
+        /// <summary>
+        /// Whether the plant's leaves give fibre worth cutting for cord (BF.3): the lomandra and the saw-sedge, whose
+        /// strap leaves are what the first cordage on this coast was laid from, and the spinifex's runners, workable and
+        /// weaker. A tuft of one is cut with an edge and gives fibre strips; the others give none.
+        /// </summary>
+        public bool Fibre { get; }
+
+        /// <summary>
+        /// What a dig turns up under the plant, kg: the lomandra's leaf bases and the bracken's rhizome, the tubers of the
+        /// digging stick's beat (BF.3, G8); zero for a plant with nothing to dig. The masses are a first table (DEBTS).
+        /// </summary>
+        public double TuberKg { get; }
+
         private PlantSpecies(string name, string displayName, PlantForm form,
                              double moistureOptimum, double moistureBreadth,
                              double minSoilDepthM, double maxSlope,
@@ -155,8 +168,12 @@ namespace EarthGame.Engine
                              double strippableBarkM = 0.0,
                              double minExposure = 0.0,
                              double crownShare = 0.0,
-                             double sticksPerMetre = 0.0)
+                             double sticksPerMetre = 0.0,
+                             bool fibre = false,
+                             double tuberKg = 0.0)
         {
+            Fibre = fibre;
+            TuberKg = tuberKg;
             Name = name;
             DisplayName = displayName;
             Form = form;
@@ -310,7 +327,8 @@ namespace EarthGame.Engine
             moistureOptimum: 0.65, moistureBreadth: 0.26,
             minSoilDepthM: 0.20, maxSlope: 0.65,
             shadeTolerance: 0.95, exposureTolerance: 0.20,
-            minHeightM: 0.5, maxHeightM: 1.4);
+            minHeightM: 0.5, maxHeightM: 1.4,
+            tuberKg: 0.08);                   // its rhizome, roasted by every people who lived with it
 
         /// <summary>Lomandra. The dune toe, the forest floor and the creek edge, and the fibre the first cordage comes from.</summary>
         public static readonly PlantSpecies Lomandra = new PlantSpecies(
@@ -318,7 +336,8 @@ namespace EarthGame.Engine
             moistureOptimum: 0.70, moistureBreadth: 0.28,
             minSoilDepthM: 0.05, maxSlope: 0.70,
             shadeTolerance: 0.60, exposureTolerance: 0.60,
-            minHeightM: 0.4, maxHeightM: 1.0);
+            minHeightM: 0.4, maxHeightM: 1.0,
+            fibre: true, tuberKg: 0.04);      // strap leaves for cord; the white leaf bases eaten
 
         /// <summary>Saw-sedge. The sedgeland of the swamp and the lake shore, where the ground is water half the year.</summary>
         public static readonly PlantSpecies SawSedge = new PlantSpecies(
@@ -326,7 +345,8 @@ namespace EarthGame.Engine
             moistureOptimum: 0.95, moistureBreadth: 0.12,
             minSoilDepthM: 0.05, maxSlope: 0.50,
             shadeTolerance: 0.40, exposureTolerance: 0.60,
-            minHeightM: 0.6, maxHeightM: 1.5);
+            minHeightM: 0.6, maxHeightM: 1.5,
+            fibre: true);                     // its leaves cut the hand and lay a cord
 
         /// <summary>Kangaroo grass. Everywhere the trees and the heath are not, and the first bedding.</summary>
         public static readonly PlantSpecies KangarooGrass = new PlantSpecies(
@@ -356,7 +376,8 @@ namespace EarthGame.Engine
             minSoilDepthM: 0.02, maxSlope: 0.60,
             shadeTolerance: 0.05, exposureTolerance: 1.00,
             minHeightM: 0.2, maxHeightM: 0.5,
-            maxSoilDepthM: 0.20);
+            maxSoilDepthM: 0.20,
+            fibre: true);                     // the runners: workable, weaker than a lomandra leaf
 
         private static readonly PlantSpecies[] AllSpecies =
         {

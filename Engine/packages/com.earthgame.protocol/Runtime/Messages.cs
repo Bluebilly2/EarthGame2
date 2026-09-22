@@ -913,7 +913,10 @@ namespace EarthGame.Protocol
     /// a hold names the place, 0 for an empty hand. A knap (protocol v15, FP.3) names the core as a pick-up names its
     /// target, or as a place of the hands (target kind 3: u8 place), and then the wind-up as a byte, 0 a tap and 255 a
     /// full swing; the hammer is whatever is in the hand. The server answers with an <see cref="IntentResultMessage"/> of
-    /// the same sequence.
+    /// the same sequence. A work (protocol v18, BF.2) names its target as a knap does and then its kind as a byte; since
+    /// protocol v20 (BF.3) a work may name the standing world too: a trunk (target kind 4: u16 row, u16 column of the stand
+    /// cell), a tuft (kind 5: u16 row, u16 column, u8 index as the understorey draws it) or a cell of the ground (kind 6:
+    /// u16 row, u16 column), which the works on the ground (clearing, digging) name.
     /// </summary>
     public struct IntentMessage
     {
@@ -922,6 +925,12 @@ namespace EarthGame.Protocol
         public const byte TargetLying = 2;
         /// <summary>A thing held in one of the hands' places (protocol v15, FP.3): a core struck while held.</summary>
         public const byte TargetPlace = 3;
+        /// <summary>A trunk standing on a cell of the stand layer (protocol v20, BF.3).</summary>
+        public const byte TargetTrunk = 4;
+        /// <summary>A tuft of the understorey on a cell, by its index (protocol v20, BF.3).</summary>
+        public const byte TargetTuft = 5;
+        /// <summary>A cell of the ground (protocol v20, BF.3): what clearing and digging name.</summary>
+        public const byte TargetGround = 6;
 
         public uint Sequence;
         public Verb Verb;
@@ -938,6 +947,10 @@ namespace EarthGame.Protocol
         public byte WindUp;
         /// <summary>The kind of work a work intent begins (BF.2).</summary>
         public WorkKind Kind;
+        /// <summary>The cell a standing target or a ground target names (BF.3), and the tuft's index on it.</summary>
+        public int Row;
+        public int Col;
+        public int Index;
 
         /// <summary>The wind-up as the physics takes it, 0 to 1.</summary>
         public double WindUp01 => WindUp / 255.0;
@@ -953,7 +966,7 @@ namespace EarthGame.Protocol
             switch (Verb)
             {
                 case Verb.PickUp:
-                    WriteTarget(w, "a pick-up", allowPlace: false);
+                    WriteTarget(w, "a pick-up", allowPlace: false, allowStanding: false);
                     break;
                 case Verb.PutDown:
                 case Verb.Drink:
@@ -965,11 +978,11 @@ namespace EarthGame.Protocol
                     w.WriteByte(Place);
                     break;
                 case Verb.Knap:
-                    WriteTarget(w, "a knap", allowPlace: true);
+                    WriteTarget(w, "a knap", allowPlace: true, allowStanding: false);
                     w.WriteByte(WindUp);
                     break;
                 case Verb.Work:
-                    WriteTarget(w, "a work", allowPlace: true);
+                    WriteTarget(w, "a work", allowPlace: true, allowStanding: true);
                     w.WriteByte((byte)Kind);
                     break;
                 case Verb.StopWork:
@@ -979,7 +992,7 @@ namespace EarthGame.Protocol
             }
         }
 
-        private void WriteTarget(PacketWriter w, string what, bool allowPlace)
+        private void WriteTarget(PacketWriter w, string what, bool allowPlace, bool allowStanding)
         {
             w.WriteByte(Target);
             if (Target == TargetEntity) w.WriteUInt64(EntityId);
@@ -993,6 +1006,14 @@ namespace EarthGame.Protocol
                 w.WriteByte((byte)Lying.Index);
             }
             else if (Target == TargetPlace && allowPlace) w.WriteByte(Place);
+            else if ((Target == TargetTrunk || Target == TargetTuft || Target == TargetGround) && allowStanding)
+            {
+                if (Row < 0 || Row > ushort.MaxValue || Col < 0 || Col > ushort.MaxValue || Index < 0 || Index > byte.MaxValue)
+                    throw new ProtocolException(what + " names a cell (" + Row + ", " + Col + ") or an index " + Index + " that does not fit the wire");
+                w.WriteUInt16((ushort)Row);
+                w.WriteUInt16((ushort)Col);
+                if (Target == TargetTuft) w.WriteByte((byte)Index);
+            }
             else throw new ProtocolException(what + " names a target of kind " + Target + ", which has no layout");
         }
 
@@ -1004,7 +1025,7 @@ namespace EarthGame.Protocol
             switch (m.Verb)
             {
                 case Verb.PickUp:
-                    m.ReadTarget(r, "a pick-up", allowPlace: false);
+                    m.ReadTarget(r, "a pick-up", allowPlace: false, allowStanding: false);
                     break;
                 case Verb.PutDown:
                 case Verb.Drink:
@@ -1018,13 +1039,13 @@ namespace EarthGame.Protocol
                     m.Place = r.ReadByte();
                     break;
                 case Verb.Knap:
-                    m.ReadTarget(r, "a knap", allowPlace: true);
+                    m.ReadTarget(r, "a knap", allowPlace: true, allowStanding: false);
                     m.WindUp = r.ReadByte();
                     break;
                 case Verb.Work:
-                    m.ReadTarget(r, "a work", allowPlace: true);
+                    m.ReadTarget(r, "a work", allowPlace: true, allowStanding: true);
                     m.Kind = (WorkKind)r.ReadByte();
-                    if (m.Kind == WorkKind.None || (byte)m.Kind > (byte)WorkKind.Twist) throw new ProtocolException("a work of kind " + (byte)m.Kind + " is not one this build knows");
+                    if (m.Kind == WorkKind.None || (byte)m.Kind > (byte)WorkKind.CutTrunk) throw new ProtocolException("a work of kind " + (byte)m.Kind + " is not one this build knows");
                     break;
                 case Verb.StopWork:
                     break;
@@ -1034,10 +1055,16 @@ namespace EarthGame.Protocol
             return m;
         }
 
-        private void ReadTarget(PacketReader r, string what, bool allowPlace)
+        private void ReadTarget(PacketReader r, string what, bool allowPlace, bool allowStanding)
         {
             Target = r.ReadByte();
             if (Target == TargetEntity) EntityId = r.ReadUInt64();
+            else if ((Target == TargetTrunk || Target == TargetTuft || Target == TargetGround) && allowStanding)
+            {
+                Row = r.ReadUInt16();
+                Col = r.ReadUInt16();
+                Index = Target == TargetTuft ? r.ReadByte() : 0;
+            }
             else if (Target == TargetLying)
             {
                 int row = r.ReadUInt16();
@@ -1081,7 +1108,7 @@ namespace EarthGame.Protocol
             IntentResultMessage m;
             m.Sequence = r.ReadUInt32();
             m.Outcome = (VerbOutcome)r.ReadByte();
-            if ((byte)m.Outcome > (byte)VerbOutcome.WontWork) throw new ProtocolException("intent outcome " + (byte)m.Outcome + " is not one this build knows");
+            if ((byte)m.Outcome > (byte)VerbOutcome.TooHeavy) throw new ProtocolException("intent outcome " + (byte)m.Outcome + " is not one this build knows");
             m.Note = r.ReadString();
             m.Seconds = r.ReadSingle();
             if (!BodyWire.Finite(m.Seconds) || m.Seconds < 0f) throw new ProtocolException("a work of " + m.Seconds + " seconds is no work");
@@ -1120,7 +1147,7 @@ namespace EarthGame.Protocol
         {
             WorkStateMessage m;
             m.Kind = (WorkKind)r.ReadByte();
-            if (m.Kind == WorkKind.None || (byte)m.Kind > (byte)WorkKind.Twist) throw new ProtocolException("a work of kind " + (byte)m.Kind + " is not one this build knows");
+            if (m.Kind == WorkKind.None || (byte)m.Kind > (byte)WorkKind.CutTrunk) throw new ProtocolException("a work of kind " + (byte)m.Kind + " is not one this build knows");
             m.Progress01 = r.ReadByte() / 255f;
             m.SecondsLeft = r.ReadSingle();
             if (!BodyWire.Finite(m.SecondsLeft) || m.SecondsLeft < 0f) throw new ProtocolException("a work with " + m.SecondsLeft + " seconds left is no work");

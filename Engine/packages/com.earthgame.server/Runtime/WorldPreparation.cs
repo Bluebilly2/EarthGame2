@@ -120,11 +120,14 @@ namespace EarthGame.Server
                 RegionRaster stone = layers.Read("stone");
                 // The shore's distance, for the salt wind at a founder (FP.2); a world from before the layer blows by its openness alone.
                 RegionRaster shore = layers.Read("shore_distance");
+                // What grows in the ground and how deep it is (BF.3): a tuft's plant, a dig's tuber and its floor.
+                RegionRaster understory = layers.Read("understory");
+                RegionRaster soil = layers.Read("soil_depth");
                 Report("Reading what the ground feeds");
                 CapacitySquares feeds = ReadCapacity(layers, region.ExtentM);
                 Report("Restoring the world");
                 layers.VerifyRemaining();
-                WorldState world = WorldSave.Restore(saved, terrain, region, water, cover, stand, loose, stone, feeds, shore);
+                WorldState world = WorldSave.Restore(saved, terrain, region, water, cover, stand, loose, stone, feeds, shore, understory, soil);
                 Report("World ready");
                 return new Result { World = world, Saved = saved, Checksums = saved.Layers };
             }
@@ -142,7 +145,8 @@ namespace EarthGame.Server
             CapacitySquares capacity = ReadCapacity(createdLayers, region.ExtentM);
             WorldState made = new WorldState(seed, region, region.WakeClock(), ground, 0,
                 new Double3(created.Wake.East, 0, created.Wake.North), ReadWater(createdLayers), createdLayers.Read("cover"),
-                createdLayers.Read("stand"), createdLayers.Read("loose"), createdLayers.Read("stone"), capacity, createdLayers.Read("shore_distance"));
+                createdLayers.Read("stand"), createdLayers.Read("loose"), createdLayers.Read("stone"), capacity, createdLayers.Read("shore_distance"),
+                createdLayers.Read("understory"), createdLayers.Read("soil_depth"));
             Report("Saving the world");
             WorldSave.Write(worldDir, made, null, nowUtc, created.Checksums);
             Report("World ready");

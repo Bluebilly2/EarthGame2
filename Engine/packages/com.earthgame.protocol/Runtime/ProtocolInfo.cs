@@ -40,7 +40,7 @@ namespace EarthGame.Protocol
         /// 19 — BF.3 the world changes: Changes (26) carries every kind of change to a cell of the generated world (the loose
         /// things taken, the tufts taken, the trunk's flags and cut, the ground's flags and depth) and LooseTaken (20) is retired.
         /// </summary>
-        public const ushort Version = 19;
+        public const ushort Version = 20;
 
         /// <summary>Bytes of tile data per TileChunk; well under <see cref="MaxMessageBytes"/> with the header.</summary>
         public const int TileChunkBytes = 16 * 1024;

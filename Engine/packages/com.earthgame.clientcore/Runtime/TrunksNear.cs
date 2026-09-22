@@ -7,6 +7,9 @@ namespace EarthGame.ClientCore
     /// <summary>A trunk standing near a point, where the client draws it (M1.6b): its foot, its height, how far up the trunk runs, and the radius a founder meets it at.</summary>
     public struct TrunkNearby
     {
+        public int Row;
+        public int Col;
+        public PlantSpecies Species;
         public double East;
         public double Up;
         public double North;
@@ -67,6 +70,9 @@ namespace EarthGame.ClientCore
                     double height = StandCodes.HeightOf(code);
                     into.Add(new TrunkNearby
                     {
+                        Row = row,
+                        Col = col,
+                        Species = species,
                         East = footEast,
                         Up = TileGround.HeightAt(ground, footEast, footNorth),
                         North = footNorth,

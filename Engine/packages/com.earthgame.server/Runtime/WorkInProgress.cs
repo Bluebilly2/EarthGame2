@@ -16,6 +16,12 @@ namespace EarthGame.Server
         public ulong EntityId;
         public LyingThing Lying;
         public byte Place;
+        /// <summary>The cell a standing target or a ground target names (BF.3), and the tuft's index on it.</summary>
+        public int Row;
+        public int Col;
+        public int Index;
+        /// <summary>How far a trunk's cut had gone when this work began, 0 to 1 (BF.3): the work's seconds are the rest of it.</summary>
+        public double CutStart01;
         /// <summary>The hand's place when the work began; a change of hand stops it.</summary>
         public byte ToolPlace;
         /// <summary>Seconds the work takes at a body's full capacity.</summary>

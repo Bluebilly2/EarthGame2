@@ -175,11 +175,14 @@ namespace EarthGame.Tests.Engine
         public void TheOffersComeInTheStatedOrderAndSayWhyNot()
         {
             IReadOnlyList<WorkOffer> empty = Work.Offers(null, default, Bangalay, Stick(1.0f, 0.016f));
-            Assert.That(empty.Count, Is.EqualTo(4), "every kind, judged");
+            Assert.That(empty.Count, Is.EqualTo(8), "every kind of work on a thing, judged (BF.2's four, BF.3's four)");
             Assert.That(empty[0].Kind, Is.EqualTo(WorkKind.Break));
             Assert.That(empty[1].Kind, Is.EqualTo(WorkKind.Strip));
             Assert.That(empty[2].Kind, Is.EqualTo(WorkKind.Point));
             Assert.That(empty[3].Kind, Is.EqualTo(WorkKind.Twist));
+            Assert.That(empty[4].Kind, Is.EqualTo(WorkKind.StripTrunk));
+            Assert.That(empty[7].Kind, Is.EqualTo(WorkKind.CutTrunk));
+            for (int i = 4; i < 8; i++) Assert.That(empty[i].Possible, Is.False, "a stick is no trunk and no tuft");
             Assert.That(Work.First(empty).HasValue && Work.First(empty).Value.Kind == WorkKind.Break, Is.True, "the first that can be done");
             IReadOnlyList<WorkOffer> edge = Work.Offers(Flake, Edge(0.6f), Banksia, Stick(0.9f, 0.02f));
             Assert.That(Work.First(edge).Value.Kind, Is.EqualTo(WorkKind.Break), "a thin banksia stick breaks before it is pointed; the point is offered second");

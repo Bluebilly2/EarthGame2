@@ -21,10 +21,20 @@ namespace EarthGame.Tests.Engine
                 Assert.That(DefinitionCatalogue.ById(d.Id), Is.SameAs(d));
                 Assert.That(DefinitionCatalogue.ByKey(d.Key), Is.SameAs(d));
             }
-            int barks = 0;
+            int barks = 0, fibres = 0, bundles = 0, tubers = 0;
             foreach (PlantSpecies tall in StandCodes.Tall) if (tall.StrippableBarkM > 0.0) barks++;
-            Assert.That(DefinitionCatalogue.All.Count, Is.EqualTo(1 + PlantSpecies.All.Count + StoneType.All.Count + AnimalSpecies.All.Count + 2 + 2 * StoneType.All.Count + StandCodes.Tall.Count + barks + 1),
-                "the player, the tables, the plain cobble and the stick, a cobble and a flake of every stone, a stick of every tall plant (BF.1), a bark strip of every tree whose bark strips and the cord (BF.2)");
+            foreach (PlantSpecies plant in PlantSpecies.All)
+            {
+                if (plant.Fibre) fibres++;
+                if (Tufts.ShapeOf(plant) != null) bundles++;
+                if (plant.TuberKg > 0.0) tubers++;
+            }
+            Assert.That(fibres, Is.EqualTo(3), "lomandra, saw-sedge, spinifex");
+            Assert.That(tubers, Is.EqualTo(2), "lomandra, bracken");
+            Assert.That(DefinitionCatalogue.All.Count, Is.EqualTo(1 + PlantSpecies.All.Count + StoneType.All.Count + AnimalSpecies.All.Count + 2 + 2 * StoneType.All.Count + StandCodes.Tall.Count + barks + 1
+                                                                + fibres + bundles + tubers + StandCodes.Tall.Count),
+                "the player, the tables, the plain cobble and the stick, a cobble and a flake of every stone, a stick of every tall plant (BF.1), a bark strip of every tree whose bark strips and the cord (BF.2), "
+                + "the fibre of every plant that gives it, a bundle of every plant of the understorey, the tubers the table names and a log of every tree (BF.3)");
         }
 
         [Test]
@@ -49,6 +59,13 @@ namespace EarthGame.Tests.Engine
             foreach (PlantSpecies tall in StandCodes.Tall) items.Add(DefinitionCatalogue.StickOf(tall));
             foreach (PlantSpecies tall in StandCodes.Tall) if (tall.StrippableBarkM > 0.0) items.Add(DefinitionCatalogue.BarkOf(tall));
             items.Add(DefinitionCatalogue.Cord);
+            foreach (PlantSpecies plant in PlantSpecies.All)
+            {
+                if (plant.Fibre) items.Add(DefinitionCatalogue.FibreOf(plant));
+                if (Tufts.ShapeOf(plant) != null) items.Add(DefinitionCatalogue.BundleOf(plant));
+                if (plant.TuberKg > 0.0) items.Add(DefinitionCatalogue.TuberOf(plant));
+                if (StandCodes.IsTall(plant)) items.Add(DefinitionCatalogue.LogOf(plant));
+            }
             Assert.That(DefinitionCatalogue.Spawnable, Is.EquivalentTo(items));
             foreach (Definition d in DefinitionCatalogue.Spawnable)
             {

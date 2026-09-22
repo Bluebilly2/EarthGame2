@@ -10,14 +10,68 @@ namespace EarthGame.Tests.Protocol
         private static PacketReader Reader(PacketWriter w) => new PacketReader(w.Written.ToArray(), 1, w.Written.Length - 1);
 
         [Test]
-        public void TheProtocolIsEighteen()
+        public void TheProtocolIsTwenty()
         {
-            Assert.That(ProtocolInfo.Version, Is.EqualTo((ushort)19), "BF.2's work was protocol 18; BF.3's changes are 19");
+            Assert.That(ProtocolInfo.Version, Is.EqualTo((ushort)20), "BF.2's work was protocol 18, BF.3's changes 19 and its standing targets 20");
             Assert.That((byte)MessageKind.WorkState, Is.EqualTo((byte)25));
             Assert.That((byte)Verb.Work, Is.EqualTo((byte)6));
             Assert.That((byte)Verb.StopWork, Is.EqualTo((byte)7));
             Assert.That((byte)VerbOutcome.NoTool, Is.EqualTo((byte)15));
             Assert.That((byte)VerbOutcome.WontWork, Is.EqualTo((byte)16));
+            Assert.That((byte)VerbOutcome.TooHeavy, Is.EqualTo((byte)17));
+            Assert.That((byte)WorkKind.StripTrunk, Is.EqualTo((byte)5));
+            Assert.That((byte)WorkKind.CutTrunk, Is.EqualTo((byte)10));
+            Assert.That(IntentMessage.TargetTrunk, Is.EqualTo((byte)4));
+            Assert.That(IntentMessage.TargetTuft, Is.EqualTo((byte)5));
+            Assert.That(IntentMessage.TargetGround, Is.EqualTo((byte)6));
+        }
+
+        [Test]
+        public void AWorkNamesATrunkATuftOrACellOfTheGroundAndAPickUpOrAKnapMayNot()
+        {
+            PacketWriter w = new PacketWriter(64);
+            new IntentMessage { Sequence = 20, Verb = Verb.Work, Kind = WorkKind.StripTrunk, Target = IntentMessage.TargetTrunk, Row = 1200, Col = 977 }.Write(w);
+            Assert.That(w.Written.Length, Is.EqualTo(1 + 4 + 1 + 1 + 2 + 2 + 1), "kind, sequence, verb, target, row, col, work kind");
+            IntentMessage trunk = IntentMessage.Read(Reader(w));
+            Assert.That(trunk.Target, Is.EqualTo(IntentMessage.TargetTrunk));
+            Assert.That(trunk.Row, Is.EqualTo(1200));
+            Assert.That(trunk.Col, Is.EqualTo(977));
+            Assert.That(trunk.Kind, Is.EqualTo(WorkKind.StripTrunk));
+
+            w.Reset();
+            new IntentMessage { Sequence = 21, Verb = Verb.Work, Kind = WorkKind.CutFibre, Target = IntentMessage.TargetTuft, Row = 3, Col = 4, Index = 11 }.Write(w);
+            Assert.That(w.Written.Length, Is.EqualTo(1 + 4 + 1 + 1 + 2 + 2 + 1 + 1), "and the tuft's index");
+            IntentMessage tuft = IntentMessage.Read(Reader(w));
+            Assert.That(tuft.Target, Is.EqualTo(IntentMessage.TargetTuft));
+            Assert.That(tuft.Index, Is.EqualTo(11));
+            Assert.That(tuft.Kind, Is.EqualTo(WorkKind.CutFibre));
+
+            w.Reset();
+            new IntentMessage { Sequence = 22, Verb = Verb.Work, Kind = WorkKind.Dig, Target = IntentMessage.TargetGround, Row = 5, Col = 6 }.Write(w);
+            IntentMessage ground = IntentMessage.Read(Reader(w));
+            Assert.That(ground.Target, Is.EqualTo(IntentMessage.TargetGround));
+            Assert.That(ground.Row, Is.EqualTo(5));
+            Assert.That(ground.Kind, Is.EqualTo(WorkKind.Dig));
+
+            w.Reset();
+            Assert.Throws<ProtocolException>(() => new IntentMessage { Sequence = 23, Verb = Verb.PickUp, Target = IntentMessage.TargetTrunk, Row = 1, Col = 1 }.Write(w), "a pick-up names no trunk");
+            w.Reset();
+            Assert.Throws<ProtocolException>(() => new IntentMessage { Sequence = 24, Verb = Verb.Knap, Target = IntentMessage.TargetTuft, Row = 1, Col = 1 }.Write(w), "a knap names no tuft");
+            w.Reset();
+            w.WriteByte((byte)MessageKind.Intent);
+            w.WriteUInt32(25);
+            w.WriteByte((byte)Verb.PickUp);
+            w.WriteByte(IntentMessage.TargetGround);
+            w.WriteUInt16(1);
+            w.WriteUInt16(1);
+            Assert.Throws<ProtocolException>(() => IntentMessage.Read(Reader(w)), "nor does a pick-up read one");
+
+            w.Reset();
+            new IntentResultMessage { Sequence = 26, Outcome = VerbOutcome.TooHeavy, Note = "a log" }.Write(w);
+            Assert.That(IntentResultMessage.Read(Reader(w)).Outcome, Is.EqualTo(VerbOutcome.TooHeavy), "the heavy outcome is known");
+            w.Reset();
+            new WorkStateMessage { Kind = WorkKind.CutTrunk, Progress01 = 0.25f, SecondsLeft = 900f, Ended = WorkStateMessage.Running, Note = "cutting" }.Write(w);
+            Assert.That(WorkStateMessage.Read(Reader(w)).Kind, Is.EqualTo(WorkKind.CutTrunk), "the new kinds travel in the state");
         }
 
         [Test]

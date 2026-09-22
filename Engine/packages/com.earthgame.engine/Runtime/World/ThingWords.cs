@@ -37,8 +37,33 @@ namespace EarthGame.Engine
             {
                 if (state.Has(ThingFields.Length)) sb.Append(", ").Append(LengthWord(state.LengthM));
             }
+            else if (definition.Substance == Substance.Fibre || definition.Substance == Substance.Plant)
+            {
+                if (state.Has(ThingFields.Moisture)) sb.Append(", ").Append(MoistureWord(state.Moisture));
+            }
+            else if (definition.Substance == Substance.Food)
+            {
+                if (state.Has(ThingFields.Mass)) sb.Append(", ").Append(MassWord(state.MassKg));
+            }
             return sb.ToString();
         }
+
+        /// <summary>A standing trunk in a person's words (BF.3): "a blackbutt, 22 m", then stripped and how far cut when it is.</summary>
+        public static string TrunkWords(PlantSpecies species, double heightM, bool barkTaken, byte cut)
+        {
+            if (species == null) return string.Empty;
+            StringBuilder sb = new StringBuilder(StartsWithVowel(species.DisplayName) ? "an " : "a ").Append(species.DisplayName)
+                .Append(", ").Append(Math.Round(heightM, MidpointRounding.AwayFromZero).ToString("0", CultureInfo.InvariantCulture)).Append(" m");
+            if (barkTaken) sb.Append(", stripped");
+            if (cut > 0) sb.Append(", cut ").Append(Math.Round(100.0 * cut / 255.0).ToString("0", CultureInfo.InvariantCulture)).Append(" % through");
+            return sb.ToString();
+        }
+
+        /// <summary>A tuft in a person's words (BF.3): "a lomandra tuft" when its plant is known, else by its shape.</summary>
+        public static string TuftWords(TuftShape shape, PlantSpecies species) =>
+            species != null ? (StartsWithVowel(species.DisplayName) ? "an " : "a ") + species.DisplayName + " tuft" : Tufts.NameOf(shape);
+
+        private static bool StartsWithVowel(string word) => !string.IsNullOrEmpty(word) && "aeiou".IndexOf(char.ToLowerInvariant(word[0])) >= 0;
 
         /// <summary>A length against the body: hand-long under 0.25 m, forearm-long to 0.5, arm-long to 0.9, a pace long to 1.5, long beyond.</summary>
         public static string LengthWord(double m) => m < 0.25 ? "hand-long" : m < 0.5 ? "forearm-long" : m < 0.9 ? "arm-long" : m < 1.5 ? "a pace long" : "long";

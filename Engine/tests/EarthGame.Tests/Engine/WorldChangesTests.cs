@@ -132,7 +132,7 @@ namespace EarthGame.Tests.Engine
         [Test]
         public void TheChangesMessageCarriesEveryLayerAndRefusesWhatItDoesNotKnow()
         {
-            Assert.That(ProtocolInfo.Version, Is.EqualTo((ushort)19), "BF.3's changes are protocol 19");
+            Assert.That(ProtocolInfo.Version, Is.EqualTo((ushort)20), "BF.3's changes are protocol 19, its standing targets 20");
             Assert.That((byte)MessageKind.Changes, Is.EqualTo((byte)26));
             ChangesMessage m = new ChangesMessage { Cells = new[] { Full(7, 8), new CellChange { Row = 2, Col = 2, Sticks = 3 } } };
             PacketWriter w = new PacketWriter(64);

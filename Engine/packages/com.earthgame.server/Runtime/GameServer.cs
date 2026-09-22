@@ -1114,6 +1114,9 @@ namespace EarthGame.Server
             }
             Definition target;
             ThingState targetState;
+            double cutStart = 0.0;
+            // A work on the ground names a cell and nothing else does (BF.3).
+            if (Work.IsGroundWork(intent.Kind) != (intent.Target == IntentMessage.TargetGround)) return VerbOutcome.NotNow;
             switch (intent.Target)
             {
                 case IntentMessage.TargetEntity:
@@ -1140,9 +1143,48 @@ namespace EarthGame.Server
                     targetState = held.Item.State;
                     break;
                 }
+                case IntentMessage.TargetTrunk:
+                {
+                    // A trunk of the stand (BF.3): found from the layer and the changes, refused when felled; met at the eye's height.
+                    if (!StandingThings.TryFindTrunk(World, intent.Row, intent.Col, out StandingTrunk trunk)) return VerbOutcome.NotThere;
+                    if (!TrunkWithinReach(eye, trunk)) return VerbOutcome.OutOfReach;
+                    target = StandingThings.TrunkDefinition(trunk.Species);
+                    targetState = StandingThings.TrunkState(trunk);
+                    cutStart = SimMath.Clamp01(trunk.Cut / 255.0);
+                    break;
+                }
+                case IntentMessage.TargetTuft:
+                {
+                    // A tuft of the understorey (BF.3): the tuft rule's own placement, refused when taken or its cell cleared.
+                    if (!StandingThings.TryFindTuft(World, intent.Row, intent.Col, intent.Index, out StandingTuft tuft)) return VerbOutcome.NotThere;
+                    if (Double3.Distance(eye, tuft.At) > Hands.ReachM + TuftReachM) return VerbOutcome.OutOfReach;
+                    target = StandingThings.TuftDefinition(tuft.Shape, tuft.Species);
+                    if (target == null) return VerbOutcome.NotThere;
+                    targetState = StandingThings.TuftState(tuft);
+                    break;
+                }
+                case IntentMessage.TargetGround:
+                {
+                    // A cell of the ground (BF.3): what clearing and digging name; judged by the ground's own model.
+                    if (!Work.IsGroundWork(intent.Kind)) return VerbOutcome.NotNow;
+                    if (!StandingThings.TryGround(World, intent.Row, intent.Col, out GroundSite site)) return VerbOutcome.NotThere;
+                    if (Double3.Distance(eye, site.Centre) > Hands.ReachM + GroundReachM) return VerbOutcome.OutOfReach;
+                    WorkOffer ground = Work.JudgeGround(intent.Kind, tool, toolState, site);
+                    note = ground.Words;
+                    if (!ground.Possible) return ground.Outcome;
+                    if (session.Work != null) StopWork(session, "a new work began");
+                    session.Work = new WorkInProgress
+                    {
+                        Kind = intent.Kind, Target = intent.Target, Row = intent.Row, Col = intent.Col,
+                        ToolPlace = hands.Hand, Seconds = ground.Seconds, Progress = 0.0, StartedAt = session.Body.Feet, ToldTick = World.Tick, Words = ground.Words,
+                    };
+                    seconds = (float)ground.Seconds;
+                    return VerbOutcome.Done;
+                }
                 default:
                     return VerbOutcome.NotNow;
             }
+            if (Work.IsGroundWork(intent.Kind)) return VerbOutcome.NotNow;
             WorkOffer offer = Work.Judge(intent.Kind, tool, toolState, target, targetState);
             note = offer.Words;
             if (!offer.Possible) return offer.Outcome;
@@ -1150,10 +1192,27 @@ namespace EarthGame.Server
             session.Work = new WorkInProgress
             {
                 Kind = intent.Kind, Target = intent.Target, EntityId = intent.EntityId, Lying = intent.Lying, Place = intent.Place,
+                Row = intent.Row, Col = intent.Col, Index = intent.Index, CutStart01 = cutStart,
                 ToolPlace = hands.Hand, Seconds = offer.Seconds, Progress = 0.0, StartedAt = session.Body.Feet, ToldTick = World.Tick, Words = offer.Words,
             };
             seconds = (float)offer.Seconds;
             return VerbOutcome.Done;
+        }
+
+        /// <summary>How much further than the reach a tuft's own place may lie: it spreads that far.</summary>
+        private const double TuftReachM = 0.5;
+
+        /// <summary>How much further than the reach a cell's centre may lie: the crosshair may meet the cell at its corner, 2.8 m off its centre at 4 m.</summary>
+        private const double GroundReachM = 3.0;
+
+        /// <summary>Whether a standing trunk is within reach of the eye: met at the eye's own height on its axis, and no further than its radius there.</summary>
+        private static bool TrunkWithinReach(Double3 eye, in StandingTrunk trunk)
+        {
+            double trunkLength = TreeGeometries.TrunkLengthM(trunk.Geometry, trunk.HeightM);
+            double atUp = Math.Max(trunk.Foot.Y, Math.Min(eye.Y, trunk.Foot.Y + trunkLength));
+            Double3 at = new Double3(trunk.Foot.X, atUp, trunk.Foot.Z);
+            double radius = TreeGeometries.TrunkRadiusAt(trunk.Geometry, trunk.HeightM, atUp - trunk.Foot.Y);
+            return Double3.Distance(eye, at) <= Hands.ReachM + radius;
         }
 
         /// <summary>Drops a work in progress, telling the client why; false when there was none.</summary>
@@ -1186,6 +1245,13 @@ namespace EarthGame.Server
                 else if (World.Tick - w.ToldTick >= _config.TickRate)
                 {
                     w.ToldTick = World.Tick;
+                    // A felling cut is kept in the cell as it goes (BF.3): a founder who stops, or leaves, resumes where it was.
+                    if (w.Kind == WorkKind.CutTrunk && w.Target == IntentMessage.TargetTrunk)
+                    {
+                        double done = w.CutStart01 + (1.0 - w.CutStart01) * Math.Min(1.0, w.Seconds > 0.0 ? w.Progress / w.Seconds : 1.0);
+                        World.Changes.SetTrunkCut(w.Row, w.Col, (byte)Math.Min(254, Math.Floor(done * 255.0)));
+                        BroadcastChange(w.Row, w.Col);
+                    }
                     SendWorkState(s, w, WorkStateMessage.Running, w.Words);
                 }
             }
@@ -1202,6 +1268,13 @@ namespace EarthGame.Server
                     return LyingThings.TryFind(World, w.Lying, out Double3 at) && Double3.Distance(eye, at) <= Hands.ReachM + 0.1;
                 case IntentMessage.TargetPlace:
                     return w.Place != s.Hands.Hand && s.Hands.TryAt(w.Place, out _);
+                case IntentMessage.TargetTrunk:
+                    return StandingThings.TryFindTrunk(World, w.Row, w.Col, out StandingTrunk trunk) && TrunkWithinReach(eye, trunk);
+                case IntentMessage.TargetTuft:
+                    return StandingThings.TryFindTuft(World, w.Row, w.Col, w.Index, out StandingTuft tuft) && Double3.Distance(eye, tuft.At) <= Hands.ReachM + TuftReachM + 0.1;
+                case IntentMessage.TargetGround:
+                    return StandingThings.TryGround(World, w.Row, w.Col, out GroundSite site) && Double3.Distance(eye, site.Centre) <= Hands.ReachM + GroundReachM + 0.1
+                           && (w.Kind != WorkKind.ClearGround || site.TuftsLeft > 0);
                 default:
                     return false;
             }
@@ -1225,12 +1298,35 @@ namespace EarthGame.Server
                 tool = inHand.Definition;
                 toolState = inHand.Item.State;
             }
+            if (w.Target == IntentMessage.TargetGround)
+            {
+                FinishGroundWork(session, w, tool, toolState);
+                return;
+            }
             Definition target;
             ThingState targetState;
             Double3 at;
             Entity entity = null;
             CarriedThing held = default;
-            if (w.Target == IntentMessage.TargetEntity)
+            StandingTrunk standing = default;
+            Double3 line = default;
+            if (w.Target == IntentMessage.TargetTrunk)
+            {
+                // The trunk as it stands now (BF.3); the fall's line runs from the founder through it.
+                StandingThings.TryFindTrunk(World, w.Row, w.Col, out standing);
+                target = StandingThings.TrunkDefinition(standing.Species);
+                targetState = StandingThings.TrunkState(standing);
+                at = standing.Foot;
+                line = FallLine(session, standing.Foot);
+            }
+            else if (w.Target == IntentMessage.TargetTuft)
+            {
+                StandingThings.TryFindTuft(World, w.Row, w.Col, w.Index, out StandingTuft tuft);
+                target = StandingThings.TuftDefinition(tuft.Shape, tuft.Species);
+                targetState = StandingThings.TuftState(tuft);
+                at = tuft.At;
+            }
+            else if (w.Target == IntentMessage.TargetEntity)
             {
                 World.Entities.TryGet(w.EntityId, out entity);
                 target = entity.Definition;
@@ -1277,6 +1373,24 @@ namespace EarthGame.Server
                     lying.SetItem(item, World.Tick);
                 }
             }
+            else if (w.Target == IntentMessage.TargetTrunk)
+            {
+                // What the work did to the trunk is a change of its cell (BF.3): its bark taken, or felled with its limbs and the cut through.
+                if (r.TrunkFlags != 0)
+                {
+                    World.Changes.MarkTrunk(w.Row, w.Col, r.TrunkFlags);
+                    if ((r.TrunkFlags & TrunkChange.Felled) != 0) World.Changes.SetTrunkCut(w.Row, w.Col, 255);
+                    BroadcastChange(w.Row, w.Col);
+                }
+            }
+            else if (w.Target == IntentMessage.TargetTuft)
+            {
+                if (r.TargetSpent)
+                {
+                    World.Changes.TakeTuft(w.Row, w.Col, w.Index);
+                    BroadcastChange(w.Row, w.Col);
+                }
+            }
             else
             {
                 if (r.TargetSpent) hands.Discard(w.Place);
@@ -1309,7 +1423,75 @@ namespace EarthGame.Server
                     hands.Put(toolPlace, new CarriedThing { Id = World.Entities.AllocateId(), Definition = made.Definition, SpawnTick = World.Tick, Place = toolPlace, Item = item });
                     continue;
                 }
-                double east = at.X + 0.25 * (i % 3 - 1), north = at.Z + 0.25 * (i / 3);
+                double east, north;
+                if (made.AlongM != 0.0 || made.AcrossM != 0.0)
+                {
+                    // Down the fall's line from the stump (BF.3): the logs along it, the limbs either side.
+                    east = at.X + line.X * made.AlongM + line.Z * made.AcrossM;
+                    north = at.Z + line.Z * made.AlongM - line.X * made.AcrossM;
+                }
+                else if (w.Target == IntentMessage.TargetTrunk)
+                {
+                    // Round the trunk's foot (BF.3): the strips off a big tree are dozens, and lie in a ring at its bark.
+                    double ring = TreeGeometries.TrunkRadiusAt(standing.Geometry, standing.HeightM, 0.0) + 0.4;
+                    double angle = 2.0 * Math.PI * i / Math.Max(1, r.Made.Count);
+                    east = at.X + ring * Math.Cos(angle);
+                    north = at.Z + ring * Math.Sin(angle);
+                }
+                else
+                {
+                    east = at.X + 0.25 * (i % 3 - 1);
+                    north = at.Z + 0.25 * (i / 3);
+                }
+                Entity e = World.SpawnItem(made.Definition, east, north, World.GroundAt(east, north) + Hands.ReleaseM, session.YawDeg);
+                ItemComponent fall = default;
+                fall.Resting = false;
+                fall.State = made.State;
+                e.SetItem(fall, World.Tick);
+            }
+            SendWorkState(session, w, WorkStateMessage.Done, r.Words);
+            SendCarrying(session);
+        }
+
+        /// <summary>The line a tree falls along (BF.3): away from the founder who cut it, level; the way they face when they stand at its foot.</summary>
+        private Double3 FallLine(PlayerSession session, Double3 foot)
+        {
+            double dx = foot.X - session.Body.Feet.X, dz = foot.Z - session.Body.Feet.Z;
+            double length = Math.Sqrt(dx * dx + dz * dz);
+            if (length < 0.05)
+            {
+                double yaw = session.YawDeg * Math.PI / 180.0;
+                return new Double3(Math.Sin(yaw), 0.0, Math.Cos(yaw));
+            }
+            return new Double3(dx / length, 0.0, dz / length);
+        }
+
+        /// <summary>
+        /// A work on the ground's end (BF.3): judged again on the cell as it is now and applied by <see cref="Work.ApplyGround"/>, then
+        /// committed as the cell's change — its tufts taken, cleared, dug — told to every client, with the bundles where their tufts
+        /// stood and a tuber beside the hole.
+        /// </summary>
+        private void FinishGroundWork(PlayerSession session, WorkInProgress w, Definition tool, in ThingState toolState)
+        {
+            if (!StandingThings.TryGround(World, w.Row, w.Col, out GroundSite site))
+            {
+                SendWorkState(session, w, WorkStateMessage.Stopped, "it is gone");
+                return;
+            }
+            ulong salt = (ulong)World.Tick * 0x9E3779B97F4A7C15UL ^ session.SessionId ^ ((ulong)(uint)w.Row << 32 | (uint)w.Col);
+            GroundResult r = Work.ApplyGround(w.Kind, tool, toolState, site, salt);
+            bool changed = false;
+            for (int k = 0; k < WorldChanges.MostTufts; k++)
+                if ((r.TuftsTaken & (1 << k)) != 0 && World.Changes.TakeTuft(w.Row, w.Col, k)) changed = true;
+            if (r.Cleared && !site.Cleared) { World.Changes.Clear(w.Row, w.Col); changed = true; }
+            if (r.DugCm > site.DugCm) { World.Changes.Dig(w.Row, w.Col, r.DugCm); changed = true; }
+            if (changed) BroadcastChange(w.Row, w.Col);
+            Double3 at = site.Centre;
+            for (int i = 0; i < r.Made.Count; i++)
+            {
+                MadeThing made = r.Made[i];
+                double east = at.X + made.AcrossM + (made.AlongM == 0.0 && made.AcrossM == 0.0 ? 0.25 * (i % 3 - 1) : 0.0);
+                double north = at.Z + made.AlongM + (made.AlongM == 0.0 && made.AcrossM == 0.0 ? 0.25 * (i / 3) : 0.0);
                 Entity e = World.SpawnItem(made.Definition, east, north, World.GroundAt(east, north) + Hands.ReleaseM, session.YawDeg);
                 ItemComponent fall = default;
                 fall.Resting = false;

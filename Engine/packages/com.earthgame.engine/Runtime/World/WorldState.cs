@@ -93,6 +93,12 @@ namespace EarthGame.Engine
         /// </summary>
         public RegionRaster Stone { get; }
 
+        /// <summary>The plant the understorey layer names on each cell (BF.3): what a tuft is, and what a dig turns up. A world from before the layer was read has none.</summary>
+        public RegionRaster Understory { get; }
+
+        /// <summary>The soil's depth on each cell, m (BF.3): how deep a dig can go. A world from before the layer was read has none.</summary>
+        public RegionRaster SoilDepth { get; }
+
         /// <summary>What has been taken up of what lies loose (M1.5b), kept beside the layer, which never changes.</summary>
         public LooseTaken Taken { get; } = new LooseTaken();
 
@@ -129,8 +135,11 @@ namespace EarthGame.Engine
 
         public WorldState(ulong seed, Region region, WorldClock clock, Heightfield terrain = null, long tick = 0, Double3? wake = null, WorldWater water = null, RegionRaster cover = null,
                           RegionRaster stand = null, RegionRaster loose = null, RegionRaster stone = null, CapacitySquares capacity = null,
-                          RegionRaster shoreDistance = null)
+                          RegionRaster shoreDistance = null, RegionRaster understory = null, RegionRaster soilDepth = null)
         {
+            if (understory != null && !understory.IsIntegral) throw new ArgumentException("the understorey is " + understory.Dtype + ", not a code layer", nameof(understory));
+            Understory = understory;
+            SoilDepth = soilDepth;
             Seed = seed;
             Changes = new WorldChanges(Taken);
             Region = region ?? throw new ArgumentNullException(nameof(region));

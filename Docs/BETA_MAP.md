@@ -304,8 +304,11 @@ does. The order is the dependency order; leverage decides ties.
 3. **BF.3 The world changes** (F3). The change record, tile re-encoding, felling and fallen wood, clearing, digging,
    a plant's yield spent.
    **Stage one built 2026-09-22** (`contracts/BF.3_THE_WORLD_CHANGES.md`): the record of change beside the layers, on
-   the wire, in the region file (5) and the digest; no tile is re-encoded, the diffs ride beside immutable layers. Stages
-   two and three (standing targets and the works on them; the cut and the fall) follow.
+   the wire, in the region file (5) and the digest; no tile is re-encoded, the diffs ride beside immutable layers.
+   **Stage two built 2026-09-23**: a trunk, a tuft and a cell of the ground are targets on the wire (protocol 20); bark
+   stripped from a trunk, fibre cut and tufts pulled, a cell cleared, a hole dug with its tuber, a tree cut through (the cut
+   kept) and felled into logs the hands refuse. Stage three (the client draws what changed and aims at what stands; the
+   built game's scenario) follows.
 4. **BF.4 The ground below the data** (F4). Relief below 4 m on both sides; rock that stands; ground condition; the
    stone of the place; things placed by the country. Frames, and William's eyes. (This is the slice that answers
    "flat land covered in trees" wherever the region is.)

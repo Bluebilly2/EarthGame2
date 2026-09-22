@@ -57,6 +57,8 @@ namespace EarthGame.Engine
         NoTool = 15,
         /// <summary>The thing's own properties refuse the work (BF.2): too thick to break, no bark to strip, already pointed. The words say why.</summary>
         WontWork = 16,
+        /// <summary>The thing weighs more than the hands lift (BF.3, <see cref="Hands.MaxLiftKg"/>): a log. Moving it is later work.</summary>
+        TooHeavy = 17,
     }
 
     /// <summary>A thing a founder carries: out of the world, in one of the hands' places, keeping the id it had lying down.</summary>
@@ -95,6 +97,13 @@ namespace EarthGame.Engine
 
         /// <summary>How far from the eye a thing can be taken or put, m, a thing's own radius beyond it for a pick-up (v1's reach).</summary>
         public const double ReachM = 4.0;
+
+        /// <summary>
+        /// The most a founder lifts into the hands, kg (BF.3): the load constant of NIOSH's revised lifting equation (Waters,
+        /// Putz-Anderson, Garg and Fine, 1993), 23 kg, the load a healthy worker lifts under the best conditions. A felled
+        /// tree's log weighs several times this and stays where it fell (<see cref="VerbOutcome.TooHeavy"/>).
+        /// </summary>
+        public const double MaxLiftKg = 23.0;
 
         /// <summary>How far above the ground a thing put down is let go, m, so it lands rather than appears.</summary>
         public const double ReleaseM = 0.3;
@@ -149,6 +158,7 @@ namespace EarthGame.Engine
         {
             if (!world.Entities.TryGet(entityId, out Entity e) || e.Killed || !e.HasItem) return VerbOutcome.NotThere;
             if (Double3.Distance(eye, e.Position) > ReachM + e.Definition.RadiusM) return VerbOutcome.OutOfReach;
+            if (ThingWords.MassOf(e.Definition, e.Item.State) > MaxLiftKg) return VerbOutcome.TooHeavy;
             byte place = FreePlace();
             if (place == 0) return VerbOutcome.HandsFull;
             world.Entities.Take(e);

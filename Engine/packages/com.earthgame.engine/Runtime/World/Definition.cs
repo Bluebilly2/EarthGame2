@@ -58,6 +58,12 @@ namespace EarthGame.Engine
         Bark = 3,
         /// <summary>Cord laid from strips (BF.2).</summary>
         Cord = 4,
+        /// <summary>Fibre strips cut from a tuft (BF.3): the cord is laid from them as from bark.</summary>
+        Fibre = 5,
+        /// <summary>A bundle of a plant pulled up whole (BF.3): bedding's material.</summary>
+        Plant = 6,
+        /// <summary>Something a founder could eat (BF.3): a tuber dug up; what is eaten arrives with BF.7.</summary>
+        Food = 7,
     }
 
     /// <summary>
@@ -133,6 +139,18 @@ namespace EarthGame.Engine
         private static readonly Dictionary<StoneType, Definition> _flakes = new Dictionary<StoneType, Definition>();
         private static readonly Dictionary<PlantSpecies, Definition> _sticks = new Dictionary<PlantSpecies, Definition>();
         private static readonly Dictionary<PlantSpecies, Definition> _barks = new Dictionary<PlantSpecies, Definition>();
+        private static readonly Dictionary<PlantSpecies, Definition> _plants = new Dictionary<PlantSpecies, Definition>();
+        private static readonly Dictionary<PlantSpecies, Definition> _fibres = new Dictionary<PlantSpecies, Definition>();
+        private static readonly Dictionary<PlantSpecies, Definition> _bundles = new Dictionary<PlantSpecies, Definition>();
+        private static readonly Dictionary<PlantSpecies, Definition> _tubers = new Dictionary<PlantSpecies, Definition>();
+        private static readonly Dictionary<PlantSpecies, Definition> _logs = new Dictionary<PlantSpecies, Definition>();
+
+        /// <summary>A log's kind (BF.3): a felled trunk in two-metre lengths, each with its own thickness and mass; the kind's mass is a small log's.</summary>
+        public const double LogMassKg = 30.0;
+        public const double LogRadiusM = 0.15;
+        /// <summary>A fibre strip's kind (BF.3): fifteen grams dry; a bundle of a pulled plant three hundred.</summary>
+        public const double FibreMassKg = 0.015;
+        public const double BundleMassKg = 0.3;
 
         /// <summary>Cord laid from bark strips (BF.2): its length is its own; the kind's mass is a short length's.</summary>
         public static readonly Definition Cord;
@@ -146,7 +164,7 @@ namespace EarthGame.Engine
         {
             Player = Add(new Definition(PlayerKey, DefinitionKind.Player, "the founder", false, 0.0, 0.0, null));
             foreach (PlantSpecies species in PlantSpecies.All)
-                Add(new Definition("plant/" + Slug(species.Name), DefinitionKind.Plant, species.DisplayName, false, 0.0, 0.0, species));
+                _plants[species] = Add(new Definition("plant/" + Slug(species.Name), DefinitionKind.Plant, species.DisplayName, false, 0.0, 0.0, species));
             foreach (StoneType stone in StoneType.All)
                 Add(new Definition("stone/" + Slug(stone.Name), DefinitionKind.Stone, stone.Name, false, 0.0, 0.0, stone));
             foreach (AnimalSpecies animal in AnimalSpecies.All)
@@ -184,7 +202,65 @@ namespace EarthGame.Engine
                     true, 0.02, 0.02, species, Substance.Bark));
             }
             Cord = Add(new Definition("item/cord", DefinitionKind.Item, "a cord", true, 0.05, 0.03, null, Substance.Cord));
+            // The standing world's yield (BF.3): fibre from the plants that give it, a bundle of any plant hands pull, the tubers
+            // the table names, and a felled tree's logs.
+            foreach (PlantSpecies species in PlantSpecies.All)
+            {
+                string name = species.DisplayName;
+                if (species.Fibre)
+                    _fibres[species] = Add(new Definition("item/fibre-" + Slug(species.Name), DefinitionKind.Item, "a strip of " + name + " fibre",
+                        true, FibreMassKg, 0.02, species, Substance.Fibre));
+                TuftShape? shape = Tufts.ShapeOf(species);
+                if (shape != null)
+                    _bundles[species] = Add(new Definition("item/bundle-" + Slug(species.Name), DefinitionKind.Item, "a bundle of " + name,
+                        true, BundleMassKg, 0.15, species, Substance.Plant));
+                if (species.TuberKg > 0.0)
+                    _tubers[species] = Add(new Definition("item/tuber-" + Slug(species.Name), DefinitionKind.Item, (StartsWithVowel(name) ? "an " : "a ") + name + " tuber",
+                        true, species.TuberKg, 0.03, species, Substance.Food));
+                if (StandCodes.IsTall(species))
+                    _logs[species] = Add(new Definition("item/log-" + Slug(species.Name), DefinitionKind.Item, (StartsWithVowel(name) ? "an " : "a ") + name + " log",
+                        true, LogMassKg, LogRadiusM, species, Substance.Wood));
+            }
         }
+
+        /// <summary>A plant's own definition (BF.3): what a standing trunk or a tuft is named as a work's target.</summary>
+        public static Definition PlantOf(PlantSpecies species)
+        {
+            if (species == null || !_plants.TryGetValue(species, out Definition d)) throw new KeyNotFoundException("no definition for the plant '" + (species == null ? "nothing" : species.Name) + "'");
+            return d;
+        }
+
+        /// <summary>The fibre strip of a plant that gives fibre (BF.3); one that gives none has no strip.</summary>
+        public static Definition FibreOf(PlantSpecies species)
+        {
+            if (species == null || !_fibres.TryGetValue(species, out Definition d)) throw new KeyNotFoundException("no fibre for the plant '" + (species == null ? "nothing" : species.Name) + "'");
+            return d;
+        }
+
+        /// <summary>The bundle a plant of the understorey makes when pulled (BF.3); a tree makes none.</summary>
+        public static Definition BundleOf(PlantSpecies species)
+        {
+            if (species == null || !_bundles.TryGetValue(species, out Definition d)) throw new KeyNotFoundException("no bundle for the plant '" + (species == null ? "nothing" : species.Name) + "'");
+            return d;
+        }
+
+        /// <summary>The tuber a plant with one gives to a dig (BF.3).</summary>
+        public static Definition TuberOf(PlantSpecies species)
+        {
+            if (species == null || !_tubers.TryGetValue(species, out Definition d)) throw new KeyNotFoundException("no tuber for the plant '" + (species == null ? "nothing" : species.Name) + "'");
+            return d;
+        }
+
+        /// <summary>The log of a tall plant (BF.3), which a felled trunk falls into.</summary>
+        public static Definition LogOf(PlantSpecies species)
+        {
+            if (species == null || !_logs.TryGetValue(species, out Definition d)) throw new KeyNotFoundException("no log for the plant '" + (species == null ? "nothing" : species.Name) + "'");
+            return d;
+        }
+
+        /// <summary>Whether a definition is a log of some tree (BF.3): wood the hands do not lift.</summary>
+        public static bool IsLog(Definition definition) =>
+            definition != null && definition.Row is PlantSpecies species && _logs.TryGetValue(species, out Definition log) && ReferenceEquals(log, definition);
 
         /// <summary>The bark strip of a tall plant whose bark strips (BF.2); a plant whose bark stays on has none.</summary>
         public static Definition BarkOf(PlantSpecies species)
