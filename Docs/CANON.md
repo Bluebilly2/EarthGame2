@@ -294,3 +294,11 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     the path's needs and put to him with the manifest. Bherwerre stays as the first region and the gate world's; ruling 20
     (the founder wakes anywhere in the region) and ruling 21 (the world checked against the real place by the agent) apply
     to the second as to the first.
+
+43. **The second place is Fitzroy Falls and the Kangaroo Valley.** Told, 2026-09-22, that the place need not be coastal
+    (only the path's first act is, as he approved it, and that is his to re-cut), what a waterfall is in the game at 30 m,
+    and the inland waterfall country measured (`WG.2_A_SECOND_PLACE.md`): "go with fitzroy falls and kangaroo valley". The
+    beta's second region is the Kangaroo Valley under the Morton plateau's escarpment with Fitzroy Falls in its box: inland,
+    no sea. The Founder's Path's first act is re-cut for it — the wake by the river rather than on sand, the river giving
+    water at once, river cobbles as the first stone — and the re-cut is put to him in writing before it is built. Ruling 42's
+    manifest rule stands: nothing downloaded until he approves the exact files.

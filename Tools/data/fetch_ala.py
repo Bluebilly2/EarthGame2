@@ -20,6 +20,7 @@ left as it is. Exit 0 when every species was fetched or cached, 1 when a fetch f
 import argparse
 import datetime
 import json
+import math
 import os
 import sys
 import time
@@ -30,8 +31,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 CACHE = os.path.join(ROOT, "Data", "cache", "ala")
 API = "https://biocache-ws.ala.org.au/ws/occurrences/search"
 
-# The region's box, as ARCHITECTURE section 3 states it.
+# Bherwerre's box, as ARCHITECTURE section 3 states it; another region's is worked out from its centre (--centre-lat,
+# --centre-lon, --extent-m), padded by nothing, as the bake's own box is.
 SOUTH, NORTH, WEST, EAST = -35.1761, -35.1039, 150.6311, 150.7189
+EARTH_RADIUS_M = 6371000.0
 
 # The engine's name for each plant, and the binomial ECOSYSTEM.md gives it.
 SPECIES = {
@@ -48,16 +51,41 @@ SPECIES = {
     "KangarooGrass": "Themeda triandra",
     "Spinifex": "Spinifex sericeus",
 }
+
+# The Kangaroo Valley's table as proposed in WG.2 (2026-09-22), fetched to check the proposal against the records (ruling 21):
+# the eight of Bherwerre's expected to stay, the four proposed to come in, and the three of the coast's expected to be absent.
+SPECIES_BY_REGION = {
+    "bherwerre": SPECIES,
+    "kangaroo-valley": {
+        "Blackbutt": "Eucalyptus pilularis",
+        "OldManBanksia": "Banksia serrata",
+        "HeathBanksia": "Banksia ericifolia",
+        "GrassTree": "Xanthorrhoea resinosa",
+        "Bracken": "Pteridium esculentum",
+        "Lomandra": "Lomandra longifolia",
+        "SawSedge": "Gahnia sieberiana",
+        "KangarooGrass": "Themeda triandra",
+        "SydneyBlueGum": "Eucalyptus saligna",
+        "RiverOak": "Casuarina cunninghamiana",
+        "CabbageTreePalm": "Livistona australis",
+        "SilvertopAsh": "Eucalyptus sieberi",
+        "ScribblyGum": "Eucalyptus sclerophylla",
+        "CoastBanksia": "Banksia integrifolia",
+        "SwampPaperbark": "Melaleuca ericifolia",
+        "Spinifex": "Spinifex sericeus",
+    },
+}
 FIELDS = "decimalLatitude,decimalLongitude,year,basisOfRecord,coordinateUncertaintyInMeters,dataResourceName,license"
 # The service answers 503 to a page of 500 and serves a page of 100 (measured 2026-09-10).
 PAGE = 100
 
 
-def query(binomial, start):
+def query(binomial, start, box):
+    south, north, west, east = box
     params = [
         ("q", 'taxa:"%s"' % binomial),
-        ("fq", "decimalLatitude:[%s TO %s]" % (SOUTH, NORTH)),
-        ("fq", "decimalLongitude:[%s TO %s]" % (WEST, EAST)),
+        ("fq", "decimalLatitude:[%s TO %s]" % (south, north)),
+        ("fq", "decimalLongitude:[%s TO %s]" % (west, east)),
         ("fl", FIELDS),
         ("pageSize", str(PAGE)),
         ("startIndex", str(start)),
@@ -70,10 +98,10 @@ def query(binomial, start):
         return url, json.load(response)
 
 
-def fetch(key, binomial):
+def fetch(key, binomial, box):
     records, start, total, first_url = [], 0, None, None
     while True:
-        url, data = query(binomial, start)
+        url, data = query(binomial, start, box)
         first_url = first_url or url
         total = data.get("totalRecords", 0)
         page = data.get("occurrences", []) or []
@@ -91,7 +119,7 @@ def fetch(key, binomial):
         time.sleep(1.0)
     return {
         "format": "eg2.ala", "version": 1, "species": key, "binomial": binomial,
-        "box": {"south": SOUTH, "north": NORTH, "west": WEST, "east": EAST},
+        "box": {"south": box[0], "north": box[1], "west": box[2], "east": box[3]},
         "query": first_url, "fetched_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "total_records": total, "records": records,
     }
@@ -100,16 +128,32 @@ def fetch(key, binomial):
 def main(argv):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--refresh", action="store_true", help="fetch every species again")
+    parser.add_argument("--region", default="bherwerre", choices=sorted(SPECIES_BY_REGION), help="which region's table and cache folder")
+    parser.add_argument("--centre-lat", type=float, default=None, help="another region's centre; with --centre-lon and --extent-m the box is worked out from it")
+    parser.add_argument("--centre-lon", type=float, default=None)
+    parser.add_argument("--extent-m", type=float, default=8000.0)
     args = parser.parse_args(argv[1:])
-    os.makedirs(CACHE, exist_ok=True)
+    if args.centre_lat is not None and args.centre_lon is not None:
+        half = args.extent_m / 2.0
+        dlat = math.degrees(half / EARTH_RADIUS_M)
+        dlon = math.degrees(half / (EARTH_RADIUS_M * math.cos(math.radians(args.centre_lat))))
+        box = (round(args.centre_lat - dlat, 4), round(args.centre_lat + dlat, 4), round(args.centre_lon - dlon, 4), round(args.centre_lon + dlon, 4))
+    else:
+        if args.region != "bherwerre":
+            print("the region '%s' needs --centre-lat and --centre-lon" % args.region)
+            return 2
+        box = (SOUTH, NORTH, WEST, EAST)
+    cache = CACHE if args.region == "bherwerre" else os.path.join(CACHE, args.region)
+    print("%s: the box south %s north %s west %s east %s, under %s" % (args.region, box[0], box[1], box[2], box[3], cache))
+    os.makedirs(cache, exist_ok=True)
     failed = []
-    for key, binomial in SPECIES.items():
-        path = os.path.join(CACHE, key + ".json")
+    for key, binomial in SPECIES_BY_REGION[args.region].items():
+        path = os.path.join(cache, key + ".json")
         if os.path.isfile(path) and not args.refresh:
             print("%-15s cached" % key)
             continue
         try:
-            doc = fetch(key, binomial)
+            doc = fetch(key, binomial, box)
         except (OSError, ValueError) as error:
             print("%-15s FAILED: %s" % (key, error))
             failed.append(key)

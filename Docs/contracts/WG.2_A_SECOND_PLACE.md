@@ -1,8 +1,8 @@
 # Contract WG.2 — A second, steeper place
 
-**Status:** drafted 2026-09-22 on CANON ruling 42 ("a second steeper place"); nothing fetched. Waits on William's
-approval of the exact files in the manifest below. Owner: Claude. William's lane: the approval, the station's table
-pasted as Point Perpendicular's was, and his eyes on the first frames.
+**Status:** drafted 2026-09-22 on CANON ruling 42 ("a second steeper place"); the place chosen the same day by ruling 43,
+"go with fitzroy falls and kangaroo valley"; nothing fetched. Waits on William's approval of the exact files in the
+manifest below. Owner: Claude. William's lane: the approval, the first act's re-cut, and his eyes on the first frames.
 
 ## What the place must give
 
@@ -95,7 +95,72 @@ sandstone country with river gravels and a basalt cap (Mount Banks) for stone, a
 Valley if the cold is the worry, milder and nearer Jervis Bay in its plants. Either box is 36 tiles at zoom 14 and 25
 at zoom 11, the same manifest's shape with its own centre and station. The decision, coastal or inland, is his.
 
+## The place: Fitzroy Falls and the Kangaroo Valley (ruling 43)
+
+The box: centre −34.660, 150.500, 8 km; west 150.4453, south −34.7050, east 150.5547, north −34.6150 with the bake's
+kilometre of margin. Inside it: the Kangaroo River and its valley floor at about a hundred metres, the Morton plateau's
+sandstone escarpment rising to over 700 m along the north and west, Yarrunga Creek falling 81 m at Fitzroy Falls and
+running down its gorge to the river, Belmore Falls' creek to the west, rainforest gullies under the cliffs, forest and
+farmland (the farms regrow as forest: the plant layer is drawn from suitability, never from land use) on the floor,
+heath and woodland on the plateau. Region id `kangaroo-valley`, "Kangaroo Valley, Fitzroy Falls"; the wake day and hour
+as Bherwerre's (late winter); no coast (`bake_region.py --coast` off).
+
+**Pre-human corrections the bake must make here.** Lake Yarrunga, the Tallowa Dam's reservoir, backs up the Kangaroo
+River and Yarrunga Creek from the south-east, and its upper arms may reach the box's southern edge; OpenStreetMap
+tags it `water=reservoir`. The constitution has no dams: `bake_water.py` excludes every way tagged `water=reservoir`
+or `landuse=reservoir` and lists what it excluded in the sidecar, and the census names them. The village, the roads
+and the visitor centre at the falls are not read by anything and leave no mark.
+
+**The station.** The valley floor stands at about 100 m, twenty kilometres west of Nowra RAN Air Station (068072, 109 m),
+whose all-years table the repository already holds (`Data/stations/`, M1.8c): Nowra is the region's station, and the
+valley's colder nights under the escarpment are the inland gradient's debt as they are for Bherwerre. Moss Vale's
+table (068045, 675 m, since 1898) is the plateau's reference and is pasted when William chooses to; nothing waits on it.
+
+**The first act, inland (for William's approval; the path is his).** Waking: face-down on the river's gravel bar below
+the escarpment, mid-morning, empty-handed, the falls' roar in the ear where the surf was. Thirst: the river drinks at
+once; the first tablet consult is the forecast (the night, and what it does to a bare body) rather than the sea's salt —
+ruling 33's "no lesson anywhere" is kept, and the salt's lesson simply belongs to another place. First stone: the river's
+cobbles — basalt down from the Robertson caps for a hammer, quartzite and whatever chert the gravels hold for an edge,
+sandstone that crumbles — and driftwood along the bar, fibre (Lomandra, saw-sedge) on the banks. Fire and Night 1 as
+written. Act II as written: the camp under the escarpment, the rain, the wet cold. The shorebird gives way to a bird of
+the river or the forest (the superb lyrebird is the valley's own); the kangaroo and the fairy-wren stay.
+
+**The plant table, to be checked against the Atlas of Living Australia's records for the box after the fetch (ruling
+21):** blackbutt, old-man banksia, heath banksia, the grass tree, bracken, Lomandra, saw-sedge and kangaroo grass stay;
+coast banksia, swamp paperbark and spinifex are the coast's and go; Sydney blue gum (*Eucalyptus saligna*), river oak
+(*Casuarina cunninghamiana*) along the river, the cabbage tree palm (*Livistona australis*) of the valley's rainforest
+gullies, and silvertop ash or scribbly gum on the plateau's sandstone come in, each with its suitability, height, bark,
+sticks and a `Wood` row with a source. The stone layer's rule is written from the Nowra 1:100 000 geology sheet's
+descriptions (Permian Nowra Sandstone and Berry Siltstone on the floor, Hawkesbury Sandstone cliffs, basalt and
+quartzite in the river gravels) and checked by the census.
+
+**Fitzroy Falls in the game.** At the bake's 30 m the fall is a cliff with Yarrunga Creek running down it, drawn as a
+steep sheet; a fall's presence (its pool, its mist, its roar) is the slice `WG.3_A_FALL` beside BF.4, after the world
+stands.
+
 ## The acquisition manifest (nothing fetched until approved)
+
+**For the Kangaroo Valley** (the Promontory's manifest below it stands as the record of what was measured, not fetched):
+
+1. **AWS Terrain Tiles, zoom 14, the box plus a kilometre's margin**: `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/14/{x}/{y}.png`
+   for x 15038–15043 and y 9872–9877 — **36 PNG tiles**, about 50 KB each, **about 1.8 MB**; 7.9 m a pixel here; SRTM 30 m
+   under them unless Geoscience Australia's 5 m tiles cover the valley, which the sidecar will say. Fetched by
+   `Tools/data/fetch_tiles.py --zoom 14 --centre-lat -34.660 --centre-lon 150.500`. Licence: AWS Open Data (the Terrarium
+   set), attributed as `terrarium.ATTRIBUTION` states.
+2. **AWS Terrain Tiles, zoom 11, the 64 km surround for the far skirt**: x 1878–1882, y 1232–1236 — **25 tiles, about
+   1.0 MB**, the same source and licence.
+3. **OpenStreetMap water round the box**: one Overpass query, `bake_water.py`'s own with the new centre — every way tagged
+   `natural=water` or `natural=wetland` inside the padded box, reservoirs excluded as above — **one JSON response, well under
+   a megabyte**. Licence: ODbL 1.0, © OpenStreetMap contributors, as the notices record.
+4. **The plant records for the verifier**: the Atlas of Living Australia's occurrence records inside the box for each species
+   of the region's plant table, by `Tools/data/fetch_ala.py` given the box — **about a dozen small JSON files, a few
+   megabytes at most**; an input to `species_check.py` only, never to the world. Licence: the Atlas's records are CC BY
+   (each record carries its own licence), as the notices record for Bherwerre's.
+5. **No station table to fetch**: Nowra's is already held.
+
+Total: **about 60 to 75 small files, under 10 MB.** Nothing else.
+
+**The Promontory's manifest, as measured (not chosen, not fetched):**
 
 The bake's own tools take any centre, so the second place is fetched as Bherwerre was, not as the six global datasets
 were. Every file, its source, its size and its licence:
@@ -119,6 +184,17 @@ were. Every file, its source, its size and its licence:
 Total: **61 small files, about 3 MB.** Nothing else. No LiDAR, no atlas change, no new global dataset.
 
 ## What follows the fetch (the slice itself)
+
+For the Kangaroo Valley, in order: `Region.KangarooValley` in the engine's region table and its station bound to Nowra's
+numbers in `Climate` (a second `Station` constant from the held table, its fronts fitted by the almanac tool's `+fit`);
+`bake_region.py --coast` off with the reservoir exclusion in `bake_water.py`; the world's creation, the layers and the
+verifiers (`drainage_check`, `census_check`, `species_check` on the fetched records, `cover_check`, `tile_check`,
+`world_inputs_check`) with the wake scored; the plant table's changes with their `Wood` rows; the stone rule; the far
+skirt; the first act's re-cut written into `FOUNDERS_PATH.md` on William's approval; frames from the wake and the
+vantages; the built player installed for him when his game is closed. Bherwerre stays the first region and the gate
+world until the valley is proved. The Promontory's steps below are the record of the alternative.
+
+**The Promontory's steps, as planned:**
 
 1. `Region.WilsonsPromontory` in the engine's region table: id `wilsons-prom`, "Wilsons Promontory, Tidal River",
    centre −39.040, 146.330, 8 km, the wake day and hour as Bherwerre's (late winter), the station 085096.

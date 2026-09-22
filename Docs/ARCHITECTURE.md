@@ -61,6 +61,9 @@ still runs on the main thread; this slice does not claim a frame-time budget for
   that no other literal metre appears in the world code. The edge: the sea on the coast sides; on land a soft
   boundary with a "not yet" vignette on the client; animals treat it as impassable; a static far skirt draws
   what lies beyond.
+- **A second region** (CANON ruling 43, 2026-09-22; `contracts/WG.2_A_SECOND_PLACE.md`): `kangaroo-valley`, "Kangaroo Valley,
+  Fitzroy Falls", centre 34.660°S 150.500°E, 8 km, no coast, the same wake day and hour; in the region table, with no world,
+  no station and no data until the manifest is approved and fetched. Bherwerre stays the first region and the gate world's.
 - **Region:** `bherwerre` — centre 35.140°S 150.675°E; box 150.6311–150.7189°E, 35.1761–35.1039°S; the region names
   no wake point of its own (CANON ruling 20); the wake is the scorer's (below), and a world made without one wakes
   the founder at the region's centre. Fallback region: Ulladulla.

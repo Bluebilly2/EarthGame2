@@ -43,6 +43,14 @@ namespace EarthGame.Engine
         public static readonly Region Bherwerre = new Region(
             "bherwerre", "Bherwerre Peninsula, Jervis Bay", -35.140, 150.675, 8000.0, 237, 8.0);
 
+        /// <summary>
+        /// The beta's second region (CANON ruling 43, 2026-09-22; WG.2): the Kangaroo Valley under the Morton plateau's escarpment,
+        /// Fitzroy Falls in its box, no coast. The same late-winter wake as Bherwerre's. Its station is Nowra's when the world is
+        /// built; until then <c>Climate.HasRecordFor</c> says no and a world here has no weather.
+        /// </summary>
+        public static readonly Region KangarooValley = new Region(
+            "kangaroo-valley", "Kangaroo Valley, Fitzroy Falls", -34.660, 150.500, 8000.0, 237, 8.0);
+
         /// <summary>The clock at the moment the founder wakes here.</summary>
         public WorldClock WakeClock() => WorldClock.FromLocal(WakeDayOfYear, WakeLocalHour, CentreLongitudeDeg);
 
@@ -52,7 +60,7 @@ namespace EarthGame.Engine
         /// <summary>The region with this id, or null. Unknown ids are the caller's problem to report, never a default.</summary>
         public static Region ById(string id)
         {
-            return id == Bherwerre.Id ? Bherwerre : null;
+            return id == Bherwerre.Id ? Bherwerre : id == KangarooValley.Id ? KangarooValley : null;
         }
     }
 }

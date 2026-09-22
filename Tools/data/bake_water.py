@@ -11,6 +11,8 @@ grid with its own code, and writes `water_bodies.u8` beside the heights with a l
 level is the median of the bake's heights inside its outline, the cells at or below that level are the lake,
 a wetland's cells are swamp. Without the layer the pipeline falls back to the ground alone.
 
+A way tagged water=reservoir or landuse=reservoir is a dam's lake, humanity's, and is excluded and listed in the sidecar
+(`excluded`), since the constitution's Earth has no dams (WG.2, 2026-09-22).
 Kinds: `lake` (natural=water without a salt tag), `wetland` (natural=wetland), `salt` (natural=water tagged
 water=bay, lagoon or harbour, or salt=yes; recorded, not yet used by the pipeline). Relations (St Georges
 Basin, a multipolygon west of the box) are not rasterised.
@@ -47,6 +49,13 @@ QUERY = '[out:json][timeout:90];(way["natural"~"^(water|wetland)$"](%.6f,%.6f,%.
 EARTH_RADIUS_M = 6371000.0
 PAD_M = 1000.0
 SALT_WATER = ("bay", "lagoon", "harbour", "sea")
+# A reservoir is a dam's lake: humanity's, and the constitution's Earth has no dams (GAME_DESIGN section 2). Excluded from
+# the layer and listed in the sidecar, so a census can name what the bake left out (WG.2, 2026-09-22: Lake Yarrunga).
+HUMAN_MADE = ("reservoir",)
+
+
+def is_human_made(tags):
+    return tags.get("water") in HUMAN_MADE or tags.get("landuse") in HUMAN_MADE or tags.get("man_made") == "reservoir"
 
 
 def fetch(cache_path, south, west, north, east, refresh):
@@ -104,11 +113,15 @@ def main():
     image = Image.new("L", (side, side), 0)
     draw = ImageDraw.Draw(image)
     bodies = []
+    excluded = []
     ways = sorted((e for e in data.get("elements", []) if e.get("type") == "way" and e.get("geometry")), key=lambda e: e["id"])
     for way in ways:
         nodes = way["geometry"]
         if len(nodes) < 4 or nodes[0] != nodes[-1]:
             continue    # an open way is a shoreline or a river bank, not a body
+        if is_human_made(way.get("tags", {})):
+            excluded.append({"osm": "way/%d" % way["id"], "name": way.get("tags", {}).get("name", ""), "why": "a reservoir: humanity's, and this Earth has no dams"})
+            continue
         points = [to_pixel(n["lat"], n["lon"]) for n in nodes[:-1]]
         code = len(bodies) + 1
         if code > 255:
@@ -125,15 +138,18 @@ def main():
     inside = [b for b in bodies if b["cells"] > 0]
     legend = ", ".join("%d=%s (%s, %s, %d cells)" % (b["code"], b["name"] or "unnamed", b["osm"], b["kind"], b["cells"]) for b in bodies)
     source = ("OpenStreetMap closed ways tagged natural=water or natural=wetland within the box padded by %.0f m, fetched through "
-              "Overpass on %s; each body's outline filled with its own code, 0 outside every outline: %s" % (PAD_M, fetched_utc, legend))
+              "Overpass on %s, reservoirs excluded as humanity's; each body's outline filled with its own code, 0 outside every outline: %s"
+              % (PAD_M, fetched_utc, legend))
     out_dir = os.path.join(ROOT, "Data", "regions", args.region)
     sidecar = raster_io.write_raster(out_dir, args.name, args.region, grid, args.cell_m, args.extent_m, lat0, lon0, source,
                                      "Tools/data/bake_water.py", "(c) OpenStreetMap contributors, ODbL 1.0, https://www.openstreetmap.org/copyright",
                                      layer="water_bodies", dtype="u8", scale=1.0, unit="id",
-                                     extra={"bodies": bodies, "fetched_utc": fetched_utc, "padding_m": PAD_M})
+                                     extra={"bodies": bodies, "excluded": excluded, "fetched_utc": fetched_utc, "padding_m": PAD_M})
     print("wrote %s (%d bodies, %d with cells in the box) sha256 %s" % (os.path.join(out_dir, sidecar["raw"]), len(bodies), len(inside), sidecar["sha256"]))
     for b in bodies:
         print("  %3d  %-8s %-22s %-14s %6.1f ha in the box" % (b["code"], b["kind"], b["name"] or "(unnamed)", b["osm"], b["cells"] * args.cell_m * args.cell_m / 1e4))
+    for e in excluded:
+        print("  excluded %-22s %-14s %s" % (e["name"] or "(unnamed)", e["osm"], e["why"]))
     return 0
 
 
