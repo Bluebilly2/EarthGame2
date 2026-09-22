@@ -324,8 +324,9 @@ is longer.
 
 ## 8. What waits on William
 
-- **The place.** Bherwerre is a low peninsula and the data is right about it. BF.4 gives it its grain wherever the
-  region is; it does not give it a mountain. If the beta wants steeper country than the peninsula has, that is a second
-  place fetched under an acquisition manifest (the 30 m model and its water: DEBTS 2026-09-22), on his word. The
-  systems are built to be true of any place; the choice of place is his.
+- **The place: decided.** Bherwerre is a low peninsula and the data is right about it; on 2026-09-22 he chose "a
+  second steeper place" (CANON ruling 42). The candidates measured, the recommendation (Wilsons Promontory, Tidal River
+  to Oberon Bay) and the acquisition manifest are `contracts/WG.2_A_SECOND_PLACE.md`; nothing is fetched until he
+  approves those exact files. BF.4 gives any place its grain below the data; the second place gives the beta its
+  mountains.
 - **His eyes** on the ground when BF.4 stands, in frames and in play; **his hands** on the work when BF.2 does.

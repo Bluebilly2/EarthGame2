@@ -285,3 +285,12 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     isolated features." "Do not assume the current implementation defines the scope of the game. The intended beta does." The
     audit and the dependency map made on this ruling are `BETA_MAP.md`, and its order of building (the `BF.` contracts) is the
     work's order from here: ruling 31's beats are reached through their foundations, not ahead of them.
+
+42. **The beta's place is a second, steeper place.** Asked, 2026-09-22, with the peninsula measured before him (8 % of
+    its land over 10°, nothing below the raster's 4 m), whether the beta stays Bherwerre with its grain built below the data
+    or a second, steeper place is fetched for it: "a second steeper place". The beta is set in a second place with real
+    relief, fetched under an acquisition manifest as the six datasets were, nothing downloaded until he approves the exact
+    files (ruling 26's amendment); which place, delegated by ruling 8 ("something suitable"), is chosen by research against
+    the path's needs and put to him with the manifest. Bherwerre stays as the first region and the gate world's; ruling 20
+    (the founder wakes anywhere in the region) and ruling 21 (the world checked against the real place by the agent) apply
+    to the second as to the first.
