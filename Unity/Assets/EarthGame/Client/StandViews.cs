@@ -82,6 +82,13 @@ namespace EarthGame.Client
 
         /// <summary>The side of a block of the far forest, m: a quarter of a tile, since its trees stand a far square apart and are only ever seen from a kilometre off.</summary>
         private const float RingBlockM = 250f;
+
+        /// <summary>
+        /// Past this, m, a tile of the far forest in the view is drawn whole at one level, its blocks not each tested (M1.6f): a
+        /// kilometre tile three off fills a sixth of the view's width and every block of one in the view nearly always is, and
+        /// at 32 km the region holds sixteen thousand blocks, whose tests were a part of the frame that grew with its area.
+        /// </summary>
+        private const float RingWholeTileM = 3000f;
         private const int Chunk = 1023;
         private static readonly float BlockReach = BlockM * 0.7072f;
         private static readonly int EyeId = Shader.PropertyToID("_Eye");
@@ -461,11 +468,14 @@ namespace EarthGame.Client
                     if (_held.ContainsKey(pair.Key)) continue;
                     TileStand tile = pair.Value;
                     if (!tile.HasTrees || !GeometryUtility.TestPlanesAABB(_view, tile.Bounds)) continue;
+                    bool whole = Reach(eye, tile.Ground) > RingWholeTileM;
+                    float tx = tile.Ground.center.x - eye.x, tz = tile.Ground.center.z - eye.z;
+                    int tileLevel = FarForest.LevelAt(Mathf.Sqrt(tx * tx + tz * tz));
                     foreach (Block block in tile.Blocks)
                     {
-                        if (block?.FarLevels == null || !GeometryUtility.TestPlanesAABB(_view, block.Bounds)) continue;
+                        if (block?.FarLevels == null || (!whole && !GeometryUtility.TestPlanesAABB(_view, block.Bounds))) continue;
                         float dx = block.Centre.x - eye.x, dz = block.Centre.z - eye.z;
-                        List<Matrix4x4>[] level = block.FarLevels[FarForest.LevelAt(Mathf.Sqrt(dx * dx + dz * dz))];
+                        List<Matrix4x4>[] level = block.FarLevels[whole ? tileLevel : FarForest.LevelAt(Mathf.Sqrt(dx * dx + dz * dz))];
                         Gather(level, _farGather);
                         foreach (List<Matrix4x4> list in level) ringDrawn += list != null ? list.Count : 0;
                     }

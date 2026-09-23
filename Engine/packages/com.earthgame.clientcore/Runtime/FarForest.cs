@@ -39,8 +39,12 @@ namespace EarthGame.ClientCore
         /// <summary>How far a far tree may stand from its square's post, m: a quarter of the square, so it never leaves its square.</summary>
         public static readonly double WanderM = TileLayers.FarCellM * 0.25;
 
-        /// <summary>The highest level of thinning (M1.6f): past it one tree in 2^MostLevel stands, whatever the distance.</summary>
-        public const int MostLevel = 4;
+        /// <summary>
+        /// The highest level of thinning (M1.6f): past it one tree in 2^MostLevel stands, whatever the distance. Eight, one in 256
+        /// past 16 km, where a crown spread sixteenfold is as wide on the screen as a whole one at a kilometre: the first cap,
+        /// four, left the 32 km valley drawing 14,669 far trees at its escarpment, most of them past 4 km at one in sixteen.
+        /// </summary>
+        public const int MostLevel = 8;
 
         /// <summary>
         /// Within this of the eye the whole far forest is drawn, m (M1.6f); past it the level rises by one each time the
