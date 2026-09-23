@@ -136,6 +136,57 @@ namespace EarthGame.Tests.Server
         }
 
         /// <summary>
+        /// A founder who slides down a face and lands on their feet lands faster than a run and brakes (2026-09-23, DEBTS "A
+        /// slide's landing is corrected"): the corpus's walkers slid 1.8 m off a dune face at the walk's limit and were corrected
+        /// three times each on landing. The landing report is judged as the fall it ends, and the reports after it by what the
+        /// fall allowed less the brake's work since; the server keeps the landing as this test does (<see cref="MovementValidator.Landing"/>).
+        /// </summary>
+        [Test]
+        public void ALandingFromASlideBrakesWithoutACorrection()
+        {
+            const double grade = 1.8;
+            // A face falling west onto flat ground at the datum: the founder starts four metres up it.
+            IWorldCollision face = HeightfieldCollision.For(new Face(e => e > 0.0 ? e * grade : 0.0), MoverConfig.Default, false);
+            MovementRules rules = new MovementRules();
+            MoverConfig mover = MoverConfig.Default;
+            MoverState body = MoverState.AtRest(4.0 / grade, 4.0, 0.0);
+            MoverState accepted = body;
+            double stoodUp = body.Up, sinceSend = 0.0, fastestLanded = 0.0;
+            uint sequence = 0;
+            MovementValidator.Landing landing = default;
+            int oldRuleWouldCorrect = 0;
+            bool landed = false;
+            for (int step = 1; step <= 250; step++)
+            {
+                body = Mover.Step(body, MoverInput.None, 0.02, face);
+                sinceSend += 0.02;
+                if (sinceSend < 0.05 - 1e-4) continue;
+                sinceSend -= 0.05;
+                sequence++;
+                double allowance = landing.AllowanceAt(sequence, 0.05, mover);
+                string reason = MovementValidator.Check(accepted, true, body, 0.05, null, 1000.0, mover, rules, stoodUp, 1.0, allowance);
+                Assert.That(reason, Is.Null, "corrected " + (step * 0.02).ToString("0.00") + " s in at " + body.HorizontalSpeed.ToString("0.00") + " m/s, "
+                                             + (body.Grounded ? "on their feet" : "off them") + ": " + reason);
+                // What the rule before the landing's allowance would have said of the same report.
+                if (MovementValidator.Check(accepted, true, body, 0.05, null, 1000.0, mover, rules, stoodUp) != null) oldRuleWouldCorrect++;
+                if (!accepted.Grounded && body.Grounded)
+                {
+                    landing = new MovementValidator.Landing { CeilingMs = MovementValidator.FallCeiling(stoodUp, body.Up, mover), Sequence = sequence };
+                    landed = true;
+                }
+                if (landed && body.Grounded) fastestLanded = System.Math.Max(fastestLanded, body.HorizontalSpeed);
+                accepted = body;
+                if (body.Grounded) stoodUp = body.Up;
+            }
+            Assert.That(landed, Is.True, "the founder came down on the flat");
+            Assert.That(fastestLanded, Is.GreaterThan(mover.MaxHorizontalSpeed * rules.SpeedTolerance), "and on their feet faster than a run's ceiling, so the test is not passed by a slow landing");
+            Assert.That(oldRuleWouldCorrect, Is.GreaterThan(0), "the rule without the landing's allowance corrects it");
+            Assert.That(body.HorizontalSpeed, Is.LessThan(0.5), "and the brake has stopped the founder by the end");
+            Assert.That(landing.AllowanceAt(sequence, 0.05, mover), Is.LessThan(mover.MaxHorizontalSpeed), "by when the landing allows nothing more than a run");
+            Assert.That(landing.AllowanceAt(sequence + 100, 0.05, mover), Is.EqualTo(0.0), "and a little later nothing at all");
+        }
+
+        /// <summary>
         /// The ceiling is the body's (FP.1): a founder told a work capacity is held to the run that capacity allows, by the
         /// mover's own rule, and a full-speed run from a body told a tenth of its water gone is corrected.
         /// </summary>

@@ -632,10 +632,19 @@ namespace EarthGame.Server
                 double bySequence = (move.Sequence - session.LastSequence) * _accumulator.StepSeconds;
                 interval = Math.Min(bySequence, session.MoveCredit);
             }
+            double landed = session.Landing.AllowanceAt(move.Sequence, _accumulator.StepSeconds, _config.Mover);
             string reason = MovementValidator.Check(session.Body, session.HasBody, move.Body, interval, FeetGround,
-                                                    World.Region.HalfExtentM, _config.Mover, MovementRulesFor(session), session.StoodUp, session.CeilingCapacity);
+                                                    World.Region.HalfExtentM, _config.Mover, MovementRulesFor(session), session.StoodUp, session.CeilingCapacity, landed);
             if (reason == null)
             {
+                // A body come down on its feet keeps what its fall allowed while the brake takes it off (2026-09-23): the corpus's
+                // walkers, landing from a slide, were corrected while they braked.
+                if (session.HasBody && !session.Body.Grounded && move.Body.Grounded && !double.IsNaN(session.StoodUp))
+                    session.Landing = new MovementValidator.Landing
+                    {
+                        CeilingMs = MovementValidator.FallCeiling(session.StoodUp, move.Body.Up, _config.Mover, session.CeilingCapacity),
+                        Sequence = move.Sequence,
+                    };
                 session.MoveCredit = Math.Max(0.0, session.MoveCredit - interval);
                 session.Body = move.Body;
                 // A first report, or a founder on their feet, is where they stood; a fall keeps the height it left.

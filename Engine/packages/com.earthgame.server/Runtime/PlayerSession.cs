@@ -40,6 +40,11 @@ namespace EarthGame.Server
         /// </summary>
         public double StoodUp = double.NaN;
         /// <summary>
+        /// The last time this player's body came down on its feet from a fall or a slide (2026-09-23): the speed the fall allowed
+        /// then, which the movement check lets a founder brake from (<see cref="MovementValidator.Landing"/>).
+        /// </summary>
+        public MovementValidator.Landing Landing;
+        /// <summary>
         /// Whether this player has switched developer mode on (M1.E, CANON ruling 39): off at every join, turned on and off by
         /// the player's own F2, and granted only by a server that may grant it. The server's development mark
         /// (`MovementRules.AllowFlight`) says whether anyone may have it; this says who does.

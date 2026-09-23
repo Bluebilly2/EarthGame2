@@ -59,11 +59,47 @@ namespace EarthGame.Server
     /// </summary>
     public static class MovementValidator
     {
+        /// <summary>
+        /// What a founder who has just come down from a fall or a slide may still be moving at on their feet (2026-09-23, DEBTS
+        /// "A slide's landing is corrected"): the speed the fall allowed at the landing, less what the mover's brake has taken
+        /// off since. The corpus's walkers slid 1.8 m off a dune face at the walk's limit, landed faster than a run and were
+        /// corrected three times each while they braked.
+        /// </summary>
+        public struct Landing
+        {
+            /// <summary>The fastest the body could be crossing the ground as it landed, m/s (<see cref="FallCeiling"/>).</summary>
+            public double CeilingMs;
+            /// <summary>The report the body landed in.</summary>
+            public uint Sequence;
+
+            /// <summary>
+            /// What the landing still allows at a later report, m/s: its ceiling less half the brake's work over the reports'
+            /// spacing, nothing once braked away. Half, because the body brakes at the full rate and its reports come unevenly
+            /// (0.04 and 0.06 s apart at 50 Hz steps, a fifth over the spacing they are judged by): at the full rate the test's
+            /// founder, landing at 9.8 m/s against a fall's 9.9, was refused 0.6 s into the braking by a hundredth.
+            /// </summary>
+            public double AllowanceAt(uint sequence, double stepSeconds, MoverConfig mover)
+            {
+                if (!(CeilingMs > 0.0) || sequence < Sequence) return 0.0;
+                double left = CeilingMs - 0.5 * mover.BrakeMs2 * (sequence - Sequence) * stepSeconds;
+                return left > 0.0 ? left : 0.0;
+            }
+        }
+
+        /// <summary>The fastest a body off its feet can cross the ground, m/s: a run with all the height lost since it last stood (M1.5f).</summary>
+        public static double FallCeiling(double stoodUp, double up, MoverConfig mover, double workCapacity01 = 1.0)
+        {
+            double run = mover.MaxHorizontalSpeedAt(workCapacity01);
+            double drop = double.IsNaN(stoodUp) ? 0.0 : Math.Max(0.0, stoodUp - up);
+            return Math.Sqrt(run * run + 2.0 * mover.Gravity * drop);
+        }
+
         /// <summary>Null when the report is acceptable; otherwise the reason, in words a log can carry.</summary>
         /// <param name="stoodUp">The height of the last body this player reported standing on the ground; NaN before any.</param>
+        /// <param name="landedMs">What a recent landing still allows a body on its feet, m/s (<see cref="Landing.AllowanceAt"/>); zero for none.</param>
         public static string Check(in MoverState last, bool hasLast, in MoverState reported, double intervalSeconds,
                                    IHeightSource ground, double halfExtentM, MoverConfig mover, MovementRules rules, double stoodUp = double.NaN,
-                                   double workCapacity01 = 1.0)
+                                   double workCapacity01 = 1.0, double landedMs = 0.0)
         {
             if (!reported.IsFinite) return "non-finite numbers in the report";
             if (Math.Abs(reported.East) > halfExtentM || Math.Abs(reported.North) > halfExtentM)
@@ -76,7 +112,9 @@ namespace EarthGame.Server
                 double de = reported.East - last.East;
                 double dn = reported.North - last.North;
                 double horizontal = Math.Sqrt(de * de + dn * dn) / dt;
-                double ceiling = HorizontalCeiling(reported, stoodUp, mover, workCapacity01) * rules.SpeedTolerance;
+                // A report that lands, the last one off its feet and this one on them, is the end of the fall and judged as it.
+                bool landing = !last.Grounded && reported.Grounded;
+                double ceiling = HorizontalCeiling(reported, stoodUp, mover, workCapacity01, landedMs, landing) * rules.SpeedTolerance;
                 if (horizontal > ceiling)
                     return "speed " + F(horizontal) + " m/s exceeds the ceiling " + F(ceiling);
                 double vertical = Math.Abs(reported.Up - last.Up) / dt;
@@ -103,13 +141,16 @@ namespace EarthGame.Server
         /// gives nothing, and the allowance is measured from where the founder stood rather than from their last report, so
         /// it cannot grow report by report.
         /// </summary>
-        public static double HorizontalCeiling(in MoverState reported, double stoodUp, MoverConfig mover, double workCapacity01 = 1.0)
+        /// <param name="landedMs">What a recent landing still allows a body on its feet, m/s (<see cref="Landing"/>): a run is the least a founder on their feet is allowed, and a founder braking from a fall is allowed the fall's speed less the brake's work.</param>
+        /// <param name="landing">Whether this report is the one that lands: judged as the fall it ends.</param>
+        public static double HorizontalCeiling(in MoverState reported, double stoodUp, MoverConfig mover, double workCapacity01 = 1.0,
+                                               double landedMs = 0.0, bool landing = false)
         {
             // The run is the body's (FP.1): a thirsty founder is held to what their capacity allows, as their own mover is.
             double run = mover.MaxHorizontalSpeedAt(workCapacity01);
-            if (reported.Grounded || double.IsNaN(stoodUp)) return run;
-            double drop = Math.Max(0.0, stoodUp - reported.Up);
-            return Math.Sqrt(run * run + 2.0 * mover.Gravity * drop);
+            if (double.IsNaN(stoodUp)) return Math.Max(run, landedMs);
+            if (reported.Grounded && !landing) return Math.Max(run, landedMs);
+            return FallCeiling(stoodUp, reported.Up, mover, workCapacity01);
         }
 
         private static string F(double v) => v.ToString("0.00", CultureInfo.InvariantCulture);
