@@ -83,6 +83,9 @@ namespace EarthGame.Client
         /// </summary>
         public void Follow(double east, double north, TileReceiver tiles, TileGrid grid) => Follow(east, north, tiles, grid, null);
 
+        /// <summary>The one ground the tufts grow on (BF.4); null grows them on the tiles' raster alone.</summary>
+        public ClientGround Ground;
+
         /// <summary>The same, less what the world's changes say is taken or cleared (BF.3); a change asks for the placing again (<see cref="MarkChanged"/>).</summary>
         public void Follow(double east, double north, TileReceiver tiles, TileGrid grid, WorldChanges changes)
         {
@@ -94,7 +97,7 @@ namespace EarthGame.Client
             _changes = 0;
             _clock.Restart();
             _found.Clear();
-            Understorey.Find(east, north, DrawM + RelayM, tiles, grid, _found);
+            Understorey.Find(east, north, DrawM + RelayM, tiles, grid, _found, Ground);
             if (changes != null && changes.Count > 0)
                 _found.RemoveAll(t => changes.IsTuftTaken(t.Row, t.Col, t.Index) || (changes.GroundOf(t.Row, t.Col).Flags & GroundChange.Cleared) != 0);
             foreach (List<Matrix4x4> list in _drawn) list.Clear();

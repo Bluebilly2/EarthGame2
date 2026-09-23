@@ -33,7 +33,8 @@ namespace EarthGame.ClientCore
         /// Every trunk whose foot lies within a distance of a point across the ground, added to a list, each with the radius
         /// it has <paramref name="atM"/> above its foot — the height at which a founder meets a tree.
         /// </summary>
-        public static void Find(double east, double north, double radiusM, double atM, TileReceiver tiles, TileGrid grid, List<TrunkNearby> into)
+        /// <param name="ground">The client's one ground (BF.4), whose seed and hollows the trunks stand on as they are drawn; null stands them on the tiles' raster alone.</param>
+        public static void Find(double east, double north, double radiusM, double atM, TileReceiver tiles, TileGrid grid, List<TrunkNearby> into, ClientGround ground = null)
         {
             if (tiles == null || grid == null || into == null || !(radiusM > 0.0)) return;
             ReceivedTile here = tiles.Holding(TileLayer.Stand, grid.ForPosition(east, north));
@@ -52,8 +53,8 @@ namespace EarthGame.ClientCore
                     StandLayout.CellCentre(row, col, cell, grid.ExtentM, out double centreEast, out double centreNorth);
                     TileId id = grid.ForPosition(centreEast, centreNorth);
                     ReceivedTile stand = tiles.Holding(TileLayer.Stand, id);
-                    ReceivedTile ground = tiles.Holding(TileLayer.Ground, id);
-                    if (stand?.Codes == null || ground?.Heights == null || ground.Posts != stand.Posts) continue;
+                    ReceivedTile tile = tiles.Holding(TileLayer.Ground, id);
+                    if (stand?.Codes == null || tile?.Heights == null || tile.Posts != stand.Posts) continue;
                     int x = (int)Math.Round((centreEast - stand.OriginEast) / cell);
                     int z = (int)Math.Round((centreNorth - stand.OriginNorth) / cell);
                     if (x < 0 || z < 0 || x >= stand.Posts || z >= stand.Posts) continue;
@@ -74,7 +75,7 @@ namespace EarthGame.ClientCore
                         Col = col,
                         Species = species,
                         East = footEast,
-                        Up = TileGround.HeightAt(ground, footEast, footNorth),
+                        Up = ground != null ? ground.HeightAtOr(tile, footEast, footNorth) : TileGround.HeightAt(tile, footEast, footNorth),
                         North = footNorth,
                         HeightM = height,
                         TrunkM = form.TrunkLength * height,

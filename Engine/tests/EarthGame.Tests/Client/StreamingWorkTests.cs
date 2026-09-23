@@ -67,16 +67,20 @@ namespace EarthGame.Tests.Client
             Assert.That(prepared.Id, Is.EqualTo(tile.Id));
             Assert.That(prepared.GroundCrc, Is.EqualTo(tile.Crc32));
             Assert.That(prepared.ColourMap, Is.Null, "no cover was held");
-            float lowest = prepared.BaseM, range = prepared.RangeM;
+            // The Terrain's base lies the room for a hole below its lowest post (BF.4), and its range reaches the highest.
+            float lowest = prepared.BaseM + TilePreparation.DigRoomM, range = prepared.RangeM;
             Assert.That(lowest, Is.EqualTo(10f).Within(0.01f));
-            Assert.That(lowest + range, Is.EqualTo(10f + 250 * 0.1f + 250 * 0.05f).Within(0.05f));
-            Assert.That(prepared.Normalised[0, 0], Is.EqualTo(0f).Within(1e-4f));
+            Assert.That(prepared.BaseM + range, Is.EqualTo(10f + 250 * 0.1f + 250 * 0.05f).Within(0.05f));
+            Assert.That(prepared.BaseM + prepared.Normalised[0, 0] * range, Is.EqualTo(10f).Within(0.01f));
             Assert.That(prepared.Normalised[512, 512], Is.EqualTo(1f).Within(1e-3f));
-            // The middle of a linear ground is the middle of its range, whatever the pitch.
-            Assert.That(prepared.Normalised[256, 256], Is.EqualTo(0.5f).Within(0.01f));
+            // The middle of a linear ground is the middle of its heights, whatever the pitch.
+            Assert.That(prepared.BaseM + prepared.Normalised[256, 256] * range, Is.EqualTo(10f + (250 * 0.1f + 250 * 0.05f) / 2f).Within(0.05f));
         }
 
-        /// <summary>A flat tile has a range of a metre rather than of nothing: a normalised height is a division by it.</summary>
+        /// <summary>
+        /// A flat tile has a range of something rather than of nothing: a normalised height is a division by it. Until BF.4 the
+        /// range was held to a metre at least; since, it is never less than the room below the lowest post for a hole.
+        /// </summary>
         [Test]
         public void AFlatTileIsNotADivisionByZero()
         {
@@ -84,9 +88,9 @@ namespace EarthGame.Tests.Client
             for (int z = 0; z < Posts; z++)
                 for (int x = 0; x < Posts; x++) tile.Heights[z, x] = 7f;
             PreparedTile prepared = TilePreparation.Prepare(tile, 65, null, 32);
-            Assert.That(prepared.RangeM, Is.EqualTo(1f));
-            Assert.That(prepared.BaseM, Is.EqualTo(7f));
-            Assert.That(prepared.Normalised[10, 10], Is.EqualTo(0f).Within(1e-6f));
+            Assert.That(prepared.RangeM, Is.EqualTo(TilePreparation.DigRoomM).Within(1e-5f));
+            Assert.That(prepared.BaseM, Is.EqualTo(7f - TilePreparation.DigRoomM).Within(1e-5f));
+            Assert.That(prepared.Normalised[10, 10], Is.EqualTo(1f).Within(1e-6f), "the flat ground at the top of its range, the hole's room below it");
         }
 
         /// <summary>The colour is prepared beside the ground, and only from the cover of the same tile.</summary>

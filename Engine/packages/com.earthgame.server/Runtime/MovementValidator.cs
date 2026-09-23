@@ -62,7 +62,7 @@ namespace EarthGame.Server
         /// <summary>Null when the report is acceptable; otherwise the reason, in words a log can carry.</summary>
         /// <param name="stoodUp">The height of the last body this player reported standing on the ground; NaN before any.</param>
         public static string Check(in MoverState last, bool hasLast, in MoverState reported, double intervalSeconds,
-                                   Heightfield ground, double halfExtentM, MoverConfig mover, MovementRules rules, double stoodUp = double.NaN,
+                                   IHeightSource ground, double halfExtentM, MoverConfig mover, MovementRules rules, double stoodUp = double.NaN,
                                    double workCapacity01 = 1.0)
         {
             if (!reported.IsFinite) return "non-finite numbers in the report";

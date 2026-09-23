@@ -74,11 +74,14 @@ namespace EarthGame.Client
         /// </summary>
         public void Follow(double east, double north, TileReceiver tiles, TileGrid grid) => Follow(east, north, tiles, grid, null);
 
+        /// <summary>The one ground the trunks stand on (BF.4), as they are drawn; null stands them on the tiles' raster alone.</summary>
+        public ClientGround Ground;
+
         /// <summary>The same, less the trunks the world's changes say are felled (BF.3).</summary>
         public void Follow(double east, double north, TileReceiver tiles, TileGrid grid, WorldChanges changes)
         {
             _near.Clear();
-            TrunksNear.Find(east, north, ReachM, MeetsAtM, tiles, grid, _near);
+            TrunksNear.Find(east, north, ReachM, MeetsAtM, tiles, grid, _near, Ground);
             if (changes != null && changes.Count > 0) _near.RemoveAll(t => (changes.TrunkOf(t.Row, t.Col).Flags & TrunkChange.Felled) != 0);
             Near = _near.Count;
             _east = east;

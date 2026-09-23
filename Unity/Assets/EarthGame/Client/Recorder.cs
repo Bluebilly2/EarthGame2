@@ -76,6 +76,9 @@ namespace EarthGame.Client
         private RunLog _log;
         private Camera _camera;
         private PlayerController _player;
+
+        /// <summary>The one ground the client draws and stands on (BF.4), for a scenario to set beside what it met.</summary>
+        private ClientGround Fine => GetComponent<ClientRuntime>()?.FineGround;
         private ScriptedInputSource _script;
         private HudController _hud;
         private Func<long> _tick;
@@ -418,7 +421,7 @@ namespace EarthGame.Client
         {
             Double3 eye = _player.Eye;
             _near.Clear();
-            LyingNear.Find(eye.X, eye.Z, Hands.ReachM, _client.Tiles, _client.Grid, _client.Taken, _near);
+            LyingNear.Find(eye.X, eye.Z, Hands.ReachM, _client.Tiles, _client.Grid, _client.Taken, _near, Fine);
             LyingNearby? best = null;
             double bestM = Hands.ReachM - 0.5;
             foreach (LyingNearby n in _near)

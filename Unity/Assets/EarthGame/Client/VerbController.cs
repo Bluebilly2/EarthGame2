@@ -68,6 +68,8 @@ namespace EarthGame.Client
         private readonly StreamedWater _water;
         private readonly TrunkBodies _trunks;
         private readonly UnderstoreyViews _understorey;
+        /// <summary>The one ground (BF.4): what the litter lies on as it is drawn, so the crosshair meets a stick where it is.</summary>
+        private readonly ClientGround _fine;
         private GameClient _client;
         private EntityViews _entities;
         private string _answer = string.Empty;
@@ -115,7 +117,7 @@ namespace EarthGame.Client
         public string Line { get; private set; } = string.Empty;
 
         public VerbController(GameClient client, EntityViews entities, PlayerController player, Camera camera, HudController hud, HandView hand,
-                              IHeightSource ground = null, StreamedWater water = null, TrunkBodies trunks = null, UnderstoreyViews understorey = null)
+                              IHeightSource ground = null, StreamedWater water = null, TrunkBodies trunks = null, UnderstoreyViews understorey = null, ClientGround fine = null)
         {
             _player = player;
             _camera = camera;
@@ -125,6 +127,7 @@ namespace EarthGame.Client
             _water = water;
             _trunks = trunks;
             _understorey = understorey;
+            _fine = fine;
             Rebind(client, entities);
         }
 
@@ -595,7 +598,7 @@ namespace EarthGame.Client
         {
             best = default;
             _near.Clear();
-            LyingNear.Find(body.X, body.Z, Hands.ReachM + LitterMarginM, _client.Tiles, _client.Grid, _client.Taken, _near);
+            LyingNear.Find(body.X, body.Z, Hands.ReachM + LitterMarginM, _client.Tiles, _client.Grid, _client.Taken, _near, _fine);
             bool found = false;
             foreach (LyingNearby n in _near)
             {

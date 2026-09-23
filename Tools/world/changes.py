@@ -75,6 +75,14 @@ def main():
                                                                                   r.get("ended"), r.get("words", ""), (" (cut kept %s, through %s)" % (r.get("cut_kept"), r.get("through"))) if "cut_kept" in r else ""))
         elif r.get("kind") == "aim":
             print("  aimed at the %s %s; the line: '%s'" % (r.get("at"), r.get("aimed"), r.get("line", "")))
+        elif r.get("kind") == "ground":
+            print("  the Terrain against the one ground at %s point(s) (%s missed): at most %.4f m off, %.4f m on average (%.3f allowed); the relief reached %.3f m"
+                  % (r.get("points"), r.get("missed"), float(r.get("terrain_off_max_m") or 0.0), float(r.get("terrain_off_mean_m") or 0.0),
+                     float(r.get("allowed_m") or 0.0), float(r.get("relief_max_m") or 0.0)))
+        elif r.get("kind") == "hollow":
+            print("  the hole at (%s, %s): %s cm dug, %.3f m deep in the one ground, the Terrain %.4f m off it: %s"
+                  % (r.get("row"), r.get("col"), r.get("dug_cm"), float(r.get("hollow_m") or 0.0),
+                     float(r.get("terrain_m") or 0.0) - float(r.get("ground_m") or 0.0), "right" if r.get("right") else "WRONG"))
         elif r.get("kind") == "change":
             changes += 1
         elif r.get("kind") in ("error", "exception"):

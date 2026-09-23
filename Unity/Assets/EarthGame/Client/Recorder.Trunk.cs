@@ -45,7 +45,7 @@ namespace EarthGame.Client
             yield return Wait(1.5);
             Double3 feet = _player.State.Feet;
             List<TrunkNearby> near = new List<TrunkNearby>();
-            TrunksNear.Find(feet.X, feet.Z, TrunkSearchM, TrunkBodies.MeetsAtM, _client.Tiles, _client.Grid, near);
+            TrunksNear.Find(feet.X, feet.Z, TrunkSearchM, TrunkBodies.MeetsAtM, _client.Tiles, _client.Grid, near, Fine);
             TrunkNearby target = default;
             double best = double.MaxValue;
             foreach (TrunkNearby trunk in near)

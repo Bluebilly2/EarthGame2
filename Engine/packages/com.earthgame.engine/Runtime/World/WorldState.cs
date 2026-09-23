@@ -176,12 +176,26 @@ namespace EarthGame.Engine
         {
             double east = Wake.HasValue ? Wake.Value.X : 0.0;
             double north = Wake.HasValue ? Wake.Value.Z : 0.0;
-            double up = Terrain != null ? Math.Max(Heightfield.SeaLevelM, Terrain.HeightAt(east, north)) : Heightfield.SeaLevelM;
+            double up = Terrain != null ? Math.Max(Heightfield.SeaLevelM, GroundAt(east, north)) : Heightfield.SeaLevelM;
             return new Double3(east, up, north);
         }
 
-        /// <summary>The ground under a point as the server holds it: the terrain's height, or the datum without terrain or beyond it.</summary>
+        /// <summary>
+        /// The ground under a point as the server holds it (BF.4): the one ground both sides compute (<see cref="FineGround"/>),
+        /// the raster to the centimetre the tiles carry with the relief below it and the hollows dug; the datum without terrain
+        /// or beyond it. What a thing let go falls to, what an animal stands on and what a founder's feet are judged against.
+        /// </summary>
         public double GroundAt(double east, double north)
+        {
+            if (Terrain == null || !Terrain.Contains(east, north)) return Heightfield.SeaLevelM;
+            return FineGround.At(this, east, north);
+        }
+
+        /// <summary>
+        /// The raster's own ground under a point (BF.4): what a water's depth is measured over, on the server as the tiles carry
+        /// it to the client, and what an animal is kept out of water by; the datum without terrain or beyond it.
+        /// </summary>
+        public double RasterGroundAt(double east, double north)
         {
             if (Terrain == null || !Terrain.Contains(east, north)) return Heightfield.SeaLevelM;
             return Terrain.HeightAt(east, north);
@@ -210,7 +224,7 @@ namespace EarthGame.Engine
             if (classes == null || Water.Surface == null) return WaterClass.Dry;
             if (_surface == null) _surface = new Heightfield(Water.Surface);
             if (!_surface.Contains(east, north)) return WaterClass.Dry;
-            double depth = _surface.HeightAt(east, north) - GroundAt(east, north);
+            double depth = _surface.HeightAt(east, north) - RasterGroundAt(east, north);
             if (depth <= StandingWaterM) return WaterClass.Dry;
             depthM = depth;
             double half = classes.ExtentM * 0.5;
@@ -244,7 +258,7 @@ namespace EarthGame.Engine
             double half = classes.ExtentM * 0.5;
             double east = col * classes.CellM - half, north = half - row * classes.CellM;
             if (!_surface.Contains(east, north)) return false;
-            return _surface.HeightAt(east, north) - GroundAt(east, north) > StandingWaterM;
+            return _surface.HeightAt(east, north) - RasterGroundAt(east, north) > StandingWaterM;
         }
 
         /// <summary>Open water a founder could stand in or drink from, as against damp ground, a trickle under the leaves or a swamp.</summary>

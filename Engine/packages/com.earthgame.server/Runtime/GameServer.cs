@@ -72,6 +72,14 @@ namespace EarthGame.Server
         /// <summary>The world this server is authoritative for.</summary>
         public WorldState World { get; }
 
+        /// <summary>
+        /// The ground a founder's reported feet are judged against (BF.4): the world's one ground, relief and hollows with it,
+        /// where until then the raster alone stood; null for a world without terrain, which judges no height.
+        /// </summary>
+        private IHeightSource FeetGround => World.Terrain == null ? null : _feetGround ?? (_feetGround = new FineGroundSource(World));
+
+        private IHeightSource _feetGround;
+
         /// <summary>The configuration the server was started with; the mover numbers in it are what clients must use.</summary>
         public ServerConfig Config => _config;
 
@@ -624,7 +632,7 @@ namespace EarthGame.Server
                 double bySequence = (move.Sequence - session.LastSequence) * _accumulator.StepSeconds;
                 interval = Math.Min(bySequence, session.MoveCredit);
             }
-            string reason = MovementValidator.Check(session.Body, session.HasBody, move.Body, interval, World.Terrain,
+            string reason = MovementValidator.Check(session.Body, session.HasBody, move.Body, interval, FeetGround,
                                                     World.Region.HalfExtentM, _config.Mover, MovementRulesFor(session), session.StoodUp, session.CeilingCapacity);
             if (reason == null)
             {

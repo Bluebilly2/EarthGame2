@@ -416,7 +416,7 @@ namespace EarthGame.Engine
                         {
                             throw new InvalidDataException("tile data ends after " + (z * posts + x) + " of " + (posts * posts) + " posts");
                         }
-                        heights[z, x] = cm / 100f;
+                        heights[z, x] = MetresOf(cm);
                         previous = cm;
                     }
                 }
@@ -467,7 +467,21 @@ namespace EarthGame.Engine
             if (float.IsNaN(metres)) throw new InvalidDataException("a NaN height cannot be encoded");
             if (Math.Abs(metres) > MaxHeightM)
                 throw new InvalidDataException("a height of " + metres + " m is beyond the " + MaxHeightM + " m either side of the datum that a tile can carry");
-            return (int)Math.Round(metres * 100.0);
+            return RoundedCm(metres);
         }
+
+        /// <summary>The one rounding a height is carried by: the nearest centimetre, the even one at the half (<see cref="Math.Round(double)"/>).</summary>
+        private static int RoundedCm(float metres) => (int)Math.Round(metres * 100.0);
+
+        /// <summary>A carried number of centimetres as the metres a tile's reader holds.</summary>
+        public static float MetresOf(int cm) => cm / 100f;
+
+        /// <summary>
+        /// A raster's height as a tile carries it (BF.4): rounded to the centimetre and read back, the same float a client holds
+        /// for that post, so the server's ground and the client's are computed from equal numbers. A height no tile could carry
+        /// (none, or beyond <see cref="MaxHeightM"/>) is returned as it is; the encoder refuses such a height, so no client holds one.
+        /// </summary>
+        public static float PostMetres(float metres) =>
+            float.IsNaN(metres) || Math.Abs(metres) > MaxHeightM ? metres : MetresOf(RoundedCm(metres));
     }
 }

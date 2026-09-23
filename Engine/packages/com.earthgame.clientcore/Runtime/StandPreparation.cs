@@ -41,6 +41,8 @@ namespace EarthGame.ClientCore
         public uint StandCrc;
         public uint LooseCrc;
         public uint GroundCrc;
+        /// <summary>The checksum of the one ground they were stood on (BF.4, <see cref="GroundSnapshot.Crc"/>); zero for the raster alone.</summary>
+        public uint ReliefCrc;
         public StandTree[] Trees;
         public LooseInstance[] Sticks;
         public LooseInstance[] Cobbles;
@@ -50,7 +52,8 @@ namespace EarthGame.ClientCore
     /// What stands and lies on a streamed tile, placed for drawing (M1.6a): a worker's job, as a tile's ground is
     /// (M1.4e). Every post names its cell by <see cref="TileCodec.CellOf"/> and every thing on it its place by
     /// <see cref="StandLayout"/>, so what is drawn is where the server put it, to the centimetre; the ground under each
-    /// thing is read off the tile's own posts (<see cref="TileGround"/>).
+    /// thing is the one ground (<see cref="ClientGround"/>, BF.4) read off the tile's own posts, its cover's relief and the
+    /// hollows dug in it.
     ///
     /// <para>A tile shares its edge posts with its neighbours, so each tile draws its posts but its last row and its
     /// last column, which are the first of the tile beyond — unless no tile lies beyond, at the region's east and
@@ -74,6 +77,11 @@ namespace EarthGame.ClientCore
 
         /// <param name="trunkFlags">What has been done to the tile's trunks (BF.3), a copy the worker alone reads (<see cref="TrunkFlagsIn"/>): a felled trunk is not placed, a stripped one is marked.</param>
         public static PreparedStand Prepare(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, TileGrid grid, LooseTaken taken, ReceivedTile depth, Dictionary<long, byte> trunkFlags)
+            => Prepare(stand, loose, ground, grid, taken, depth, trunkFlags, null);
+
+        /// <param name="fine">The one ground over the tile and the tiles its things spill into (BF.4), a copy the worker alone reads (<see cref="ClientGround.SnapshotFor"/>); null stands everything on the tile's raster alone.</param>
+        public static PreparedStand Prepare(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, TileGrid grid, LooseTaken taken, ReceivedTile depth, Dictionary<long, byte> trunkFlags,
+                                            GroundSnapshot fine)
         {
             if (stand == null) throw new ArgumentNullException(nameof(stand));
             if (ground == null) throw new ArgumentNullException(nameof(ground));
@@ -112,7 +120,7 @@ namespace EarthGame.ClientCore
                         trees.Add(new StandTree
                         {
                             East = (float)east,
-                            Up = (float)TileGround.HeightAt(ground, east, north),
+                            Up = (float)GroundUnder(fine, ground, east, north),
                             North = (float)north,
                             YawDeg = yaw,
                             HeightM = (float)height,
@@ -131,9 +139,9 @@ namespace EarthGame.ClientCore
                     LooseTaken.Cell gone = default;
                     taken?.TryGet(row, col, out gone);
                     for (int k = 0; k < LooseCodes.SticksOf(things); k++)
-                        if ((gone.Sticks & (1 << k)) == 0) sticks.Add(Lying(StandLayout.Kind.Stick, row, col, k, cellCm, postEast, postNorth, ground));
+                        if ((gone.Sticks & (1 << k)) == 0) sticks.Add(Lying(StandLayout.Kind.Stick, row, col, k, cellCm, postEast, postNorth, ground, fine));
                     for (int k = 0; k < LooseCodes.CobblesOf(things); k++)
-                        if ((gone.Cobbles & (1 << k)) == 0) cobbles.Add(Lying(StandLayout.Kind.Cobble, row, col, k, cellCm, postEast, postNorth, ground));
+                        if ((gone.Cobbles & (1 << k)) == 0) cobbles.Add(Lying(StandLayout.Kind.Cobble, row, col, k, cellCm, postEast, postNorth, ground, fine));
                 }
             return new PreparedStand
             {
@@ -141,6 +149,7 @@ namespace EarthGame.ClientCore
                 StandCrc = stand.Crc32,
                 LooseCrc = loose != null ? loose.Crc32 : 0u,
                 GroundCrc = ground.Crc32,
+                ReliefCrc = fine != null ? fine.Crc : 0u,
                 Trees = trees.ToArray(),
                 Sticks = sticks.ToArray(),
                 Cobbles = cobbles.ToArray(),
@@ -152,9 +161,20 @@ namespace EarthGame.ClientCore
         /// carries. A streamed tile's post for a cell stands at the cell's centre, so this is where the drawing put it.
         /// </summary>
         public static LooseInstance Lying(LyingThing thing, ReceivedTile ground, double cellM, double extentM)
+            => Lying(thing, ground, cellM, extentM, null);
+
+        /// <summary>A thing lying, placed as it is drawn, on the one ground (BF.4) where it is given; the tile's raster alone where it is not.</summary>
+        public static LooseInstance Lying(LyingThing thing, ReceivedTile ground, double cellM, double extentM, IHeightSource fine)
         {
             StandLayout.CellCentre(thing.Row, thing.Col, cellM, extentM, out double east, out double north);
-            return Lying(thing.Kind, thing.Row, thing.Col, thing.Index, (int)Math.Round(cellM * 100.0), east, north, ground);
+            return Lying(thing.Kind, thing.Row, thing.Col, thing.Index, (int)Math.Round(cellM * 100.0), east, north, ground, fine);
+        }
+
+        /// <summary>The ground under a thing: the one ground where it is held there, else the tile's own raster.</summary>
+        private static double GroundUnder(IHeightSource fine, ReceivedTile ground, double east, double north)
+        {
+            double h = fine != null ? fine.HeightAt(east, north) : double.NaN;
+            return double.IsNaN(h) ? TileGround.HeightAt(ground, east, north) : h;
         }
 
         /// <summary>
@@ -189,7 +209,7 @@ namespace EarthGame.ClientCore
             return col >= westCol && col <= westCol + span && row <= southRow && row >= southRow - span;
         }
 
-        private static LooseInstance Lying(StandLayout.Kind kind, int row, int col, int index, int cellCm, double postEast, double postNorth, ReceivedTile ground)
+        private static LooseInstance Lying(StandLayout.Kind kind, int row, int col, int index, int cellCm, double postEast, double postNorth, ReceivedTile ground, IHeightSource fine)
         {
             StandLayout.Place(row, col, kind, index, cellCm, out int eastCm, out int northCm, out int yaw);
             double east = postEast + eastCm / 100.0;
@@ -197,7 +217,7 @@ namespace EarthGame.ClientCore
             return new LooseInstance
             {
                 East = (float)east,
-                Up = (float)TileGround.HeightAt(ground, east, north),
+                Up = (float)GroundUnder(fine, ground, east, north),
                 North = (float)north,
                 YawDeg = yaw,
                 Variant = StandLayout.LookOf(row, col, kind, index),

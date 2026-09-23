@@ -54,6 +54,13 @@ namespace EarthGame.Client
         private TileHeightfield _ground;
         /// <summary>The water's depth over the ground, from the tiles the server streams (M1.4b): what the founder wades in since M1.5d.</summary>
         private TileHeightfield _depth;
+        /// <summary>
+        /// The one ground (BF.4): what the Terrain is sampled from, what everything stands on, what a corrected founder is lifted
+        /// onto and whose raster's slope the walk is judged by. <see cref="_ground"/> is the raster alone, which water stands over.
+        /// </summary>
+        private ClientGround _fine;
+        /// <summary>The cover each built Terrain's relief was grown from, by tile, zero for none (BF.4): a cover arriving after its ground builds the Terrain again.</summary>
+        private readonly Dictionary<TileId, uint> _reliefFrom = new Dictionary<TileId, uint>();
         private readonly Dictionary<TileId, Terrain> _tileTerrains = new Dictionary<TileId, Terrain>();
         private readonly Dictionary<TileId, uint> _tileCrcs = new Dictionary<TileId, uint>();
         private readonly Dictionary<TileId, GameObject> _waterTiles = new Dictionary<TileId, GameObject>();
@@ -86,6 +93,8 @@ namespace EarthGame.Client
         private Synoptic _synoptic;
         private float _rippleSeconds, _nextWindAt;
         private bool _hideWater;
+        /// <summary>-eg-hide relief (BF.4): the one ground drawn and stood on without its relief, for a frame beside one with it; the server keeps its own.</summary>
+        private bool _hideRelief;
         /// <summary>-eg-day and -eg-hour (M1.4h): the time asked for at launch, sent once as the developer's settings when the mode is granted.</summary>
         private bool _launchTimeSent;
         private EntityViews _entityViews;
@@ -133,6 +142,8 @@ namespace EarthGame.Client
         public GameClient Client => _client;
         public PlayerController Player => _player;
         public TileHeightfield Ground => _ground;
+        /// <summary>The one ground (BF.4), for a scenario to set beside the Terrain it drew.</summary>
+        public ClientGround FineGround => _fine;
         public bool ViewBuilt { get; private set; }
         /// <summary>What grows underfoot (M1.6c), for a run to count and a scenario to hide.</summary>
         public UnderstoreyViews Understorey => _understorey;
@@ -459,6 +470,10 @@ namespace EarthGame.Client
                       + (rejoin ? ", rejoin" : ""));
             if (_ground == null && _client.Grid != null) _ground = new TileHeightfield(_client.Grid);
             if (_depth == null && _client.Grid != null) _depth = new TileHeightfield(_client.Grid);
+            // One for the runtime's life: it asks the connection of the moment for its tiles and changes, so a rejoin reads its own.
+            if (_fine == null && _client.Grid != null)
+                _fine = new ClientGround(_client.Grid, (layer, id) => layer == TileLayer.GroundCover && _hideRelief ? null : _client?.Tiles?.Holding(layer, id),
+                                         welcome.Seed, () => _client?.Changes);
             if (!rejoin)
             {
                 _clock = new WorldClock(welcome.TotalHours);
@@ -590,6 +605,7 @@ namespace EarthGame.Client
             }
             _tileTerrains.Remove(id);
             _tileCrcs.Remove(id);
+            _reliefFrom.Remove(id);
         }
 
         /// <summary>
@@ -620,22 +636,20 @@ namespace EarthGame.Client
             if (_stand == null || _client?.Tiles == null) return;
             ReceivedTile loose = _client.Tiles.Holding(TileLayer.Loose, id);
             ReceivedTile stand = _client.Tiles.Holding(TileLayer.Stand, id);
+            if (stand == null || _client.Tiles.Holding(TileLayer.Ground, id) == null) return;
             _takenVersions.TryGetValue(id, out int version);
             _changesVersions.TryGetValue(id, out int changed);
             _stand.Want(stand, loose, _client.Tiles.Holding(TileLayer.Ground, id),
                         StandPreparation.TakenIn(_client.Taken, loose, _client.Grid), version,
                         _client.Tiles.Holding(TileLayer.WaterDepth, id),
-                        StandPreparation.TrunkFlagsIn(_client.Changes, stand, _client.Grid), changed);
+                        StandPreparation.TrunkFlagsIn(_client.Changes, stand, _client.Grid), changed, _fine?.SnapshotFor(id));
         }
 
         /// <summary>What of each changed cell has been drawn (BF.3): its tufts taken, its trunk's flags and its ground's, so a change that alters none of them is drawn once.</summary>
-        private readonly Dictionary<long, (ushort Tufts, byte TrunkFlags, byte GroundFlags)> _drawnChanges = new Dictionary<long, (ushort, byte, byte)>();
+        private readonly Dictionary<long, (ushort Tufts, byte TrunkFlags, byte GroundFlags, byte DugCm)> _drawnChanges = new Dictionary<long, (ushort, byte, byte, byte)>();
 
         /// <summary>How many times a trunk of each tile had changed (BF.3), so a stripped or felled trunk places its tile again.</summary>
         private readonly Dictionary<TileId, int> _changesVersions = new Dictionary<TileId, int>();
-
-        /// <summary>The hollows dug into the client's ground (BF.3), by cell, as deep as they have been applied, cm.</summary>
-        private readonly Dictionary<long, int> _dugApplied = new Dictionary<long, int>();
 
         /// <summary>
         /// A cell of the world changed (BF.3): a tuft taken or a cell cleared places the understorey again; a trunk stripped or felled
@@ -646,10 +660,12 @@ namespace EarthGame.Client
             // Only what changes the drawing places anything again (review, 2026-09-23): a felling cut is told every second, and its
             // progress is no part of how the tree is drawn, so until then it re-placed the whole tile's stand every second.
             long key = LooseTaken.Key(cell.Row, cell.Col);
-            _drawnChanges.TryGetValue(key, out (ushort Tufts, byte TrunkFlags, byte GroundFlags) drawn);
-            _drawnChanges[key] = (cell.Tufts, cell.TrunkFlags, cell.GroundFlags);
-            if (cell.Tufts != drawn.Tufts || cell.GroundFlags != drawn.GroundFlags) _understorey?.MarkChanged();
-            if (cell.TrunkFlags != drawn.TrunkFlags && _client?.Tiles != null && _client.Grid != null)
+            _drawnChanges.TryGetValue(key, out (ushort Tufts, byte TrunkFlags, byte GroundFlags, byte DugCm) drawn);
+            _drawnChanges[key] = (cell.Tufts, cell.TrunkFlags, cell.GroundFlags, cell.DugCm);
+            // A hole moves the ground under its cell's tufts, trunk and litter as well as the Terrain (BF.4).
+            bool dug = cell.DugCm != drawn.DugCm;
+            if (cell.Tufts != drawn.Tufts || cell.GroundFlags != drawn.GroundFlags || dug) _understorey?.MarkChanged();
+            if ((cell.TrunkFlags != drawn.TrunkFlags || dug) && _client?.Tiles != null && _client.Grid != null)
                 foreach (TileId id in new List<TileId>(_client.Tiles.Held.Keys))
                 {
                     ReceivedTile stand = _client.Tiles.Holding(TileLayer.Stand, id);
@@ -657,37 +673,49 @@ namespace EarthGame.Client
                     _changesVersions[id] = (_changesVersions.TryGetValue(id, out int version) ? version : 0) + 1;
                     WantStand(id);
                 }
-            if (cell.DugCm > 0) DigCell(cell.Row, cell.Col, cell.DugCm);
+            if (dug && cell.DugCm > 0) DigCell(cell.Row, cell.Col);
         }
 
-        /// <summary>The client's ground lowered by what a dig has taken out of a cell since the hollow was last drawn.</summary>
-        private void DigCell(int row, int col, int dugCm)
+        /// <summary>
+        /// The Terrain round a dug cell sampled again from the one ground (BF.4), which holds the hollow: every built Terrain the
+        /// hole reaches, since a hole on a tile's edge is dug into both. Until BF.4 the client cut a bowl of its own into the one
+        /// Terrain under the cell's centre, and the server's ground was never dug.
+        /// </summary>
+        private void DigCell(int row, int col)
         {
-            if (_client?.Tiles == null || _client.Grid == null) return;
-            long key = LooseTaken.Key(row, col);
-            _dugApplied.TryGetValue(key, out int applied);
-            if (dugCm <= applied) return;
-            ReceivedTile cover = _client.Tiles.Holding(TileLayer.GroundCover, _client.Grid.ForPosition(_player.State.East, _player.State.North));
-            double cellM = cover != null ? cover.CellM : 4.0;
+            if (_fine == null || _client?.Grid == null) return;
+            double cellM = CellOfGround();
+            if (!(cellM > 0.0)) return;
             StandLayout.CellCentre(row, col, cellM, _client.Grid.ExtentM, out double east, out double north);
-            if (!_tileTerrains.TryGetValue(_client.Grid.ForPosition(east, north), out Terrain terrain) || terrain == null) return;
-            TerrainTileBuilder.Dig(terrain, east, north, cellM, (dugCm - applied) / 100.0);
-            _dugApplied[key] = dugCm;
+            double reach = EarthGame.Engine.FineGround.HollowReachCells * cellM + 0.1;
+            foreach (KeyValuePair<TileId, Terrain> built in _tileTerrains)
+                if (built.Value != null) TerrainTileBuilder.Resample(built.Value, east, north, reach, _fine);
         }
 
-        /// <summary>A tile built anew has no hollows: every dig the world holds on it is drawn again.</summary>
+        /// <summary>The ground raster's cell, m, from any ground tile held: what a cell's row and column are counted in; zero before any.</summary>
+        private double CellOfGround()
+        {
+            if (_client?.Tiles == null) return 0.0;
+            foreach (ReceivedTile tile in _client.Tiles.Held.Values) return tile.CellM;
+            return 0.0;
+        }
+
+        /// <summary>
+        /// A Terrain built from a worker's copy of the hollows, sampled again round every hole the world holds, in case one was
+        /// dug while it was prepared (BF.4); a hole it does not reach samples nothing.
+        /// </summary>
         private void RedigTile(TileId id)
         {
-            if (_client?.Changes == null || _client.Grid == null) return;
+            if (_fine == null || _client?.Changes == null || _client.Grid == null) return;
+            if (!_tileTerrains.TryGetValue(id, out Terrain terrain) || terrain == null) return;
+            double cellM = CellOfGround();
+            if (!(cellM > 0.0)) return;
+            double reach = EarthGame.Engine.FineGround.HollowReachCells * cellM + 0.1;
             foreach (CellChange cell in _client.Changes.Cells())
             {
                 if (cell.DugCm == 0) continue;
-                ReceivedTile cover = _client.Tiles.Holding(TileLayer.GroundCover, _client.Grid.ForPosition(_player.State.East, _player.State.North));
-                double cellM = cover != null ? cover.CellM : 4.0;
                 StandLayout.CellCentre(cell.Row, cell.Col, cellM, _client.Grid.ExtentM, out double east, out double north);
-                if (!_client.Grid.ForPosition(east, north).Equals(id)) continue;
-                _dugApplied.Remove(LooseTaken.Key(cell.Row, cell.Col));
-                DigCell(cell.Row, cell.Col, cell.DugCm);
+                TerrainTileBuilder.Resample(terrain, east, north, reach, _fine);
             }
         }
 
@@ -732,8 +760,17 @@ namespace EarthGame.Client
                 WantRing(tile.Id);
                 return;
             }
-            // The water's depth too (M1.6e): a lake bed's sticks and cobbles are placed again, and left out, when it arrives.
-            if (tile.Layer == TileLayer.Stand || tile.Layer == TileLayer.Loose || tile.Layer == TileLayer.Ground || tile.Layer == TileLayer.WaterDepth) WantStand(tile.Id);
+            // The water's depth too (M1.6e): a lake bed's sticks and cobbles are placed again, and left out, when it arrives. And the
+            // cover (BF.4), which the ground's relief under everything is grown from; a tile's ground or cover places again the tiles
+            // east and north of it as well, whose edge things lie on it.
+            if (tile.Layer == TileLayer.Stand || tile.Layer == TileLayer.Loose || tile.Layer == TileLayer.Ground || tile.Layer == TileLayer.WaterDepth
+                || tile.Layer == TileLayer.GroundCover) WantStand(tile.Id);
+            if (tile.Layer == TileLayer.Ground || tile.Layer == TileLayer.GroundCover)
+            {
+                WantStand(new TileId(tile.Id.Ix + 1, tile.Id.Iz));
+                WantStand(new TileId(tile.Id.Ix, tile.Id.Iz + 1));
+                WantStand(new TileId(tile.Id.Ix + 1, tile.Id.Iz + 1));
+            }
             // The water a tile carries is drawn as its own mesh (M1.4c); the ground is what a Terrain is built
             // from. Either can arrive first, so both paths ask for the pair.
             if (tile.Layer != TileLayer.Ground)
@@ -745,26 +782,55 @@ namespace EarthGame.Client
                     _depth.Add(tile);
                     BuildWater(tile.Id);
                 }
-                else if (tile.Layer == TileLayer.GroundCover && _tileTerrains.ContainsKey(tile.Id)) StartColouring(tile.Id);
+                else if (tile.Layer == TileLayer.GroundCover && _tileTerrains.ContainsKey(tile.Id))
+                {
+                    // The cover is what the Terrain's relief is grown from (BF.4): a Terrain built before it arrived is built again,
+                    // its colour with it; one already built from it is only coloured, as before.
+                    ReceivedTile built = _client.Tiles.Holding(TileLayer.Ground, tile.Id);
+                    if (built != null && _reliefFrom.TryGetValue(tile.Id, out uint grown) && grown != ReliefWanted(built))
+                        PrepareGround(built);
+                    else StartColouring(tile.Id);
+                }
                 return;
             }
             if (_ground == null) _ground = new TileHeightfield(_client.Grid);
             _ground.Add(tile);
             if (tile.FromCache) TilesFromCache++;
             uint held;
-            if (_tileTerrains.ContainsKey(tile.Id) && _tileCrcs.TryGetValue(tile.Id, out held) && held == tile.Crc32)
+            if (_tileTerrains.ContainsKey(tile.Id) && _tileCrcs.TryGetValue(tile.Id, out held) && held == tile.Crc32
+                && _reliefFrom.TryGetValue(tile.Id, out uint grownFrom) && grownFrom == ReliefWanted(tile))
             {
                 CheckInteractive();
                 return;
             }
-            // Sampling the posts and building the colour map are pure over this tile alone, so they go to a
-            // worker and the main thread is left with what only Unity can do (M1.4e).
+            PrepareGround(tile);
+        }
+
+        /// <summary>
+        /// A tile's Terrain prepared on a worker (M1.4e): sampling the posts from the one ground (BF.4) and building the colour map
+        /// are pure over this tile, its cover and a copy of its hollows, so the main thread is left with what only Unity can do. A
+        /// preparation already running is let finish, and the tile is asked for again when it is built if its cover changed meanwhile.
+        /// </summary>
+        private void PrepareGround(ReceivedTile tile)
+        {
             if (_preparing.ContainsKey(tile.Id)) return;
             ReceivedTile cover = _client.Tiles.Holding(TileLayer.GroundCover, tile.Id);
             if (cover != null) _coverFrom[tile.Id] = cover.Crc32;
+            ulong seed = _fine != null ? _fine.Seed : 0UL;
+            TileGrid grid = _client.Grid;
+            Func<int, int, byte> dug = ClientGround.DugIn(_client.Changes, tile, grid);
             System.Diagnostics.Stopwatch clock = _clockMs;
+            bool relief = !_hideRelief;
             _preparing[tile.Id] = Task.Run(() => TilePreparation.Prepare(tile, TerrainTileBuilder.TilePosts, cover,
-                GroundColourMap.Texels, () => clock.Elapsed.TotalMilliseconds));
+                GroundColourMap.Texels, () => clock.Elapsed.TotalMilliseconds, seed, dug, grid, relief));
+        }
+
+        /// <summary>The cover a tile's Terrain should have grown its relief from (BF.4): its own cover tile when held on its posts, none when not or when the relief is hidden.</summary>
+        private uint ReliefWanted(ReceivedTile ground)
+        {
+            if (_hideRelief) return 0u;
+            ReceivedTile cover = _client.Tiles.Holding(TileLayer.GroundCover, ground.Id);
+            return ClientGround.SamePosts(ground, cover) ? cover.Crc32 : 0u;
         }
 
         /// <summary>The next tile to build: the one under the founder if it is queued, else the oldest.</summary>
@@ -866,7 +932,11 @@ namespace EarthGame.Client
             double objectMs = Since(ref at);
             _tileTerrains[prepared.Id] = terrain;
             _tileCrcs[prepared.Id] = prepared.GroundCrc;
+            _reliefFrom[prepared.Id] = prepared.ReliefCrc;
             RedigTile(prepared.Id);
+            // A cover that arrived while this was prepared without it: the Terrain is built again with its relief (BF.4).
+            ReceivedTile groundNow = _client.Tiles.Holding(TileLayer.Ground, prepared.Id);
+            if (groundNow != null && prepared.ReliefCrc != ReliefWanted(groundNow)) PrepareGround(groundNow);
             BuildWater(prepared.Id);
             if (_coarse != null)
                 TerrainTileBuilder.CutHole(_coarse, _coarse.transform.position.x, _coarse.transform.position.z, prepared.OriginEast, prepared.OriginNorth, prepared.SizeM);
@@ -976,7 +1046,7 @@ namespace EarthGame.Client
             {
                 _stand = new StandViews(standMaterial, _client.Grid);
                 // What grows underfoot (M1.6c), from the cover tiles this client already holds.
-                _understorey = new UnderstoreyViews(standMaterial);
+                _understorey = new UnderstoreyViews(standMaterial) { Ground = _fine };
                 WantRings();
             }
 
@@ -1049,6 +1119,14 @@ namespace EarthGame.Client
                     {
                         _stand.DrawRing = false;
                         Debug.Log("[client] -eg-hide ring: hidden");
+                        continue;
+                    }
+                    if (name == "relief")
+                    {
+                        // The one ground's relief below the data (BF.4), left out of what the client draws and stands on, for a frame
+                        // beside one with it. The server keeps its own: things it lets go lie a few centimetres off the ground drawn.
+                        _hideRelief = true;
+                        Debug.Log("[client] -eg-hide relief: hidden");
                         continue;
                     }
                     if (name == "understorey" && _understorey != null)
@@ -1137,8 +1215,8 @@ namespace EarthGame.Client
                 ? new ScriptedInputSource() : null;
             IPlayerInputSource input = script != null ? script : new InputSystemSource();
             Double3 spawn = new Double3(welcome.SpawnEast, welcome.SpawnUp + SpawnDropM, welcome.SpawnNorth);
-            _player.Attach(_client, new PhysxCollision(_ground != null ? new StreamedWater(_ground, _depth) : null), MoverConfig.Default, _region, _camera, input, spawn, DefaultYawDeg, 0f);
-            _player.Ground = _ground;
+            _player.Attach(_client, new PhysxCollision(_ground != null ? new StreamedWater(_ground, _depth) : null, _fine), MoverConfig.Default, _region, _camera, input, spawn, DefaultYawDeg, 0f);
+            _player.Ground = _fine != null ? (IHeightSource)_fine : _ground;
             _player.Frozen = true;
             // -eg-still: the camera without the stride's dip and sway (M1.5c), for the owner to play against the one he
             // found good in ruling 18.
@@ -1149,12 +1227,12 @@ namespace EarthGame.Client
             if (LaunchArgs.Has("dev")) _client.SendDeveloperMode(true);
             _player.Stepped += OnStepped;
             // The trunks a founder can walk into (M1.6b): the client's, since the server never runs the mover.
-            _trunks = new TrunkBodies(transform);
+            _trunks = new TrunkBodies(transform) { Ground = _fine };
             _sounds = new Sounds(_camera.transform);
 
             // The verbs (M1.5a): what the crosshair is on, the verb line, the carrying window and the thing in hand.
             if (_stand != null) _hand = new HandView(_camera, _stand.LooseMaterial);
-            _verbs = new VerbController(_client, _entityViews, _player, _camera, _hud, _hand, _ground, _ground != null ? new StreamedWater(_ground, _depth) : null, _trunks, _understorey);
+            _verbs = new VerbController(_client, _entityViews, _player, _camera, _hud, _hand, _ground, _ground != null ? new StreamedWater(_ground, _depth) : null, _trunks, _understorey, _fine);
             // The developer's panel (M1.D), on an object of its own, since an object holds one UIDocument and the HUD's is on
             // this one. Built in every game since M1.E and opened only while developer mode is on, which F2 turns on and off.
             _devPanel = new GameObject("Developer panel").AddComponent<DevPanelController>();

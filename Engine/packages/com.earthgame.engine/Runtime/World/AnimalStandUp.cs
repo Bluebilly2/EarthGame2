@@ -327,7 +327,7 @@ namespace EarthGame.Engine
             Heightfield terrain = world.Terrain;
             if (terrain != null && !terrain.Contains(east, north)) return false;
             WorldWater water = world.Water;
-            if (water == null) return world.GroundAt(east, north) >= Heightfield.SeaLevelM;
+            if (water == null) return world.RasterGroundAt(east, north) >= Heightfield.SeaLevelM;
             RegionRaster classes = water.Classes;
             TileCodec.CellOf(classes.ExtentM, classes.CellM, east, north, out int row, out int col);
             row = Math.Min(classes.Height - 1, Math.Max(0, row));
@@ -339,7 +339,7 @@ namespace EarthGame.Engine
                 _surface = new Heightfield(water.Surface);
                 _surfaceOf = water;
             }
-            return !(_surface.HeightAt(east, north) > world.GroundAt(east, north));
+            return !(_surface.HeightAt(east, north) > world.RasterGroundAt(east, north));
         }
 
         /// <summary>

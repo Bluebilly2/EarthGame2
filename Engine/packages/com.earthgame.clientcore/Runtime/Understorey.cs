@@ -63,7 +63,8 @@ namespace EarthGame.ClientCore
         /// Every tuft standing within a distance of a point across the ground, added to a list, out of the cover, ground
         /// and stand tiles the client holds. A cell whose tiles are not held grows nothing.
         /// </summary>
-        public static void Find(double east, double north, double radiusM, TileReceiver tiles, TileGrid grid, List<UnderstoreyTuft> into)
+        /// <param name="ground">The client's one ground (BF.4), whose seed and hollows the tufts grow on; null grows them on the tiles' raster alone.</param>
+        public static void Find(double east, double north, double radiusM, TileReceiver tiles, TileGrid grid, List<UnderstoreyTuft> into, ClientGround ground = null)
         {
             if (tiles == null || grid == null || into == null || !(radiusM > 0.0)) return;
             ReceivedTile here = tiles.Holding(TileLayer.GroundCover, grid.ForPosition(east, north));
@@ -81,8 +82,8 @@ namespace EarthGame.ClientCore
                     StandLayout.CellCentre(row, col, cell, grid.ExtentM, out double centreEast, out double centreNorth);
                     TileId id = grid.ForPosition(centreEast, centreNorth);
                     ReceivedTile cover = tiles.Holding(TileLayer.GroundCover, id);
-                    ReceivedTile ground = tiles.Holding(TileLayer.Ground, id);
-                    if (cover?.Codes == null || ground?.Heights == null || ground.Posts != cover.Posts) continue;
+                    ReceivedTile tile = tiles.Holding(TileLayer.Ground, id);
+                    if (cover?.Codes == null || tile?.Heights == null || tile.Posts != cover.Posts) continue;
                     int x = (int)Math.Round((centreEast - cover.OriginEast) / cell);
                     int z = (int)Math.Round((centreNorth - cover.OriginNorth) / cell);
                     if (x < 0 || z < 0 || x >= cover.Posts || z >= cover.Posts) continue;
@@ -121,7 +122,7 @@ namespace EarthGame.ClientCore
                             Col = col,
                             Index = k,
                             East = (float)tuftEast,
-                            Up = (float)(TileGround.HeightAt(ground, tuftEast, tuftNorth) - SinkM),
+                            Up = (float)((ground != null ? ground.HeightAtOr(tile, tuftEast, tuftNorth) : TileGround.HeightAt(tile, tuftEast, tuftNorth)) - SinkM),
                             North = (float)tuftNorth,
                             YawDeg = yaw,
                             HeightM = (float)(tall * size),

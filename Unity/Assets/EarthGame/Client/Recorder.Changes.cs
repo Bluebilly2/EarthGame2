@@ -1,9 +1,11 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using EarthGame.ClientCore;
 using EarthGame.Engine;
 using EarthGame.Protocol;
+using EarthGame.Shared;
 using UnityEngine;
 
 namespace EarthGame.Client
@@ -85,6 +87,10 @@ namespace EarthGame.Client
             bool stripped = false, fibre = false, corded = false, pulled = false, cleared = false, dug = false, felled = false;
             int cutKept = 0;
             (int Row, int Col)? clearedCell = null;
+
+            // 0. The ground drawn is the one ground (BF.4): the Terrain met by rays round the founder, beside the function the
+            // tiles give and the raster under it.
+            _log.Record(T, Tick, "ground", GroundProbe());
 
             // 1. The nearest trunk whose bark strips, walked to and stripped with empty hands.
             TrunkNearby? bark = NearestTrunk(t => t.Species != null && t.Species.StrippableBarkM > 0.0 && (_client.Changes.TrunkOf(t.Row, t.Col).Flags & TrunkChange.BarkTaken) == 0, shortest: false);
@@ -261,6 +267,7 @@ namespace EarthGame.Client
                                     .With("seconds", (double)_client.LastIntentResult.Seconds).With("answer", (int)_client.LastIntentResult.Outcome)
                                     .With("ended", got ? (int)ended.Ended : -1).With("words", got ? ended.Note : string.Empty).With("dug_cm", (int)_client.Changes.GroundOf(target.Value.Row, target.Value.Col).DugCm));
                                 yield return Wait(1.0);
+                                if (dug) _log.Record(T, Tick, "hollow", HollowProbe(target.Value.Row, target.Value.Col));
                                 yield return Capture("changes-dug");
                                 captures++;
                             }
@@ -340,7 +347,7 @@ namespace EarthGame.Client
         private TrunkNearby? NearestTrunk(Func<TrunkNearby, bool> fit, bool shortest)
         {
             _changesTrunks.Clear();
-            TrunksNear.Find(_player.State.East, _player.State.North, ChangesSearchM, TrunkBodies.MeetsAtM, _client.Tiles, _client.Grid, _changesTrunks);
+            TrunksNear.Find(_player.State.East, _player.State.North, ChangesSearchM, TrunkBodies.MeetsAtM, _client.Tiles, _client.Grid, _changesTrunks, Fine);
             TrunkNearby? best = null;
             double bestKey = double.MaxValue;
             foreach (TrunkNearby t in _changesTrunks)
@@ -359,7 +366,7 @@ namespace EarthGame.Client
         private UnderstoreyTuft? NearestTuft(Func<UnderstoreyTuft, bool> fit)
         {
             _changesTufts.Clear();
-            Understorey.Find(_player.State.East, _player.State.North, ChangesSearchM, _client.Tiles, _client.Grid, _changesTufts);
+            Understorey.Find(_player.State.East, _player.State.North, ChangesSearchM, _client.Tiles, _client.Grid, _changesTufts, Fine);
             UnderstoreyTuft? best = null;
             double bestD = double.MaxValue;
             foreach (UnderstoreyTuft t in _changesTufts)
@@ -376,6 +383,94 @@ namespace EarthGame.Client
         }
 
         /// <summary>Faces a trunk at the chest until the crosshair has it, then begins a work on it.</summary>
+        /// <summary>How many rays the ground probe casts, and how far round the founder (BF.4).</summary>
+        private const int GroundProbePoints = 400;
+        private const double GroundProbeM = 30.0;
+
+        /// <summary>The Terrain's height at a point, met by a ray down onto it alone; NaN where it is not met.</summary>
+        private static double TerrainAt(double east, double north, double above)
+        {
+            Vector3 from = new Vector3((float)east, (float)(above + 40.0), (float)north);
+            return Physics.Raycast(from, Vector3.down, out RaycastHit hit, 200f, 1 << Layers.Terrain, QueryTriggerInteraction.Ignore) ? hit.point.y : double.NaN;
+        }
+
+        /// <summary>
+        /// The ground drawn set beside the one ground (BF.4): rays down onto the Terrain at points round the founder, each beside
+        /// the function the tiles give and the raster under it. An error when the Terrain strays further than its triangles may.
+        /// </summary>
+        private JsonObject GroundProbe()
+        {
+            ClientGround fine = Fine;
+            TileHeightfield raster = GetComponent<ClientRuntime>()?.Ground;
+            int points = 0, missed = 0;
+            double worst = 0.0, sum = 0.0, relief = 0.0;
+            System.Random rng = new System.Random(7);
+            for (int i = 0; i < GroundProbePoints; i++)
+            {
+                double a = rng.NextDouble() * 2.0 * System.Math.PI, r = System.Math.Sqrt(rng.NextDouble()) * GroundProbeM;
+                double east = _player.State.East + r * System.Math.Cos(a), north = _player.State.North + r * System.Math.Sin(a);
+                double one = fine != null ? fine.HeightAt(east, north) : double.NaN;
+                double terrain = double.IsNaN(one) ? double.NaN : TerrainAt(east, north, one);
+                if (double.IsNaN(terrain))
+                {
+                    missed++;
+                    continue;
+                }
+                points++;
+                double off = System.Math.Abs(terrain - one);
+                sum += off;
+                if (off > worst) worst = off;
+                double under = raster != null ? raster.HeightAt(east, north) : double.NaN;
+                if (!double.IsNaN(under)) relief = System.Math.Max(relief, System.Math.Abs(one - under));
+            }
+            double bound = Relief.TerrainStrayM + 0.01;
+            if (points < GroundProbePoints / 2 || worst > bound)
+            {
+                _errors++;
+                _log.Record(T, Tick, "error", new JsonObject().With("message", "the Terrain strays " + worst.ToString("0.000", CultureInfo.InvariantCulture) + " m from the one ground at "
+                                                                     + points + " point(s), " + missed + " missed; " + bound.ToString("0.000", CultureInfo.InvariantCulture) + " m allowed"));
+            }
+            return new JsonObject().With("points", points).With("missed", missed).With("terrain_off_max_m", worst).With("terrain_off_mean_m", points > 0 ? sum / points : 0.0)
+                .With("relief_max_m", relief).With("allowed_m", bound);
+        }
+
+        /// <summary>
+        /// A dug cell set beside the one ground (BF.4): the ground at its centre down from the undug ground by the depth the world
+        /// holds, and the Terrain there on it as near as its posts can carry a cone three metres round: a post of the Terrain
+        /// stands up to 1.4 m from the cone's point, where the cone is half as deep (the first run's 10 cm hole met the Terrain
+        /// 3.8 cm above its point). An error when either is not so.
+        /// </summary>
+        private JsonObject HollowProbe(int row, int col)
+        {
+            ClientGround fine = Fine;
+            byte dugCm = _client.Changes.GroundOf(row, col).DugCm;
+            ReceivedTile any = null;
+            foreach (ReceivedTile t in _client.Tiles.Held.Values)
+            {
+                any = t;
+                break;
+            }
+            if (fine == null || any == null)
+            {
+                _errors++;
+                _log.Record(T, Tick, "error", new JsonObject().With("message", "no ground held to measure the hole in"));
+                return new JsonObject().With("row", row).With("col", col);
+            }
+            StandLayout.CellCentre(row, col, any.CellM, _client.Grid.ExtentM, out double east, out double north);
+            double one = fine.HeightAt(east, north), undug = fine.UndugAt(east, north), terrain = TerrainAt(east, north, one);
+            double hollow = undug - one;
+            double allowed = Relief.TerrainStrayM + 0.5 * dugCm / 100.0;
+            bool right = System.Math.Abs(hollow - dugCm / 100.0) <= 0.005 && System.Math.Abs(terrain - one) <= allowed;
+            if (!right)
+            {
+                _errors++;
+                _log.Record(T, Tick, "error", new JsonObject().With("message", "the hole at (" + row + ", " + col + ") is " + hollow.ToString("0.000", CultureInfo.InvariantCulture)
+                                                                     + " m deep in the one ground for " + dugCm + " cm dug, and the Terrain is " + (terrain - one).ToString("0.000", CultureInfo.InvariantCulture) + " m off it"));
+            }
+            return new JsonObject().With("row", row).With("col", col).With("dug_cm", (int)dugCm).With("ground_m", one).With("undug_m", undug)
+                .With("hollow_m", hollow).With("terrain_m", terrain).With("allowed_m", allowed).With("right", right);
+        }
+
         private IEnumerator BeginTrunkWork(WorkKind kind, TrunkNearby trunk)
         {
             Face(new Double3(trunk.East, trunk.Up + TreeGeometries.BreastHeightM, trunk.North));
@@ -436,7 +531,7 @@ namespace EarthGame.Client
         private LyingNearby? NearestPointable()
         {
             _near.Clear();
-            LyingNear.Find(_player.State.East, _player.State.North, ChangesSearchM, _client.Tiles, _client.Grid, _client.Taken, _near);
+            LyingNear.Find(_player.State.East, _player.State.North, ChangesSearchM, _client.Tiles, _client.Grid, _client.Taken, _near, Fine);
             Double3 eye = _player.Eye;
             CarryingMessage carrying = _client.Carrying;
             Definition tool = null;

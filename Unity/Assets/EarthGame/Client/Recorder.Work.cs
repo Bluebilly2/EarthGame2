@@ -146,7 +146,7 @@ namespace EarthGame.Client
         private LyingNearby? NearestWorkable(WorkKind kind)
         {
             _near.Clear();
-            LyingNear.Find(_player.State.East, _player.State.North, Hands.ReachM + 0.5, _client.Tiles, _client.Grid, _client.Taken, _near);
+            LyingNear.Find(_player.State.East, _player.State.North, Hands.ReachM + 0.5, _client.Tiles, _client.Grid, _client.Taken, _near, Fine);
             Double3 eye = _player.Eye;
             LyingNearby? best = null;
             double bestD = double.MaxValue;
@@ -167,7 +167,7 @@ namespace EarthGame.Client
         private LyingNearby? Find(LyingThing thing)
         {
             _near.Clear();
-            LyingNear.Find(_player.State.East, _player.State.North, Hands.ReachM + 0.5, _client.Tiles, _client.Grid, _client.Taken, _near);
+            LyingNear.Find(_player.State.East, _player.State.North, Hands.ReachM + 0.5, _client.Tiles, _client.Grid, _client.Taken, _near, Fine);
             foreach (LyingNearby n in _near) if (n.Thing.Equals(thing)) return n;
             return null;
         }

@@ -1,7 +1,8 @@
 # Contract BF.4 — The ground below the data
 
 **Status:** drafted 2026-09-23, the fourth of the beta's foundations (`Docs/BETA_MAP.md` §7, F4; CANON ruling 41: "Treat
-the world itself as a missing foundational system"). Owner: Claude (the main session). Built in three stages, each
+the world itself as a missing foundational system"). Stage one built 2026-09-23 (its exit record below); stages two and three
+to come. Owner: Claude (the main session). Built in three stages, each
 shippable alone: stage one, one ground with relief below the data; stage two, the ground underfoot; stage three, rock
 that stands, the stone of the place and the country's things. William's lane: his eyes on the ground in frames and in
 play, his hands on the walk, and his yes to any data the stone of the place needs.
@@ -37,25 +38,32 @@ the client's Terrain posts sample the function, so what is drawn is what is walk
    at load, as the tiles do, so both compute from equal inputs. Proved by a test that sets a server's world and a
    client's held tiles side by side and finds them equal to a millimetre at ten thousand random points, and by
    `tile_check` staying green (the tiles themselves are unchanged).
-2. **Relief below the data.** `Relief.At(east, north, site)`: smooth value noise on seeded lattices no finer than 4 m
-   (what the Terrain's 1.953 m posts can carry), its amplitude and wavelength set by the site, blended across cells by the
-   same bilinear weights as the heights so no cell edge shows. A first table, stated as a model to be judged in frames:
+2. **Relief below the data.** `Relief.At`: smooth value noise on seeded lattices no finer than 5 m (what the Terrain's
+   1.953 m posts can carry), in two octaves, each turned off the region's axes so no row of humps lines up with the map; its
+   amplitude and lattice set by each corner's cover and blended by the same bilinear weights as the heights so no cell edge
+   shows. The table as built (the draft's is in "What changed on the way"), a model to be judged in frames:
 
-   | Where | Amplitude | Wavelength | What it stands for |
+   | Cover | Amplitude | Lattice | What it stands for |
    |---|---|---|---|
-   | Forest floor, bracken | ±0.10 m | 6 m | root humps, old falls, ruts |
-   | Heath | ±0.15 m | 4 m | hummocks round the shrubs |
-   | Grass, sedge | ±0.06 m | 5 m | tussock ground |
-   | Dune sand | ±0.20 m | 8 m | the hummocks a vegetated dune piles round its plants |
-   | Beach sand | ±0.02 m | 12 m | ground the swash smooths |
-   | Rock, steeper than 30° by the raster | ±0.30 m, stepped | 1 m of height | ledges on a cliff face, as a softened staircase |
-   | Rock, gentler | ±0.08 m | 4 m | the benches of a platform, thin soil over rock |
-   | Bare earth, swamp floor | ±0.05 m, ±0.04 m | 5 m | |
-   | Water standing, and 3 m from it | none, tapering | | the water, the wading and the shore stay as they are |
+   | Forest floor | ±0.12 m | 6 m | root humps, old falls, the pits trees left |
+   | Bracken | ±0.10 m | 6 m | the same floor under a fern |
+   | Heath | ±0.10 m | 5 m | hummocks round the shrubs |
+   | Grass, sedge | ±0.06 m | 5 m | tussock ground, smoothed to the posts |
+   | Rock | ±0.10 m | 5 m | broken rock, a platform's benches |
+   | Bare earth | ±0.05 m | 5 m | |
+   | Swamp floor | ±0.04 m | 5 m | hummock and hollow |
+   | Dune sand | ±0.04 m | 12 m | bare sand the wind smooths |
+   | Beach sand | ±0.02 m | 12 m | a beach the swash smooths |
+   | Sea, fresh water, a cover not known | none | | the water, the wading and the shore stay as they are |
 
-   Bounded by tests: never more than 0.35 m from the raster; ground the raster's own triangles call walkable (35° or
-   less) stays walkable post pair by post pair; the collider's triangles and the function differ by 3 cm at most on
-   relief alone; deterministic by the seed; zero wherever water stands.
+   Toward water it fades by the smootherstep of the quad's dry share (the bilinear weights of its dry posts): a tenth left at
+   a quarter dry, under a hundredth at a tenth. Bounded by tests: never more than 0.12 m from the raster (`Relief.MostM`);
+   no more than 6° added to any slope (`Relief.SteepestDeg`); the Terrain's triangles within 5 cm of the function on relief
+   alone (`Relief.TerrainStrayM`); deterministic by the seed; none where water stands at every post. **The walk is judged on
+   the raster's slope as the Terrain's posts sample it** (`ClientGround.TryWalkNormalAt`, read by the client's ground probe
+   on the Terrain), what it was judged by before the relief: the relief moves the feet and the eye, never makes ground the
+   data calls walkable slide, and neither speeds nor slows the pace, so ground the raster calls walkable stays walkable by
+   construction rather than by a bound on the relief.
 3. **The hollow joins the ground.** A dug cell's depth (BF.3) is a term of `FineGround`, a bowl three-quarters of a cell
    wide, on both sides: the server's ground is dug where the client's is, and the client's `TerrainTileBuilder.Dig`
    samples the function again rather than keeping its own bowl. Pays DEBTS "The hollow is the client's alone".
@@ -114,3 +122,65 @@ by itself. No fire, no structures (BF.5, BF.6).
 ## Exit
 
 The promises kept with the counts as run, or "What changed on the way" saying which was not and why.
+
+### Stage one (2026-09-23)
+
+**What was built.** `FineGround` (engine) is the one function: a quad of four posts (`GroundQuad`, each post's height as a
+tile carries it by `TileCodec.PostMetres`, its cover byte and its dug depth), the raster's bilinear height, plus `Relief`,
+less the hollow (a cone to each dug post's depth, three-quarters of a cell round it). The server builds its quads from its
+rasters and changes (`FineGround.TryQuad`) and `WorldState.GroundAt` is the function; `RasterGroundAt` keeps the raster for
+what water is measured over (`WaterAt`, the animals' dry test) and the openness keeps it too. The movement check judges the
+feet against it (`FineGroundSource`). The client builds its quads from the tiles it holds (`ClientGround`): the Terrain's
+posts are sampled from it on the worker with a copy of the tile's hollows and room below for the deepest hole
+(`TilePreparation.DigRoomM`), a Terrain built before its cover is built again when the cover arrives, a dig resamples every
+Terrain the hole reaches (`TerrainTileBuilder.Resample`, in place of BF.3's own bowl), the trees, the litter, the trunks'
+bodies, the tufts and the crosshair's search for lying things stand on it, and a corrected founder is lifted onto it.
+`-eg-hide relief` draws and stands the client on the ground without the relief, for frames beside ones with it.
+
+**As run.** `dotnet test Engine/tests/EarthGame.Tests`: 832 passed, 0 failed, the side worker's uncommitted region tests
+among them (fifteen new here: `FineGroundTests`, 8, `ReliefTests`, 7). The server's ground and the client's over the tiles of a made world of every cover, a lake, a creek, the
+sea and three hollows (one on a tile's edge, one on four tiles' corner): equal at 10,000 random points, 2,002 points on the
+tiles' shared edges and 192 round the hollows, the largest difference 0 m; the relief reached 0.108 m there. The largest
+relief met by cover within its table (forest floor 0.110 of 0.12 m, heath 0.095 of 0.10, rock 0.094 of 0.10, beach 0.018
+of 0.02); the steepest tilt the relief adds over half a metre 2.3°; the Terrain's triangles 1.7 to 2.0 cm from the relief
+(forest floor, heath, rock); things on a tile within 0.04 mm of the server's ground, and the 122 past its west and south
+edges within 0.006 mm. The cost in the suite's Debug build: the server's ground 449 ns a call, a tile's 269 ns, a kilometre
+tile's 513 posts a side 82.5 ms on the worker. Three sabotages, each restored byte for byte: the server's ground without the
+relief (nine of the fifteen red), the relief under water (two red), the hollow on the client alone (three red). The
+Unity-shaped compile clean; the edit-mode tests 10 of 10 (the uncommitted review probe's own failure aside).
+
+In the built game (Build/Harness, `BF.4-stage1`, the walk still on the raster's own slope, 2026-09-23): the changes scenario
+0 errors, its one correction the panel's stand at the wake, every work done; the Terrain within 0.0148 m of the one ground
+at 400 rays round the wake (0.0019 m on average), the relief there 0.080 m; the 10 cm hole 0.100 m deep in the one ground,
+the Terrain 0.0376 m above its point; `save_check` and `tile_check` ok. The drink, the wade, the carry and the controls (40
+checks) each 0 errors and 0 corrections. The dune scenario walked its 33.8° face down at 0.56 m/s and up at 0.43 m/s and
+kept a sliding founder's feet (0.022 m under at the lowest), and was corrected nineteen times on its way to the slide's
+face: see "What changed on the way", 7; the walk now reads the Terrain's squares, and the scenarios are run again on it.
+
+**What changed on the way.**
+1. *The table.* The draft's heath at ±0.15 m on 4 m, dune sand at ±0.20 m on 8 m and a stepped ±0.30 m on steep rock gave
+   way to the table above: the finest lattice 5 m, so the Terrain's triangles stray 2 cm rather than more than the draft's
+   3 cm bound; dune sand is the bare sand the cover names (a vegetated dune is heath or grass by the cover's own rule, so the
+   hummocks round its plants are theirs); ledges on steep rock are rock that stands, stage three. The largest amplitude is
+   0.12 m, so the bound is 0.12 rather than 0.35.
+2. *Walkable by construction.* The draft bounded the relief so walkable ground stayed walkable post pair by post pair. No
+   relief worth drawing can promise that near the 35° limit: any bump steepens one side. A fade by the raster's slope would
+   need each post's neighbours, which a tile's edge posts do not have in the tile, and the Terrains' shared edges would
+   crack. So the walk reads the raster's own slope and the relief only the height (§ promise 2).
+3. *The fade toward water.* The draft said none within 3 m of water. Built as the smootherstep of the quad's dry share, which
+   is flat at both ends: the fourth power first tried fell steepest right beside the dry post, a 7° tilt from the fade alone.
+4. *Rounding at the post, not at load.* The server rounds each post as the tile does when it reads it, so `Heightfield` and
+   the raster are unchanged and a raster is not held twice.
+5. *Things past a tile's edge.* A cell's layout puts some of its things up to half a cell outside its tile, on the tiles
+   west and south; a worker holding the tile alone stood them on its edge carried on, up to 0.12 m off where the cover
+   changes at the edge. The stand's worker is handed the one ground over the tile and those three (`GroundSnapshot`), and a
+   tile is placed again when a neighbour's ground or cover arrives. A reader holding one tile only now carries its edge on at
+   the edge's own slope rather than flat.
+6. *The cover's water, not the water's class.* The relief fades toward posts whose cover is the sea or fresh water, which
+   `GroundCovers.Of` sets from the water's class, so the client needs no tile of the class to grow the same relief.
+7. *The walk's slope from the Terrain's squares, not the raster's cells.* The raster's own bilinear slope, the first built,
+   is steeper than the Terrain ever was where a cell's surface folds: at the gate world's dune foot 37° where the square of
+   Terrain posts round the same point reads 32° (twenty samples of the 221 m walk to the slide's face over the limit by the
+   one and not the other). The dune scenario's founder slid there, landed at 7.9 m/s and was corrected nineteen times; no
+   earlier dune run had a correction. The walk reads the raster over the square of the Terrain's posts, 1.95 m, as the
+   Terrain's own triangles did before the relief (`TheWalkIsJudgedByTheRasterAsTheTerrainSamplesIt`).

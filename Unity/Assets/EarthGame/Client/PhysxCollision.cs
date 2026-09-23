@@ -17,12 +17,15 @@ namespace EarthGame.Client
     {
         private const float Skin = 0.02f;
         private readonly IHeightSource _water;
+        private readonly ClientGround _walk;
         private readonly int _mask;
 
         /// <param name="water">Where water stands over the ground the client holds, NaN where none does; null for none anywhere.</param>
-        public PhysxCollision(IHeightSource water)
+        /// <param name="walk">The one ground (BF.4), by whose raster's slope a walk on the Terrain is judged; null judges by the Terrain's own triangles.</param>
+        public PhysxCollision(IHeightSource water, ClientGround walk = null)
         {
             _water = water;
+            _walk = walk;
             _mask = Layers.Walkable;
         }
 
@@ -34,6 +37,11 @@ namespace EarthGame.Client
             {
                 groundUp = hit.point.y;
                 normal = new Double3(hit.normal.x, hit.normal.y, hit.normal.z);
+                // On the ground itself the walk is judged by the raster's slope as the Terrain's posts sample it (BF.4), as it was
+                // before the relief: the relief below the data moves the feet and the eye, and never makes ground the data calls
+                // walkable slide, nor speeds or slows the pace. What stands on the ground (a trunk, a thing) keeps the normal it was met at.
+                if (_walk != null && hit.collider is TerrainCollider && _walk.TryWalkNormalAt(hit.point.x, hit.point.z, TerrainTileBuilder.PostSpacingM, out Double3 walk))
+                    normal = walk;
                 return true;
             }
             groundUp = 0.0;

@@ -125,33 +125,36 @@ namespace EarthGame.Client
         }
 
         /// <summary>
-        /// A hollow dug into a placed tile (BF.3): the posts of a cell lowered by a depth, full at the cell's centre and easing to
-        /// nothing three-quarters of a cell out, so a dig reads as a bowl in the ground the founder walks; the server's ground is
-        /// unchanged (DEBTS). Idempotent by the caller's account of what was applied: the depth passed is the further depth.
+        /// The posts of a placed tile within a reach of a point sampled again from a ground (BF.4): how a hole dug into the one
+        /// ground reaches the ground drawn and walked, the Terrain holding what the ground holds. Until BF.4 the client cut a
+        /// cone of its own into the posts (BF.3) and the server's ground was never dug. Held to the Terrain's range, whose base
+        /// the preparation leaves room below for the deepest hole (<see cref="TilePreparation.DigRoomM"/>); a post where the
+        /// ground is not held keeps what it had.
         /// </summary>
-        public static void Dig(Terrain terrain, double cellEast, double cellNorth, double cellM, double furtherM)
+        public static void Resample(Terrain terrain, double east, double north, double reachM, IHeightSource ground)
         {
-            if (terrain == null || terrain.terrainData == null || !(furtherM > 0.0)) return;
+            if (terrain == null || terrain.terrainData == null || ground == null || !(reachM > 0.0)) return;
             TerrainData data = terrain.terrainData;
             int res = data.heightmapResolution;
             if (res < 2 || !(data.size.y > 0f)) return;
-            float spacing = data.size.x / (res - 1);
             Vector3 origin = terrain.transform.position;
-            double reach = 0.75 * cellM;
-            int x0 = Mathf.Clamp(Mathf.FloorToInt((float)((cellEast - reach - origin.x) / spacing)), 0, res - 1);
-            int x1 = Mathf.Clamp(Mathf.CeilToInt((float)((cellEast + reach - origin.x) / spacing)), 0, res - 1);
-            int z0 = Mathf.Clamp(Mathf.FloorToInt((float)((cellNorth - reach - origin.z) / spacing)), 0, res - 1);
-            int z1 = Mathf.Clamp(Mathf.CeilToInt((float)((cellNorth + reach - origin.z) / spacing)), 0, res - 1);
+            // Wholly beyond this Terrain: nothing of it to sample.
+            if (east + reachM < origin.x || east - reachM > origin.x + data.size.x || north + reachM < origin.z || north - reachM > origin.z + data.size.z) return;
+            // A kilometre over 512 is a whole binary fraction, and a tile's corner a whole number of metres, so a post's place
+            // here is the one the worker sampled it at.
+            double spacing = data.size.x / (double)(res - 1);
+            int x0 = Mathf.Clamp((int)System.Math.Floor((east - reachM - origin.x) / spacing), 0, res - 1);
+            int x1 = Mathf.Clamp((int)System.Math.Ceiling((east + reachM - origin.x) / spacing), 0, res - 1);
+            int z0 = Mathf.Clamp((int)System.Math.Floor((north - reachM - origin.z) / spacing), 0, res - 1);
+            int z1 = Mathf.Clamp((int)System.Math.Ceiling((north + reachM - origin.z) / spacing), 0, res - 1);
             if (x1 < x0 || z1 < z0) return;
             float[,] heights = data.GetHeights(x0, z0, x1 - x0 + 1, z1 - z0 + 1);
-            float delta = (float)(furtherM / data.size.y);
             for (int z = z0; z <= z1; z++)
                 for (int x = x0; x <= x1; x++)
                 {
-                    double dx = origin.x + x * spacing - cellEast, dz = origin.z + z * spacing - cellNorth;
-                    double share = 1.0 - System.Math.Min(1.0, System.Math.Sqrt(dx * dx + dz * dz) / reach);
-                    if (share <= 0.0) continue;
-                    heights[z - z0, x - x0] = Mathf.Max(0f, heights[z - z0, x - x0] - delta * (float)share);
+                    double h = ground.HeightAt(origin.x + x * spacing, origin.z + z * spacing);
+                    if (double.IsNaN(h)) continue;
+                    heights[z - z0, x - x0] = Mathf.Clamp01((float)((h - origin.y) / data.size.y));
                 }
             data.SetHeightsDelayLOD(x0, z0, heights);
             data.SyncHeightmap();
