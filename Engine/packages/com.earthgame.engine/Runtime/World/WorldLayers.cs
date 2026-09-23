@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.ExceptionServices;
+using System.Threading.Tasks;
 using System.Globalization;
 using System.IO;
 
@@ -736,7 +738,8 @@ namespace EarthGame.Engine
         private void Community(ulong seed)
         {
             ulong stream = SimRandom.DeriveSeed(seed, "community");
-            for (int r = 0; r < Height; r++)
+            Rows(r =>
+            {
                 for (int c = 0; c < Width; c++)
                 {
                     int i = Index(r, c);
@@ -755,6 +758,7 @@ namespace EarthGame.Engine
                     PlantSpecies floor = PlantCommunity.Understory(under, rollUnder);
                     Understory[i] = (byte)(floor == null ? 0 : IndexOf(floor) + 1);
                 }
+            });
         }
 
         private static int IndexOf(PlantSpecies species)
@@ -785,10 +789,11 @@ namespace EarthGame.Engine
         /// </summary>
         private void Landforms()
         {
-            ReadOnlySpan<float> z = Heights.Values;
             int reach = Math.Max(1, (int)Math.Round(HardCoastReachM / CellM));
             int crest = Math.Max(1, (int)Math.Round(CrestReachM / CellM));
-            for (int r = 0; r < Height; r++)
+            Rows(r =>
+            {
+                ReadOnlySpan<float> z = Heights.Values;
                 for (int c = 0; c < Width; c++)
                 {
                     int i = Index(r, c);
@@ -830,6 +835,7 @@ namespace EarthGame.Engine
                     if (top && Exposure[i] > 0.3f) bits |= (uint)Engine.Topology.Crest;
                     TopologyMask[i] = bits;
                 }
+            });
         }
 
         /// <summary>The marks the plants leave on the landforms once they have grown: forest where a tree stands, heath where a shrub is the ground layer.</summary>
@@ -876,8 +882,9 @@ namespace EarthGame.Engine
         private void Stones(ulong seed)
         {
             double half = Heights.ExtentM * 0.5;
-            ReadOnlySpan<float> z = Heights.Values;
-            for (int r = 0; r < Height; r++)
+            Rows(r =>
+            {
+                ReadOnlySpan<float> z = Heights.Values;
                 for (int c = 0; c < Width; c++)
                 {
                     int i = Index(r, c);
@@ -896,6 +903,7 @@ namespace EarthGame.Engine
                         stone = roll < 0.55 ? StoneType.Sandstone : roll < 0.85 ? StoneType.Silcrete : StoneType.Quartz;
                     Stone[i] = (byte)(IndexOfStone(stone) + 1);
                 }
+            });
         }
 
         private static int IndexOfStone(StoneType stone)
@@ -1046,7 +1054,8 @@ namespace EarthGame.Engine
         private void Capacities()
         {
             IReadOnlyList<AnimalSpecies> species = AnimalSpecies.All;
-            for (int r = 0; r < Height; r++)
+            Rows(r =>
+            {
                 for (int c = 0; c < Width; c++)
                 {
                     int i = Index(r, c);
@@ -1055,6 +1064,26 @@ namespace EarthGame.Engine
                     for (int s = 0; s < species.Count; s++)
                         Capacity[s][i] = (float)AnimalCapacity.PerKm2(species[s], site, FreshWaterDistanceM[i], ShoreDistanceM[i]);
                 }
+            });
+        }
+
+        /// <summary>
+        /// A stage's rows worked across the machine's cores (WG.2b's W3, 2026-09-23), for a stage whose every cell is written by
+        /// itself alone from layers the stage does not write, and whose draws are the cell's own (a stream derived from the cell's
+        /// index), so the order the rows are worked in cannot change a cell. A new 32 km world took 375.6 s to make inside the game,
+        /// and these four stages were over half of it. A row that throws fails the stage with its own exception.
+        /// </summary>
+        private void Rows(Action<int> row)
+        {
+            try
+            {
+                Parallel.For(0, Height, row);
+            }
+            catch (AggregateException ex) when (ex.InnerExceptions.Count > 0)
+            {
+                ExceptionDispatchInfo.Capture(ex.InnerExceptions[0]).Throw();
+                throw;
+            }
         }
     }
 }

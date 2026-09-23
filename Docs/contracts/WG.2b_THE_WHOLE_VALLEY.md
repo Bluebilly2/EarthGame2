@@ -141,7 +141,15 @@ each change, every layer's checksum the same.
   world's own numbers (below).
 - **W3. The making across the processor's cores**, if after W2 a new 32 km world in the game takes more than five minutes; the
   output byte for byte the same: whether each step's draws are seeded per cell, and so independent of the order cells are
-  worked in, is read in the code before a step is spread, and the checksums prove it after.
+  worked in, is read in the code before a step is spread, and the checksums prove it after. **Triggered and landed 2026-09-23:**
+  the whole valley took 375.6 s to make inside the game. Read in the code: the landforms, the plant community (a stream derived
+  from each cell's index), the stones (a hash of the cell's place) and the habitat write each cell by itself alone from layers
+  the stage does not write; the drainage, the soil, the stand (trees placed in a seeded order, each keeping its neighbours back)
+  and the loose layer (sticks thrown onto neighbouring cells) do not, and stay in order. The four go across the cores row by row
+  (`WorldLayers.Rows`). The dedicated server makes the whole valley in 83.8 s where it took 135.3 (the same peak, 8.4 GB) and
+  the gate world in 10.2 s where it took 14.5, each with every layer's sha256, the census and the wake the same as the build
+  without it; with the community's draws keyed to a counter the cores share, the two tests that make a world twice go red. The
+  time inside the game follows with the next harness build.
 - **W4. The dedicated server's tiles encoded across cores** at its start (at 32 km 9,216 tiles, about 40 s on one core).
   **Landed 2026-09-23:** `TileService.EncodeAll` lists the tiles, makes each from the world's layers (which it only reads) in
   parallel, and puts them in the cache in the listed order; `Encoded`, a request's, and the start share one `Encode`. The whole
