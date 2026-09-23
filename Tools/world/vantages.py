@@ -59,6 +59,25 @@ VANTAGES_BY_REGION = {
         "falls": (-1572, 988),
         "reservoir": (86, 2751),
     },
+    # The whole valley's (WG.2b, 2026-09-23), in metres from its own centre (34.705 S 150.589 E): its world's wake (the scorer's,
+    # on the Shoalhaven's floodplain in the south-east corner once no lake stood on the dams' flats); the 8 km valley's falls and
+    # escarpment moved into this frame; each
+    # other place OpenStreetMap's point moved to the nearest cell a founder can stand on (dry, under 15 degrees over 12 m, read
+    # off Artefacts/worlds/valley-whole): Belmore and Carrington Falls from their lips, the village's site and the river at
+    # Hampden Bridge on the floor, Cambewarra's lookout on the south rim, Bendeela at the lake's head, and a point 1.5 km in from
+    # the south-east corner, where a coordinate's step is largest, for the precision.
+    "kangaroo-valley-whole": {
+        "wake": (10840, -9268),
+        "fitzroy-falls": (-9708, 5996),
+        "escarpment": (-10448, 6192),
+        "belmore-falls": (-2776, 7272),
+        "carrington-falls": (6024, 9028),
+        "village": (-5164, -3360),
+        "river": (-6224, -2500),
+        "cambewarra": (-1068, -10576),
+        "lake-head": (-10688, -3960),
+        "corner": (14500, -14500),
+    },
 }
 
 

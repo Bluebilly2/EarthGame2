@@ -40,6 +40,7 @@ Run from the repository root:  python Tools/verifiers/checks/drainage_check.py [
 """
 import heapq
 import json
+from array import array
 import math
 import os
 import sys
@@ -66,6 +67,7 @@ LAKES_BY_REGION = {
     "bherwerre": (("Lake Windermere", -35.13333333, 150.66666667, 1500.0, "Wikidata Q23759865, to the minute"),
                   ("Lake McKenzie", -35.14666, 150.67079, 500.0, "Wikidata Q21908519, to a metre")),
     "kangaroo-valley": (),
+    "kangaroo-valley-whole": (),   # WG.2b: the dams' lakes are left out as humanity's, and OpenStreetMap names no other in the box
 }
 NP_DTYPES = {"u8": "u1", "u16": "<u2", "i16": "<i2", "u32": "<u4", "f32": "<f4"}
 
@@ -103,12 +105,15 @@ def position(row, col, sidecar):
 
 
 def fill(z, sinks):
-    """Priority flood on a grid padded by one closed ring, so no neighbour needs a bounds check."""
+    """Priority flood on a grid padded by one closed ring, so no neighbour needs a bounds check. The grid is held as a flat
+    array of doubles (8 bytes a cell) rather than a list of Python floats (about 32): the whole valley's 64 million cells
+    (WG.2b, 2026-09-23) would have taken over 2 GB as a list, and the same arithmetic runs on either."""
     h, w = z.shape
     wp = w + 2
     padded = np.full((h + 2, wp), np.inf, dtype=np.float64)
     padded[1:-1, 1:-1] = z
-    filled = padded.ravel().tolist()
+    filled = array("d", padded.ravel().tobytes())
+    del padded
     closed = bytearray(len(filled))
     ring = np.ones((h + 2, wp), dtype=bool)
     ring[1:-1, 1:-1] = False
@@ -139,7 +144,7 @@ def fill(z, sinks):
             if filled[n] < floor:
                 filled[n] = floor
             push(heap, (filled[n], n))
-    return np.array(filled, dtype=np.float64).reshape(h + 2, wp)[1:-1, 1:-1]
+    return np.frombuffer(filled, dtype=np.float64).reshape(h + 2, wp)[1:-1, 1:-1].copy()
 
 
 def receivers(filled, sinks, cell_m):
@@ -163,18 +168,19 @@ def receivers(filled, sinks, cell_m):
 
 
 def accumulate(filled, recv, sea):
-    order = np.argsort(-filled.ravel(), kind="stable")
-    acc = np.ones(filled.size, dtype=np.int64)
-    sea_flat = sea.ravel()
-    acc_list = acc.tolist()
-    recv_list = recv.tolist()
-    sea_list = sea_flat.tolist()
-    for i in order.tolist():
-        r = recv_list[i]
-        if r < 0 or sea_list[r]:
+    """Each cell's count passed to its receiver, highest cell first. Held as flat arrays of 64-bit integers and a byte a cell
+    for the sea rather than Python lists of ints (WG.2b, 2026-09-23: four lists of the whole valley's 64 million cells would
+    have been some 8 GB); the order and the sums are the same."""
+    order = array("q", np.argsort(-filled.ravel(), kind="stable").astype(np.int64).tobytes())
+    acc = array("q", np.ones(filled.size, dtype=np.int64).tobytes())
+    recv_flat = array("q", recv.astype(np.int64).tobytes())
+    sea_flat = bytearray(sea.ravel().astype(np.uint8).tobytes())
+    for i in order:
+        r = recv_flat[i]
+        if r < 0 or sea_flat[r]:
             continue
-        acc_list[r] += acc_list[i]
-    return np.array(acc_list, dtype=np.int64).reshape(filled.shape)
+        acc[r] += acc[i]
+    return np.frombuffer(acc, dtype=np.int64).reshape(filled.shape).copy()
 
 
 def patches(mask):
