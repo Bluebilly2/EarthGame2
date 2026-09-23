@@ -1,8 +1,8 @@
 # Contract BF.4 — The ground below the data
 
 **Status:** drafted 2026-09-23, the fourth of the beta's foundations (`Docs/BETA_MAP.md` §7, F4; CANON ruling 41: "Treat
-the world itself as a missing foundational system"). Stage one built 2026-09-23 (its exit record below); stages two and three
-to come. Owner: Claude (the main session). Built in three stages, each
+the world itself as a missing foundational system"). Stage one built and closed 2026-09-23 (6172bd5; its exit record below);
+stages two and three to come. Owner: Claude (the main session). Built in three stages, each
 shippable alone: stage one, one ground with relief below the data; stage two, the ground underfoot; stage three, rock
 that stands, the stone of the place and the country's things. William's lane: his eyes on the ground in frames and in
 play, his hands on the walk, and his yes to any data the stone of the place needs.
@@ -156,6 +156,17 @@ the Terrain 0.0376 m above its point; `save_check` and `tile_check` ok. The drin
 checks) each 0 errors and 0 corrections. The dune scenario walked its 33.8° face down at 0.56 m/s and up at 0.43 m/s and
 kept a sliding founder's feet (0.022 m under at the lowest), and was corrected nineteen times on its way to the slide's
 face: see "What changed on the way", 7; the walk now reads the Terrain's squares, and the scenarios are run again on it.
+
+On the corrected walk (Build/Harness `BF.4-stage1-walk`, 6172bd5 with the side worker's then uncommitted region files): the
+dune scenario 0 corrections (down 28.7° at 0.57 m/s, up 29.5° at 0.44 m/s, the slide's feet 0.004 m under at the lowest);
+the changes scenario and the controls (40 checks) as before, 0 errors. The corpus walk (`Artefacts/corpus/bf4-20260923T003203Z`:
+two players at 100 ms ± 20 ms and 2 % loss, and one SOLO, ten minutes each): `join_check --only N2` 12 rows, 0 failed; three
+corrections a player, all at one place, a dune face at the walk's limit at (-1420, 2970) where the walker stalls, slides
+1.8 m and is corrected on landing, 0.89 m at the most (DEBTS, "A slide's landing is corrected"); none on the named
+segments. Frames at the vantages of both places at 07:30 and noon, with the relief and without it (`-eg-hide relief`),
+1440p and 1080p (`Artefacts/frames/bf4-relief-20260923T003203Z`, 108 pairs): the relief changes 1.2 to 9.8 per cent of a
+frame's pixels by more than 8 levels in 256; no seam, no grid, no floating tree in the pairs looked at. His eyes on them are
+DEBTS' first table's.
 
 **What changed on the way.**
 1. *The table.* The draft's heath at ±0.15 m on 4 m, dune sand at ±0.20 m on 8 m and a stepped ±0.30 m on steep rock gave
