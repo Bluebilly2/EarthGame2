@@ -76,6 +76,13 @@ namespace EarthGame.Client
         private readonly List<uint> _goneMirrors = new List<uint>();
         private Heightfield _bakedRegion;
         private Terrain _coarse;
+        /// <summary>The picture of the region's forest the coarse Terrain wears (M1.6g), made on a worker once the far tiles are held; its layer once worn.</summary>
+        private Task<byte[]> _canopy;
+        private int _canopyTexels;
+        private TerrainLayer _canopyLayer;
+        private bool _canopyAsked;
+        /// <summary>-eg-hide canopy (M1.6g): the coarse Terrain keeps its flat ground layer, for a frame beside one with the canopy.</summary>
+        private bool _hideCanopy;
         /// <summary>The 64 km surround beyond the region, held so that leaving the world frees it (M1.4f).</summary>
         private Terrain _skirt;
         private Material _terrainMaterial;
@@ -760,6 +767,7 @@ namespace EarthGame.Client
             if (TileLayers.IsFar(tile.Layer))
             {
                 WantRing(tile.Id);
+                WantCanopy();
                 return;
             }
             // The water's depth too (M1.6e): a lake bed's sticks and cobbles are placed again, and left out, when it arrives. And the
@@ -849,7 +857,54 @@ namespace EarthGame.Client
             while (_budget.TryStart(out double spent) && TakeGround(out PreparedTile prepared)) BuildTile(prepared, spent);
             while (_budget.TryStart(out double left) && TakeColour(out TileId id, out byte[] map)) BuildCover(id, map, left);
             while (_stand != null && _budget.TryStart(out double _) && _stand.TakeOne()) { }
+            if (_budget.TryStart(out double _)) TakeCanopy();
             _budget.EndFrame();
+        }
+
+        /// <summary>
+        /// The region's forest as the colour of the ground beyond the held tiles (M1.6g), asked for once, when the last far tile
+        /// of the region is held: the far tiles are never let go, so the picture made from them then is the whole region's.
+        /// </summary>
+        private void WantCanopy()
+        {
+            if (_canopyAsked || _hideCanopy || _coarse == null || _client?.Tiles == null || _client.Grid == null) return;
+            TileGrid grid = _client.Grid;
+            int all = grid.TilesPerSide * grid.TilesPerSide;
+            if (_client.Tiles.CountOf(TileLayer.FarStand) < all || _client.Tiles.CountOf(TileLayer.FarCount) < all) return;
+            _canopyAsked = true;
+            // The received tiles are never changed once held, so the references are the worker's copy.
+            Dictionary<(TileLayer, TileId), ReceivedTile> far = new Dictionary<(TileLayer, TileId), ReceivedTile>();
+            for (int iz = 0; iz < grid.TilesPerSide; iz++)
+                for (int ix = 0; ix < grid.TilesPerSide; ix++)
+                {
+                    TileId id = new TileId(ix, iz);
+                    far[(TileLayer.FarStand, id)] = _client.Tiles.Holding(TileLayer.FarStand, id);
+                    far[(TileLayer.FarCount, id)] = _client.Tiles.Holding(TileLayer.FarCount, id);
+                }
+            _canopyTexels = FarCanopy.TexelsFor(grid);
+            _canopy = Task.Run(() => FarCanopy.Build(grid, (layer, id) => far.TryGetValue((layer, id), out ReceivedTile t) ? t : null, out _));
+        }
+
+        /// <summary>The finished picture worn by the coarse Terrain, once (M1.6g): a texture and a layer, which only the main thread can make.</summary>
+        private void TakeCanopy()
+        {
+            if (_canopy == null || !_canopy.IsCompleted) return;
+            Task<byte[]> done = _canopy;
+            _canopy = null;
+            if (done.IsFaulted)
+            {
+                Debug.LogWarning("[client] the far ground's canopy could not be made: " + done.Exception?.GetBaseException().Message);
+                return;
+            }
+            if (_coarse == null || _coarse.terrainData == null) return;
+            double started = _clockMs.Elapsed.TotalMilliseconds;
+            TerrainLayer layer = GroundLayerBuilder.Build(done.Result, _canopyTexels, _coarse.terrainData.size.x, _groundLayer, "Far canopy");
+            if (layer == null) return;
+            if (_canopyLayer != null) GroundLayerBuilder.Free(_canopyLayer);
+            _canopyLayer = layer;
+            _coarse.terrainData.terrainLayers = new[] { layer };
+            Debug.Log("[client] the far ground wears its forest: " + _canopyTexels + " texels a side over " + F(_coarse.terrainData.size.x) + " m, "
+                      + F(_clockMs.Elapsed.TotalMilliseconds - started) + " ms drawn");
         }
 
         /// <summary>The next prepared ground, the one under the founder first; false when none has finished.</summary>
@@ -1121,6 +1176,13 @@ namespace EarthGame.Client
                     {
                         _stand.DrawRing = false;
                         Debug.Log("[client] -eg-hide ring: hidden");
+                        continue;
+                    }
+                    if (name == "canopy")
+                    {
+                        // The far ground's forest colour (M1.6g) left off: the coarse Terrain keeps its flat ground layer.
+                        _hideCanopy = true;
+                        Debug.Log("[client] -eg-hide canopy: hidden");
                         continue;
                     }
                     if (name == "relief")
