@@ -54,7 +54,12 @@ namespace EarthGame.Tests.ClientCore
             GroundColour bare = FarCanopy.ColourOf(0, 0);
             Assert.That(bare.R, Is.EqualTo(FarCanopy.Bare.R).Within(1e-6), "a square of no tree is the bare ground");
             GroundColour between = FarCanopy.ColourOf(blackbutt, 1);
-            Assert.That(between.G, Is.EqualTo(FarCanopy.Bare.G + (foliage.G - FarCanopy.Bare.G) * (float)one).Within(1e-5), "one crown's share of the way");
+            double seen = FarCanopy.SeenShare(one);
+            Assert.That(seen, Is.GreaterThan(one).And.LessThan(1.0), "a grazing view sees more of the crowns than their share from above");
+            Assert.That(seen, Is.EqualTo(1.0 - Math.Pow(1.0 - one, FarCanopy.SeenPower)).Within(1e-12));
+            Assert.That(between.G, Is.EqualTo(FarCanopy.Bare.G + (foliage.G - FarCanopy.Bare.G) * (float)seen).Within(1e-5), "the seen share of the way");
+            Assert.That(FarCanopy.SeenShare(0.0), Is.EqualTo(0.0));
+            Assert.That(FarCanopy.SeenShare(1.0), Is.EqualTo(1.0));
         }
 
         [Test]

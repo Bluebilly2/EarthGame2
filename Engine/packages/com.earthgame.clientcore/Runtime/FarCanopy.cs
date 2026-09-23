@@ -34,10 +34,26 @@ namespace EarthGame.ClientCore
             return share >= 1.0 ? 1.0 : share;
         }
 
-        /// <summary>A far square's colour: the bare ground, and its trees' foliage over it by their crowns' share.</summary>
+        /// <summary>
+        /// How much of the ground at a far square a view hides behind its crowns (M1.6g): far ground is only ever seen at a
+        /// grazing angle, where the crowns in front stand before the ground between them, so a square a third covered from
+        /// above reads four-fifths foliage. One less the bare share to <see cref="SeenPower"/>. The first build painted the
+        /// share seen from above, and the whole valley's far hills read grey where their forest stood (2026-09-23).
+        /// </summary>
+        public static double SeenShare(double share)
+        {
+            if (!(share > 0.0)) return 0.0;
+            if (share >= 1.0) return 1.0;
+            return 1.0 - Math.Pow(1.0 - share, SeenPower);
+        }
+
+        /// <summary>How many crowns deep a grazing view of a far square looks through, for <see cref="SeenShare"/>.</summary>
+        public const double SeenPower = 4.0;
+
+        /// <summary>A far square's colour: the bare ground, and its trees' foliage over it by the share of it a view sees them hide.</summary>
         public static GroundColour ColourOf(byte farStandCode, int count)
         {
-            double share = ShareOf(farStandCode, count);
+            double share = SeenShare(ShareOf(farStandCode, count));
             if (!(share > 0.0)) return Bare;
             TreeForm form = StandForms.For(StandCodes.SpeciesOf(farStandCode)) ?? StandForms.Blackbutt;
             Rgb foliage = form.Foliage;
