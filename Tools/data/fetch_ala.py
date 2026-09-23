@@ -75,6 +75,8 @@ SPECIES_BY_REGION = {
         "Spinifex": "Spinifex sericeus",
     },
 }
+# The whole valley (CANON ruling 45, WG.2b, 2026-09-23) asks the records of the same sixteen as the 8 km valley, over its own box.
+SPECIES_BY_REGION["kangaroo-valley-whole"] = SPECIES_BY_REGION["kangaroo-valley"]
 FIELDS = "decimalLatitude,decimalLongitude,year,basisOfRecord,coordinateUncertaintyInMeters,dataResourceName,license"
 # The service answers 503 to a page of 500 and serves a page of 100 (measured 2026-09-10).
 PAGE = 100

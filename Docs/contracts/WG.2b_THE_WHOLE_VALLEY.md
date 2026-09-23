@@ -106,8 +106,9 @@ litter and the tuft rule are per cell, and at 8 m the forest would thin fourfold
   worlds made in it, William's two of 2026-09-22 among them (`Saves/world-31429723329453`, `world-31674518579933`), until he says
   to retire it; his first screen reads `Data/regions/<id>`, so the new bake goes under the new id and nothing of the old moves.
 - **The surround** grows with the box: the camera's far plane is 40 km, so from the box's edge the view reaches 54 km from the
-  centre; the far skirt is baked over **128 km at 128 m** (1001 × 1001, the size today's is), from zoom 11.
-- **What it costs William:** about 325 MB of region data on disk (heights 256 MB, water 64 MB, surround 4 MB) and about 2.8 GB
+  centre; the far skirt is baked over **128 km at 64 m** (2001 × 2001), from zoom 11 (the proposal said 128 m; see "The
+  fetch and the bake" below).
+- **What it costs William:** about 336 MB of region data on disk (heights 256 MB, water 64 MB, surround 16 MB) and about 2.8 GB
   for each world he makes; after the work below, the targets are a new world in a few minutes and a continued one in about ten
   seconds (the measured numbers go in the exit record).
 
@@ -181,6 +182,34 @@ kangaroo-valley-whole`; the verifiers on it (`drainage_check`, `cover_check`, `s
 falls, the escarpment, the river and the lake's head, from the ground and from the lookout, and one from a corner for the
 precision; every number in the exit record as run. Not in this slice: the valley's own plant table and stone rule (BF.4's), the
 census, the reservoir's fix, the far forest (D1).
+
+## The fetch and the bake (2026-09-23, on his yes)
+
+**Fetched, as fetched.** Zoom 14: 270 tiles, 25.9 MB (306 on disk for the box, 29.3 MB). Zoom 11: 42 tiles, 1.5 MB (81 on
+disk for the surround). One Overpass response, answered at the first ask: 195 elements, 273 KB, cached as
+`Data/cache/osm/kangaroo-valley-whole-water.json`. The Atlas of Living Australia: 16 files, 3,029 records, 0.64 MB, under
+`Data/cache/ala/kangaroo-valley-whole/` (kangaroo grass, which had no record in the 8 km box, has 120 here). Nothing else;
+`THIRD_PARTY_NOTICES.md` names each.
+
+**Baked.** `heights`: 8001 × 8001 at 4 m by the banded tool, −4.7 to 852.1 m, in 44.1 s with a peak of 2.55 GB; the despike at
+25 m rewrote 1,740 cells (SRTM's voids on the steep faces; the 8 km box's bake rewrote 457). At or below the datum, 0.37 % of
+the cells, all in the south-east corner (east 2.8 to 16 km, north −16 to −8.1 km): the Shoalhaven's floodplain near
+Bomaderry. The highest ground, 852.1 m at east −1,864 north 15,416, is a smooth hill on the plateau north of the valley (672 m
+a kilometre off, 832 to 852 m along the row through it), not a spike. Read at OpenStreetMap's points: the village 80.3 m,
+Hampden Bridge 70.4 m, Fitzroy Falls 648.7 m, Belmore Falls 531.0 m, Carrington Falls 539.8 m, Cambewarra's lookout 627.8 m.
+`surround`: 2001 × 2001 at 64 m over 128 km, −24.5 to 1,123.6 m, sea 32.8 %, the despike rewrote 141,686 cells (3.5 %).
+`water_bodies`: 8001 × 8001, 78 bodies from OpenStreetMap, 50 with cells in the box (39 lakes, 11 wetlands, the largest
+wetlands 447, 332 and 263 ha: two swamps on the Shoalhaven's floodplain and a bog on the plateau by Robertson), and 117 ways
+left out as humanity's, Fitzroy Falls Lake and Wingecarribee Reservoir among them.
+
+**What changed on the way.** (1) The surround at 64 m, not the 128 m proposed: at 128 m the despike's 7 × 7 window is 900 m
+wide and rewrote 131,643 cells (13 %), cutting down real ridges and cliff tops the 25 m threshold cannot tell from bad
+pixels; at 64 m it rewrote 3.5 %, as the 8 km valley's surround's 4.2 %, and the skirt samples it at about 125 m either way.
+(2) The Shoalhaven River's water area (a way tagged `natural=water`, `water=river`, 13.5 ha in the box's south-west corner)
+is read as a lake, and a mapped lake stands flat at the median of the ground inside it; it is kept, because the river
+enters the box from a catchment far outside it and the drainage alone would make it a trickle (DEBTS, "A river that enters
+from outside the box"). (3) The shell names the whole valley greyed "not yet" rather than offering it: a new world there as
+the code stands would take about ten minutes and 17 GB in the game.
 
 ## Exit
 

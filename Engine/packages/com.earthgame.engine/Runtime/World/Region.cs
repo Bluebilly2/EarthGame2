@@ -50,6 +50,15 @@ namespace EarthGame.Engine
         public static readonly Region KangarooValley = new Region(
             "kangaroo-valley", "Kangaroo Valley, Fitzroy Falls", -34.660, 150.500, 8000.0, 237, 8.0);
 
+        /// <summary>
+        /// The whole Kangaroo Valley (CANON ruling 45, 2026-09-23; WG.2b): rim to rim with Fitzroy, Belmore and Carrington Falls,
+        /// the Cambewarra Range and the floor between, centred on the middle of the valley's own outline in OpenStreetMap, 32 km a
+        /// side by his choice. A region of its own, so the 8 km box above keeps its bake and the worlds made in it; the same
+        /// late-winter wake, and Nowra's station (<c>Climate</c>).
+        /// </summary>
+        public static readonly Region KangarooValleyWhole = new Region(
+            "kangaroo-valley-whole", "Kangaroo Valley, rim to rim", -34.705, 150.589, 32000.0, 237, 8.0);
+
         /// <summary>The clock at the moment the founder wakes here.</summary>
         public WorldClock WakeClock() => WorldClock.FromLocal(WakeDayOfYear, WakeLocalHour, CentreLongitudeDeg);
 
@@ -59,7 +68,7 @@ namespace EarthGame.Engine
         /// <summary>The region with this id, or null. Unknown ids are the caller's problem to report, never a default.</summary>
         public static Region ById(string id)
         {
-            return id == Bherwerre.Id ? Bherwerre : id == KangarooValley.Id ? KangarooValley : null;
+            return id == Bherwerre.Id ? Bherwerre : id == KangarooValley.Id ? KangarooValley : id == KangarooValleyWhole.Id ? KangarooValleyWhole : null;
         }
     }
 }

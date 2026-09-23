@@ -347,6 +347,7 @@ namespace EarthGame.Engine
             if (region == null) return null;
             if (string.Equals(region.Id, Region.Bherwerre.Id, StringComparison.Ordinal)) return PointPerpendicular;
             if (string.Equals(region.Id, Region.KangarooValley.Id, StringComparison.Ordinal)) return Nowra;
+            if (string.Equals(region.Id, Region.KangarooValleyWhole.Id, StringComparison.Ordinal)) return Nowra;
             return null;
         }
 

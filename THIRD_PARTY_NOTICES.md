@@ -37,8 +37,11 @@ SOFTWARE.
 Elevation data used to bake the global grid (`Data/global/EarthElevation.r16`, zoom 5) and each region's rasters
 (zoom 14 for the 8 km box, zoom 11 for the 64 km surround): Bherwerre's since 2026-09-08 and the Kangaroo Valley's
 since 2026-09-22 (36 tiles at zoom 14, x 15038–15043 y 9872–9877, and 25 at zoom 11, x 1878–1882 y 1232–1236, fetched
-by `Tools/data/fetch_tiles.py` on William's approval of that manifest, `Docs/contracts/WG.2_A_SECOND_PLACE.md`). Under
-the valley the tiles carry SRTM at 30 m, with voids the bake despikes. Required attribution, reproduced from the
+by `Tools/data/fetch_tiles.py` on William's approval of that manifest, `Docs/contracts/WG.2_A_SECOND_PLACE.md`); and the
+whole valley's since 2026-09-23 (CANON ruling 45: 306 tiles at zoom 14 for its 32 km box and a kilometre, x 15037–15053
+y 9869–9886, 270 of them fetched, 25.9 MB, and 81 at zoom 11 for its 128 km surround, x 1876–1884 y 1230–1238, 42 fetched,
+1.5 MB, on his yes to `Docs/contracts/WG.2b_THE_WHOLE_VALLEY.md`'s manifest). Under the valley the tiles carry SRTM at
+30 m, with voids the bake despikes. Required attribution, reproduced from the
 dataset's terms:
 
 > Elevation data: AWS Terrain Tiles, derived from NASA SRTM, USGS GMTED2010/NED, NOAA ETOPO1, GEBCO, Natural
@@ -61,7 +64,8 @@ None yet. Each sourced asset gets an entry here (name, author, licence, URL) in 
 The outlines of each region's water bodies (lakes, waterholes, swamps) are fetched from OpenStreetMap through the
 Overpass API by `Tools/data/bake_water.py` and rasterised to `Data/regions/<region>/water_bodies.u8` (a dataset
 under `Data/`, fetched and never committed; the Overpass response is cached under `Data/cache/osm/`): Bherwerre's
-on 2026-09-09 and the Kangaroo Valley's on 2026-09-22 (one query, the box padded by a kilometre). The sidecar names
+on 2026-09-09, the Kangaroo Valley's on 2026-09-22 and the whole valley's on 2026-09-23 (each one query, the box padded
+by a kilometre; the whole valley's 195 elements, 273 KB). The sidecar names
 every way used and, since 2026-09-22, every way left out as humanity's (reservoirs and ponds). Data (c) OpenStreetMap contributors, made available under the Open Database
 Licence 1.0: https://www.openstreetmap.org/copyright and https://opendatacommons.org/licenses/odbl/1-0/. Any
 world folder that carries layers derived from it carries this attribution in the layer's sidecar.
@@ -85,7 +89,8 @@ service (biocache, https://biocache-ws.ala.org.au/ws/) by `Tools/data/fetch_ala.
 `Data/cache/ala/` (a dataset under `Data/`, fetched and never committed, and never shipped): Bherwerre's twelve
 plants on 2026-09-10, flat under that folder, and the Kangaroo Valley's sixteen (the coast's twelve, to confirm which
 are absent, and Sydney blue gum, river oak, cabbage tree palm, silvertop ash and scribbly gum) on 2026-09-22 under
-`Data/cache/ala/kangaroo-valley/`. It is read only by
+`Data/cache/ala/kangaroo-valley/`, and the same sixteen over the whole valley's 32 km box on 2026-09-23 under
+`Data/cache/ala/kangaroo-valley-whole/` (3,029 records, 0.64 MB). It is read only by
 `Tools/verifiers/checks/species_check.py`, to check the world against it; nothing in a world or a build is derived
 from it. Every record keeps the licence and the name of the data resource it came from beside it in the cache: at
 the fetch of 2026-09-10 most were CC-BY 4.0, others CC-BY-NC 4.0, CC-BY 3.0 AU, CC0 or CC-BY-SA, and some

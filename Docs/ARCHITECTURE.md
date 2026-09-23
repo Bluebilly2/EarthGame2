@@ -57,8 +57,10 @@ still runs on the main thread; this slice does not claim a frame-time budget for
 
 - **Frame:** tangent plane at the region centre, +X east, +Y up, +Z north, planet radius 6,371,000 m
   (`LocalFrame`, `WorldPoint`, `Double3`, ported from v1 with `CoordinateTests`).
-- **Extent:** `Region.ExtentM = 8000`, stated once, enforced by the server (position clamp) and by a source scan
-  that no other literal metre appears in the world code. The edge: the sea on the coast sides; on land a soft
+- **Extent:** `Region.ExtentM`, stated once for each region in `Region` (8 km for Bherwerre and the 8 km valley, 32 km for
+  the whole valley since WG.2b) and enforced by the server (position clamp); a world's layers carry it in their sidecars and
+  are refused against another. (This line once named a source scan against any other metre literal for the extent; there
+  was none in `SourceRulesTests` when it was read again on 2026-09-23.) The edge: the sea on the coast sides; on land a soft
   boundary with a "not yet" vignette on the client; animals treat it as impassable; a static far skirt draws
   what lies beyond.
 - **A second region** (CANON ruling 43, 2026-09-22; `contracts/WG.2_A_SECOND_PLACE.md`): `kangaroo-valley`, "Kangaroo Valley,
@@ -66,6 +68,14 @@ still runs on the main thread; this slice does not claim a frame-time budget for
   its ground, water and plant records fetched and baked on William's approval of the manifest (2026-09-22) and a world made
   (`Artefacts/worlds/valley`); offered in the shell beside Bherwerre (ruling 44), and a saved world continues in its own
   region (`WorldSave.RegionOf`). Bherwerre stays the first region and the gate world's.
+- **The whole valley** (CANON ruling 45, 2026-09-23; `contracts/WG.2b_THE_WHOLE_VALLEY.md`): `kangaroo-valley-whole`, "Kangaroo
+  Valley, rim to rim", centre 34.705°S 150.589°E (the middle of the valley's own outline in OpenStreetMap), 32 km, 4 m cells
+  (8001 × 8001); rim to rim with Fitzroy, Belmore and Carrington Falls and the Cambewarra Range, 3.9 km beyond the valley's
+  outline east and west and 6 km north and south; no coast, but the Shoalhaven's tidal floodplain at sea level in its
+  south-east corner; its surround 128 km at 64 m, the camera's far plane being 40 km; Nowra's station. Its own region, so
+  the 8 km valley keeps its bake and the worlds made in it. The shell names it greyed "not yet" until WG.2b's memory work
+  and the far forest's bound have landed: as the code stood when it was fetched, a 32 km world took about ten minutes and
+  17 GB to make in the game.
 - **Region:** `bherwerre` — centre 35.140°S 150.675°E; box 150.6311–150.7189°E, 35.1761–35.1039°S; the region names
   no wake point of its own (CANON ruling 20); the wake is the scorer's (below), and a world made without one wakes
   the founder at the region's centre. Fallback region: Ulladulla.
