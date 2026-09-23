@@ -16,6 +16,12 @@ namespace EarthGame.ClientCore
         public float CrownM;
         /// <summary>The tall plant most of its square's trees are, as an index into <see cref="StandCodes.Tall"/>.</summary>
         public int Tall;
+        /// <summary>
+        /// The farthest level of thinning it is drawn at (M1.6f), 0 to <see cref="FarForest.MostLevel"/>, from its square's hash:
+        /// a tree is drawn at a level no higher than its own, so one in 2^L stands at level L and every level's trees stand at
+        /// the levels below it.
+        /// </summary>
+        public int Level;
     }
 
     /// <summary>
@@ -32,6 +38,26 @@ namespace EarthGame.ClientCore
 
         /// <summary>How far a far tree may stand from its square's post, m: a quarter of the square, so it never leaves its square.</summary>
         public static readonly double WanderM = TileLayers.FarCellM * 0.25;
+
+        /// <summary>The highest level of thinning (M1.6f): past it one tree in 2^MostLevel stands, whatever the distance.</summary>
+        public const int MostLevel = 4;
+
+        /// <summary>
+        /// Within this of the eye the whole far forest is drawn, m (M1.6f); past it the level rises by one each time the
+        /// distance grows by the root of two, so the trees drawn stand as densely on the screen at every distance.
+        /// </summary>
+        public const double FullToM = 1414.0;
+
+        /// <summary>The level a block of the far forest is drawn at, from its distance from the eye, m.</summary>
+        public static int LevelAt(double distanceM)
+        {
+            if (!(distanceM >= FullToM)) return 0;
+            int level = 1 + (int)Math.Floor(2.0 * Math.Log(distanceM / FullToM, 2.0));
+            return level > MostLevel ? MostLevel : level;
+        }
+
+        /// <summary>How much wider a crown is drawn at a level, so the one in 2^L kept covers what all of them did.</summary>
+        public static double SpreadAt(int level) => Math.Sqrt(1 << Math.Max(0, Math.Min(MostLevel, level)));
 
         /// <summary>
         /// The far trees of one tile, added to a list, from its far stand and far count tiles and the ground they stand on. A
@@ -73,8 +99,22 @@ namespace EarthGame.ClientCore
                         HeightM = (float)height,
                         CrownM = (float)crown,
                         Tall = TallIndex(species),
+                        Level = LevelOf(h),
                     });
                 }
+        }
+
+        /// <summary>
+        /// A square's level from a hash of its own, mixed again from the one its tree's place and yaw are drawn from so the
+        /// two are not tied: how many of its low bits are zero from the lowest up, so a level of at least L comes once in 2^L,
+        /// capped at <see cref="MostLevel"/>.
+        /// </summary>
+        private static int LevelOf(ulong h)
+        {
+            ulong own = StandLayout.Mix(h ^ 0x9E3779B97F4A7C15UL);
+            int level = 0;
+            while (level < MostLevel && (own & (1UL << level)) == 0) level++;
+            return level;
         }
 
         private static int TallIndex(PlantSpecies species)

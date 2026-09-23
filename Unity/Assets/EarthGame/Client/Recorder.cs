@@ -567,7 +567,8 @@ namespace EarthGame.Client
                 .With("stand_cpu_ms", Rank(standCpu, 0.5))
                 .With("width", width).With("height", height)
                 .With("median_ms", Rank(times, 0.5)).With("p95_ms", Rank(times, 0.95)).With("worst_ms", times.Count > 0 ? times[times.Count - 1] : 0.0)
-                .With("hidden", LaunchArgs.Get("hide", "")).With("trees", _trees != null ? _trees() : -1));
+                .With("hidden", LaunchArgs.Get("hide", "")).With("trees", _trees != null ? _trees() : -1)
+                .With("far_drawn", GetComponent<ClientRuntime>() is ClientRuntime drawnBy ? drawnBy.FarDrawn : -1));
             Destroy(pixel);
             rt.Release();
             Destroy(rt);

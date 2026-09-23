@@ -78,5 +78,76 @@ namespace EarthGame.Tests.ClientCore
             FarForest.Place(Tile(inside, TileLayer.FarStand, (z, x) => banksia), Tile(new TileId(2, 3), TileLayer.FarCount, (z, x) => (byte)3), new Flat(), Grid, trees);
             Assert.That(trees, Is.Empty, "and two tiles' layers are not one tile's");
         }
+
+        /// <summary>Every square of every tile of a region full of banksias: the far forest a thinning is judged over.</summary>
+        private static List<FarTree> Everywhere()
+        {
+            byte banksia = StandCodes.Pack(PlantSpecies.CoastBanksia, 8.75);
+            List<FarTree> trees = new List<FarTree>();
+            for (int iz = 0; iz < Grid.TilesPerSide; iz++)
+                for (int ix = 0; ix < Grid.TilesPerSide; ix++)
+                {
+                    TileId id = new TileId(ix, iz);
+                    FarForest.Place(Tile(id, TileLayer.FarStand, (z, x) => banksia), Tile(id, TileLayer.FarCount, (z, x) => (byte)3), new Flat(), Grid, trees);
+                }
+            return trees;
+        }
+
+        [Test]
+        public void EachLevelKeepsHalfTheTreesOfTheLevelBelowIt()
+        {
+            // M1.6f promise 1: a tree's level from its own square, one in 2^L kept at level L, the same every time.
+            List<FarTree> trees = Everywhere();
+            List<FarTree> again = Everywhere();
+            Assert.That(again.Count, Is.EqualTo(trees.Count));
+            int[] atLeast = new int[FarForest.MostLevel + 1];
+            for (int i = 0; i < trees.Count; i++)
+            {
+                Assert.That(again[i].Level, Is.EqualTo(trees[i].Level), "a tree's level is its square's, every time");
+                Assert.That(trees[i].Level, Is.InRange(0, FarForest.MostLevel));
+                for (int l = 0; l <= trees[i].Level; l++) atLeast[l]++;
+            }
+            Assert.That(atLeast[0], Is.EqualTo(trees.Count), "every tree is drawn at level 0");
+            for (int l = 1; l <= FarForest.MostLevel; l++)
+            {
+                double p = Math.Pow(0.5, l), expected = trees.Count * p, sigma = Math.Sqrt(trees.Count * p * (1 - p));
+                TestContext.WriteLine("level " + l + ": " + atLeast[l] + " of " + trees.Count + " kept, " + expected.ToString("0") + " expected");
+                Assert.That(Math.Abs(atLeast[l] - expected), Is.LessThan(3.0 * sigma), "one in " + (1 << l) + " kept at level " + l);
+            }
+        }
+
+        [Test]
+        public void TheSpreadCrownsCoverWhatTheWholeForestDid()
+        {
+            // The canopy's cover: the kept crowns, spread, cover the area the whole level-0 forest did, within three standard
+            // deviations of how many a level happens to keep (the crowns here are one size, so the cover is the count's).
+            List<FarTree> trees = Everywhere();
+            double whole = 0.0;
+            foreach (FarTree t in trees) whole += (double)t.CrownM * t.CrownM;
+            for (int l = 1; l <= FarForest.MostLevel; l++)
+            {
+                double spread = FarForest.SpreadAt(l), kept = 0.0;
+                foreach (FarTree t in trees)
+                    if (t.Level >= l) kept += (double)t.CrownM * spread * t.CrownM * spread;
+                double p = Math.Pow(0.5, l), sigma = Math.Sqrt((1 - p) / (trees.Count * p));
+                TestContext.WriteLine("level " + l + ": the spread crowns cover " + (kept / whole).ToString("0.000") + " of the whole forest's (3 sigma " + (3 * sigma).ToString("0.000") + ")");
+                Assert.That(kept / whole, Is.EqualTo(1.0).Within(3.0 * sigma), "level " + l);
+            }
+            Assert.That(FarForest.SpreadAt(0), Is.EqualTo(1.0));
+        }
+
+        [Test]
+        public void TheLevelRisesByOneEachTimeTheDistanceGrowsByTheRootOfTwo()
+        {
+            Assert.That(FarForest.LevelAt(0.0), Is.EqualTo(0));
+            Assert.That(FarForest.LevelAt(FarForest.FullToM - 1.0), Is.EqualTo(0), "the whole forest near the founder");
+            for (int l = 1; l <= FarForest.MostLevel; l++)
+            {
+                double from = FarForest.FullToM * Math.Pow(Math.Sqrt(2.0), l - 1);
+                Assert.That(FarForest.LevelAt(from + 0.5), Is.EqualTo(l), "level " + l + " from " + from.ToString("0") + " m");
+                Assert.That(FarForest.LevelAt(from - 0.5), Is.EqualTo(l - 1));
+            }
+            Assert.That(FarForest.LevelAt(1e6), Is.EqualTo(FarForest.MostLevel), "and no further than the last");
+        }
     }
 }

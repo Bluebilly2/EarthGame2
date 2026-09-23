@@ -137,6 +137,9 @@ namespace EarthGame.Client
         /// <summary>How many far trees are placed over the whole region, each tile's drawn while its stand is not held, for a run's record.</summary>
         public int RingTrees { get; private set; }
 
+        /// <summary>How many far trees of the far forest the last <see cref="Draw"/> handed over, thinned by distance (M1.6f), for a run's record.</summary>
+        public int RingDrawn { get; private set; }
+
         /// <summary>Whether the sticks and cobbles are drawn; <c>-eg-hide loose</c> turns them off.</summary>
         public bool DrawLoose { get; set; } = true;
 
@@ -157,6 +160,11 @@ namespace EarthGame.Client
             public List<Matrix4x4>[] Far;
             public List<Matrix4x4>[] FarHalf;
             public List<Matrix4x4>[] FarQuarter;
+            /// <summary>
+            /// A block of the far forest's trees by level of thinning (M1.6f), each level's lists by tall plant: level L holds the
+            /// trees whose own level is L or more, their crowns spread to cover what all of them did; level 0 is <see cref="Far"/>.
+            /// </summary>
+            public List<Matrix4x4>[][] FarLevels;
             public int Trees;
             public List<Matrix4x4>[] Sticks;
             public List<Matrix4x4>[] Cobbles;
@@ -336,9 +344,21 @@ namespace EarthGame.Client
                 {
                     Centre = new Vector3((float)(originEast + (bx + 0.5) * RingBlockM), 0f, (float)(originNorth + (bz + 0.5) * RingBlockM)),
                 });
-                if (block.Far == null) block.Far = new List<Matrix4x4>[_tall];
-                (block.Far[t.Tall] ?? (block.Far[t.Tall] = new List<Matrix4x4>())).Add(Trs(t.East, t.Up - SinkM, t.North, t.YawDeg, t.CrownM, t.HeightM, t.CrownM));
-                block.Grow(new Vector3(t.East - t.CrownM, t.Up - SinkM, t.North - t.CrownM), new Vector3(t.East + t.CrownM, t.Up + t.HeightM, t.North + t.CrownM));
+                if (block.FarLevels == null)
+                {
+                    block.FarLevels = new List<Matrix4x4>[FarForest.MostLevel + 1][];
+                    for (int l = 0; l <= FarForest.MostLevel; l++) block.FarLevels[l] = new List<Matrix4x4>[_tall];
+                    block.Far = block.FarLevels[0];
+                }
+                // Drawn at every level up to its own (M1.6f), its crown spread at each to cover what the trees dropped there did.
+                for (int l = 0; l <= t.Level; l++)
+                {
+                    float spread = (float)FarForest.SpreadAt(l);
+                    List<Matrix4x4>[] lists = block.FarLevels[l];
+                    (lists[t.Tall] ?? (lists[t.Tall] = new List<Matrix4x4>())).Add(Trs(t.East, t.Up - SinkM, t.North, t.YawDeg, t.CrownM * spread, t.HeightM, t.CrownM * spread));
+                }
+                float widest = t.CrownM * (float)FarForest.SpreadAt(t.Level);
+                block.Grow(new Vector3(t.East - widest, t.Up - SinkM, t.North - widest), new Vector3(t.East + widest, t.Up + t.HeightM, t.North + widest));
             }
             foreach (Block block in tile.Blocks) block?.Settle();
             foreach (Block block in tile.Blocks)
@@ -432,7 +452,9 @@ namespace EarthGame.Client
                     }
                 }
             }
-            // The far forest (M1.6d): every tile of the region whose own stand is not drawn, in the view, in the far band.
+            // The far forest (M1.6d): every tile of the region whose own stand is not drawn, in the view, in the far band; each
+            // block at the level of thinning its distance gives (M1.6f), so the count drawn stops growing with the region's area.
+            int ringDrawn = 0;
             if (DrawRing && DrawFar)
                 foreach (KeyValuePair<TileId, TileStand> pair in _ring)
                 {
@@ -440,8 +462,15 @@ namespace EarthGame.Client
                     TileStand tile = pair.Value;
                     if (!tile.HasTrees || !GeometryUtility.TestPlanesAABB(_view, tile.Bounds)) continue;
                     foreach (Block block in tile.Blocks)
-                        if (block?.Far != null && GeometryUtility.TestPlanesAABB(_view, block.Bounds)) Gather(block.Far, _farGather);
+                    {
+                        if (block?.FarLevels == null || !GeometryUtility.TestPlanesAABB(_view, block.Bounds)) continue;
+                        float dx = block.Centre.x - eye.x, dz = block.Centre.z - eye.z;
+                        List<Matrix4x4>[] level = block.FarLevels[FarForest.LevelAt(Mathf.Sqrt(dx * dx + dz * dz))];
+                        Gather(level, _farGather);
+                        foreach (List<Matrix4x4> list in level) ringDrawn += list != null ? list.Count : 0;
+                    }
                 }
+            RingDrawn = ringDrawn;
             TreeCount = trees;
             Bounds near = new Bounds(eye, new Vector3(2f * (SplitM + BlockM), 2000f, 2f * (SplitM + BlockM)));
             for (int g = 0; g < _near.Length; g++)

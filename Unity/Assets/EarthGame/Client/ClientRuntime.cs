@@ -149,6 +149,8 @@ namespace EarthGame.Client
         public UnderstoreyViews Understorey => _understorey;
         /// <summary>How many far trees are placed over the whole region (M1.6d), each tile's drawn while its stand is not held, for a run's record.</summary>
         public int FarTrees => _stand != null ? _stand.RingTrees : 0;
+        /// <summary>How many of the far forest's trees the last frame drew, thinned by distance (M1.6f).</summary>
+        public int FarDrawn => _stand != null ? _stand.RingDrawn : 0;
         /// <summary>True from the moment N1's three conditions held for the current connection.</summary>
         public bool Interactive { get; private set; }
         /// <summary>How many times this runtime has connected; two or more means a rejoin happened.</summary>
