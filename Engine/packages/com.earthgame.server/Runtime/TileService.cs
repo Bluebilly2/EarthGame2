@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.ExceptionServices;
+using System.Threading.Tasks;
 using EarthGame.Engine;
 using EarthGame.Protocol;
 using EarthGame.Transport;
@@ -62,23 +64,38 @@ namespace EarthGame.Server
         /// <summary>
         /// Encodes every tile of the region now, so no join pays for it inside a tick: the first corpus run
         /// (2026-09-08) showed the one update that encoded the nine tiles around the wake taking 124 ms against
-        /// a 50 ms interval. Returns how many tiles were encoded; a world without terrain has none.
+        /// a 50 ms interval. Returns how many tiles were encoded; a world without terrain has none. Each tile is made from
+        /// the world's layers alone, which are only read, so the tiles are made across the machine's cores and put in the cache
+        /// in the order they are listed (WG.2b, 2026-09-23: the whole valley's 9,216 took 28 to 42 s on one core at its
+        /// dedicated server's start); a tile that cannot be encoded fails the start with its own exception, as before.
         /// </summary>
         public int EncodeAll()
         {
             if (_terrain == null) return 0;
-            int count = 0;
+            var wanted = new List<(TileLayer Layer, TileId Id)>();
             foreach (TileLayer layer in TileLayers.All)
             {
                 if (!Serves(layer)) continue;
                 for (int iz = 0; iz < _grid.TilesPerSide; iz++)
                     for (int ix = 0; ix < _grid.TilesPerSide; ix++)
-                    {
-                        Encoded(new TileId(ix, iz), layer);
-                        count++;
-                    }
+                        wanted.Add((layer, new TileId(ix, iz)));
             }
-            return count;
+            var made = new EncodedTile[wanted.Count];
+            try
+            {
+                Parallel.For(0, wanted.Count, k =>
+                {
+                    if (!_encoded.ContainsKey(wanted[k])) made[k] = Encode(wanted[k].Id, wanted[k].Layer);
+                });
+            }
+            catch (AggregateException ex) when (ex.InnerExceptions.Count > 0)
+            {
+                ExceptionDispatchInfo.Capture(ex.InnerExceptions[0]).Throw();
+                throw;
+            }
+            for (int k = 0; k < wanted.Count; k++)
+                if (made[k] != null) _encoded[wanted[k]] = made[k];
+            return wanted.Count;
         }
 
         /// <summary>The encoded tile of a layer, made on first request.</summary>
@@ -86,23 +103,29 @@ namespace EarthGame.Server
         {
             if (!_encoded.TryGetValue((layer, id), out EncodedTile tile))
             {
-                if (!Serves(layer)) throw new InvalidOperationException("this world has no " + layer + " to serve");
-                switch (layer)
-                {
-                    case TileLayer.Ground: tile = TileCodec.Encode(_terrain, _grid, id); break;
-                    case TileLayer.WaterDepth: tile = TileCodec.EncodeDepth(_water.Surface, _terrain, _grid, id); break;
-                    case TileLayer.WaterClass: tile = TileCodec.EncodeCodes(_water.Classes, TileLayer.WaterClass, _grid, id); break;
-                    case TileLayer.GroundCover: tile = TileCodec.EncodeCodes(_cover, TileLayer.GroundCover, _grid, id); break;
-                    case TileLayer.Stand: tile = TileCodec.EncodeCodes(_stand, TileLayer.Stand, _grid, id); break;
-                    case TileLayer.Loose: tile = TileCodec.EncodeCodes(_loose, TileLayer.Loose, _grid, id); break;
-                    case TileLayer.Stone: tile = TileCodec.EncodeCodes(_stone, TileLayer.Stone, _grid, id); break;
-                    case TileLayer.FarStand:
-                    case TileLayer.FarCount: tile = TileCodec.EncodeFar(_stand, layer, _grid, id); break;
-                    default: throw new ArgumentOutOfRangeException(nameof(layer), "no such layer: " + layer);
-                }
+                tile = Encode(id, layer);
                 _encoded[(layer, id)] = tile;
             }
             return tile;
+        }
+
+        /// <summary>A tile of a layer made from the world's layers, which it only reads; nothing is cached here.</summary>
+        private EncodedTile Encode(TileId id, TileLayer layer)
+        {
+            if (!Serves(layer)) throw new InvalidOperationException("this world has no " + layer + " to serve");
+            switch (layer)
+            {
+                case TileLayer.Ground: return TileCodec.Encode(_terrain, _grid, id);
+                case TileLayer.WaterDepth: return TileCodec.EncodeDepth(_water.Surface, _terrain, _grid, id);
+                case TileLayer.WaterClass: return TileCodec.EncodeCodes(_water.Classes, TileLayer.WaterClass, _grid, id);
+                case TileLayer.GroundCover: return TileCodec.EncodeCodes(_cover, TileLayer.GroundCover, _grid, id);
+                case TileLayer.Stand: return TileCodec.EncodeCodes(_stand, TileLayer.Stand, _grid, id);
+                case TileLayer.Loose: return TileCodec.EncodeCodes(_loose, TileLayer.Loose, _grid, id);
+                case TileLayer.Stone: return TileCodec.EncodeCodes(_stone, TileLayer.Stone, _grid, id);
+                case TileLayer.FarStand:
+                case TileLayer.FarCount: return TileCodec.EncodeFar(_stand, layer, _grid, id);
+                default: throw new ArgumentOutOfRangeException(nameof(layer), "no such layer: " + layer);
+            }
         }
 
         /// <summary>Answers a request: a header per wanted tile, and chunks for those the client does not hold.</summary>

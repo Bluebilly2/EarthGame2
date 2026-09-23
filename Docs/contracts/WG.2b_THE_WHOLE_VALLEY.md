@@ -143,6 +143,12 @@ each change, every layer's checksum the same.
   output byte for byte the same: whether each step's draws are seeded per cell, and so independent of the order cells are
   worked in, is read in the code before a step is spread, and the checksums prove it after.
 - **W4. The dedicated server's tiles encoded across cores** at its start (at 32 km 9,216 tiles, about 40 s on one core).
+  **Landed 2026-09-23:** `TileService.EncodeAll` lists the tiles, makes each from the world's layers (which it only reads) in
+  parallel, and puts them in the cache in the listed order; `Encoded`, a request's, and the start share one `Encode`. The whole
+  valley's 9,216 tiles in 2.24 s where they took 29.84 s, a continue of its world by the dedicated server in 10.0 s where it took
+  33.8 s (peak 4.04 GB against 4.65), each on its own copy of the world. `TileEncodingTests` holds every tile made at the start of
+  a 4 km world with every layer to the one a request makes alone, byte for byte; with each tile made from the id listed opposite
+  it the test goes red on the first tile.
 - **W5. `drainage_check` in less memory**: the grid in numpy and only the flood's frontier in the heap; its algorithm stays its
   own (STANDARDS 19). **Landed 2026-09-23 (98f5bfc):** the flood's grid an array of doubles and the accumulation's order, counts,
   receivers and sea arrays of integers and bytes, not Python lists; HEAD's check and this one print the same verdicts line for
@@ -153,7 +159,12 @@ each change, every layer's checksum the same.
   valley is not put in William's hands before D1 lands. **Landed by the main session 2026-09-23 (fba255a, M1.6f):** the far trees
   thinned by distance in nested levels; at 8 km on a quiet machine the ring beyond the held tiles cost 0.27 and 0.44 ms of the
   median at the wake and the escarpment against 1.08 and 1.02 before, the whole far band 1.81 and 2.29 ms against 2.53 and 3.04;
-  its 32 km measure is on the whole valley's world.
+  its 32 km measure is on the whole valley's world: with the levels carried to one tree in 256 and the far tiles past 3 km
+  drawn whole, the ring beyond the held tiles costs 0.61 ms of the median at the escarpment (1,778 trees drawn of the 609,937
+  placed) and 1.14 ms at the first world's wake (832), where it cost 6.86 and 3.75 before M1.6f, and the p95 is 9 to 10 ms
+  where it was 35 to 40; at 8 km about 0.3 ms. So the far forest's growth with the region is bounded. The whole far band at 32 km
+  is 2.8 to 3.2 ms, about 2 ms of it the held tiles' own far trees, which does not grow with the region: over the 2 ms target by
+  that band, a question of the look that the main session puts to William with lookout frames.
 
 Already done on the way, in the tree: **the bake in bands** (`Tools/data/bake_region.py`): the coordinates and the two
 median passes worked 256 rows at a time, each cell's arithmetic unchanged. Proved: the valley's 8 km bake rebaked with the
@@ -274,6 +285,17 @@ water off the channels on 63,338,131 cells); `cover_check` ok in 5.7 s (64,016,0
 with eight rows owed under "The valley grows the coast's plant table" (BF.4's), its table given the whole valley's rows;
 `region_stats --world` ok (236,407 sea cells, the floor under the datum and within the rule's 30 m); `save_check` ok;
 `census_check` holds no landmarks for the valley and exits 2 by design (DEBTS, "The valley has no census").
+
+## In the game (2026-09-23)
+
+**A new world made inside the game**, as the shell's "New world" makes one: the harness built from 53c77fe (`install.py --into
+harness --label wg2b`), windowless, `-eg-region kangaroo-valley-whole` with a world name not yet made, the first-frame scenario
+after (`new_world_in_game.py` in the side worker's scratchpad). Prepared in 375.6 s at a peak of 10.0 GB committed for the whole
+game (414.2 s to the end of the run); the loading screen went on updating throughout (21 million main-thread updates); the scorer's
+wake the same cell the dedicated server chose (east 10,840 north −9,268), the same seed giving the same world in either runtime;
+playable 5.65 s after the connect; the first frame at the wake, 1080p over a held full turn with the far forest's bound (M1.6f): a
+median 7.9 ms, a p95 11.6 ms and a worst 30.0 ms, 609,937 far trees placed and 177,469 near. As the code stood this morning the
+same making would have taken about ten minutes and 17 GB. At 375.6 s it is over the five minutes W3 was to wait for: W3 follows.
 
 ## Exit
 
