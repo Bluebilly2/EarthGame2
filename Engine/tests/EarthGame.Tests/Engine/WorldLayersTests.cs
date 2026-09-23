@@ -58,6 +58,28 @@ namespace EarthGame.Tests.Engine
             Assert.That((WaterClass)w.Water[100 * Side + 80], Is.Not.EqualTo(WaterClass.Lake));
         }
 
+        /// <summary>
+        /// A flat inside an outline the water bake left out as humanity's makes no lake (WG.2b, 2026-09-23). The tiles carry a
+        /// dam's water surface as flat ground at its level, and the flat rule filled it again: in the whole valley, Fitzroy Falls
+        /// Reservoir's 131 ha at 662 m, with the wake set beside it. The made coast's hollow is a lake of the ground's own making
+        /// (above); drawn inside a reservoir's outline, not a cell in or round it is lake, and the census names what was left out.
+        /// </summary>
+        [Test]
+        public void AFlatInsideAnOutlineLeftOutAsHumanitysMakesNoLake()
+        {
+            RegionRaster reservoir = TestRasters.FromCodes(Side, TestRasters.MadeCellM, TestRasters.MadeExtentM, "made_reservoir", "water_bodies",
+                (row, col) => (row - 70) * (row - 70) + (col - 80) * (col - 80) < 26 * 26 ? 1u : 0u,
+                "\"bodies\":[{\"code\":1,\"osm\":\"way/9\",\"name\":\"Made Reservoir\",\"kind\":\"reservoir\"}]");
+            WorldLayers w = WorldLayers.Compute(Made(), 1347UL, reservoir);
+            int lakeCells = 0;
+            for (int row = 40; row <= 100; row++)
+                for (int col = 50; col <= 110; col++)
+                    if ((WaterClass)w.Water[row * Side + col] == WaterClass.Lake) lakeCells++;
+            Assert.That(lakeCells, Is.EqualTo(0), "no lake in or round the hollow");
+            Assert.That((WaterClass)Layers().Water[70 * Side + 80], Is.EqualTo(WaterClass.Lake), "without the outline, the hollow is a lake");
+            Assert.That(w.WaterCensus(), Does.Contain("Made Reservoir").And.Contain("left out as humanity's"));
+        }
+
         [Test]
         public void TheCommunityStandsWhereItCanAndTheStoneLiesWhereItIs()
         {

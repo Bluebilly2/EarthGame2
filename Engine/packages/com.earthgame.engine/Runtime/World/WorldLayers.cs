@@ -423,6 +423,17 @@ namespace EarthGame.Engine
         {
             int count = Width * Height;
             ReadOnlySpan<float> z = heights.Values;
+            // An outline the water bake left out as humanity's (a dam's lake, a farm's pond) holds no lake of the ground's own
+            // making (WG.2b, 2026-09-23): the tiles carry a dam's water surface as flat ground at its level, and the flat rule
+            // below filled it again, Fitzroy Falls Reservoir's 131 ha at 662 m in the whole valley with the wake set beside it.
+            // Its cells seed no flat and join no patch; the drainage runs across them as it runs across any ground.
+            bool[] leftOutCodes = HumanitysCodes(waterBodies);
+            bool LeftOut(int row, int col)
+            {
+                if (leftOutCodes == null) return false;
+                uint code = waterBodies.Code(row, col);
+                return code < leftOutCodes.Length && leftOutCodes[code];
+            }
             bool[] flat = new bool[count];
             for (int r = 0; r < Height; r++)
                 for (int c = 0; c < Width; c++)
@@ -437,7 +448,7 @@ namespace EarthGame.Engine
                             if (v < lo) lo = v;
                             if (v > hi) hi = v;
                         }
-                    flat[Index(r, c)] = hi - lo < LakeFlatnessM;
+                    flat[Index(r, c)] = hi - lo < LakeFlatnessM && !LeftOut(r, c);
                 }
             // Grown from the lowest flat cell up, through the cells within the band of that level, so a lake is
             // one level; the rim is what makes it a lake: nearly all the ground around it stands higher.
@@ -469,6 +480,7 @@ namespace EarthGame.Engine
                         {
                             int nr = r + dr, nc = c + dc;
                             if (nr < 0 || nc < 0 || nr >= Height || nc >= Width) continue;
+                            if (LeftOut(nr, nc)) continue;
                             int n = Index(nr, nc);
                             bool inside = z[n] >= level && z[n] - level <= LakeLevelBandM;
                             if (!inside)
@@ -497,6 +509,26 @@ namespace EarthGame.Engine
             }
             if (waterBodies != null) Mapped(z, waterBodies, lake);
             return lake;
+        }
+
+        /// <summary>Whether an outline's kind is humanity's water, which the water bake leaves out: a dam's lake or a pond (WG.2b).</summary>
+        public static bool IsHumanitys(string kind) => kind == "reservoir" || kind == "pond";
+
+        /// <summary>The codes of the outlines left out as humanity's, as a lookup by code; null when the bake names none.</summary>
+        private static bool[] HumanitysCodes(RegionRaster waterBodies)
+        {
+            if (waterBodies == null || !waterBodies.Sidecar.Contains("bodies")) return null;
+            bool[] codes = null;
+            foreach (object entry in waterBodies.Sidecar.Array("bodies"))
+            {
+                if (!(entry is JsonObject j) || !IsHumanitys(j.StringOr("kind", "lake"))) continue;
+                int code = j.Int("code");
+                if (code <= 0) continue;
+                if (codes == null) codes = new bool[256];
+                if (code >= codes.Length) Array.Resize(ref codes, code + 1);
+                codes[code] = true;
+            }
+            return codes;
         }
 
         /// <summary>
@@ -646,6 +678,9 @@ namespace EarthGame.Engine
                 }
                 else if (b.Kind == "wetland")
                     sb.Append("  ").Append(name).Append(": ").Append(Ha(b.WaterCells * ha)).Append(" of swamp (").Append(b.Source).Append(")").Append('\n');
+                else if (IsHumanitys(b.Kind))
+                    sb.Append("  ").Append(name).Append(": an outline of ").Append(Ha(b.OutlineCells * ha)).Append(", a ").Append(b.Kind)
+                      .Append(" left out as humanity's, no lake in it (").Append(b.Source).Append(")").Append('\n');
                 else
                     sb.Append("  ").Append(name).Append(": an outline of ").Append(Ha(b.OutlineCells * ha)).Append(", ").Append(b.Kind).Append(", not used (").Append(b.Source).Append(")").Append('\n');
             }

@@ -78,6 +78,18 @@ OWED_BY_REGION = {
         ("SawSedge", "round its records"): COAST_TABLE,
         ("OldManBanksia", "round its records"): COAST_TABLE,
     },
+    # The whole valley (WG.2b, 2026-09-23) grows the same coast's table over 32 km, and has a sea to measure from (the
+    # Shoalhaven's floodplain in its south-east corner), where the coast's plants are recorded: they grow everywhere in the world.
+    "kangaroo-valley-whole": {
+        ("Blackbutt", "round its records"): COAST_TABLE,
+        ("Blackbutt", "how far from the sea"): COAST_TABLE,
+        ("Bracken", "round its records"): COAST_TABLE,
+        ("CoastBanksia", "how far from the sea"): COAST_TABLE,
+        ("Lomandra", "round its records"): COAST_TABLE,
+        ("OldManBanksia", "round its records"): COAST_TABLE,
+        ("SawSedge", "round its records"): COAST_TABLE,
+        ("SwampPaperbark", "how far from the sea"): COAST_TABLE,
+    },
 }
 
 

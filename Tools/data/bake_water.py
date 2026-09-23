@@ -13,9 +13,12 @@ a wetland's cells are swamp. Without the layer the pipeline falls back to the gr
 
 A way tagged water=reservoir or landuse=reservoir is a dam's lake, and one tagged water=pond is "man-made in most cases"
 (the OpenStreetMap wiki): humanity's, excluded and listed in the sidecar (`excluded`), since the constitution's Earth has no
-dams and no farms (WG.2, 2026-09-22).
+dams and no farms (WG.2, 2026-09-22). Since WG.2b (2026-09-23) each is drawn into the layer as well, of kind `reservoir` or
+`pond`, numbered after the kept bodies and drawn before them (so a kept body's code and cells are what they were): the tiles
+carry a dam's water surface as flat ground, and the pipeline's flat rule made it a lake again until it could see the outline;
+it now makes none inside one.
 Kinds: `lake` (natural=water without a salt tag), `wetland` (natural=wetland), `salt` (natural=water tagged
-water=bay, lagoon or harbour, or salt=yes; recorded, not yet used by the pipeline). Relations (St Georges
+water=bay, lagoon or harbour, or salt=yes; recorded, not yet used by the pipeline), `reservoir` and `pond` (left out). Relations (St Georges
 Basin, a multipolygon west of the box) are not rasterised.
 
 The frame is the sidecar's: cell centres at east = col * cell - extent / 2, north = extent / 2 - row * cell,
@@ -59,6 +62,11 @@ HUMAN_MADE = ("reservoir", "pond")
 
 def is_human_made(tags):
     return tags.get("water") in HUMAN_MADE or tags.get("landuse") in HUMAN_MADE or tags.get("man_made") == "reservoir"
+
+
+def human_kind(tags):
+    """A left-out way's kind in the layer's legend: a pond when it says it is one, a reservoir otherwise."""
+    return "pond" if tags.get("water") == "pond" or tags.get("landuse") == "pond" else "reservoir"
 
 
 def fetch(cache_path, south, west, north, east, refresh):
@@ -118,22 +126,29 @@ def main():
     bodies = []
     excluded = []
     ways = sorted((e for e in data.get("elements", []) if e.get("type") == "way" and e.get("geometry")), key=lambda e: e["id"])
-    for way in ways:
-        nodes = way["geometry"]
-        if len(nodes) < 4 or nodes[0] != nodes[-1]:
-            continue    # an open way is a shoreline or a river bank, not a body
-        if is_human_made(way.get("tags", {})):
-            excluded.append({"osm": "way/%d" % way["id"], "name": way.get("tags", {}).get("name", ""),
-                             "why": ("a reservoir" if way.get("tags", {}).get("water") == "reservoir" or way.get("tags", {}).get("landuse") == "reservoir" else "a pond, man-made in most cases")
-                                    + ": humanity's, and this Earth has no dams"})
-            continue
-        points = [to_pixel(n["lat"], n["lon"]) for n in nodes[:-1]]
-        code = len(bodies) + 1
-        if code > 255:
-            raise SystemExit("more than 255 water bodies in the box; the u8 layer cannot hold them")
+    closed = [w for w in ways if len(w["geometry"]) >= 4 and w["geometry"][0] == w["geometry"][-1]]   # an open way is a shoreline or a bank
+    kept = [w for w in closed if not is_human_made(w.get("tags", {}))]
+    left_out = [w for w in closed if is_human_made(w.get("tags", {}))]
+    if len(kept) + len(left_out) > 255:
+        raise SystemExit("%d kept and %d left-out bodies in the box; the u8 layer holds 255" % (len(kept), len(left_out)))
+    # The left-out first, numbered after the kept, so a kept body drawn over one keeps its cells and its code (WG.2b).
+    for k, way in enumerate(left_out):
         tags = way.get("tags", {})
+        points = [to_pixel(n["lat"], n["lon"]) for n in way["geometry"][:-1]]
+        code = len(kept) + 1 + k
+        draw.polygon(points, fill=code)
+        excluded.append({"code": code, "osm": "way/%d" % way["id"], "name": tags.get("name", ""),
+                         "why": ("a reservoir" if human_kind(tags) == "reservoir" else "a pond, man-made in most cases")
+                                + ": humanity's, and this Earth has no dams; drawn so that no lake of the ground's own making stands in it"})
+    for code, way in enumerate(kept, start=1):
+        tags = way.get("tags", {})
+        points = [to_pixel(n["lat"], n["lon"]) for n in way["geometry"][:-1]]
         draw.polygon(points, fill=code)
         bodies.append({"code": code, "osm": "way/%d" % way["id"], "name": tags.get("name", ""), "kind": kind_of(tags), "nodes": len(points)})
+    for k, way in enumerate(left_out):
+        tags = way.get("tags", {})
+        bodies.append({"code": len(kept) + 1 + k, "osm": "way/%d" % way["id"], "name": tags.get("name", ""), "kind": human_kind(tags),
+                       "nodes": len(way["geometry"]) - 1})
 
     grid = np.array(image, dtype=np.uint8)
     if grid.shape != (side, side):
@@ -154,7 +169,7 @@ def main():
     for b in bodies:
         print("  %3d  %-8s %-22s %-14s %6.1f ha in the box" % (b["code"], b["kind"], b["name"] or "(unnamed)", b["osm"], b["cells"] * args.cell_m * args.cell_m / 1e4))
     for e in excluded:
-        print("  excluded %-22s %-14s %s" % (e["name"] or "(unnamed)", e["osm"], e["why"]))
+        print("  excluded %-22s %-14s code %3d, %s" % (e["name"] or "(unnamed)", e["osm"], e["code"], e["why"]))
     return 0
 
 

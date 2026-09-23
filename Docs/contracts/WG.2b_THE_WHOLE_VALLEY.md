@@ -78,7 +78,10 @@ What the trial shows:
 2. **Time grows about as the cells do** on a quiet machine (11.6 s to 45.3 s for four times the cells); the game makes a world
    about three times slower than the server (155.2 s against 45.3 to 52.6 s).
 3. **The far forest is the frame's growth, and nothing else is.** Hidden, the median frame is 5.4 and 5.5 ms at 8 and 16 km;
-   drawn, it costs 7.7 ms of the median already at 8 km and 10 ms at 16, and 12 and 21 ms of the p95.
+   drawn, it costs 7.7 ms of the median already at 8 km and 10 ms at 16, and 12 and 21 ms of the p95. These frame figures were
+   taken with other work on the machine and overstate the cost: on a quiet machine the main session's pair before its bound
+   read the whole far band at 2.5 to 3.0 ms of the median at 8 km (M1.6f, 2026-09-23). What they show stands: the far forest is
+   the one part of the frame that grows with the region.
 4. **The bake would not fit at 32 km as it was**: its 7 × 7 median copied every cell's 49 neighbours at once (12.5 GB for
    8001 × 8001) beside 5 GB of coordinate grids. Banded (below), it is 2.5 GB.
 5. **The checks hold up**, but `drainage_check` keeps every cell in Python lists and its priority flood's heap: 2.9 GB at 16 km.
@@ -141,10 +144,16 @@ each change, every layer's checksum the same.
   worked in, is read in the code before a step is spread, and the checksums prove it after.
 - **W4. The dedicated server's tiles encoded across cores** at its start (at 32 km 9,216 tiles, about 40 s on one core).
 - **W5. `drainage_check` in less memory**: the grid in numpy and only the flood's frontier in the heap; its algorithm stays its
-  own (STANDARDS 19).
+  own (STANDARDS 19). **Landed 2026-09-23 (98f5bfc):** the flood's grid an array of doubles and the accumulation's order, counts,
+  receivers and sea arrays of integers and bytes, not Python lists; HEAD's check and this one print the same verdicts line for
+  line on the gate world, the 8 km valley and a 16 km trial world (there 2.92 GB and 21.9 s before, 2.17 GB and 16.8 s after);
+  on the whole valley, ok in 93.7 s at 6.45 GB.
 - **D1 (the main session's, a dependency): the far forest bounded by distance**, and drawn cheaper if the bound is not enough;
   its target, at most 2 ms of the median frame at 16 km, proved by the same first-frame scenario at 8 and 16 km. The whole
-  valley is not put in William's hands before D1 lands.
+  valley is not put in William's hands before D1 lands. **Landed by the main session 2026-09-23 (fba255a, M1.6f):** the far trees
+  thinned by distance in nested levels; at 8 km on a quiet machine the ring beyond the held tiles cost 0.27 and 0.44 ms of the
+  median at the wake and the escarpment against 1.08 and 1.02 before, the whole far band 1.81 and 2.29 ms against 2.53 and 3.04;
+  its 32 km measure is on the whole valley's world.
 
 Already done on the way, in the tree: **the bake in bands** (`Tools/data/bake_region.py`): the coordinates and the two
 median passes worked 256 rows at a time, each cell's arithmetic unchanged. Proved: the valley's 8 km bake rebaked with the
@@ -221,6 +230,50 @@ is read as a lake, and a mapped lake stands flat at the median of the ground ins
 enters the box from a catchment far outside it and the drainage alone would make it a trickle (DEBTS, "A river that enters
 from outside the box"). (3) The shell names the whole valley greyed "not yet" rather than offering it: a new world there as
 the code stands would take about ten minutes and 17 GB in the game.
+
+## The whole valley's world (2026-09-23)
+
+**Made first** by the dedicated server built from HEAD (a8a305b, with W1 and W2) in a scratch folder, `+server.region
+kangaroo-valley-whole`, into `Artefacts/worlds/valley-whole` (moved aside to `valley-whole-lakes` when the world was made again
+below): 157.9 s to make its 24 layers (204.5 s with the start and every tile encoded), a peak of 8.39 GB committed, 2.8 GB on
+disk. By stage: about 6.0 GB held while the layers are worked out (the
+drainage and the soil at up to 7.5 GB committed), the peak in the save with the layers and the wake scorer's fields both held
+(8.7 GB in use), and 0.6 GB once they are let go and the world read back. As the code stood this morning the same world would
+have wanted some 23 GB. The server's start encodes its 9,216 tiles in 42.1 s (W4).
+
+**The first world's census.** The scorer's wake: east −7,156 north 7,988, 662 m on the plateau in forest, 4 m from fresh water, 0 m from
+knappable stone, fibre and firewood, 4 m from shelter rock. The water: 378.3 ha of sea (the Shoalhaven's floodplain in the
+south-east corner), lakes 235.2 ha, swamp 3,796.9 ha, streams 264.0 ha, creeks 374.6 ha, trickles 805.9 ha. Of the lakes,
+131.0 ha stand at 662 m on the flat Fitzroy Falls Reservoir left in the tiles, and 33.1 ha at 675 m on Wingecarribee
+Reservoir's (none inside a mapped outline): the wake is beside the first, 4 m from its water (DEBTS, "The reservoir's surface
+stands as ground"). Lake Yarrunga's arm, 186.7 ha inside the box on the 4 m bake, is not flat in the tiles (38 to 90 m inside
+its outline, median 63.2 m, 19 % within a metre of it) and made no lake.
+
+**The reservoir rule, and the world made again.** No lake of the ground's own making may stand inside an outline the water
+bake left out: `bake_water.py` draws its left-out ways into the layer as kinds `reservoir` and `pond`, numbered after the kept
+bodies and drawn before them (proved on the 8 km valley's cached query: the kept body's 60 cells keep their code, and all 305,482
+newly coded cells carry left-out codes), and `WorldLayers.Lakes` keeps their cells out of the flat rule's seeds and patches.
+`WorldLayersTests` holds the made coast's hollow, a lake alone, to no lake inside a reservoir's outline, red before the rule and
+green after; the gate world and the 8 km valley, whose bakes carry no such kinds, made with and without it have every layer's
+sha256, the census and the wake the same; the suite 839 green. The whole valley's water baked again from its cached query: 78
+bodies kept as before and 117 left out now drawn (43 reservoirs, 699.1 ha; 74 ponds, 21.7 ha; Fitzroy Falls Lake's outline 476.7
+ha in the box, Wingecarribee Reservoir's 188.2 ha).
+
+**The world as it stands** (`Artefacts/worlds/valley-whole`, made by a scratch build of a8a305b with the rule, the files the
+rule's commit carries): 125.0 s to make (155.0 s with the start;
+the start's 9,216 tiles in 28.6 s), a peak of 8.39 GB committed, 2.8 GB on disk. The census: the scorer's wake at east 10,840
+north −9,268, 2 m above the sea on the Shoalhaven's floodplain in the box's south-east corner, beyond the Cambewarra Range, in
+forest (bangalay over Lomandra), 4 m from fresh water, its wind exposure 0.94. The water: sea 378.3 ha, lakes 61.1 ha (48.4 of
+them read off the ground alone), swamp 4,038.8 ha, streams 267.1 ha, creeks 378.1 ha, trickles 807.2 ha; "Fitzroy Falls Lake: an
+outline of 476.7 ha, a reservoir left out as humanity's, no lake in it". The wake is the scorer's by rulings 20 and 44, and the
+main session holds the wake's question; that it lies outside the valley proper, a walk of some 10 km from the floor, is said
+here and to William.
+
+**The verifiers on it.** `drainage_check` ok in 93.7 s at 6.45 GB (401,004 of 403,279 channel cells within the flow's law; no
+water off the channels on 63,338,131 cells); `cover_check` ok in 5.7 s (64,016,001 posts follow the cascade); `species_check` ok
+with eight rows owed under "The valley grows the coast's plant table" (BF.4's), its table given the whole valley's rows;
+`region_stats --world` ok (236,407 sea cells, the floor under the datum and within the rule's 30 m); `save_check` ok;
+`census_check` holds no landmarks for the valley and exits 2 by design (DEBTS, "The valley has no census").
 
 ## Exit
 
