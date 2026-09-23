@@ -69,7 +69,13 @@ def bilinear(mosaic, px, py):
     return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy
 
 
-def despike(heights, threshold_m):
+#: Rows of the raster worked at once. The median below copies all 49 neighbours of every cell it works on, which for
+#: the whole of a 32 km box at 4 m (8001 x 8001) is 12.5 GB; in bands of this many rows it is 0.4 GB, and the
+#: answer is the same cell for cell, each cell's window and arithmetic being its own (WG.2b, 2026-09-23).
+BAND_ROWS = 256
+
+
+def despike(heights, threshold_m, band_rows=BAND_ROWS):
     """Cells more than threshold_m away from the median of their neighbourhood, in either direction, take that
     median. Returns (heights, count of replacements over both passes). Pits count as well as spikes: the 4 m region raster held a 1,097 m pit
     three cells wide on lowland near the bay shore (2026-09-08), a single bad tile pixel spread by resampling."""
@@ -77,14 +83,40 @@ def despike(heights, threshold_m):
     total = 0
     out = heights
     # Two passes over a 7x7 window: a bad pixel resampled onto 4 m cells is a pit up to five cells wide, and a
-    # single 5x5 pass left its floor in place (min -94 m after the first pass on 2026-09-08).
+    # single 5x5 pass left its floor in place (min -94 m after the first pass on 2026-09-08). Each pass reads only the
+    # pass before it, so a band's windows are the padded rows three above to three below it.
     for _ in range(2):
         padded = np.pad(out, 3, mode="edge")
-        med = np.median(sliding_window_view(padded, (7, 7)), axis=(2, 3)).astype(np.float32)
-        spike = np.abs(out - med) > threshold_m
-        out = np.where(spike, med, out)
-        total += int(spike.sum())
+        result = np.empty_like(out)
+        for r0 in range(0, out.shape[0], band_rows):
+            r1 = min(r0 + band_rows, out.shape[0])
+            med = np.median(sliding_window_view(padded[r0:r1 + 6], (7, 7)), axis=(2, 3)).astype(np.float32)
+            band = out[r0:r1]
+            spike = np.abs(band - med) > threshold_m
+            result[r0:r1] = np.where(spike, med, band)
+            total += int(spike.sum())
+        out = result
     return out, total
+
+
+def sample_rows(mosaic, r0, r1, n, cell_m, extent_m, centre_lat, centre_lon, zoom, x0, y0):
+    """The heights of raster rows r0 to r1 (row 0 the north edge), bilinear from the Mercator mosaic at the lon/lat of
+    each cell's centre on the tangent plane."""
+    half = extent_m / 2.0
+    east_m = (np.arange(n, dtype=np.float64) * cell_m) - half
+    north_m = half - (np.arange(r0, r1, dtype=np.float64) * cell_m)
+    east_grid, north_grid = np.meshgrid(east_m, north_m)
+    lat = centre_lat + np.degrees(north_grid / terrarium.EARTH_RADIUS_M)
+    lon = centre_lon + np.degrees(east_grid / (terrarium.EARTH_RADIUS_M * math.cos(math.radians(centre_lat))))
+
+    # Lon/lat to mosaic pixels (vectorised form of terrarium.lonlat_to_tile_xy).
+    scale = 2 ** zoom
+    tx = (lon + 180.0) / 360.0 * scale
+    latr = np.radians(lat)
+    ty = (1.0 - np.log(np.tan(latr) + 1.0 / np.cos(latr)) / math.pi) / 2.0 * scale
+    px = (tx - x0) * terrarium.TILE_PX - 0.5
+    py = (ty - y0) * terrarium.TILE_PX - 0.5
+    return bilinear(mosaic, px, py).astype(np.float32)
 
 
 def main():
@@ -99,7 +131,7 @@ def main():
     p.add_argument("--coast", action="store_true", default=True, help="the region declares a coast (default)")
     p.add_argument("--inland", action="store_true", help="the region has no coast (WG.2): no cell need lie at or below sea level")
     p.add_argument("--despike-m", type=float, default=0.0,
-                   help="replace any cell more than this many metres from its 5x5 median, up or down, with that median (0 = off). "
+                   help="replace any cell more than this many metres from its 7x7 median, up or down, with that median, in two passes (0 = off). "
                         "The zoom-11 surround carries isolated bad cells over the open sea, hundreds of metres high, "
                         "which drew as spikes on the skyline (2026-09-08); the 4 m region raster has none.")
     a = p.parse_args()
@@ -115,23 +147,12 @@ def main():
         print("refused: %d tile(s) missing from the cache, e.g. %s; run fetch_tiles.py --zoom %d first" % (len(missing), missing[0], a.zoom))
         return 1
 
-    # Cell centres on the tangent plane, row 0 at the north edge, column 0 at the west edge.
+    # Cell centres on the tangent plane, row 0 at the north edge, column 0 at the west edge, a band of rows at a time.
     n = raster_io.expected_side(a.extent_m, a.cell_m)
-    half = a.extent_m / 2.0
-    east_m = (np.arange(n, dtype=np.float64) * a.cell_m) - half
-    north_m = half - (np.arange(n, dtype=np.float64) * a.cell_m)
-    east_grid, north_grid = np.meshgrid(east_m, north_m)
-    lat = a.centre_lat + np.degrees(north_grid / terrarium.EARTH_RADIUS_M)
-    lon = a.centre_lon + np.degrees(east_grid / (terrarium.EARTH_RADIUS_M * math.cos(math.radians(a.centre_lat))))
-
-    # Lon/lat to mosaic pixels (vectorised form of terrarium.lonlat_to_tile_xy).
-    scale = 2 ** a.zoom
-    tx = (lon + 180.0) / 360.0 * scale
-    latr = np.radians(lat)
-    ty = (1.0 - np.log(np.tan(latr) + 1.0 / np.cos(latr)) / math.pi) / 2.0 * scale
-    px = (tx - x0) * terrarium.TILE_PX - 0.5
-    py = (ty - y0) * terrarium.TILE_PX - 0.5
-    heights = bilinear(mosaic, px, py).astype(np.float32)
+    heights = np.empty((n, n), dtype=np.float32)
+    for r0 in range(0, n, BAND_ROWS):
+        r1 = min(r0 + BAND_ROWS, n)
+        heights[r0:r1] = sample_rows(mosaic, r0, r1, n, a.cell_m, a.extent_m, a.centre_lat, a.centre_lon, a.zoom, x0, y0)
 
     if np.isnan(heights).any():
         print("refused: the raster contains NaN (a hole in the mosaic)")
