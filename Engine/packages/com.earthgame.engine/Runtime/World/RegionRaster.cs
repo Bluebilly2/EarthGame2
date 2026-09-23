@@ -309,40 +309,29 @@ namespace EarthGame.Engine
             if (dtype == "f32" && scale != 1.0) throw new ArgumentException("an f32 layer is stored in its unit; scale must be 1", nameof(scale));
             if (!(scale > 0.0)) throw new ArgumentException("scale must be positive", nameof(scale));
 
-            byte[] raw = new byte[values.Length * bytesPerCell];
-            double min = double.PositiveInfinity, max = double.NegativeInfinity;
-            for (int i = 0; i < values.Length; i++)
+            long lo = 0, hi;
+            switch (dtype)
+            {
+                case "u8": hi = byte.MaxValue; break;
+                case "u16": hi = ushort.MaxValue; break;
+                case "i16": lo = short.MinValue; hi = short.MaxValue; break;
+                default: hi = uint.MaxValue; break;
+            }
+            return WriteStreamed(dir, name, like, layer, dtype, scale, unit, (int i, out double stored) =>
             {
                 float v = values[i];
                 if (float.IsNaN(v) || float.IsInfinity(v)) throw new ArgumentException("cell " + i + " is " + v + "; a layer holds no NaN", nameof(values));
-                int o = i * bytesPerCell;
-                double stored;
                 if (dtype == "f32")
                 {
-                    int bits = BitConverter.SingleToInt32Bits(v);
-                    raw[o] = (byte)bits; raw[o + 1] = (byte)(bits >> 8); raw[o + 2] = (byte)(bits >> 16); raw[o + 3] = (byte)(bits >> 24);
                     stored = v;
+                    return unchecked((uint)BitConverter.SingleToInt32Bits(v));
                 }
-                else
-                {
-                    long q = (long)Math.Round(v / scale, MidpointRounding.ToEven);
-                    long lo, hi;
-                    switch (dtype)
-                    {
-                        case "u8": lo = 0; hi = byte.MaxValue; break;
-                        case "u16": lo = 0; hi = ushort.MaxValue; break;
-                        case "i16": lo = short.MinValue; hi = short.MaxValue; break;
-                        default: lo = 0; hi = uint.MaxValue; break;
-                    }
-                    if (q < lo || q > hi)
-                        throw new ArgumentException("layer " + layer + ": cell " + i + " = " + v + " " + unit + " is " + q + " units of " + scale + ", outside " + dtype, nameof(values));
-                    PutCode(raw, o, bytesPerCell, unchecked((uint)q));
-                    stored = q * scale;
-                }
-                if (stored < min) min = stored;
-                if (stored > max) max = stored;
-            }
-            return WriteParts(dir, name, like, layer, dtype, scale, unit, raw, min, max, source, writtenBy, writtenAtUtc);
+                long q = (long)Math.Round(v / scale, MidpointRounding.ToEven);
+                if (q < lo || q > hi)
+                    throw new ArgumentException("layer " + layer + ": cell " + i + " = " + v + " " + unit + " is " + q + " units of " + scale + ", outside " + dtype, nameof(values));
+                stored = q * scale;
+                return unchecked((uint)q);
+            }, source, writtenBy, writtenAtUtc);
         }
 
         /// <summary>Writes a code layer (an id or a flag mask) in the version-2 format: whole numbers, scale 1.</summary>
@@ -354,38 +343,124 @@ namespace EarthGame.Engine
                 throw new ArgumentException("codes must hold " + like.Width * like.Height + " cells", nameof(codes));
             int bytesPerCell = BytesPerCell(dtype);
             if (bytesPerCell == 0 || dtype == "f32") throw new ArgumentException("a code layer is u8, u16, i16 or u32, not " + dtype, nameof(dtype));
-            uint ceiling = dtype == "u8" ? byte.MaxValue : dtype == "u16" ? ushort.MaxValue : dtype == "i16" ? ushort.MaxValue : uint.MaxValue;
-            byte[] raw = new byte[codes.Length * bytesPerCell];
-            uint min = uint.MaxValue, max = 0;
-            for (int i = 0; i < codes.Length; i++)
-            {
-                if (codes[i] > ceiling) throw new ArgumentException("layer " + layer + ": code " + codes[i] + " at cell " + i + " does not fit " + dtype, nameof(codes));
-                PutCode(raw, i * bytesPerCell, bytesPerCell, codes[i]);
-                if (codes[i] < min) min = codes[i];
-                if (codes[i] > max) max = codes[i];
-            }
-            return WriteParts(dir, name, like, layer, dtype, 1.0, unit, raw, min, max, source, writtenBy, writtenAtUtc);
+            return WriteCodes(dir, name, like, layer, dtype, unit, i => codes[i], source, writtenBy, writtenAtUtc);
         }
 
-        private static void PutCode(byte[] raw, int offset, int bytesPerCell, uint code)
+        /// <summary>
+        /// Writes a code layer whose code at each cell (row-major) a function gives, so a caller that holds its codes in another
+        /// shape (a byte a cell, metres as floats) writes them without widening a copy of the layer first (WG.2b, 2026-09-23).
+        /// </summary>
+        public static string WriteCodes(string dir, string name, RegionRaster like, string layer, string dtype, string unit,
+                                        Func<int, uint> codeAt, string source, string writtenBy, string writtenAtUtc)
         {
-            raw[offset] = (byte)code;
-            if (bytesPerCell > 1) raw[offset + 1] = (byte)(code >> 8);
-            if (bytesPerCell > 2)
+            if (like == null) throw new ArgumentNullException(nameof(like));
+            if (codeAt == null) throw new ArgumentNullException(nameof(codeAt));
+            int bytesPerCell = BytesPerCell(dtype);
+            if (bytesPerCell == 0 || dtype == "f32") throw new ArgumentException("a code layer is u8, u16, i16 or u32, not " + dtype, nameof(dtype));
+            uint ceiling = dtype == "u8" ? byte.MaxValue : dtype == "u16" ? ushort.MaxValue : dtype == "i16" ? ushort.MaxValue : uint.MaxValue;
+            return WriteStreamed(dir, name, like, layer, dtype, 1.0, unit, (int i, out double stored) =>
             {
-                raw[offset + 2] = (byte)(code >> 16);
-                raw[offset + 3] = (byte)(code >> 24);
-            }
+                uint code = codeAt(i);
+                if (code > ceiling) throw new ArgumentException("layer " + layer + ": code " + code + " at cell " + i + " does not fit " + dtype, nameof(codeAt));
+                stored = code;
+                return code;
+            }, source, writtenBy, writtenAtUtc);
         }
 
-        private static string WriteParts(string dir, string name, RegionRaster like, string layer, string dtype, double scale, string unit,
-                                         byte[] raw, double min, double max, string source, string writtenBy, string writtenAtUtc)
+        /// <summary>A cell's raw bits for the file (a code, or an f32's bits) and the value it stores, for the sidecar's min and max.</summary>
+        private delegate uint CellBits(int cell, out double stored);
+
+        /// <summary>
+        /// Writes a layer's raw file a band of cells at a time, through the SHA-256 as it goes, then its sidecar; the raw file lands
+        /// whole or not at all (written beside itself as <c>.part</c>, then moved). Until WG.2b (2026-09-23) a layer was built whole
+        /// as bytes before it was written, a 32 km layer of four bytes a cell being 256 MB of garbage at every save.
+        /// </summary>
+        private static string WriteStreamed(string dir, string name, RegionRaster like, string layer, string dtype, double scale, string unit,
+                                            CellBits cellBits, string source, string writtenBy, string writtenAtUtc)
         {
             Directory.CreateDirectory(dir);
+            int bytesPerCell = BytesPerCell(dtype);
+            int count = like.Width * like.Height;
             string rawName = name + (dtype == "f32" ? ".r32" : "." + dtype);
             string rawPath = Path.Combine(dir, rawName);
+            string part = rawPath + ".part";
+            double min = double.PositiveInfinity, max = double.NegativeInfinity;
+            string sha256;
+            byte[] band = new byte[StreamBandBytes - StreamBandBytes % bytesPerCell];
+            try
+            {
+                using (FileStream file = new FileStream(part, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16))
+                using (SHA256 sha = SHA256.Create())
+                {
+                    int filled = 0;
+                    for (int i = 0; i < count; i++)
+                    {
+                        uint bits = cellBits(i, out double stored);
+                        if (stored < min) min = stored;
+                        if (stored > max) max = stored;
+                        band[filled] = (byte)bits;
+                        if (bytesPerCell > 1) band[filled + 1] = (byte)(bits >> 8);
+                        if (bytesPerCell > 2)
+                        {
+                            band[filled + 2] = (byte)(bits >> 16);
+                            band[filled + 3] = (byte)(bits >> 24);
+                        }
+                        filled += bytesPerCell;
+                        if (filled == band.Length)
+                        {
+                            file.Write(band, 0, filled);
+                            sha.TransformBlock(band, 0, filled, null, 0);
+                            filled = 0;
+                        }
+                    }
+                    file.Write(band, 0, filled);
+                    sha.TransformFinalBlock(band, 0, filled);
+                    sha256 = Hex(sha.Hash);
+                }
+            }
+            catch
+            {
+                if (File.Exists(part)) File.Delete(part);
+                throw;
+            }
+            if (File.Exists(rawPath)) File.Delete(rawPath);
+            File.Move(part, rawPath);
+            return WriteSidecar(dir, name, like, layer, dtype, scale, unit, rawName, min, max, sha256, source, writtenBy, writtenAtUtc);
+        }
+
+        /// <summary>How many bytes of a layer are gathered before they go to the file and the hash.</summary>
+        private const int StreamBandBytes = 1 << 20;
+
+        /// <summary>
+        /// The sha256 of a written layer's raw file, read back from the disk a megabyte at a time and held against its sidecar's
+        /// claim: what a world's manifest records once the layer is on disk (WG.2b; the world's creation loaded every layer whole
+        /// again to learn it).
+        /// </summary>
+        public static string CheckedSha256(string sidecarPath)
+        {
+            JsonObject sidecar = Json.ParseObject(File.ReadAllText(sidecarPath, Encoding.UTF8));
+            string rawPath = RawPathFor(sidecarPath);
+            string actual;
+            using (FileStream file = new FileStream(rawPath, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 16))
+            using (SHA256 sha = SHA256.Create())
+            {
+                byte[] chunk = new byte[StreamBandBytes];
+                int read;
+                while ((read = file.Read(chunk, 0, chunk.Length)) > 0) sha.TransformBlock(chunk, 0, read, null, 0);
+                sha.TransformFinalBlock(chunk, 0, 0);
+                actual = Hex(sha.Hash);
+            }
+            string claimed = sidecar.String("sha256");
+            if (!string.Equals(claimed, actual, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException(sidecarPath + ": sha256 of the raw file is " + actual + ", the sidecar says " + claimed
+                                               + " (the file on disk is not the one written)");
+            return actual;
+        }
+
+        private static string WriteSidecar(string dir, string name, RegionRaster like, string layer, string dtype, double scale, string unit,
+                                           string rawName, double min, double max, string sha256, string source, string writtenBy, string writtenAtUtc)
+        {
             string sidecarPath = Path.Combine(dir, name + ".json");
-            WriteAtomic(rawPath, raw);
             JsonObject sidecar = new JsonObject()
                 .With("format", Format).With("version", Version).With("name", name).With("region", like.RegionId)
                 .With("layer", layer).With("dtype", dtype).With("byte_order", "little").With("raw", rawName)
@@ -394,7 +469,7 @@ namespace EarthGame.Engine
                 .With("width", like.Width).With("height", like.Height).With("cell_m", like.CellM).With("extent_m", like.ExtentM)
                 .With("centre_lat", like.CentreLatDeg).With("centre_lon", like.CentreLonDeg)
                 .With("frame", "tangent plane, +east +north metres from the centre; small-angle mapping as Engine LocalFrame")
-                .With("min", min).With("max", max).With("source", source ?? string.Empty).With("sha256", HexSha256(raw))
+                .With("min", min).With("max", max).With("source", source ?? string.Empty).With("sha256", sha256)
                 .With("written_by", writtenBy ?? string.Empty).With("baked_at_utc", writtenAtUtc ?? string.Empty);
             WriteAtomic(sidecarPath, Encoding.UTF8.GetBytes(Json.Write(sidecar, indent: true) + "\n"));
             return sidecarPath;
@@ -411,12 +486,14 @@ namespace EarthGame.Engine
         private static string HexSha256(byte[] bytes)
         {
             using (SHA256 sha = SHA256.Create())
-            {
-                byte[] hash = sha.ComputeHash(bytes);
-                StringBuilder sb = new StringBuilder(64);
-                foreach (byte b in hash) sb.Append(b.ToString("x2"));
-                return sb.ToString();
-            }
+                return Hex(sha.ComputeHash(bytes));
+        }
+
+        private static string Hex(byte[] hash)
+        {
+            StringBuilder sb = new StringBuilder(64);
+            foreach (byte b in hash) sb.Append(b.ToString("x2"));
+            return sb.ToString();
         }
     }
 }

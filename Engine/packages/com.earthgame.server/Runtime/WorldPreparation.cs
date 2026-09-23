@@ -138,6 +138,12 @@ namespace EarthGame.Server
             string waterPath = Path.Combine(dataDir, "water_bodies.json");
             RegionRaster outlines = File.Exists(waterPath) ? RegionRaster.Load(waterPath) : null;
             WorldCreation.Result created = WorldCreation.Create(worldDir, region, seed, bake.Raster, nowUtc, outlines, Report);
+            // The layers as computed are on disk now; letting them go before the world is read back keeps the two from being held
+            // at once (WG.2b, 2026-09-23: at 32 km they are some 7 GB, and the read-back a further gigabyte).
+            created.Computed = null;
+            bake = null;
+            outlines = null;
+            WorldCreation.Settle();
             var createdLayers = new SavedWorldLayers(worldDir, region, created.Checksums, cancellation);
             Report("Reading prepared terrain");
             Heightfield ground = new Heightfield(createdLayers.Read("heights"));

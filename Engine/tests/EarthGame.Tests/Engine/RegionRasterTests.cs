@@ -240,6 +240,90 @@ namespace EarthGame.Tests.Engine
                    + ",\"centre_lat\":-35.14,\"centre_lon\":150.675,\"min\":0,\"max\":1,\"sha256\":\"" + sha + "\"}";
         }
 
+        /// <summary>
+        /// A layer goes to disk a band of cells at a time (WG.2b's W2, 2026-09-23): writing one allocates a small, fixed amount
+        /// however big the layer, where the world's creation used to widen a byte layer to four bytes a cell, build the file's bytes
+        /// whole and load the file whole again for its checksum. A code layer written from a function of the cell is byte for byte
+        /// the one written from an array, and a measured layer's file is the bytes its values quantise to.
+        /// </summary>
+        [Test]
+        public void ALayerIsWrittenABandAtATimeAndIsTheSameBytes()
+        {
+            const int side = 2001;   // 4.0 M cells: 8 MB as u16 codes, 16 MB as floats
+            string dir = Path.Combine(Path.GetTempPath(), "EarthGame2.Tests", "raster", Guid.NewGuid().ToString("N"));
+            try
+            {
+                RegionRaster like = TestRasters.FromLaw(side, 1.0, side - 1, "big", (row, col) => row + 0.25f * col);
+                byte[] cover = new byte[side * side];
+                uint[] wide = new uint[cover.Length];
+                for (int i = 0; i < cover.Length; i++) { cover[i] = (byte)((i * 7 + i / side) % 13); wide[i] = cover[i]; }
+
+                string fromArray = RegionRaster.WriteCodes(dir, "from_array", like, "cover", "u16", "id", wide, "a law", "RegionRasterTests", "2026-09-23T00:00:00Z");
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                string fromCells = RegionRaster.WriteCodes(dir, "from_cells", like, "cover", "u16", "id", i => cover[i], "a law", "RegionRasterTests", "2026-09-23T00:00:00Z");
+                long codeBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+                Assert.That(RegionRaster.CheckedSha256(fromCells), Is.EqualTo(RegionRaster.CheckedSha256(fromArray)), "the same codes, the same bytes");
+                Assert.That(RegionRaster.CheckedSha256(fromCells), Is.EqualTo(Sha(LittleEndian16(cover))), "and they are the codes themselves, two bytes a cell, low byte first");
+                Assert.That(codeBytes, Is.LessThan(2L * cover.Length / 4), "an 8 MB code layer written in " + codeBytes + " bytes allocated");
+
+                before = GC.GetAllocatedBytesForCurrentThread();
+                string heights = RegionRaster.Write(dir, "heights", like, "heights", "f32", 1.0, "m", like.Values.ToArray(), "copied", "RegionRasterTests", "2026-09-23T00:00:00Z");
+                long valueBytes = GC.GetAllocatedBytesForCurrentThread() - before - (long)side * side * sizeof(float);   // less the test's own copy
+                Assert.That(RegionRaster.CheckedSha256(heights), Is.EqualTo(like.Sha256), "an f32 layer is its own bytes again");
+                Assert.That(valueBytes, Is.LessThan(side * side), "a 16 MB f32 layer written in " + valueBytes + " bytes allocated");
+                Assert.That(Directory.GetFiles(dir, "*.part"), Is.Empty, "nothing left half written");
+            }
+            finally
+            {
+                if (Directory.Exists(dir)) Directory.Delete(dir, true);
+            }
+        }
+
+        /// <summary>
+        /// A written layer's checksum is read back from the disk in chunks and held against its sidecar (WG.2b): what a world's
+        /// manifest records, without loading the layer whole; a file changed after it was written is refused, naming the sidecar.
+        /// </summary>
+        [Test]
+        public void AWrittenLayersChecksumIsReadBackAndATamperedFileRefused()
+        {
+            string dir = Path.Combine(Path.GetTempPath(), "EarthGame2.Tests", "raster", Guid.NewGuid().ToString("N"));
+            try
+            {
+                RegionRaster like = LoadTiny();
+                string sidecar = RegionRaster.WriteCodes(dir, "codes", like, "stand", "u8", "id", i => (uint)i, "a law", "RegionRasterTests", "2026-09-23T00:00:00Z");
+                Assert.That(RegionRaster.CheckedSha256(sidecar), Is.EqualTo(RegionRaster.Load(sidecar).Sha256));
+                string raw = RegionRaster.RawPathFor(sidecar);
+                byte[] bytes = File.ReadAllBytes(raw);
+                bytes[3] ^= 0x01;
+                File.WriteAllBytes(raw, bytes);
+                Assert.That(() => RegionRaster.CheckedSha256(sidecar), Throws.TypeOf<InvalidDataException>().With.Message.Contains("codes.json"));
+                Assert.That(() => RegionRaster.WriteCodes(dir, "too_big", like, "stand", "u8", "id", i => 256u, "", "", ""),
+                    Throws.ArgumentException, "a code past a byte is refused, as from an array");
+                Assert.That(Directory.GetFiles(dir, "*.part"), Is.Empty, "and the refused write leaves nothing half written");
+            }
+            finally
+            {
+                if (Directory.Exists(dir)) Directory.Delete(dir, true);
+            }
+        }
+
+        private static byte[] LittleEndian16(byte[] codes)
+        {
+            byte[] bytes = new byte[codes.Length * 2];
+            for (int i = 0; i < codes.Length; i++) bytes[2 * i] = codes[i];
+            return bytes;
+        }
+
+        private static string Sha(byte[] bytes)
+        {
+            using (SHA256 s = SHA256.Create())
+            {
+                StringBuilder sb = new StringBuilder();
+                foreach (byte b in s.ComputeHash(bytes)) sb.Append(b.ToString("x2"));
+                return sb.ToString();
+            }
+        }
+
         [Test]
         public void TheEngineWritesWhatThePythonWriterWritesAndReadsItBack()
         {

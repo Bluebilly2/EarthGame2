@@ -128,7 +128,14 @@ each change, every layer's checksum the same.
   did, and a lost i16 sign or a scale applied in single precision turns it red; the suite 833 green.
 - **W2. A world made without the widened copies.** A code layer written from its own bytes, the raw buffer reused, and the
   big arrays let go once written; the target, at most 120 bytes a cell at the server's peak (32 km: 7.7 GB) and a new 32 km
-  world in the game under 10 GB.
+  world in the game under 10 GB. **Landed 2026-09-23:** every layer written a megabyte at a time through the SHA-256, code
+  layers from functions of the cell (no `Widen`, no `Metres`, no catchment array), the manifest's checksums read back in chunks
+  (`RegionRaster.CheckedSha256`) rather than by loading each layer, a full collection between the making's stages, and the
+  computed layers let go and collected before the new world is read back. A 16 km world: peak 5.17 GB before, 2.39 after, made
+  in 27.8 s against 30.4; the gate world and the 8 km valley identical in every layer's sha256, the census and the wake. What
+  is left at the top is the save itself, the computed layers and the wake scorer's fields both held, about 134 bytes a cell:
+  some 9 GB at 32 km, over the 120-byte target; slimming it means changing what the scorer keeps, which waits on the 32 km
+  world's own numbers (below).
 - **W3. The making across the processor's cores**, if after W2 a new 32 km world in the game takes more than five minutes; the
   output byte for byte the same: whether each step's draws are seeded per cell, and so independent of the order cells are
   worked in, is read in the code before a step is spread, and the checksums prove it after.
