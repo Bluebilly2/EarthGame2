@@ -313,3 +313,19 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     spawn, and whether other regions should be stubbed and disabled ("the blue mountains or in land like alice springs ... this
     sort of allows for the lack of a 'first act' in that there is no predefined set of first actions for the founder"): the new
     game chooses its place from the regions with a world, and names the others greyed, not yet.
+
+45. **The Kangaroo Valley at its whole size.** Of the valley's box, 8 km a side (64 square kilometres), 2026-09-23: "i dont
+    think that 8 square kilometres is enough, make the area much much bigger to fit the kangaroo valley." The valley's region
+    holds the whole valley, rim to rim, with its falls: the escarpment and Fitzroy, Belmore and Carrington Falls on the north,
+    the Cambewarra Range on the south, the floor and the village's site between. The box, the cell size and what it costs in
+    disk and in waiting are measured and put to him with the fetch's manifest, and nothing is fetched until he says yes to
+    the exact files (ruling 42's rule). Shown the boxes measured the same day (`WG.2b_THE_WHOLE_VALLEY.md`: 24, 28 and 32 km,
+    28 recommended): "32km please", and of the manifest, "yes to the download list". The whole valley's box is 32 km a side
+    about 34.705°S 150.589°E, the middle of the valley's own outline, at 4 m cells.
+
+46. **The agents decide what they can recommend.** Given the box, the manifest and a question about commits in one check-in,
+    2026-09-23: "i want to step back from all these decisions you are giving me. you give me decisions that i consistently
+    choose your recommendation on anyway". Where an agent has a recommendation, it takes it, says in a line what it chose and
+    why, and carries on; he overrules when he wants to. A choice goes to him as a question only when there is no
+    recommendation to make or the choice is his taste. What is his by the house rules, how a thing looks and how it feels, stays
+    his, and a ruling that asks for his word (ruling 42's yes to the files among them) stands until he lifts it.

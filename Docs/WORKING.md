@@ -45,6 +45,11 @@ program, and since 2026-09-08 the agent writes everything, checks included (ruli
   phrased; when he decides, record his words.
 - **Plain words.** Short answers, the outcome first, then anything he decides, then what is next. No jargon
   without a plain reading beside it.
+- **Decide what you can recommend** (ruling 46, 2026-09-23). A choice the agent has a recommendation for is taken, not
+  put to him: the check-in says in a line what was chosen and why, and he overrules when he wants to. Until that day the
+  check-ins put choice after choice to him, and he answered nearly all of them with the recommendation. A question goes
+  to him only when there is nothing to recommend or the choice is his taste; his eyes on frames, his hands on the feel and
+  the rulings that ask for his word (ruling 42's yes to the files) are unchanged.
 - **What is his:** design, scope and taste; how the build feels, by playing it (ruling 12); how it looks, in
   frames, once there is enough on screen to judge (he declined to judge the ground's colour on a bare plane).
   **What is not:** the code and the checks (ruling 17), and whether the world matches the real peninsula
