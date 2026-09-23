@@ -121,7 +121,11 @@ each change, every layer's checksum the same.
 - **W1. A layer held in the width it is stored in.** `RegionRaster` keeps the raw bytes (one a cell for u8, two for u16) and
   reads a value or a code from them, instead of a float and a uint for every cell: the running world's hold from 72 to 18 bytes
   a cell (32 km: 4.6 GB to 1.2 GB), and the continue's decode loop gone. Heights stay f32, so `Heightfield` does not change
-  (agreed with the main session, which works in `Heightfield.cs` for BF.4). The format is unchanged.
+  (agreed with the main session, which works in `Heightfield.cs` for BF.4). The format is unchanged. **Landed 2026-09-23:**
+  a saved 16 km world loads at a peak of 1.17 GB where it took 3.70 (the dedicated server, each run on its own copy); the
+  gate world and the 8 km valley made by two scratch builds differing only in `RegionRaster.cs` have all 24 layers' sha256,
+  the census and the wake the same; the new `RegionRasterTests` case reads every dtype's range bit for bit as the old decode
+  did, and a lost i16 sign or a scale applied in single precision turns it red; the suite 833 green.
 - **W2. A world made without the widened copies.** A code layer written from its own bytes, the raw buffer reused, and the
   big arrays let go once written; the target, at most 120 bytes a cell at the server's peak (32 km: 7.7 GB) and a new 32 km
   world in the game under 10 GB.

@@ -1,5 +1,8 @@
 using System;
+using System.Globalization;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using EarthGame.Engine;
 using NUnit.Framework;
 
@@ -175,6 +178,66 @@ namespace EarthGame.Tests.Engine
                 for (int col = 0; col < 5; col++)
                     Assert.That(flags.Code(row, col), Is.EqualTo((1u << row) | (1u << (8 + col))));
             Assert.That(() => LoadTiny().Code(0, 0), Throws.InvalidOperationException, "an f32 layer has no codes");
+        }
+
+        /// <summary>
+        /// A layer is held in the width it is stored in (WG.2b's W1, 2026-09-23): a byte a cell for u8, two for u16 and i16, four
+        /// for u32 and f32. Until then every code layer was held as a float and a uint a cell, eight bytes for each one or two
+        /// stored, and the ten layers a 32 km world runs on took 4.6 GB where 1.2 would do. Every cell still reads what the loader
+        /// decoded before, bit for bit: the value (float)(code × scale) and the code, over each dtype's range, and the whole grid
+        /// through <see cref="RegionRaster.Values"/> and <see cref="RegionRaster.Codes"/> as well as cell by cell.
+        /// </summary>
+        [Test]
+        public void ALayerIsHeldInTheWidthItIsStoredInAndReadsAsItDidBefore()
+        {
+            const int side = 257;   // 66,049 cells: every u16 and i16 code, and the u8 codes 258 times over
+            foreach ((string dtype, double scale) in new[] { ("u8", 1.0 / 255.0), ("u16", 0.01), ("i16", 0.5), ("u32", 1.0) })
+            {
+                int bytesPerCell = RegionRaster.BytesPerCell(dtype);
+                int count = side * side;
+                byte[] raw = new byte[count * bytesPerCell];
+                uint[] codes = new uint[count];
+                float[] values = new float[count];
+                for (int i = 0; i < count; i++)
+                {
+                    uint code = dtype == "u8" ? (uint)(i % 256) : dtype == "u32" ? unchecked((uint)i * 2654435761u) : (uint)(i % 65536);
+                    for (int b = 0; b < bytesPerCell; b++) raw[i * bytesPerCell + b] = (byte)(code >> (8 * b));
+                    // What the loader decoded before W1, written out here as it stood: a signed code sign-extended.
+                    codes[i] = dtype == "i16" ? unchecked((uint)(short)code) : code;
+                    values[i] = dtype == "i16" ? (float)((short)code * scale) : (float)(code * scale);
+                }
+                RegionRaster layer = RegionRaster.FromParts(Sidecar(dtype, scale, side, raw), raw, dtype + " fixture");
+
+                Assert.That(layer.BytesHeld, Is.EqualTo((long)count * bytesPerCell), dtype + " is held at its stored width");
+                float[] whole = layer.Values.ToArray();
+                uint[] wholeCodes = layer.Codes.ToArray();
+                for (int i = 0; i < count; i++)
+                {
+                    int row = i / side, col = i % side;
+                    if (BitConverter.SingleToInt32Bits(layer[row, col]) != BitConverter.SingleToInt32Bits(values[i])
+                        || layer.Code(row, col) != codes[i] || BitConverter.SingleToInt32Bits(whole[i]) != BitConverter.SingleToInt32Bits(values[i])
+                        || wholeCodes[i] != codes[i])
+                        Assert.Fail(dtype + " cell " + i + ": read " + layer[row, col] + " code " + layer.Code(row, col) + " (whole grid " + whole[i]
+                                    + ", " + wholeCodes[i] + "), decoded before as " + values[i] + " code " + codes[i]);
+                }
+            }
+            Assert.That(LoadTiny().BytesHeld, Is.EqualTo(25L * 4), "an f32 layer, four bytes a cell as before");
+        }
+
+        /// <summary>A version-2 sidecar for a made layer of a dtype, its checksum the raw bytes'.</summary>
+        private static string Sidecar(string dtype, double scale, int side, byte[] raw)
+        {
+            string sha;
+            using (SHA256 s = SHA256.Create())
+            {
+                StringBuilder sb = new StringBuilder();
+                foreach (byte b in s.ComputeHash(raw)) sb.Append(b.ToString("x2"));
+                sha = sb.ToString();
+            }
+            return "{\"format\":\"eg2.raster\",\"version\":2,\"name\":\"made\",\"region\":\"fixture\",\"layer\":\"made\",\"dtype\":\"" + dtype
+                   + "\",\"byte_order\":\"little\",\"raw\":\"made.bin\",\"scale\":" + scale.ToString("R", CultureInfo.InvariantCulture) + ",\"unit\":\"1\","
+                   + "\"width\":" + side + ",\"height\":" + side + ",\"cell_m\":1.0,\"extent_m\":" + (side - 1)
+                   + ",\"centre_lat\":-35.14,\"centre_lon\":150.675,\"min\":0,\"max\":1,\"sha256\":\"" + sha + "\"}";
         }
 
         [Test]

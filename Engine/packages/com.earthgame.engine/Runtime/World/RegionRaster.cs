@@ -28,10 +28,19 @@ namespace EarthGame.Engine
         public const string Format = "eg2.raster";
         public const int Version = 2;
 
+        /// <summary>An f32 layer's cells in its unit; null for a code layer.</summary>
         private readonly float[] _values;
-        private readonly uint[] _codes;
+        /// <summary>
+        /// A code layer's raw little-endian cells as the file stores them, one to four bytes each; null for an f32 layer. Until
+        /// WG.2b (2026-09-23) a code layer was held as a float and a uint for every cell, eight bytes for each one or two stored,
+        /// and the ten layers a 32 km world runs on took 4.6 GB where 1.2 hold them; a cell is now decoded when it is read, by the
+        /// same arithmetic the loader used, so every value and code is what it was.
+        /// </summary>
+        private readonly byte[] _raw;
+        private readonly int _bytesPerCell;
+        private readonly bool _signed;
 
-        private RegionRaster(JsonObject sidecar, float[] values, uint[] codes)
+        private RegionRaster(JsonObject sidecar, float[] values, byte[] raw)
         {
             Name = sidecar.String("name");
             RegionId = sidecar.String("region");
@@ -51,7 +60,9 @@ namespace EarthGame.Engine
             Max = (float)(sidecar.Contains("max") ? sidecar.Number("max") : sidecar.Number("max_m"));
             Sha256 = sidecar.String("sha256");
             _values = values;
-            _codes = codes;
+            _raw = raw;
+            _bytesPerCell = raw == null ? 4 : BytesPerCell(Dtype);
+            _signed = Dtype == "i16";
         }
 
         public string Name { get; }
@@ -83,23 +94,68 @@ namespace EarthGame.Engine
         public string Sha256 { get; }
 
         /// <summary>True when the raw file holds whole codes (an id or a flag mask) rather than a measured quantity.</summary>
-        public bool IsIntegral => _codes != null;
+        public bool IsIntegral => _raw != null;
+
+        /// <summary>Bytes the layer's cells take in memory: its stored width a cell, four for an f32 layer (WG.2b).</summary>
+        public long BytesHeld => _raw != null ? _raw.LongLength : (long)_values.Length * sizeof(float);
 
         /// <summary>The value at a row (0 = north edge) and column (0 = west edge), in the layer's unit.</summary>
-        public float this[int row, int col] => _values[row * Width + col];
+        public float this[int row, int col] => _values != null ? _values[row * Width + col] : ValueOf(row * Width + col);
 
         /// <summary>The raw code at a row and column; only for integral layers.</summary>
         public uint Code(int row, int col)
         {
-            if (_codes == null) throw new InvalidOperationException("layer '" + Layer + "' is " + Dtype + ", not a code layer");
-            return _codes[row * Width + col];
+            if (_raw == null) throw new InvalidOperationException("layer '" + Layer + "' is " + Dtype + ", not a code layer");
+            return CodeOf(row * Width + col);
         }
 
-        /// <summary>The whole grid in the layer's unit, row-major, for a caller that copies it somewhere.</summary>
-        public ReadOnlySpan<float> Values => _values;
+        /// <summary>
+        /// The whole grid in the layer's unit, row-major, for a caller that copies it somewhere; for a code layer, a copy made on
+        /// each call (the layer holds its stored bytes, WG.2b), so a caller asks once.
+        /// </summary>
+        public ReadOnlySpan<float> Values
+        {
+            get
+            {
+                if (_values != null) return _values;
+                float[] all = new float[_raw.Length / _bytesPerCell];
+                for (int i = 0; i < all.Length; i++) all[i] = ValueOf(i);
+                return all;
+            }
+        }
 
-        /// <summary>The whole grid of raw codes, row-major; empty for an f32 layer.</summary>
-        public ReadOnlySpan<uint> Codes => _codes == null ? ReadOnlySpan<uint>.Empty : _codes;
+        /// <summary>The whole grid of raw codes, row-major, a copy made on each call; empty for an f32 layer.</summary>
+        public ReadOnlySpan<uint> Codes
+        {
+            get
+            {
+                if (_raw == null) return ReadOnlySpan<uint>.Empty;
+                uint[] all = new uint[_raw.Length / _bytesPerCell];
+                for (int i = 0; i < all.Length; i++) all[i] = CodeOf(i);
+                return all;
+            }
+        }
+
+        /// <summary>A code layer's cell as the loader decoded it before WG.2b: an i16 sign-extended, every other width as stored.</summary>
+        private uint CodeOf(int i)
+        {
+            int o = i * _bytesPerCell;
+            switch (_bytesPerCell)
+            {
+                case 1: return _raw[o];
+                case 2:
+                    uint pair = (uint)(_raw[o] | (_raw[o + 1] << 8));
+                    return _signed ? unchecked((uint)(short)pair) : pair;
+                default: return (uint)(_raw[o] | (_raw[o + 1] << 8) | (_raw[o + 2] << 16) | (_raw[o + 3] << 24));
+            }
+        }
+
+        /// <summary>A code layer's cell in its unit, by the expression the loader used: the code (signed for i16) times the scale.</summary>
+        private float ValueOf(int i)
+        {
+            uint code = CodeOf(i);
+            return _signed ? (float)(unchecked((int)code) * Scale) : (float)(code * Scale);
+        }
 
         /// <summary>The raw file that belongs to a sidecar: named by the sidecar, else the same stem with .r32.</summary>
         public static string RawPathFor(string sidecarPath)
@@ -135,7 +191,7 @@ namespace EarthGame.Engine
             if (!File.Exists(rawPath)) throw new FileNotFoundException("raster data not found beside its sidecar: " + rawPath, rawPath);
             try
             {
-                return FromParts(File.ReadAllText(sidecarPath, Encoding.UTF8), File.ReadAllBytes(rawPath), sidecarPath);
+                return FromParts(File.ReadAllText(sidecarPath, Encoding.UTF8), File.ReadAllBytes(rawPath), sidecarPath, false);
             }
             catch (Exception ex) when (ex is KeyNotFoundException || ex is JsonException || ex is FormatException || ex is InvalidCastException)
             {
@@ -159,7 +215,12 @@ namespace EarthGame.Engine
 
         /// <summary>Builds a raster from its two parts, checking everything the sidecar claims about the raw bytes.</summary>
         /// <param name="describe">How to name the source in an error: a path, or a fixture's name.</param>
-        public static RegionRaster FromParts(string sidecarJson, byte[] raw, string describe)
+        public static RegionRaster FromParts(string sidecarJson, byte[] raw, string describe) => FromParts(sidecarJson, raw, describe, true);
+
+        /// <param name="copyRaw">Whether a code layer keeps a copy of the bytes rather than the array given: the caller's own
+        /// array may change after (a test tampers with one to prove the checksum), while the loader's is read from the file for
+        /// this layer alone and becomes it (WG.2b).</param>
+        private static RegionRaster FromParts(string sidecarJson, byte[] raw, string describe, bool copyRaw)
         {
             JsonObject sidecar;
             try
@@ -215,45 +276,20 @@ namespace EarthGame.Engine
                 throw new InvalidDataException(describe + ": sha256 of the raw file is " + actual + ", the sidecar says " + claimed
                                                + " (the two files are not from the same bake)");
 
+            if (dtype != "f32")
+                return new RegionRaster(sidecar, null, copyRaw ? (byte[])raw.Clone() : raw);
             int count = width * height;
             float[] values = new float[count];
-            uint[] codes = dtype == "f32" ? null : new uint[count];
             for (int i = 0; i < count; i++)
             {
-                int o = i * bytesPerCell;
-                switch (dtype)
-                {
-                    case "f32":
-                    {
-                        int bits = raw[o] | (raw[o + 1] << 8) | (raw[o + 2] << 16) | (raw[o + 3] << 24);
-                        float v = BitConverter.Int32BitsToSingle(bits);
-                        if (float.IsNaN(v) || float.IsInfinity(v))
-                            throw new InvalidDataException(describe + ": cell " + i + " is " + v + "; the writers refuse NaN, so this file did not come from one");
-                        values[i] = v;
-                        break;
-                    }
-                    case "u8":
-                        codes[i] = raw[o];
-                        values[i] = (float)(codes[i] * scale);
-                        break;
-                    case "u16":
-                        codes[i] = (uint)(raw[o] | (raw[o + 1] << 8));
-                        values[i] = (float)(codes[i] * scale);
-                        break;
-                    case "i16":
-                    {
-                        short signed = (short)(raw[o] | (raw[o + 1] << 8));
-                        codes[i] = unchecked((uint)signed);
-                        values[i] = (float)(signed * scale);
-                        break;
-                    }
-                    default:
-                        codes[i] = (uint)(raw[o] | (raw[o + 1] << 8) | (raw[o + 2] << 16) | (raw[o + 3] << 24));
-                        values[i] = (float)(codes[i] * scale);
-                        break;
-                }
+                int o = i * 4;
+                int bits = raw[o] | (raw[o + 1] << 8) | (raw[o + 2] << 16) | (raw[o + 3] << 24);
+                float v = BitConverter.Int32BitsToSingle(bits);
+                if (float.IsNaN(v) || float.IsInfinity(v))
+                    throw new InvalidDataException(describe + ": cell " + i + " is " + v + "; the writers refuse NaN, so this file did not come from one");
+                values[i] = v;
             }
-            return new RegionRaster(sidecar, values, codes);
+            return new RegionRaster(sidecar, values, null);
         }
 
         /// <summary>
