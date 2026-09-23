@@ -73,9 +73,10 @@ still runs on the main thread; this slice does not claim a frame-time budget for
   (8001 × 8001); rim to rim with Fitzroy, Belmore and Carrington Falls and the Cambewarra Range, 3.9 km beyond the valley's
   outline east and west and 6 km north and south; no coast, but the Shoalhaven's tidal floodplain at sea level in its
   south-east corner; its surround 128 km at 64 m, the camera's far plane being 40 km; Nowra's station. Its own region, so
-  the 8 km valley keeps its bake and the worlds made in it. The shell names it greyed "not yet" until WG.2b's memory work
-  and the far forest's bound have landed: as the code stood when it was fetched, a 32 km world took about ten minutes and
-  17 GB to make in the game.
+  the 8 km valley keeps its bake and the worlds made in it. The shell offers it, second after Bherwerre, since WG.2b's memory
+  work and the far forest's bound (M1.6f) landed on 2026-09-23: as the code stood when it was fetched, a 32 km world took about
+  ten minutes and 17 GB to make in the game; after, 375.6 s at 10.0 GB before W3's cores, and the server's own making 38 %
+  faster with them.
 - **Region:** `bherwerre` — centre 35.140°S 150.675°E; box 150.6311–150.7189°E, 35.1761–35.1039°S; the region names
   no wake point of its own (CANON ruling 20); the wake is the scorer's (below), and a world made without one wakes
   the founder at the region's centre. Fallback region: Ulladulla.

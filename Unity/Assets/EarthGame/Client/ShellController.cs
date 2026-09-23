@@ -42,15 +42,14 @@ namespace EarthGame.Client
         public static List<Place> DefaultPlaces()
         {
             List<Place> places = new List<Place>();
-            foreach (Region region in new[] { Region.Bherwerre, Region.KangarooValley })
+            // The whole valley (ruling 45, WG.2b) is offered since its memory work and the far forest's bound landed (2026-09-23):
+            // a new one is made inside the game in some four minutes at a peak near 10 GB, where it would have been ten minutes and
+            // 17 GB. Bherwerre stays first, the place the scenarios' new world is made in; the 8 km valley stays with its worlds.
+            foreach (Region region in new[] { Region.Bherwerre, Region.KangarooValleyWhole, Region.KangarooValley })
             {
                 bool ready = File.Exists(Path.Combine(RegionDataLocator.DataDir(region), "heights.json"));
                 places.Add(new Place { Region = region, Name = region.DisplayName, Ready = ready, Note = ready ? "" : "no ground fetched" });
             }
-            // The whole valley (ruling 45, WG.2b) is named but not offered while its ground is baked: a 32 km world made by the
-            // game as it stood on 2026-09-23 would take about ten minutes and 17 GB, and its far forest would take the frame
-            // past playable. It is offered once WG.2b's memory work and the far forest's bound (D1) have landed.
-            places.Add(new Place { Region = Region.KangarooValleyWhole, Name = Region.KangarooValleyWhole.DisplayName, Ready = false, Note = "not yet" });
             foreach (string name in new[] { "Wilsons Promontory", "Blue Mountains, the Grose Valley", "Alice Springs, the MacDonnell Ranges" })
                 places.Add(new Place { Region = null, Name = name, Ready = false, Note = "not yet" });
             return places;
