@@ -128,7 +128,7 @@ rebase and pushes. The sweep (`Tools/sweep/sweep.py`) runs every check on origin
 session after it pushes; its report is `Artefacts/sweeps/latest.json` and the folder it names. The rules below were
 written for one checkout and hold within each copy:
 
-- **The quiet hours (CANON ruling 47).** Nothing heavy runs from 22:00 to 08:00: the tools that work the machine hard
+- **The quiet hours (CANON ruling 47).** Nothing heavy runs from 22:00 to 06:00 (William's end of them since 2026-09-25): the tools that work the machine hard
   refuse to start then (`machine.refuse_in_quiet_hours`), and `EG_QUIET_HOURS_OK=1` is set only for a run William asks
   for in those hours. Reading, writing and planning go on.
 - **A timed run asks for quiet.** `vantages.py --hold` takes `machine.quiet()`, and the sweep starts no step while a

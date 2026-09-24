@@ -25,8 +25,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 COPY_FILE = ROOT / ".eg-copy.json"
-# The quiet hours (CANON ruling 47): the agents' default, 22:00 to 08:00 local, until William gives his own.
-QUIET_HOURS = (22, 8)
+# The quiet hours (CANON ruling 47): 22:00 to 06:00 local, William's end of them since 2026-09-25 ("set the overnight
+# curfew to end at 6 am"); the agents' default before was 08:00.
+QUIET_HOURS = (22, 6)
 QUIET_OK = "EG_QUIET_HOURS_OK"
 SWEEPS = ROOT / "Artefacts" / "sweeps"
 QUIET = SWEEPS / "quiet"

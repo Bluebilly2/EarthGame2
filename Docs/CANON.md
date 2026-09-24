@@ -334,7 +334,8 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     ahead, although my pc is not available overnight as it makes too much noise for me to sleep. keep that in mind going
     forward". Nothing that works the machine hard runs overnight, from a session or a tool: builds, suites, the game and its
     host, the corpus, world-making and frames wait for the morning, and the tools refuse them in the quiet hours unless he asks
-    for one. The hours are the agents' default, 22:00 to 08:00, until he gives his own. His yes in the same words sets up the
+    for one. The hours were the agents' default, 22:00 to 08:00, until he gave his own: 2026-09-25, "set the overnight
+    curfew to end at 6 am", so they are 22:00 to 06:00. His yes in the same words sets up the
     side worker's own copy of the project and a daytime run of every check (`contracts/M1.Bd_THREE_COPIES_AND_THE_SWEEP.md`).
 
 48. **The body's bars in the early versions.** Of the words the founder's body puts under the clock (FP.1, FP.2), 2026-09-24:
