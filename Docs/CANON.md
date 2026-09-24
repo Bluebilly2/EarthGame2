@@ -337,6 +337,9 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     for one. The hours were the agents' default, 22:00 to 08:00, until he gave his own: 2026-09-25, "set the overnight
     curfew to end at 6 am", so they are 22:00 to 06:00. His yes in the same words sets up the
     side worker's own copy of the project and a daytime run of every check (`contracts/M1.Bd_THREE_COPIES_AND_THE_SWEEP.md`).
+    The curfew is his machine's, not the work's: 2026-09-25, asking for a cloud session, "i want it working overnight too, since i
+    cant leave my pc on. it is not affected by the curfew". A session in the cloud runs on Anthropic's machines and may work
+    through the quiet hours; nothing it does may start anything on his.
 
 48. **The body's bars in the early versions.** Of the words the founder's body puts under the clock (FP.1, FP.2), 2026-09-24:
     "can you put in (for the early versions of the game) a way to view active metrics like thirst, hunger, stamina etc.
