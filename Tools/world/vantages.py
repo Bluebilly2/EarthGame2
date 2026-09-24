@@ -19,6 +19,7 @@ Usage, from the repository root:
 Exit 0 when every vantage's player exited 0; 1 otherwise.
 """
 import argparse
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -27,7 +28,7 @@ import sys
 from datetime import datetime, timezone
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from wade import copied  # noqa: E402  (one owner of the world's copy)
+from wade import copied, machine, run_folder  # noqa: E402  (one owner of the world's copy)
 
 ROOT = Path(__file__).resolve().parents[2]
 EDITOR_VERSION = next(line.split(":", 1)[1].strip()
@@ -112,7 +113,8 @@ def main():
     args = parser.parse_args()
     player = (ROOT / args.player).resolve()
     world = (ROOT / args.world).resolve()
-    directory = Path(args.out).resolve() if args.out else ROOT / "Artefacts/frames" / ("vantages-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
+    machine.refuse_in_quiet_hours("vantages")
+    directory = Path(args.out).resolve() if args.out else run_folder("vantages")
     directory.mkdir(parents=True, exist_ok=True)
 
     if args.build:
@@ -137,12 +139,17 @@ def main():
     if host is None:
         raise RuntimeError("no server host; build it: dotnet build Engine/tools/EarthGame.ServerHost -c Release")
 
+    quiet = contextlib.ExitStack()
+    if args.hold > 0.0:
+        # A timed turn asks the sweep for quiet (M1.Bd, 2026-09-24), so its frames are timed with nothing of the sweep's
+        # running; a request left by a run that died is passed over, its process being gone.
+        quiet.enter_context(machine.quiet("vantages", "a held turn of %g s, timed" % args.hold))
     failed = 0
     for name in wanted:
         east, north = VANTAGES[name]
         at = directory / name
         at.mkdir(parents=True, exist_ok=True)
-        stood = subprocess.run(["dotnet", str(host), "+server.world", str(world), "+server.port", "28318", "+server.local", "1"],
+        stood = subprocess.run(["dotnet", str(host), "+server.world", str(world), "+server.port", str(machine.port(28318)), "+server.local", "1"],
                                input="stand William %d %d\nsave\nstop\n" % (east, north),
                                capture_output=True, text=True, cwd=ROOT, timeout=600)
         (at / "host.log").write_text(stood.stdout + stood.stderr, encoding="utf-8")
@@ -181,6 +188,7 @@ def main():
         for r in records:
             if r.get("kind") in ("error", "exception"):
                 print("  %s: %s" % (r["kind"], r.get("message", "")[:300]))
+    quiet.close()
     print(directory)
     return 1 if failed else 0
 

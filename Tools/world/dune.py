@@ -31,7 +31,7 @@ import sys
 from datetime import datetime, timezone
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from wade import copied, number, run  # noqa: E402  (one owner of running the player, reading its numbers and copying its world)
+from wade import copied, machine, number, run, run_folder  # noqa: E402  (one owner of running the player, reading its numbers and copying its world)
 from vantages import HOSTS  # noqa: E402  (one owner of where the server host is built)
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -46,7 +46,7 @@ def main():
     args = parser.parse_args()
     player = (ROOT / args.player).resolve()
     source = (ROOT / args.world).resolve()
-    directory = ROOT / "Artefacts/frames" / ("dune-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
+    directory = run_folder("dune")
     directory.mkdir(parents=True)
     if not player.is_file():
         raise RuntimeError("no player at %s; build it with Tools/build/install.py --into harness" % player)
@@ -60,7 +60,7 @@ def main():
         host = next((h for h in HOSTS if h.is_file()), None)
         if host is None:
             raise RuntimeError("no server host; build it: dotnet build Engine/tools/EarthGame.ServerHost -c Release")
-        stood = subprocess.run(["dotnet", str(host), "+server.world", str(world), "+server.port", "28318", "+server.local", "1"],
+        stood = subprocess.run(["dotnet", str(host), "+server.world", str(world), "+server.port", str(machine.port(28318)), "+server.local", "1"],
                                input="stand William %d %d\nsave\nstop\n" % (east, north), capture_output=True, text=True, cwd=ROOT, timeout=600)
         (directory / "host.log").write_text(stood.stdout + stood.stderr, encoding="utf-8")
         if stood.returncode != 0:

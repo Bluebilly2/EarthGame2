@@ -115,14 +115,32 @@ got wrong was duplication (a copy of `CLAUDE.md` as `AGENTS.md`; the dedicated h
 From CANON ruling 26 (2026-09-13) to its amendment of 2026-09-18, GPT, through Codex, worked on world generation on its
 own judgement while Claude carried the beta arc, in the same repository on the same machine; since then world generation
 is Claude's and no second agent works here (Claude's own parallel agents work in worktrees of their own, WORKING's
-"Two agents" rules below holding for them). Neither handed the other work, and each kept out of the other's way:
+"Two agents" rules below holding for them). Neither handed the other work, and each kept out of the other's way.
+
+Since 2026-09-23 a second Claude session, the side worker, takes the jobs the main session hands it, and since M1.Bd
+(2026-09-24) the project is checked out three times: the main copy (`C:/Users/willi/projects/EarthGame2`, the main
+session's, with William's Build/Player), the side worker's (`EarthGame2-side`) and the sweep's (`EarthGame2-sweep`, which
+no one edits). Each has its own git index, Unity project, Build/Harness and Engine/.build, and its tools add its own
+offset to every port (`.eg-copy.json`, read by `Tools/world/machine.py`), so the sessions no longer wait on each other's
+Unity, DLLs or commits; Artefacts, Data/global, Data/regions, Data/cache and Tools/.venv are the main copy's, joined into
+the others, so every path the docs name is found from any copy. Each session commits on its own copy's main, pulls with
+rebase and pushes. The sweep (`Tools/sweep/sweep.py`) runs every check on origin/main in the daytime, started by a
+session after it pushes; its report is `Artefacts/sweeps/latest.json` and the folder it names. The rules below were
+written for one checkout and hold within each copy:
+
+- **The quiet hours (CANON ruling 47).** Nothing heavy runs from 22:00 to 08:00: the tools that work the machine hard
+  refuse to start then (`machine.refuse_in_quiet_hours`), and `EG_QUIET_HOURS_OK=1` is set only for a run William asks
+  for in those hours. Reading, writing and planning go on.
+- **A timed run asks for quiet.** `vantages.py --hold` takes `machine.quiet()`, and the sweep starts no step while a
+  request stands; the other session is still asked by message to hold its builds and suites for the length of the run.
 
 - **Main is shared.** Each works on its own branch or worktree and lands on main in small commits, rebased on the
   latest main and green through the pre-push hook. Stage explicit paths, never `git add -A`; never force-push or
   rewrite main; never commit a file the other made and left uncommitted.
   `Unity/Assets/EarthGame/Tests/Editor/ReviewOpusProbe.cs` and its `.meta` stay out of every commit.
-- **One Unity batch run at a time.** A batch run locks the project, so `tasklist | findstr Unity` shows nothing
-  before one starts: neither the owner's editor nor the other agent's run.
+- **One Unity batch run at a time on a project.** A batch run locks its project (`Unity/Temp/UnityLockfile`), which
+  `install.py` and `editmode.py` read through `machine.unity_holds`; a Unity on another copy's project is no reason to
+  wait (M1.Bd).
 - **A running `EarthGame2.exe` may be the other's timing run.** Frame costs are measured with the machine quiet;
   builds, world creation and suites beside one make its numbers lie, so they wait until it ends.
 - **Every recorded run is on a copy of its world.** The scenario tools share `Artefacts/worlds/gate`, and a run saves

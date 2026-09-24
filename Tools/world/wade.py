@@ -35,6 +35,8 @@ from datetime import datetime, timezone
 
 import numpy as np
 
+import machine  # noqa: E402  (which copy this is, its ports, and the quiet hours: M1.Bd)
+
 ROOT = Path(__file__).resolve().parents[2]
 EDITOR_VERSION = next(line.split(":", 1)[1].strip()
                       for line in (ROOT / "Unity/ProjectSettings/ProjectVersion.txt").read_text().splitlines()
@@ -147,6 +149,15 @@ def copied(world, directory):
     return copy
 
 
+def run_folder(name):
+    """Where a run of the named scenario leaves its frames and logs, named when the run may start: Artefacts/frames/<name>-<stamp>,
+    or the same under the folder EG_RUNS names, where the sweep keeps its runs together (M1.Bd, 2026-09-24). No run starts in
+    the quiet hours (CANON ruling 47)."""
+    machine.refuse_in_quiet_hours(name)
+    base = Path(os.environ["EG_RUNS"]) if os.environ.get("EG_RUNS") else ROOT / "Artefacts/frames"
+    return base / (name + "-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build", action="store_true")
@@ -158,7 +169,7 @@ def main():
     scenario = "swim" if args.swim else "wade"
     player = (ROOT / args.player).resolve()
     world = (ROOT / args.world).resolve()
-    directory = ROOT / "Artefacts/frames" / (scenario + "-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
+    directory = run_folder(scenario)
     directory.mkdir(parents=True)
 
     if args.build:
@@ -181,7 +192,7 @@ def main():
     east, north = lake.shore
     print("the lake at %.1f m: its middle at east %.0f north %.0f; the founder stands at east %.0f north %.0f"
           % (args.lake, lake.centre[0], lake.centre[1], east, north))
-    stood = subprocess.run(["dotnet", str(host), "+server.world", str(world), "+server.port", "28317", "+server.local", "1"],
+    stood = subprocess.run(["dotnet", str(host), "+server.world", str(world), "+server.port", str(machine.port(28317)), "+server.local", "1"],
                            input="stand William %d %d\nsave\nstop\n" % (round(east), round(north)),
                            capture_output=True, text=True, cwd=ROOT, timeout=600)
     (directory / "host.log").write_text(stood.stdout + stood.stderr, encoding="utf-8")

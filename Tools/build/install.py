@@ -34,7 +34,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "Tools" / "world"))
-from wade import UNITY  # noqa: E402  (one owner of the editor's path, read from the project's own version file)
+from wade import UNITY, machine  # noqa: E402  (one owner of the editor's path, read from the project's own version file)
 
 BUILD = ROOT / "Build"
 STAGING = BUILD / ".staging"
@@ -52,17 +52,9 @@ def git(*args):
     return subprocess.run(["git"] + list(args), cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip()
 
 
-def unity_running():
-    out = subprocess.run(["tasklist"], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
-    return any(line.lower().startswith("unity.exe") for line in out.splitlines())
-
-
 def processes_running_from(folder):
-    """The names of processes whose exe lies under the folder, by the system's own process table."""
-    script = ("Get-Process | Where-Object { $_.Path -and $_.Path.StartsWith('%s', [System.StringComparison]::OrdinalIgnoreCase) } "
-              "| ForEach-Object { $_.ProcessName + ' (' + $_.Id + ')' }") % str(folder).replace("'", "''")
-    out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
-    return [line.strip() for line in out.splitlines() if line.strip()]
+    """The names of processes whose exe lies under the folder (machine.py owns the reading of the process table)."""
+    return machine.processes_from(folder)
 
 
 def facts(label):
@@ -82,8 +74,11 @@ def facts(label):
 
 
 def build():
-    if unity_running():
-        raise RuntimeError("the Unity editor (or a batch run) is running; one at a time")
+    machine.refuse_in_quiet_hours("install")
+    # One Unity on a project at a time; since M1.Bd (2026-09-24) each copy of the project has its own, and a Unity on another
+    # copy's is no reason to wait.
+    if machine.unity_holds(ROOT):
+        raise RuntimeError("the Unity editor (or a batch run) has this copy's project open (Unity/Temp/UnityLockfile); one at a time")
     if STAGING.exists():
         shutil.rmtree(STAGING)
     STAGING.mkdir(parents=True)
@@ -146,13 +141,17 @@ def main():
         return 0
     if not args.into:
         parser.error("say where it goes: --into player|harness|both, or --show")
+    targets = ["harness", "player"] if args.into == "both" else [args.into]
+    if "player" in targets and not machine.is_main():
+        # Build/Player is William's and lives in the main copy alone (M1.Bd): a player built in another copy would be a folder
+        # he never plays, and a new one Windows asks him about.
+        raise RuntimeError("this is the %s copy; Build/Player is William's and is installed from the main copy only" % machine.name())
     if args.from_staging:
         if not (STAGING / EXE).is_file():
             raise RuntimeError("nothing staged at %s" % STAGING)
     else:
         build()
     v = write_version(STAGING, args.label)
-    targets = ["harness", "player"] if args.into == "both" else [args.into]
     first = None
     for name in targets:
         if first is None:

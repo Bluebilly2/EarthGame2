@@ -29,7 +29,10 @@ EDITOR_VERSION = next(line.split(":", 1)[1].strip()
                       if line.startswith("m_EditorVersion:"))
 UNITY = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Unity/Hub/Editor" / EDITOR_VERSION / "Editor/Unity.exe"
 PLAYER = ROOT / "Build/Harness/EarthGame2.exe"
-PORT = 28297
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import machine  # noqa: E402  (which copy this is, its ports, and the quiet hours: M1.Bd)
+
+PORT = machine.port(28297)
 # CANON ruling 11's first condition, one way on each end's socket.
 LATENCY_MS, JITTER_MS, LOSS_PERCENT, CAP_BYTES = 50, 10, 2, 1250000
 SECONDS = 60
@@ -53,6 +56,7 @@ def main():
     parser.add_argument("--build", action="store_true")
     parser.add_argument("--world", default="Artefacts/worlds/gate")
     args = parser.parse_args()
+    machine.refuse_in_quiet_hours("stream")
     directory = ROOT / "Artefacts/streaming" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     directory.mkdir(parents=True)
 

@@ -23,7 +23,7 @@ import sys
 from datetime import datetime, timezone
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from wade import HOSTS, UNITY, copied, run  # noqa: E402  (one owner of the runner)
+from wade import HOSTS, UNITY, copied, run, run_folder  # noqa: E402  (one owner of the runner)
 
 ROOT = Path(__file__).resolve().parents[2]
 PLAYER = ROOT / "Build/Harness/EarthGame2.exe"
@@ -37,7 +37,7 @@ def main():
     args = parser.parse_args()
     player = (ROOT / args.player).resolve()
     world = (ROOT / args.world).resolve()
-    directory = ROOT / "Artefacts/frames" / ("looks-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
+    directory = run_folder("looks")
     directory.mkdir(parents=True)
 
     if args.build:

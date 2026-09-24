@@ -59,6 +59,9 @@ Data/*
 # The two Bureau station tables the weather stands on, copied by hand from the owner's browser (M1.8c).
 !Data/stations/
 
+# Which copy of the project a checkout is (M1.Bd): each copy's own, never committed
+.eg-copy.json
+
 # Worlds, builds, run artefacts
 Saves/
 /Build/

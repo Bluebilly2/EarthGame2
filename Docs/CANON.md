@@ -329,3 +329,10 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     why, and carries on; he overrules when he wants to. A choice goes to him as a question only when there is no
     recommendation to make or the choice is his taste. What is his by the house rules, how a thing looks and how it feels, stays
     his, and a ruling that asks for his word (ruling 42's yes to the files among them) stands until he lifts it.
+
+47. **The machine is quiet overnight.** Offered, 2026-09-24, a run of every check on his new machine while he slept: "yes, go
+    ahead, although my pc is not available overnight as it makes too much noise for me to sleep. keep that in mind going
+    forward". Nothing that works the machine hard runs overnight, from a session or a tool: builds, suites, the game and its
+    host, the corpus, world-making and frames wait for the morning, and the tools refuse them in the quiet hours unless he asks
+    for one. The hours are the agents' default, 22:00 to 08:00, until he gives his own. His yes in the same words sets up the
+    side worker's own copy of the project and a daytime run of every check (`contracts/M1.Bd_THREE_COPIES_AND_THE_SWEEP.md`).

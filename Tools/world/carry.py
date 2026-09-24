@@ -32,7 +32,7 @@ import sys
 from datetime import datetime, timezone
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from wade import copied  # noqa: E402  (one owner of the world's copy)
+from wade import copied, run_folder  # noqa: E402  (one owner of the world's copy)
 
 ROOT = Path(__file__).resolve().parents[2]
 EDITOR_VERSION = next(line.split(":", 1)[1].strip()
@@ -65,7 +65,7 @@ def main():
     args = parser.parse_args()
     player = (ROOT / args.player).resolve()
     world = (ROOT / args.world).resolve()
-    directory = ROOT / "Artefacts/frames" / (args.scenario + "-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
+    directory = run_folder(args.scenario)
     directory.mkdir(parents=True)
 
     if args.build:

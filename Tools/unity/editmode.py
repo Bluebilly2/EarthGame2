@@ -26,10 +26,13 @@ EDITOR_VERSION = next(line.split(":", 1)[1].strip()
                       for line in (ROOT / "Unity/ProjectSettings/ProjectVersion.txt").read_text().splitlines()
                       if line.startswith("m_EditorVersion:"))
 UNITY = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Unity/Hub/Editor" / EDITOR_VERSION / "Editor/Unity.exe"
+sys.path.insert(0, str(ROOT / "Tools" / "world"))
+import machine  # noqa: E402  (which copy this is, and the quiet hours: M1.Bd)
 
 
 def main():
-    if (ROOT / "Unity/Temp/UnityLockfile").exists():
+    machine.refuse_in_quiet_hours("editmode")
+    if machine.unity_holds(ROOT):
         print("the Unity editor has the project open (Unity/Temp/UnityLockfile); close it and run again")
         return 2
     directory = ROOT / "Artefacts/editmode" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")

@@ -23,7 +23,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 HOST_PROJECT = os.path.join(ROOT, "Engine", "tools", "EarthGame.ServerHost")
 HOST_DLL = os.path.join(ROOT, "Engine", ".build", "bin", "EarthGame.ServerHost", "Release", "net10.0", "EarthGame.ServerHost.dll")
 DEFAULT_FOLDER = os.path.join("Artefacts", "worlds", "gate")
-PORT = 28299
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import machine  # noqa: E402  (which copy this is, its ports, and the quiet hours: M1.Bd)
+
+PORT = machine.port(28299)
 
 
 def run(cmd, log_path):
@@ -32,6 +35,7 @@ def run(cmd, log_path):
 
 
 def main(argv):
+    machine.refuse_in_quiet_hours("create")
     region = "bherwerre"
     rest = []
     i = 1

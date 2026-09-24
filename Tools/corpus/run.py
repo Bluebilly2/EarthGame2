@@ -44,7 +44,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 PLAYER_EXE = os.path.join(ROOT, "Build", "Harness", "EarthGame2.exe")
 SERVER_DLL_RELEASE = os.path.join(ROOT, "Engine", ".build", "bin", "EarthGame.ServerHost", "Release", "net10.0", "EarthGame.ServerHost.dll")
 SERVER_DLL_DEBUG = os.path.join(ROOT, "Engine", ".build", "bin", "EarthGame.ServerHost", "Debug", "net10.0", "EarthGame.ServerHost.dll")
-BASE_PORT = 28115
+sys.path.insert(0, os.path.join(ROOT, "Tools", "world"))
+import machine  # noqa: E402  (which copy this is, its ports, and the quiet hours: M1.Bd)
+
+BASE_PORT = machine.port(28115)
 
 # The harness conditions (CANON ruling 11): round trip, its jitter, loss per direction, cap in bytes per second.
 CONDITIONS = {
@@ -327,6 +330,7 @@ def main(argv):
     parser.add_argument("--port", type=int, default=BASE_PORT)
     parser.add_argument("--player", default=PLAYER_EXE, help="the built player (default Build/Harness/EarthGame2.exe, the runs' copy installed by Tools/build/install.py)")
     args = parser.parse_args(argv[1:])
+    machine.refuse_in_quiet_hours("the corpus")
 
     PLAYER_EXE = os.path.abspath(args.player)
     if not os.path.isfile(PLAYER_EXE):
