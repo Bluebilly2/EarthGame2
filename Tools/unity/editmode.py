@@ -35,7 +35,7 @@ def main():
     if machine.unity_holds(ROOT):
         print("the Unity editor has the project open (Unity/Temp/UnityLockfile); close it and run again")
         return 2
-    directory = ROOT / "Artefacts/editmode" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    directory = ROOT / "Artefacts/editmode" / (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + machine.tag())
     directory.mkdir(parents=True)
     results, log = directory / "results.xml", directory / "unity.log"
     code = subprocess.call([str(UNITY), "-batchmode", "-nographics", "-projectPath", str(ROOT / "Unity"),

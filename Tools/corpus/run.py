@@ -340,7 +340,7 @@ def main(argv):
         log("no server host; build it: dotnet build Engine/tools/EarthGame.ServerHost -c Release")
         return 2
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    out = os.path.abspath(args.out or os.path.join(ROOT, "Artefacts", "corpus", stamp + ("-quick" if args.quick else "")))
+    out = os.path.abspath(args.out or os.path.join(ROOT, "Artefacts", "corpus", stamp + ("-quick" if args.quick else "") + machine.tag()))
     os.makedirs(out, exist_ok=True)
     wanted = [s.strip() for s in args.scenarios.split(",") if s.strip()]
     log("corpus %s -> %s (%s)" % (",".join(wanted), out, "quick" if args.quick else "full"))

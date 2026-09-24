@@ -56,6 +56,13 @@ def port(base):
     return int(base) + int(_copy().get("port_offset", 0))
 
 
+def tag():
+    """What a run folder of this copy carries after its stamp: nothing in the main copy, '-side' or '-sweep' in the others.
+    The copies share one Artefacts, and on 2026-09-24 two drink runs started in the same second from the main and side copies
+    named one folder; the second refused, finding it there."""
+    return "" if is_main() else "-" + name()
+
+
 def main_root():
     """The main copy's root, whose Build/Player is William's."""
     return Path(_copy().get("main_root", str(ROOT)))

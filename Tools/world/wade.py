@@ -155,7 +155,7 @@ def run_folder(name):
     the quiet hours (CANON ruling 47)."""
     machine.refuse_in_quiet_hours(name)
     base = Path(os.environ["EG_RUNS"]) if os.environ.get("EG_RUNS") else ROOT / "Artefacts/frames"
-    return base / (name + "-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
+    return base / (name + "-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + machine.tag())
 
 
 def main():
