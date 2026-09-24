@@ -29,9 +29,13 @@ pushed through the pre-push hook.**
 
 ## Working with the owner
 
-- **Every check-in ends with a checkpoint** (William, 2026-09-21): under its own heading, apart from the rest, what was
-  done since the last one, what is open, a one-paragraph summary, what is immediately next and what comes after; with
-  what waits on him (his word, eyes or hands) and which build his game folder holds. He reads that block when he reads
+- **A checkpoint marks a real break** (William, 2026-09-21; amended by him 2026-09-25): under its own heading, apart from
+  the rest, what was done since the last one, what is open, a one-paragraph summary, what is immediately next and what
+  comes after; with what waits on him (his word, eyes or hands) and which build his game folder holds. It is written
+  only where the work genuinely pauses: a slice finished, or the session stopping with something for him to review or
+  decide, so that seeing one tells him to look. A turn woken by the side worker or a background job that goes straight
+  on ends in a line or two, not a checkpoint; he had missed checkpoints because "the sideworker pokes you, and you
+  continue". What he has not yet answered goes at the top of the next checkpoint. He reads that block when he reads
   nothing else.
 
 William owns the design (`Docs/GAME_DESIGN.md`), and his decisions are in `Docs/CANON.md`. He is learning to
