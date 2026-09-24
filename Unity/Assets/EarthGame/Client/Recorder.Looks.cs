@@ -53,11 +53,16 @@ namespace EarthGame.Client
                 Finish(1);
                 yield break;
             }
+            // A development game's leave is the server's answer (M1.E), which comes after the join: it is waited for, as the
+            // knap and changes scenarios wait. It looked once, before the answer could come; the sweep's first run (M1.Bd,
+            // 2026-09-24) found it so.
+            double leaveFrom = T;
+            while (!_player.FlightAllowed && T < leaveFrom + 6.0) yield return null;
             if (!_player.FlightAllowed)
             {
                 // The panel's deeds are a development server's alone: without one the server refuses and closes the door.
                 _errors++;
-                _log.Record(T, Tick, "error", new JsonObject().With("message", "the looks scenario needs a development game (-eg-dev)"));
+                _log.Record(T, Tick, "error", new JsonObject().With("message", "the looks scenario needs a development game (-eg-dev), and the server gave no leave"));
                 _running = false;
                 Finish(1);
                 yield break;

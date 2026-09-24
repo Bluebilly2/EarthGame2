@@ -105,7 +105,8 @@ def steps(run, short):
         out = runs / ("corpus-" + scenario)
         s += [Step("corpus-" + scenario, py("Tools/corpus/run.py", "--scenarios", scenario, "--out", out), ["build", "host"], 6.0),
               Step("join-check-" + scenario, py(CHECKS + "join_check.py", out, "--only", criterion), ["corpus-" + scenario])]
-    s.append(Step("fauna-check", py(CHECKS + "fauna_check.py", runs / "corpus-walk"), ["corpus-walk"]))
+    # The animals' check reads a corpus's soak: its server logs the animals it stood up every ten seconds.
+    s.append(Step("fauna-check", py(CHECKS + "fauna_check.py", runs / "corpus-soak"), ["corpus-soak"]))
     for tag, world, needs in (("gate", gate, "populate-gate"), ("valley", valley, "world-valley"), ("whole", whole, "world-whole")):
         s.append(Step("vantages-" + tag, py("Tools/world/vantages.py", "--world", world, "--out", runs / ("vantages-" + tag)),
                       ["build", "host", needs], 8.0 if tag == "whole" else 4.0))
