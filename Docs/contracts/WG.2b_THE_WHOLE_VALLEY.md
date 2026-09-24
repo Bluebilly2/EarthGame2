@@ -49,7 +49,7 @@ ground is smoother than the zoom-14 bake will be, and no water outlines were fet
 the game's side from a harness player built with the same trial regions (`install.py --into harness --label wg2b-trial`, the
 trial lines taken out of the tree afterwards and both files checked byte for byte against HEAD). The baseline is the valley's
 own 8 km data. Every number as run on 2026-09-23 on this machine (Ryzen 9 9950X3D, 32 threads, 31 GB); memory is the peak
-committed by the whole process tree (a job object's `PeakJobMemoryUsed`); a range is two runs.
+committed by the whole process tree (a job object's `PeakJobMemoryUsed`); a range is two runs. **The graphics card:** the machine's was changed on 2026-09-23 at 18:33 local, from a GTX 1660 Super to an RTX 5070 Ti (the main session found it in Windows' device records); every frame time in this contract measured before then was on the old card and is not to be compared with one measured after. Times and memory for making, loading and checking a world are the processor's and the disk's, and stand across the change.
 
 | | 8 km (4.0 M cells) | 16 km (16.0 M cells) |
 |---|---|---|
@@ -305,7 +305,52 @@ playable 5.65 s after the connect; the first frame at the wake, 1080p over a hel
 median 7.9 ms, a p95 11.6 ms and a worst 30.0 ms, 609,937 far trees placed and 177,469 near. As the code stood this morning the
 same making would have taken about ten minutes and 17 GB. At 375.6 s it is over the five minutes W3 was to wait for: W3 follows.
 
+`tile_check` on that run's own cache against its own world: ok, 5,353,511 cached posts agree; the far stand and the far count
+hold all 1,024 of the region's tiles, the cached far counts adding up to the stand's own 18,975,077 trees. **The shell** offers
+the whole valley since 7b80c34, second after Bherwerre, its conditions (W1 to W4 and the far forest's bound) having landed.
+
 ## Exit
 
 The box and the manifest approved and fetched, with the sizes as fetched; the world made and every verifier green with its
 numbers; the costs measured against the targets above; the frames; or "What changed on the way".
+
+### Exit record (2026-09-24)
+
+**Fetched and baked** on William's yes to the 32 km manifest: 270 zoom-14 tiles (25.9 MB), 42 zoom-11 (1.5 MB), one Overpass
+response (273 KB), 3,029 plant records (0.64 MB); the heights 8001 × 8001 at 4 m, the surround 128 km at 64 m, the water with
+117 left-out ways drawn as reservoirs and ponds. Region `kangaroo-valley-whole` in the engine (442bda4), offered in the shell
+second after Bherwerre (7b80c34); the 8 km valley and William's two worlds in it unchanged.
+
+**The work that made 4 m workable, each proved and pushed:** the bake in bands (83378aa); W1, code layers held at their stored
+width (fdf97b3); W2, a world made without whole-layer copies (94419db); the reservoir rule (a2003bc); W5, the drainage check in
+compact arrays (98f5bfc); W4, the dedicated server's tiles across cores (58c295e); W3, the making across cores (5802bf2); and the
+main session's far forest bounded (M1.6f, fba255a and 53c77fe) with its ground coloured (M1.6g, 380b2f1 and 45fb9f1). Every
+change to the world's making was held to the gate world and the 8 km valley made with and without it, every layer's sha256,
+the census and the wake the same.
+
+**The world** (`Artefacts/worlds/valley-whole`): made by the dedicated server in 83.8 s with W3 at a peak of 8.4 GB, 2.8 GB on
+disk; `drainage_check`, `cover_check`, `region_stats --world` and `save_check` ok, `species_check` ok with eight rows owed under
+"The valley grows the coast's plant table"; `census_check` exits 2 by design ("The valley has no census"). `tile_check` ok on a
+game's own cache (5,353,511 posts; the far layers' 18,975,077 trees the stand's own).
+
+**In the game** (the build of 3a46f55, "relief+far-forest+whole-valley", the RTX 5070 Ti): a new whole valley prepared in 326.0 s
+at a peak of 10.05 GB for the whole game (375.6 s before W3, on the build of 53c77fe); playable 5.64 s after the connect; the first
+frame at the wake a median 4.93 ms, a p95 6.84 ms and a worst 9.15 ms over a held full turn at 1080p, 609,937 far trees placed.
+A saved whole valley is continued by the dedicated server in 10.0 s at 4.0 GB.
+
+**Against the targets:** the server's peak 131 bytes a cell against 120 (8.4 GB against 7.7), and the game's 10.05 GB against 10:
+both a little over; the game's making 326.0 s against five minutes: over (DEBTS, "A new whole valley takes five and a half minutes
+to make in the game"). As the code stood when the job began, the same world would have wanted about ten minutes and 17 GB in the
+game, and the server's making 21 to 23 GB where 18 were free.
+
+**Frames** for William's eyes: `Artefacts/frames/whole-valley-20260924`, ten places from `vantages.py`'s new table, fourteen frames
+each (the wake, the walk and the turn, and four from 150 m up to the compass points, at 1440p and 1080p), at 10 am by `--hour`
+so each place has the same light; every run exit 0 with no error. Seen by me: the escarpment, the gorge below Fitzroy Falls and
+the valley rim to rim read as the real country, and the floor at the village's site stands in forest with its understorey; the
+steepest walls read bare, the thinned far crowns as pale flat squares, and the far horizon ends in a tan band (DEBTS rows of the
+plant table and of the far ground); the precision at the far corner is for his eyes in play, stills cannot show a shimmer.
+DEBTS' first table carries "The whole valley's look".
+
+**Not done here:** the loading scenario (`Tools/world/loading.py` and `loading_check`) on the shell's new order, which moves to
+the side worker's own copy of the project with the ports that copy is given; the valley's own plant table and stone rule
+(BF.4's); the census's landmarks for the valley; the ground under the dams (DEBTS).
