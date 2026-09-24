@@ -220,6 +220,11 @@ is Claude's and no second agent works here (Claude's own parallel agents work in
   and `-eg-hide trees|near|far|shadows|loose` to part the costs. Timing wobbles with whatever else the machine is
   doing, so a round is run twice, each pass on its own fresh world, and each configuration keeps the faster of its two
   medians (2026-09-11: three runs in a row came out 2 ms slow).
+- The machine's graphics card changed on 2026-09-23 at 18:33, from an NVIDIA GTX 1660 Super (6 GB) to an RTX 5070 Ti
+  (16 GB), as Windows' own device records date it; the processor (a Ryzen 9 9950X3D, 16 cores) and the 32 GB of memory
+  stayed. A frame's cost from before then is not to be compared with one from after: the costs and budgets in these
+  documents up to M1.6f are the 1660 Super's, and M1.6g's pair with the canopy and without it is the 5070 Ti's. A cost
+  is judged as a pair on one card, and a number carried from before the change is named as the old card's.
 - A shader drawn only from materials made at runtime loses its instanced variants in a build: give it a material
   asset with instancing on (`ProjectSetup`; ARCHITECTURE §12, 2026-09-08 and 2026-09-11). A `-nographics` player has
   no instancing at all, so code that draws instanced checks `SystemInfo.supportsInstancing` first.
