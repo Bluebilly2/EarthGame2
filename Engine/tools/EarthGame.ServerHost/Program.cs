@@ -222,6 +222,12 @@ namespace EarthGame.ServerHost
 
             double last = 0.0;
             bool running = true;
+            // A pause asked for is made right after an update that stepped (2026-09-24). The server takes a move the moment it
+            // comes, between steps, and records each body's digest after each step; paused in an update that took a move and
+            // released no step, it held a body the tick's digest did not, and a rejoin's welcome carried that body at the
+            // tick. The sweep's held rejoins met it once a run (DEBTS "A held rejoin's first mirror sample disagrees with the
+            // server"). Paused after a step, the held world is the tick's recorded one; the pause comes a step later at most.
+            bool pausing = false;
             Func<double> seconds = () => clock.Elapsed.TotalSeconds;
             while (running)
             {
@@ -229,6 +235,13 @@ namespace EarthGame.ServerHost
                 long before = world.Tick;
                 server.Update(now - last, seconds);
                 instruments.Updated(before, world.Tick, seconds() - now);
+                if (pausing && world.Tick != before)
+                {
+                    pausing = false;
+                    server.Paused = true;
+                    Log("paused at tick " + world.Tick);
+                    instruments.Command("pause");
+                }
                 last = now;
                 instruments.Tick(now);
                 if (stopAfter > 0 && now >= stopAfter)
@@ -248,11 +261,11 @@ namespace EarthGame.ServerHost
                                 running = false;
                                 break;
                             case "pause":
-                                server.Paused = true;
-                                Log("paused at tick " + world.Tick);
-                                instruments.Command("pause");
+                                // Made after the next update that steps (above), so the held world is a step's own.
+                                if (!server.Paused) pausing = true;
                                 break;
                             case "resume":
+                                pausing = false;
                                 server.Paused = false;
                                 Log("resumed at tick " + world.Tick);
                                 instruments.Command("resume");
