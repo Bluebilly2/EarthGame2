@@ -164,7 +164,7 @@ namespace EarthGame.Engine
         /// <summary>Per species in <see cref="AnimalSpecies.All"/>, animals per km².</summary>
         public float[][] Capacity { get; }
 
-        private WorldLayers(RegionRaster heights, RegionRaster waterBodies, Action<string> progress)
+        private WorldLayers(RegionRaster heights, RegionRaster waterBodies, Action<string> progress, Region region)
         {
             Heights = heights;
             Width = heights.Width;
@@ -192,8 +192,12 @@ namespace EarthGame.Engine
             for (int s = 0; s < Capacity.Length; s++) Capacity[s] = new float[count];
             progress?.Invoke("Finding lakes and wetlands");
             _lake = Lakes(heights, waterBodies);
+            progress?.Invoke("Finding where the lakes spill");
+            bool[] held = HeldLakes(waterBodies, region);
+            float[] ground = heights.Values.ToArray();
+            float[] routing = Outlets(ground, held, region, waterBodies);
             progress?.Invoke("Tracing drainage");
-            Drainage = DrainageNetwork.Of(heights, _lake);
+            Drainage = new DrainageNetwork(ground, routing, Width, Height, CellM, Heightfield.SeaLevelM, held);
             progress?.Invoke("Forming soil");
             Soil = new SoilModel(Drainage);
         }
@@ -201,17 +205,22 @@ namespace EarthGame.Engine
         private readonly bool[] _lake;
         private readonly bool[] _wetland;
         private readonly float[] _level;
+        /// <summary>The water bake's codes of the lakes its region names as holding their water, and what the drainage was
+        /// told of dams and ways out, for the census (WG.1b).</summary>
+        private readonly HashSet<int> _heldCodes = new HashSet<int>();
+        private readonly List<string> _waysOut = new List<string>();
 
         /// <summary>
         /// Runs the chain. Seconds for the region; the seed varies only the draws (the community, the stone). The
         /// water bodies are the bake's outlines (<c>Tools/data/bake_water.py</c>, OpenStreetMap), optional: without
-        /// them the lakes are read off the ground alone.
+        /// them the lakes are read off the ground alone. The region names the lakes that hold their water and the dams
+        /// (WG.1b); by default the one the heights' sidecar names.
         /// </summary>
-        public static WorldLayers Compute(RegionRaster heights, ulong seed, RegionRaster waterBodies = null, Action<string> progress = null)
+        public static WorldLayers Compute(RegionRaster heights, ulong seed, RegionRaster waterBodies = null, Action<string> progress = null, Region region = null)
         {
             if (heights == null) throw new ArgumentNullException(nameof(heights));
             ValidateInputs(heights, waterBodies);
-            WorldLayers w = new WorldLayers(heights, waterBodies, progress);
+            WorldLayers w = new WorldLayers(heights, waterBodies, progress, region ?? Region.ById(heights.RegionId));
             progress?.Invoke("Reading slopes and wind exposure");
             w.SlopeAndExposure();
             progress?.Invoke("Measuring the shore");
@@ -418,8 +427,9 @@ namespace EarthGame.Engine
 
         /// <summary>
         /// The lakes: the ground's flats (a flat surface, one level, with a rim) and the bake's mapped outlines.
-        /// Found before the drainage runs, because a lake is a sink for it (see <see cref="DrainageNetwork"/>):
-        /// the fill that had to spill read Windermere's closed basin as a pond thirty metres deep.
+        /// Found before the drainage runs, because a lake its region holds is a sink for it and every other lake's way out
+        /// is cut before it runs (<see cref="Outlets"/>, WG.1b): the fill that had to spill read Windermere's closed basin
+        /// as a pond thirty metres deep.
         /// </summary>
         private bool[] Lakes(RegionRaster heights, RegionRaster waterBodies)
         {
@@ -531,6 +541,273 @@ namespace EarthGame.Engine
                 codes[code] = true;
             }
             return codes;
+        }
+
+        /// <summary>
+        /// The lake cells of every patch that touches the outline of a lake its region names as holding its water (WG.1b,
+        /// 2026-09-24; <see cref="Region.HeldLakes"/>): a patch is the lake cells joined by any of the eight neighbours, so a lake
+        /// the ground's flats and the bake's outline both found is held whole.
+        /// </summary>
+        private bool[] HeldLakes(RegionRaster waterBodies, Region region)
+        {
+            var held = new bool[Width * Height];
+            if (region == null || region.HeldLakes.Count == 0 || waterBodies == null || !waterBodies.Sidecar.Contains("bodies")) return held;
+            var codes = new HashSet<int>();
+            foreach (object entry in waterBodies.Sidecar.Array("bodies"))
+            {
+                if (!(entry is JsonObject j)) continue;
+                string name = j.StringOr("name", "");
+                foreach (string heldName in region.HeldLakes)
+                    if (string.Equals(heldName, name, StringComparison.OrdinalIgnoreCase)) codes.Add(j.Int("code"));
+            }
+            _heldCodes.UnionWith(codes);
+            var stack = new Stack<int>();
+            for (int r = 0; r < Height; r++)
+                for (int c = 0; c < Width; c++)
+                {
+                    int i = Index(r, c);
+                    if (_lake[i] && codes.Contains((int)waterBodies.Code(r, c))) { held[i] = true; stack.Push(i); }
+                }
+            while (stack.Count > 0)
+            {
+                int i = stack.Pop();
+                int c0 = i % Width, r0 = i / Width;
+                for (int dr = -1; dr <= 1; dr++)
+                    for (int dc = -1; dc <= 1; dc++)
+                    {
+                        int nr = r0 + dr, nc = c0 + dc;
+                        if (nr < 0 || nc < 0 || nr >= Height || nc >= Width) continue;
+                        int n = Index(nr, nc);
+                        if (!_lake[n] || held[n]) continue;
+                        held[n] = true;
+                        stack.Push(n);
+                    }
+            }
+            return held;
+        }
+
+        /// <summary>How far below its own level an open lake's way out is cut, over the length of the cut, m.</summary>
+        public const float OutletDropM = 0.01f;
+
+        /// <summary>
+        /// How far a dam's way may stray, m: to its reservoir, within three times this of the wall's point; down its creek,
+        /// within the ellipse whose foci are the wall's point and the point below and whose distances to them sum to theirs and
+        /// twice this. Without the bound the lowest way from Fitzroy Falls Dam to the falls runs round through the reservoir, over
+        /// its saddle, down the escarpment and back up the gorge below the falls, none of which stands above the reservoir.
+        /// </summary>
+        public const double DamReachM = 100.0;
+
+        /// <summary>
+        /// The surface the water is routed on (WG.1b, 2026-09-24): the ground with each dam's wall let through and each open
+        /// lake's way out cut where the ground holds it below its basin's lip. The ground itself is not changed.
+        ///
+        /// <para>Why a way out is cut and not filled: the tiles' source is SRTM, a surface model. Geoscience Australia made its
+        /// 1-second ground model from it "by automatically removing vegetation offsets" and its hydrologically enforced model by
+        /// enforcing mapped streams through that; the tiles keep the offsets, so a river under forest in a gorge narrower than a
+        /// cell reads as high ground across it. The Kangaroo River's bed is lost 681 m below Hampden Bridge, 13.5 m above the pond
+        /// its water ended in, and a basin filled to that lip would stand the village's floor 13.5 m deep.</para>
+        ///
+        /// <para>A dam's reservoir drains across its wall to the creek below, as the creek ran before it: the lowest way from the
+        /// wall's published point to the reservoir (the nearest lake cell, or cell of an outline the water bake left out as
+        /// humanity's) and on from the wall to the creek's published point below it, each kept near the wall
+        /// (<see cref="DamReachM"/>), is cut to descend from the reservoir's ground to the point below. The level fill of that surface,
+        /// the sea and the held lakes its sinks, then gives each cell the level its water spills at; an open lake whose basin
+        /// spills above its own level has its lowest way out (the path out whose highest cell is lowest) cut to descend from its
+        /// level to the first cell that spills lower, the grid's edge, or a way already cut. Lower lakes go first, so a lake
+        /// above another in the same basin runs into the way cut for it.</para>
+        /// </summary>
+        private float[] Outlets(float[] ground, bool[] held, Region region, RegionRaster waterBodies)
+        {
+            int count = Width * Height;
+            float[] routing = (float[])ground.Clone();
+            if (region != null && region.Dams.Count > 0)
+            {
+                bool[] leftOutCodes = HumanitysCodes(waterBodies);
+                bool Reservoir(int i)
+                {
+                    if (_lake[i]) return true;
+                    if (leftOutCodes == null) return false;
+                    uint code = waterBodies.Code(i / Width, i % Width);
+                    return code < leftOutCodes.Length && leftOutCodes[code];
+                }
+                var frame = new LocalFrame(Heights.CentreLatDeg, Heights.CentreLonDeg, GeoMath.EarthRadiusM);
+                var searched = new DrainageNetwork.CellHeap();
+                var from = new Dictionary<int, int>();
+                foreach (Dam dam in region.Dams)
+                {
+                    int wall = CellAt(frame, dam.LatitudeDeg, dam.LongitudeDeg), below = CellAt(frame, dam.BelowLatitudeDeg, dam.BelowLongitudeDeg);
+                    if (wall < 0 || below < 0) continue;
+                    double straight = Apart(wall, below);
+                    List<int> up = LowestWay(routing, wall, i => i != wall && Reservoir(i), i => Apart(i, wall) <= 3.0 * DamReachM, searched, from);
+                    List<int> down = LowestWay(routing, wall, i => i == below, i => Apart(i, wall) + Apart(i, below) <= straight + 2.0 * DamReachM, searched, from);
+                    if (up == null || down == null) continue;
+                    up.Reverse();
+                    for (int k = 1; k < down.Count; k++) up.Add(down[k]);
+                    float top = ground[up[0]], bottom = Math.Min(ground[below], top - OutletDropM);
+                    for (int k = 0; k < up.Count; k++)
+                    {
+                        float cut = top - (top - bottom) * (k + 1) / up.Count;
+                        if (routing[up[k]] > cut) routing[up[k]] = cut;
+                    }
+                    _waysOut.Add(dam.Name + ": its reservoir let across the wall and down the creek, a way of " + up.Count + " cells from "
+                                 + top.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " m to " + bottom.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " m");
+                }
+            }
+            var sinks = new bool[count];
+            for (int i = 0; i < count; i++) sinks[i] = held[i] || ground[i] <= Heightfield.SeaLevelM;
+            float[] spill = DrainageNetwork.LevelFill(routing, Width, Height, sinks);
+            sinks = null;
+
+            // The open lakes, each a patch with its level and its lowest cell, lowest level first.
+            var seen = new bool[count];
+            var lakes = new List<KeyValuePair<float, int[]>>();
+            var stack = new Stack<int>();
+            var cells = new List<int>();
+            for (int s = 0; s < count; s++)
+            {
+                if (!_lake[s] || held[s] || seen[s]) continue;
+                cells.Clear();
+                seen[s] = true;
+                stack.Push(s);
+                float level = float.MinValue;
+                int lowest = s;
+                while (stack.Count > 0)
+                {
+                    int i = stack.Pop();
+                    cells.Add(i);
+                    if (_level[i] > level) level = _level[i];
+                    if (ground[i] < ground[lowest]) lowest = i;
+                    int c0 = i % Width, r0 = i / Width;
+                    for (int dr = -1; dr <= 1; dr++)
+                        for (int dc = -1; dc <= 1; dc++)
+                        {
+                            int nr = r0 + dr, nc = c0 + dc;
+                            if (nr < 0 || nc < 0 || nr >= Height || nc >= Width) continue;
+                            int n = Index(nr, nc);
+                            if (!_lake[n] || held[n] || seen[n]) continue;
+                            seen[n] = true;
+                            stack.Push(n);
+                        }
+                }
+                if (spill[lowest] > level + OutletDropM) lakes.Add(new KeyValuePair<float, int[]>(level, cells.ToArray()));
+            }
+            seen = null;
+            if (lakes.Count == 0) return routing;
+            // Lowest level first; lakes at one level in the order their first cells lie in the grid (each patch's first cell is
+            // its lowest index, the scan's), so the order is the stated one whatever the sort's.
+            lakes.Sort((a, b) => a.Key != b.Key ? a.Key.CompareTo(b.Key) : a.Value[0].CompareTo(b.Value[0]));
+
+            int[] came = new int[count];
+            for (int i = 0; i < count; i++) came[i] = -2;
+            var touched = new List<int>();
+            var frontier = new DrainageNetwork.CellHeap();
+            var path = new List<int>();
+            int cutCount = 0, longest = 0;
+            foreach (KeyValuePair<float, int[]> lake in lakes)
+            {
+                float level = lake.Key;
+                frontier.Clear();
+                touched.Clear();
+                foreach (int i in lake.Value)
+                {
+                    came[i] = -1;
+                    touched.Add(i);
+                    frontier.Push(i, routing[i], routing[i]);
+                }
+                int end = -1;
+                while (frontier.Count > 0)
+                {
+                    int i = frontier.Pop(out float key);
+                    int c0 = i % Width, r0 = i / Width;
+                    if (came[i] != -1 && (spill[i] < level - OutletDropM || (routing[i] < ground[i] && routing[i] < level - OutletDropM)
+                                          || r0 == 0 || c0 == 0 || r0 == Height - 1 || c0 == Width - 1))
+                    {
+                        end = i;
+                        break;
+                    }
+                    for (int dr = -1; dr <= 1; dr++)
+                        for (int dc = -1; dc <= 1; dc++)
+                        {
+                            int nr = r0 + dr, nc = c0 + dc;
+                            if (nr < 0 || nc < 0 || nr >= Height || nc >= Width) continue;
+                            int n = Index(nr, nc);
+                            if (came[n] != -2) continue;
+                            came[n] = i;
+                            touched.Add(n);
+                            // Among ways out over the same highest cell the lower ground first: past the lip the way drops
+                            // into the channel below it rather than running along the slope beside it.
+                            frontier.Push(n, Math.Max(key, routing[n]), routing[n]);
+                        }
+                }
+                if (end >= 0)
+                {
+                    path.Clear();
+                    for (int i = end; i != -1; i = came[i]) path.Add(i);
+                    path.Reverse();
+                    for (int k = 0; k < path.Count; k++)
+                    {
+                        float cut = level - OutletDropM * (k + 1) / path.Count;
+                        if (routing[path[k]] > cut) routing[path[k]] = cut;
+                    }
+                    cutCount++;
+                    longest = Math.Max(longest, path.Count);
+                }
+                foreach (int i in touched) came[i] = -2;
+            }
+            _waysOut.Add("the ways out cut for the lakes the ground holds below their lip: " + cutCount + ", the longest " + longest + " cells");
+            return routing;
+        }
+
+        /// <summary>The cell a published point falls in, by the sidecar's frame rule; -1 outside the grid.</summary>
+        private int CellAt(LocalFrame frame, double latitudeDeg, double longitudeDeg)
+        {
+            frame.FromLatLon(latitudeDeg, longitudeDeg, out double east, out double north);
+            double half = Heights.ExtentM / 2.0;
+            int r = (int)Math.Round((half - north) / CellM), c = (int)Math.Round((east + half) / CellM);
+            return r < 0 || c < 0 || r >= Height || c >= Width ? -1 : Index(r, c);
+        }
+
+        /// <summary>The distance between two cells' centres, m.</summary>
+        private double Apart(int a, int b)
+        {
+            int dr = a / Width - b / Width, dc = a % Width - b % Width;
+            return CellM * Math.Sqrt((double)dr * dr + (double)dc * dc);
+        }
+
+        /// <summary>
+        /// The lowest way from a cell to the first cell that ends it, through the cells allowed: the search takes the way whose
+        /// highest cell is lowest, then the lower ground, then the lower cell number, as <see cref="Outlets"/>' does. The path,
+        /// start first, or null when nothing allowed ends it.
+        /// </summary>
+        private List<int> LowestWay(float[] routing, int start, Func<int, bool> ends, Func<int, bool> allowed, DrainageNetwork.CellHeap frontier, Dictionary<int, int> came)
+        {
+            frontier.Clear();
+            came.Clear();
+            came[start] = -1;
+            frontier.Push(start, routing[start], routing[start]);
+            while (frontier.Count > 0)
+            {
+                int i = frontier.Pop(out float key);
+                if (ends(i))
+                {
+                    var path = new List<int>();
+                    for (int j = i; j != -1; j = came[j]) path.Add(j);
+                    path.Reverse();
+                    return path;
+                }
+                int c0 = i % Width, r0 = i / Width;
+                for (int dr = -1; dr <= 1; dr++)
+                    for (int dc = -1; dc <= 1; dc++)
+                    {
+                        int nr = r0 + dr, nc = c0 + dc;
+                        if (nr < 0 || nc < 0 || nr >= Height || nc >= Width) continue;
+                        int n = Index(nr, nc);
+                        if (came.ContainsKey(n) || !allowed(n)) continue;
+                        came[n] = i;
+                        frontier.Push(n, Math.Max(key, routing[n]), routing[n]);
+                    }
+            }
+            return null;
         }
 
         /// <summary>
@@ -676,7 +953,8 @@ namespace EarthGame.Engine
                 {
                     mappedLake += b.WaterCells;
                     sb.Append("  ").Append(name).Append(": ").Append(Ha(b.WaterCells * ha)).Append(" of water at ").Append(b.LevelM.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture))
-                      .Append(" m inside an outline of ").Append(Ha(b.OutlineCells * ha)).Append(" (").Append(b.Source).Append(")").Append('\n');
+                      .Append(" m inside an outline of ").Append(Ha(b.OutlineCells * ha)).Append(_heldCodes.Contains(b.Code) ? ", holding its water" : "")
+                      .Append(" (").Append(b.Source).Append(")").Append('\n');
                 }
                 else if (b.Kind == "wetland")
                     sb.Append("  ").Append(name).Append(": ").Append(Ha(b.WaterCells * ha)).Append(" of swamp (").Append(b.Source).Append(")").Append('\n');
@@ -687,6 +965,7 @@ namespace EarthGame.Engine
                     sb.Append("  ").Append(name).Append(": an outline of ").Append(Ha(b.OutlineCells * ha)).Append(", ").Append(b.Kind).Append(", not used (").Append(b.Source).Append(")").Append('\n');
             }
             sb.Append("  lakes read off the ground alone: ").Append(Ha(Math.Max(0, cells[(int)WaterClass.Lake] - mappedLake) * ha)).Append('\n');
+            foreach (string line in _waysOut) sb.Append("  ").Append(line).Append('\n');
             return sb.ToString();
         }
 

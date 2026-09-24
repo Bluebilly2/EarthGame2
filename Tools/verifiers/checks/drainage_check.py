@@ -4,14 +4,29 @@
 Reads the bake's heights (Data/regions/<region>/heights.r32, the region read off the world's own world.json) and the
 world's water.u8 and catchment.u32 by hand: numpy from the sidecars' stated shapes, never the engine, never Tools/data. Then does the drainage again
 its own way:
-  - fills depressions with its own priority flood (heapq over a padded grid), seeded from the sea (raw height at
-    or below 0 m), from the grid's edge, and from the cells the world's water layer marks as lake (a lake is a
-    sink in the engine too; whether the lakes are where the map puts them is census_check's business, not this
-    file's), raising each cell reached to a millimetre above the cell it was reached from;
+  - which lakes hold their water and which pass it on, by the rule WG.1b states (2026-09-24), restated here from its own
+    tables: a lake holds its water only where its region names it (HELD_LAKES_BY_REGION, by the name the water bake gives
+    its outline in Data/regions/<region>/water_bodies: Bherwerre's three dune lakes, of which Parks Australia's geology page
+    for Booderee says Windermere and McKenzie "evolved when streams were blocked by sand", and none of which OpenStreetMap
+    maps a stream into or out of); a patch of the world's lake cells that touches such an outline is held whole; whether
+    the lakes are where the map puts them is census_check's business, not this file's;
+  - a dam's reservoir let across its wall (DAMS_BY_REGION: Fitzroy Falls Dam at Wikipedia's 34 38 46 S 150 29 15 E, on
+    Yarrunga Creek, whose falls below it are at the NSW Government's 34.648011 S 150.482544 E): the lowest way from the wall's
+    point to the reservoir, within 300 m of it, and from the wall down to the point below, within the ellipse about the two
+    points 200 m longer than the straight way, cut to descend from the reservoir's ground to the point below, on a copy of
+    the ground the water is routed over;
+  - a level fill of that copy (its own priority flood with no step left across a hollow), seeded from the sea, the grid's
+    edge and the held lakes, gives each cell the level its water spills at; each open lake (every other patch of lake
+    cells) whose spill stands above its level, the world's surface over it, has its lowest way out, the path whose highest
+    cell is lowest, found by its own search on the copy and cut there to descend a centimetre from the lake's level to the
+    first cell that spills lower, the grid's edge, or a way already cut, lower lakes first; the ground is not touched;
+  - fills depressions in the cut copy with its own priority flood (heapq over a padded grid), seeded from the sea (raw
+    height at or below 0 m), from the grid's edge and from the held lakes, raising each cell reached to a millimetre above
+    the cell it was reached from;
   - routes every other cell to its steepest-descent neighbour by gradient, drop over distance with the diagonal
     the longer step, vectorised in numpy;
   - accumulates cells in descending order of the filled height, one cell of area each, the sea gathering nothing
-    and a lake gathering what flows into it.
+    and a held lake gathering what flows into it.
 The engine does the same job in C#; nothing here reads its code or its filled surface, so two implementations
 of one stated method are compared cell for cell where it matters:
   1. the largest creek: the greatest catchment on any land cell that is not a lake, engine and here, with the
@@ -63,6 +78,18 @@ DEFAULT_WORLD = os.path.join("Artefacts", "worlds", "gate")
 EARTH_RADIUS_M = 6371000.0
 FILL_STEP_M = 1e-3
 TOLERANCE = 0.10
+# WG.1b's rule, restated (the sources are the docstring's): the lakes that hold their water, by the water bake's names; the
+# dams whose walls are let through, with their points; how far round a dam's point, and how far below a lake's level its
+# way out descends.
+HELD_LAKES_BY_REGION = {
+    "bherwerre": ("Lake Windermere", "Lake Mckenzie", "Blacks Waterhole"),
+}
+DAMS_BY_REGION = {   # the wall's point, then the dammed creek's below it
+    "kangaroo-valley": (("Fitzroy Falls Dam", -34.64611, 150.48750, -34.648011, 150.482544),),
+    "kangaroo-valley-whole": (("Fitzroy Falls Dam", -34.64611, 150.48750, -34.648011, 150.482544),),
+}
+DAM_REACH_M = 100.0
+OUTLET_DROP_M = 0.01
 LAKES_BY_REGION = {
     "bherwerre": (("Lake Windermere", -35.13333333, 150.66666667, 1500.0, "Wikidata Q23759865, to the minute"),
                   ("Lake McKenzie", -35.14666, 150.67079, 500.0, "Wikidata Q21908519, to a metre")),
@@ -104,10 +131,11 @@ def position(row, col, sidecar):
     return col * sidecar["cell_m"] - half, half - row * sidecar["cell_m"]
 
 
-def fill(z, sinks):
+def fill(z, sinks, step=FILL_STEP_M):
     """Priority flood on a grid padded by one closed ring, so no neighbour needs a bounds check. The grid is held as a flat
     array of doubles (8 bytes a cell) rather than a list of Python floats (about 32): the whole valley's 64 million cells
-    (WG.2b, 2026-09-23) would have taken over 2 GB as a list, and the same arithmetic runs on either."""
+    (WG.2b, 2026-09-23) would have taken over 2 GB as a list, and the same arithmetic runs on either. With a step of 0 it is
+    the level fill: every cell of a hollow reads the level its water spills at."""
     h, w = z.shape
     wp = w + 2
     padded = np.full((h + 2, wp), np.inf, dtype=np.float64)
@@ -135,7 +163,7 @@ def fill(z, sinks):
     push, pop = heapq.heappush, heapq.heappop
     while heap:
         level, i = pop(heap)
-        floor = level + FILL_STEP_M
+        floor = level + step
         for off in offsets:
             n = i + off
             if closed[n]:
@@ -214,6 +242,164 @@ def patches(mask):
     return labels, result
 
 
+def outlines_of(region, shape):
+    """The bake's water outlines (their codes) and its bodies, or (None, []) when the region has none of this shape."""
+    side_path = os.path.join(region, "water_bodies.json")
+    if not os.path.isfile(side_path):
+        return None, []
+    water_side, outlines = load(side_path)
+    if outlines is None or outlines.shape != shape:
+        return None, []
+    return outlines, water_side.get("bodies", [])
+
+
+def held_lakes(lake, groups, region, outlines, bodies):
+    """The lake cells of every patch that touches the bake's outline of a lake the region names as holding its water."""
+    held = np.zeros(lake.shape, dtype=bool)
+    names = {n.lower() for n in HELD_LAKES_BY_REGION.get(os.path.basename(region), ())}
+    codes = [int(b["code"]) for b in bodies if str(b.get("name", "")).lower() in names]
+    if not codes or outlines is None:
+        return held
+    touching = np.isin(outlines, codes).ravel()
+    flat = held.ravel()
+    for cells in groups:
+        if touching[cells].any():
+            flat[cells] = True
+    return held
+
+
+def lowest_way(route, start, ends, allowed, w, h):
+    """The way from a cell to the first cell that ends it through the cells allowed, taking the way whose highest cell is
+    lowest, then the lower ground, then the lower cell number: the path, start first, or None."""
+    came = {start: -1}
+    heap = [(float(route[start]), float(route[start]), start)]
+    push, pop = heapq.heappush, heapq.heappop
+    while heap:
+        key, _, i = pop(heap)
+        if ends(i):
+            path = []
+            while i != -1:
+                path.append(i)
+                i = came[i]
+            return path[::-1]
+        r, c = divmod(i, w)
+        for dr in (-1, 0, 1):
+            for dc in (-1, 0, 1):
+                rr, cc = r + dr, c + dc
+                if not (0 <= rr < h and 0 <= cc < w):
+                    continue
+                n = rr * w + cc
+                if n in came or not allowed(n):
+                    continue
+                came[n] = i
+                push(heap, (max(key, float(route[n])), float(route[n]), n))
+    return None
+
+
+def let_dams_through(routing, z, lake, outlines, bodies, region, sidecar):
+    """Each dam's reservoir let across its wall: the lowest way from the wall's point to the reservoir (the nearest lake cell,
+    or cell of an outline the water bake left out as a reservoir or a pond) within three times DAM_REACH_M of it, and from the
+    wall to the creek's point below within the ellipse whose foci are those two points and whose distances to them sum to
+    theirs and twice DAM_REACH_M, cut on the routed copy to descend from the reservoir's ground to the point below, in 32-bit
+    floats as the engine works them. Returns each dam's name, the cells of its way, and the heights it runs from and to."""
+    cell = float(sidecar["cell_m"])
+    half = sidecar["extent_m"] / 2.0
+    h, w = z.shape
+    route, ground, lakef = routing.ravel(), z.ravel(), lake.ravel()
+    left_codes = [int(b["code"]) for b in bodies if b.get("kind") in ("reservoir", "pond")]
+    leftf = np.isin(outlines, left_codes).ravel() if outlines is not None and left_codes else np.zeros(lakef.shape, dtype=bool)
+
+    def cell_at(lat, lon):
+        east, north = local(lat, lon, sidecar)
+        r, c = int(round((half - north) / cell)), int(round((east + half) / cell))
+        return r * w + c if 0 <= r < h and 0 <= c < w else -1
+
+    def apart(a, b):
+        dr, dc = a // w - b // w, a % w - b % w
+        return cell * math.sqrt(dr * dr + dc * dc)
+
+    done = []
+    for name, lat, lon, below_lat, below_lon in DAMS_BY_REGION.get(os.path.basename(region), ()):
+        wall, below = cell_at(lat, lon), cell_at(below_lat, below_lon)
+        if wall < 0 or below < 0:
+            continue
+        straight = apart(wall, below)
+        up = lowest_way(route, wall, lambda i: i != wall and (lakef[i] or leftf[i]), lambda i: apart(i, wall) <= 3.0 * DAM_REACH_M, w, h)
+        down = lowest_way(route, wall, lambda i: i == below, lambda i: apart(i, wall) + apart(i, below) <= straight + 2.0 * DAM_REACH_M, w, h)
+        if up is None or down is None:
+            continue
+        path = up[::-1] + down[1:]
+        top = np.float32(ground[path[0]])
+        bottom = min(np.float32(ground[below]), top - np.float32(OUTLET_DROP_M))
+        count = np.float32(len(path))
+        for k, i in enumerate(path):
+            route[i] = min(route[i], float(top - (top - bottom) * np.float32(k + 1) / count))
+        done.append((name, len(path), float(top), float(bottom)))
+    return done
+
+
+def cut_outlets(routing, z, spill, surface, groups, held):
+    """Each open lake whose basin spills above its own level has its lowest way out, found by a search keyed by the highest
+    cell passed on the routed copy, cut down to descend OUTLET_DROP_M from its level to the first cell that spills lower,
+    the grid's edge, or a way already cut; lower lakes first. Returns how many lakes were cut and the longest cut, cells."""
+    h, w = z.shape
+    route = routing.ravel()
+    ground = z.ravel()
+    spills = spill.ravel()
+    levels = surface.ravel()
+    heldf = held.ravel()
+    lakes = []
+    for cells in groups:
+        if heldf[cells[0]]:
+            continue
+        level = float(levels[cells].max())
+        lowest = cells[int(np.argmin(ground[cells]))]
+        if spills[lowest] > level + OUTLET_DROP_M:
+            lakes.append((level, cells))
+    # Lowest level first, lakes at one level by their first (lowest-numbered) cell; the search takes the ways out over the same
+    # highest cell lower ground first and then lowest number (the tuple's second and third members), and a cut's heights are
+    # worked in 32-bit floats as the engine's are, so on level ground the two searches take the same path.
+    lakes.sort(key=lambda item: (item[0], int(item[1][0])))
+    cut, longest = 0, 0
+    push, pop = heapq.heappush, heapq.heappop
+    for level, cells in lakes:
+        came = {int(i): -1 for i in cells}
+        heap = [(float(route[i]), float(route[i]), int(i)) for i in cells]
+        heapq.heapify(heap)
+        end = -1
+        while heap:
+            key, _, i = pop(heap)
+            r, c = divmod(i, w)
+            if came[i] != -1 and (spills[i] < level - OUTLET_DROP_M or (route[i] < ground[i] and route[i] < level - OUTLET_DROP_M)
+                                  or r == 0 or c == 0 or r == h - 1 or c == w - 1):
+                end = i
+                break
+            for dr in (-1, 0, 1):
+                for dc in (-1, 0, 1):
+                    rr, cc = r + dr, c + dc
+                    if not (0 <= rr < h and 0 <= cc < w):
+                        continue
+                    n = rr * w + cc
+                    if n in came:
+                        continue
+                    came[n] = i
+                    push(heap, (max(key, float(route[n])), float(route[n]), n))
+        if end < 0:
+            continue
+        path = []
+        i = end
+        while i != -1:
+            path.append(i)
+            i = came[i]
+        path.reverse()
+        top, drop, count = np.float32(level), np.float32(OUTLET_DROP_M), np.float32(len(path))
+        for k, i in enumerate(path):
+            route[i] = min(route[i], float(top - drop * np.float32(k + 1) / count))
+        cut += 1
+        longest = max(longest, len(path))
+    return cut, longest
+
+
 def main(argv):
     world = argv[1] if len(argv) > 1 else DEFAULT_WORLD
     layers = os.path.join(ROOT, world, "layers")
@@ -233,12 +419,22 @@ def main(argv):
     started = time.time()
     sea = z <= 0.0
     lake = water == 5
-    sinks = sea | lake
-    filled = fill(z.astype(np.float64), sinks)
+    _, groups = patches(lake)
+    outlines, bodies = outlines_of(region, z.shape)
+    held = held_lakes(lake, groups, region, outlines, bodies)
+    sinks = sea | held
+    routing = z.astype(np.float64)
+    dams = let_dams_through(routing, z, lake, outlines, bodies, region, sidecar)
+    spill = fill(routing, sinks, step=0.0)
+    cut, longest = cut_outlets(routing, z.astype(np.float64), spill, surface.astype(np.float64), groups, held)
+    del spill
+    filled = fill(routing, sinks)
     recv = receivers(filled, sinks, cell)
     mine = accumulate(filled, recv, sea)
     engine = engine.astype(np.int64)
-    print("independent D8 over %dx%d cells in %.1f s" % (z.shape[1], z.shape[0], time.time() - started))
+    print("independent D8 over %dx%d cells in %.1f s: %d of %d lake patches hold their water, %d dam(s) let through (%s), %d open lake(s)"
+          " cut a way out, the longest %d cells" % (z.shape[1], z.shape[0], time.time() - started, len({int(g[0]) for g in groups if held.ravel()[g[0]]}),
+                                                   len(groups), len(dams), ", ".join("%s: a way of %d cells from %.1f m to %.1f m" % d for d in dams) or "none", cut, longest))
     failures = []
 
     def expect(name, ok, detail):

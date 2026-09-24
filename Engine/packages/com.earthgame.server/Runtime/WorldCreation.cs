@@ -87,7 +87,7 @@ namespace EarthGame.Server
             int width = layers.Width;
             SaveLayer("catchment", RegionRaster.WriteCodes(dir, "catchment", heights, "catchment", "u32", "cells",
                 i => (uint)Math.Round(layers.Drainage.CatchmentM2(i % width, i / width) / layers.Drainage.CellAreaM2),
-                "DrainageNetwork: the cells draining through each cell, itself included, on the filled surface with the sea as the sink", by, nowUtcText));
+                "DrainageNetwork: the cells draining through each cell, itself included, on the filled surface of the ground with each open lake's and dam's way out cut, the sea and the lakes that hold their water its sinks", by, nowUtcText));
             SaveLayer("shore_distance", RegionRaster.WriteCodes(dir, "shore_distance", heights, "shore_distance", "u16", "m", MetresOf(layers.ShoreDistanceM),
                 "metres to the nearest sea cell, capped at 65535", by, nowUtcText));
             SaveLayer("fresh_water_distance", RegionRaster.WriteCodes(dir, "fresh_water_distance", heights, "fresh_water_distance", "u16", "m", MetresOf(layers.FreshWaterDistanceM),

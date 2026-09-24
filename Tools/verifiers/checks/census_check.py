@@ -117,18 +117,10 @@ VILLAGE = (-34.7333, 150.5333, 86.0)
 TRICKLE, STREAM = 2, 4
 FALL_SEARCH_M, CREEK_MIN_KM2, FALL_RUN_M, FALL_FACTOR, TOP_M = 300.0, 1.0, 100.0, 2.0, 30.0
 BRIDGE_M, RIVER_REACH_M, GAUGE_SEARCH_M, GAUGE_SHARE, RISE_SHARE = 150.0, 2000.0, 800.0, 0.25, 0.15
-# The valley's rows the world is known to fail, a table per region, each owed under the DEBTS.md row named. Found by these
-# rows' first run (2026-09-24): a lake is a sink where the world's water stops, so a pond on a creek's course ends all it
-# gathered, and the creek below it starts again from nothing.
-PONDS = "The valley's rivers end in ponds"
+# The valley's rows the world is known to fail, a table per region, each owed under the DEBTS.md row named. The rivers that
+# ended in ponds on these rows' first run pass since WG.1b (2026-09-24); Carrington's plunge is not in the tiles' ground.
 OWED_BY_REGION = {
-    "kangaroo-valley": {"Fitzroy Falls: Yarrunga Creek falls": PONDS},
-    "kangaroo-valley-whole": {
-        "Fitzroy Falls: Yarrunga Creek falls": PONDS,
-        "Carrington Falls: the Kangaroo River falls": PONDS,
-        "the Kangaroo River runs under Hampden Bridge": PONDS,
-        "the river at gauge 215220 gathers its catchment": PONDS,
-    },
+    "kangaroo-valley-whole": {"Carrington Falls: the Kangaroo River falls": "Carrington Falls is not in the tiles"},
 }
 
 

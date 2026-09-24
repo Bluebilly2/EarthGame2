@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace EarthGame.Engine
 {
@@ -116,18 +117,29 @@ namespace EarthGame.Engine
         internal bool[] SeaArray => _sea;
 
         /// <summary>
-        /// Sinks are where water stops: the sea always, and any cell the caller names (the lakes the bake shows
-        /// as flats; <c>WorldLayers.Lakes</c>). The fill is seeded from every sink at its own height, so a basin
-        /// that holds a lake drains to the lake and is not flooded to its lowest lip: Windermere and McKenzie are
-        /// perched dune lakes with no outlet, and a fill that had to spill read Windermere's basin as a pond thirty
-        /// metres deep (the third probe world of 2026-09-09). A sink flows nowhere; a lake sink gathers its inflow
-        /// (its catchment reads the lake's), the sea gathers nothing.
+        /// Sinks are where water stops: the sea always, and any cell the caller names. The fill is seeded from every sink at
+        /// its own height, so a basin that holds one drains to it and is not flooded to its lowest lip: Windermere and McKenzie
+        /// are perched dune lakes with no outlet, and a fill that had to spill read Windermere's basin as a pond thirty metres
+        /// deep (the third probe world of 2026-09-09). A sink flows nowhere; a lake sink gathers its inflow (its catchment reads
+        /// the lake's), the sea gathers nothing. Until WG.1b (2026-09-24) every lake the bake showed was named; since, only the
+        /// lakes a region names as holding their water are (<c>WorldLayers</c>).
         /// </summary>
         public DrainageNetwork(float[] heights, int width, int height, double cellSizeM, double seaLevelM = double.NegativeInfinity, bool[] sinks = null)
+            : this(heights, null, width, height, cellSizeM, seaLevelM, sinks)
+        {
+        }
+
+        /// <summary>
+        /// The network over a surface of its own to route the water on (WG.1b, 2026-09-24): the ground with a way out cut for
+        /// each lake the ground holds below its basin's lip and each dam's wall let through (<c>WorldLayers.Outlets</c>), while
+        /// the ground stays what the sea and a standing pond's depth are read from. Null routes over the ground itself.
+        /// </summary>
+        public DrainageNetwork(float[] heights, float[] routing, int width, int height, double cellSizeM, double seaLevelM = double.NegativeInfinity, bool[] sinks = null)
         {
             if (heights == null) throw new ArgumentNullException(nameof(heights));
             if (width < 2 || height < 2) throw new ArgumentException("grid too small");
             if (heights.Length < width * height) throw new ArgumentException("heights too short");
+            if (routing != null && routing.Length < width * height) throw new ArgumentException("routing too short");
             if (cellSizeM <= 0.0) throw new ArgumentException("cell size must be positive");
 
             Width = width;
@@ -135,7 +147,7 @@ namespace EarthGame.Engine
             CellSizeM = cellSizeM;
             SeaLevelM = seaLevelM;
 
-            _height = (float[])heights.Clone();
+            _height = (float[])(routing ?? heights).Clone();
             _ground = heights;
             _pond = new bool[width * height];
             _sea = new bool[width * height];
@@ -168,6 +180,57 @@ namespace EarthGame.Engine
             return new DrainageNetwork(raster.Values.ToArray(), raster.Width, raster.Height, raster.CellM, Heightfield.SeaLevelM, sinks);
         }
 
+        /// <summary>
+        /// The level each cell's water rises to before it spills (WG.1b): a flood from the grid's edge and the sinks in height
+        /// order that leaves no gradient across a filled hollow, so every cell of a hollow reads its lowest lip. A cell the
+        /// flood raises is worked from a plain queue at the level it was raised to, before the heap's next, which takes the
+        /// heap out of the hollows (Barnes, Lehman and Mulla 2014, "Priority-Flood", its improved variant).
+        /// </summary>
+        public static float[] LevelFill(float[] surface, int width, int height, bool[] sinks)
+        {
+            if (surface == null) throw new ArgumentNullException(nameof(surface));
+            int count = width * height;
+            float[] level = (float[])surface.Clone();
+            var closed = new bool[count];
+            var heap = new CellHeap();
+            var raised = new Queue<int>();
+            for (int i = 0; i < count; i++)
+                if (sinks != null && sinks[i]) { closed[i] = true; heap.Push(i, level[i]); }
+            for (int x = 0; x < width; x++)
+                for (int e = 0; e < 2; e++)
+                {
+                    int i = (e == 0 ? 0 : height - 1) * width + x;
+                    if (!closed[i]) { closed[i] = true; heap.Push(i, level[i]); }
+                }
+            for (int z = 1; z < height - 1; z++)
+                for (int e = 0; e < 2; e++)
+                {
+                    int i = z * width + (e == 0 ? 0 : width - 1);
+                    if (!closed[i]) { closed[i] = true; heap.Push(i, level[i]); }
+                }
+            while (raised.Count > 0 || heap.Count > 0)
+            {
+                int i = raised.Count > 0 ? raised.Dequeue() : heap.Pop(out _);
+                float here = level[i];
+                int x = i % width, z = i / width;
+                for (int d = 0; d < 8; d++)
+                {
+                    int nx = x + OffsetX[d], nz = z + OffsetZ[d];
+                    if (nx < 0 || nz < 0 || nx >= width || nz >= height) continue;
+                    int n = nz * width + nx;
+                    if (closed[n]) continue;
+                    closed[n] = true;
+                    if (level[n] <= here)
+                    {
+                        level[n] = here;
+                        raised.Enqueue(n);
+                    }
+                    else heap.Push(n, level[n]);
+                }
+            }
+            return level;
+        }
+
         /// <summary>Whether water stops here: the sea, or a lake the caller named.</summary>
         public bool IsSink(int x, int z) => _sink[Index(x, z)];
 
@@ -187,7 +250,7 @@ namespace EarthGame.Engine
         /// it spills is exactly the level a pond in it would sit at. So the correction that makes
         /// the drainage work also tells you where the water is standing.</para>
         /// </summary>
-        public float WaterDepthAt(int x, int z) => _height[Index(x, z)] - _ground[Index(x, z)];
+        public float WaterDepthAt(int x, int z) => Math.Max(0f, _height[Index(x, z)] - _ground[Index(x, z)]);
 
         /// <summary>Whether this cell is sea: the base level everything drains to, carrying no channel of its own.</summary>
         public bool IsSea(int x, int z) => _sea[Index(x, z)];
@@ -371,6 +434,72 @@ namespace EarthGame.Engine
             if (closed[i]) return;
             closed[i] = true;
             queue.Push(i, _height[i]);
+        }
+
+        /// <summary>A binary heap over cell indices for the searches that touch a part of the grid (WG.1b), grown as it fills;
+        /// <see cref="MinHeap"/> holds the whole grid's worth from the start. Ordered by a key, then a second key, then the cell's
+        /// index, so a search's path through level ground is the stated one and <c>drainage_check</c>'s own search finds the
+        /// same.</summary>
+        internal sealed class CellHeap
+        {
+            private int[] _items = new int[1024];
+            private float[] _keys = new float[1024];
+            private float[] _thens = new float[1024];
+
+            public int Count { get; private set; }
+
+            public void Clear() => Count = 0;
+
+            public void Push(int item, float key, float then = 0f)
+            {
+                if (Count == _items.Length)
+                {
+                    Array.Resize(ref _items, _items.Length * 2);
+                    Array.Resize(ref _keys, _keys.Length * 2);
+                    Array.Resize(ref _thens, _thens.Length * 2);
+                }
+                int i = Count++;
+                while (i > 0)
+                {
+                    int parent = (i - 1) >> 1;
+                    if (!Before(key, then, item, parent)) break;
+                    _items[i] = _items[parent];
+                    _keys[i] = _keys[parent];
+                    _thens[i] = _thens[parent];
+                    i = parent;
+                }
+                _items[i] = item;
+                _keys[i] = key;
+                _thens[i] = then;
+            }
+
+            private bool Before(float key, float then, int item, int slot)
+                => key < _keys[slot] || (key == _keys[slot] && (then < _thens[slot] || (then == _thens[slot] && item < _items[slot])));
+
+            public int Pop(out float key)
+            {
+                int top = _items[0];
+                key = _keys[0];
+                int last = --Count;
+                int item = _items[last];
+                float k = _keys[last], t = _thens[last];
+                int i = 0;
+                while (true)
+                {
+                    int child = 2 * i + 1;
+                    if (child >= last) break;
+                    if (child + 1 < last && Before(_keys[child + 1], _thens[child + 1], _items[child + 1], child)) child++;
+                    if (Before(k, t, item, child)) break;
+                    _items[i] = _items[child];
+                    _keys[i] = _keys[child];
+                    _thens[i] = _thens[child];
+                    i = child;
+                }
+                _items[i] = item;
+                _keys[i] = k;
+                _thens[i] = t;
+                return top;
+            }
         }
 
         /// <summary>A binary heap over cell indices, keyed by height.</summary>
