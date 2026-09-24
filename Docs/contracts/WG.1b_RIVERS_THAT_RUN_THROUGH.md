@@ -250,9 +250,25 @@ Three of `drainage_check`'s restatement, each turning its rows red:
 before took 79.7 s. The new stage takes 8 s and the drainage stage is unchanged at 13 to 14 s. Bherwerre takes 9.1 s and the
 8 km valley 6.3 s.
 
-**Still to do before the exit is whole:** the three template worlds remade (moved aside, not deleted) and the drink scenario and
-a corpus walk with `join_check --only N2` on the new gate world. `vantages.py` needs no change: the whole valley's wake did not
-move.
+**The templates and the game (2026-09-25, from 06:00 by ruling 47 as amended).**
+- **The templates.** `Artefacts/worlds/gate`, `valley` and `valley-whole` were moved aside to `*-before-wg1b`, not deleted, and
+  made again by `create.py` at fa4f501 (WG.1b's code with the main session's BF.4 stage two); the gate was populated again.
+  Every layer's sha256 in all three is the worlds verified above. The wakes are unchanged: (-1392, 2804), (436, -1040) and
+  (10840, -9268). `vantages.py` needs no change.
+- **The build.** The harness built in the side copy at fa4f501, clean.
+- **The drink scenario** on the new gate world (`Artefacts/frames/drink-20260924T215609Z-side`):
+  - the founder stands at the wake, east -1392 north 2804, beside the same creek;
+  - very thirsty after 20 s at sixty times the game's rate;
+  - drank at the fresh water (0.9595 to 0.9952), and the sea was refused as salt;
+  - six frames, 0 errors, 0 corrections.
+  
+  `thirst_check` GREEN, every row.
+- **The corpus walk** (`Artefacts/corpus/wg1b-walk-20260924T215802Z-side`) on a fresh gate world the run made, its wake again at
+  (-1392, 2804): two players over the wire and one in SOLO, ten minutes each. `join_check --only N2`: 12 rows, 0 failed; 0
+  corrections for every walker; every named segment reached (bank, shore, cliff, platform, wade); the largest displacement
+  0.00 m.
+
+WG.1b is closed on the side worker's part. The main session's sweep runs every scenario on the new worlds next.
 
 **Owed after, not in this slice:**
 - the ground itself under the lost reaches, from Geoscience Australia's DEM-H or DEM-S (William's yes to a download; WG.0
