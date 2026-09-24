@@ -160,7 +160,12 @@ namespace EarthGame.Client
         private void RecordThirst(string why)
         {
             _log.Record(T, Tick, "thirst", new JsonObject().With("why", why).With("water", _drinkWater).With("loss", 1.0 - _drinkWater)
-                .With("level", (int)_drinkLevel).With("word", Hydration.WordFor(_drinkLevel)));
+                .With("level", (int)_drinkLevel).With("word", Hydration.WordFor(_drinkLevel))
+                // The bars as the screen last drew them (M1.F): water, warmth and strength in whole per cents.
+                .With("bars_shown", _hud != null && _hud.BarsShown)
+                .With("water_bar", _hud != null ? _hud.BarPercents[0] : -1)
+                .With("warmth_bar", _hud != null ? _hud.BarPercents[1] : -1)
+                .With("strength_bar", _hud != null ? _hud.BarPercents[2] : -1));
         }
 
         private JsonObject WithWhere(JsonObject o)

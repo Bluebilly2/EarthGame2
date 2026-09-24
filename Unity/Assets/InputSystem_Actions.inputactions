@@ -231,6 +231,15 @@
                     "initialStateCheck": false
                 },
                 {
+                    "name": "BodyBars",
+                    "type": "Button",
+                    "id": "b0d7ba25-4f1e-4c9a-9e61-2a7d3f8c5e10",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
                     "name": "DeveloperMode",
                     "type": "Button",
                     "id": "8e4a1f6c-3b27-4d59-a0c8-7f2e6b1d9c34",
@@ -718,6 +727,17 @@
                     "processors": "",
                     "groups": "Keyboard&Mouse",
                     "action": "DevPanel",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "b0d7ba25-8e3c-4d52-a1f7-6c9e2b4d8a33",
+                    "path": "<Keyboard>/h",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Keyboard&Mouse",
+                    "action": "BodyBars",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },

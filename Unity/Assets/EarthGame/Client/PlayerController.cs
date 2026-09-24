@@ -259,6 +259,7 @@ namespace EarthGame.Client
             _presses.Screenshot |= f.Screenshot;
             _presses.DevPanel |= f.DevPanel;
             _presses.DeveloperMode |= f.DeveloperMode;
+            _presses.BodyBars |= f.BodyBars;
             _seen.Jump |= f.Jump;
             _seen.Use |= f.Use;
             _seen.Carrying |= f.Carrying;
@@ -269,6 +270,7 @@ namespace EarthGame.Client
             _seen.Fly |= f.Fly;
             _seen.DevPanel |= f.DevPanel;
             _seen.DeveloperMode |= f.DeveloperMode;
+            _seen.BodyBars |= f.BodyBars;
         }
 
         /// <summary>

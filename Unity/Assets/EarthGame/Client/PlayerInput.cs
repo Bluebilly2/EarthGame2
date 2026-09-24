@@ -42,6 +42,8 @@ namespace EarthGame.Client
         public bool Touched;
         /// <summary>Alt held: the view turns without the body (M1.E, CANON ruling 36).</summary>
         public bool FreeLook;
+        /// <summary>H pressed: the body's bars shown or hidden (M1.F, CANON ruling 48).</summary>
+        public bool BodyBars;
     }
 
     /// <summary>
@@ -104,6 +106,11 @@ namespace EarthGame.Client
         /// rule, which the watch broke on 2026-09-21 by asking the devices itself). Held counts as touched.
         /// </summary>
         public const string Touched = "Touched";
+        /// <summary>
+        /// The body's bars shown or hidden (M1.F, CANON ruling 48): H at the desk, the key games give to what the screen shows.
+        /// They show at every start in the early versions; the pad has no binding (ruling 40).
+        /// </summary>
+        public const string BodyBars = "BodyBars";
 
         /// <summary>The action for a place's key: "Hand1" to "Hand9".</summary>
         public static string Hand(int place) => "Hand" + place;
@@ -135,6 +142,7 @@ namespace EarthGame.Client
                 yield return DeveloperMode;
                 yield return FreeLook;
                 yield return Touched;
+                yield return BodyBars;
             }
         }
 
@@ -179,6 +187,7 @@ namespace EarthGame.Client
         private readonly InputAction _developerMode;
         private readonly InputAction _touched;
         private readonly InputAction _freeLook;
+        private readonly InputAction _bodyBars;
         private readonly InputAction[] _hand = new InputAction[Hands.Places];
 
         public InputSystemSource()
@@ -205,6 +214,7 @@ namespace EarthGame.Client
             _developerMode = Find(map, Controls.DeveloperMode);
             _touched = Find(map, Controls.Touched);
             _freeLook = Find(map, Controls.FreeLook);
+            _bodyBars = Find(map, Controls.BodyBars);
             for (int p = 1; p <= Hands.Places; p++) _hand[p - 1] = Find(map, Controls.Hand(p));
             map?.Enable();
         }
@@ -241,6 +251,7 @@ namespace EarthGame.Client
             frame.DeveloperMode = Pressed(_developerMode);
             frame.Touched = _touched != null && _touched.IsPressed();
             frame.FreeLook = Held(_freeLook);
+            frame.BodyBars = Pressed(_bodyBars);
         }
 
         private static bool Pressed(InputAction action) => action != null && action.WasPressedThisFrame();
@@ -281,6 +292,7 @@ namespace EarthGame.Client
         public void Fly() => _presses.Fly = true;
         public void DevPanel() => _presses.DevPanel = true;
         public void DeveloperMode() => _presses.DeveloperMode = true;
+        public void ToggleBodyBars() => _presses.BodyBars = true;
 
         public void Sample(float dt, out ControlsFrame frame)
         {

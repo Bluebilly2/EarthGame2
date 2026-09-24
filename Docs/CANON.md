@@ -336,3 +336,11 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     host, the corpus, world-making and frames wait for the morning, and the tools refuse them in the quiet hours unless he asks
     for one. The hours are the agents' default, 22:00 to 08:00, until he gives his own. His yes in the same words sets up the
     side worker's own copy of the project and a daytime run of every check (`contracts/M1.Bd_THREE_COPIES_AND_THE_SWEEP.md`).
+
+48. **The body's bars in the early versions.** Of the words the founder's body puts under the clock (FP.1, FP.2), 2026-09-24:
+    "can you put in (for the early versions of the game) a way to view active metrics like thirst, hunger, stamina etc.
+    something like a percentage bar (i cant remember what they are called) ... just reading "thirsty" when i get thirsty is good
+    (since you dont have those metrics displayed to you in real life), but it makes the early versions of the game a bit hard
+    to play, in a way i dont like." The early versions show the body's measures as bars beside the words, one for each
+    measure the game models (`contracts/M1.F_THE_BODYS_BARS.md`); the words stay. GAME_DESIGN §40 already puts physical
+    condition, temperature and hunger and thirst in the early interface.

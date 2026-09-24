@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Globalization;
+using EarthGame.ClientCore;
 using EarthGame.Engine;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -29,6 +30,26 @@ namespace EarthGame.Client
         private VisualElement _carrying;
         private readonly Label[] _places = new Label[Hands.Places];
         private bool _carryingOpen;
+
+        // The body's bars (M1.F, CANON ruling 48): each its own colour, and its per cent white, amber at the body's first words
+        // and red at the words that kill, so the bar agrees with the word under the clock.
+        private static readonly Color[] BarColours = { new Color(0.36f, 0.66f, 1f), new Color(1f, 0.56f, 0.24f), new Color(0.5f, 0.85f, 0.38f) };
+        private static readonly Color WordColour = new Color(1f, 0.8f, 0.3f), DangerColour = new Color(1f, 0.36f, 0.3f);
+        private VisualElement _bars;
+        private readonly Label[] _barNames = new Label[3];
+        private readonly VisualElement[] _barFills = new VisualElement[3];
+        private readonly Label[] _barPercents = new Label[3];
+        private bool _barsWanted = true;
+        private bool _barsHeard;
+
+        /// <summary>Whether the bars are wanted: H hides and shows them, and they are wanted at every start (M1.F).</summary>
+        public bool BarsWanted => _barsWanted;
+
+        /// <summary>Whether the bars are on the screen: wanted, and a body has been heard of.</summary>
+        public bool BarsShown => _barsWanted && _barsHeard;
+
+        /// <summary>The per cents as last drawn, water, warmth and strength, for the recorder's records.</summary>
+        public int[] BarPercents { get; } = new int[3];
 
         public PanelSettings Panel => _document != null ? _document.panelSettings : null;
 
@@ -114,6 +135,88 @@ namespace EarthGame.Client
             }
             root.Add(_carrying);
             SetCarrying(0, null);
+
+            // The body's bars (M1.F): at the bottom left over the diagnostic line, a name, a track with its fill, the per cent.
+            _bars = new VisualElement();
+            _bars.style.position = Position.Absolute;
+            _bars.style.left = 18;
+            _bars.style.bottom = 44;
+            _bars.pickingMode = PickingMode.Ignore;
+            for (int i = 0; i < _barFills.Length; i++)
+            {
+                VisualElement row = new VisualElement();
+                row.style.flexDirection = FlexDirection.Row;
+                row.style.alignItems = Align.Center;
+                row.style.marginTop = 4;
+                row.pickingMode = PickingMode.Ignore;
+                _barNames[i] = RowLabel(15);
+                _barNames[i].style.width = 78;
+                row.Add(_barNames[i]);
+                VisualElement track = new VisualElement();
+                track.style.width = 180;
+                track.style.height = 11;
+                track.style.backgroundColor = new Color(0f, 0f, 0f, 0.45f);
+                track.style.borderTopWidth = 1;
+                track.style.borderBottomWidth = 1;
+                track.style.borderLeftWidth = 1;
+                track.style.borderRightWidth = 1;
+                Color edge = new Color(1f, 1f, 1f, 0.35f);
+                track.style.borderTopColor = edge;
+                track.style.borderBottomColor = edge;
+                track.style.borderLeftColor = edge;
+                track.style.borderRightColor = edge;
+                track.style.borderTopLeftRadius = 3;
+                track.style.borderTopRightRadius = 3;
+                track.style.borderBottomLeftRadius = 3;
+                track.style.borderBottomRightRadius = 3;
+                track.pickingMode = PickingMode.Ignore;
+                _barFills[i] = new VisualElement();
+                _barFills[i].style.height = new Length(100, LengthUnit.Percent);
+                _barFills[i].style.width = new Length(100, LengthUnit.Percent);
+                _barFills[i].style.backgroundColor = BarColours[i];
+                _barFills[i].style.borderTopLeftRadius = 2;
+                _barFills[i].style.borderTopRightRadius = 2;
+                _barFills[i].style.borderBottomLeftRadius = 2;
+                _barFills[i].style.borderBottomRightRadius = 2;
+                _barFills[i].pickingMode = PickingMode.Ignore;
+                track.Add(_barFills[i]);
+                row.Add(track);
+                _barPercents[i] = RowLabel(15);
+                _barPercents[i].style.marginLeft = 8;
+                row.Add(_barPercents[i]);
+                _bars.Add(row);
+            }
+            _bars.style.display = DisplayStyle.None;
+            root.Add(_bars);
+        }
+
+        /// <summary>The founder's body as the server last told it, as bars (M1.F); the first call lets them show.</summary>
+        public void SetBody(BodyBars.Bar[] bars)
+        {
+            if (_bars == null || bars == null) return;
+            for (int i = 0; i < _barFills.Length && i < bars.Length; i++)
+            {
+                _barNames[i].text = bars[i].Name;
+                _barFills[i].style.width = new Length((float)(bars[i].Share * 100.0), LengthUnit.Percent);
+                _barPercents[i].text = bars[i].Percent.ToString(CultureInfo.InvariantCulture) + "%";
+                _barPercents[i].style.color = bars[i].Stage == BodyBars.Stage.Danger ? DangerColour
+                                            : bars[i].Stage == BodyBars.Stage.Word ? WordColour : Color.white;
+                BarPercents[i] = bars[i].Percent;
+            }
+            _barsHeard = true;
+            ShowBars();
+        }
+
+        /// <summary>H: the bars hidden, or shown again (M1.F).</summary>
+        public void ToggleBars()
+        {
+            _barsWanted = !_barsWanted;
+            ShowBars();
+        }
+
+        private void ShowBars()
+        {
+            if (_bars != null) _bars.style.display = BarsShown ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
         private static Label MakeLabel(VisualElement root, int fontSize, int left, int top)

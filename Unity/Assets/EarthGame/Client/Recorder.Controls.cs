@@ -73,6 +73,9 @@ namespace EarthGame.Client
             yield return Expect("the carrying window closes", Controls.Carrying, Controls.Desk, () => !_hud.CarryingOpen, 1.0, Window);
             yield return Expect("the carrying window opens", Controls.Carrying, Controls.Pad, () => _hud.CarryingOpen, 1.0, Window);
             yield return Expect("the carrying window closes", Controls.Carrying, Controls.Pad, () => !_hud.CarryingOpen, 1.0, Window);
+            // The body's bars (M1.F): H hides them and H shows them again, at the desk alone (ruling 40).
+            yield return Expect("the body's bars hide", Controls.BodyBars, Controls.Desk, () => !_hud.BarsWanted, 1.0, Bars);
+            yield return Expect("the body's bars show again", Controls.BodyBars, Controls.Desk, () => _hud.BarsWanted, 1.0, Bars);
 
             // The look: the mouse's pixels turn the view by the controls' own degrees a pixel, the stick by its rate.
             float yaw0 = _player.YawDeg;
@@ -450,6 +453,8 @@ namespace EarthGame.Client
         private string Carried() => "carrying " + CarriedCount() + ", hand " + _client.Carrying.Hand;
 
         private string Window() => _hud.CarryingOpen ? "open" : "closed";
+
+        private string Bars() => (_hud.BarsWanted ? "wanted" : "hidden") + (_hud.BarsShown ? ", on the screen" : ", not on the screen");
 
         private string Height() => "up " + F2(_player.State.Up) + (_player.State.Grounded ? ", on the ground" : ", in the air");
 

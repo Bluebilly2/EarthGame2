@@ -261,6 +261,8 @@ namespace EarthGame.Client
             // The cold's word and the thirst's, together when both have one (FP.2).
             string cold = Warmth.WordFor(Warmth.LevelOf(founder.CoreC)), thirst = Hydration.WordFor(Hydration.LevelOf(founder.Water01));
             _hud?.SetCondition(cold.Length > 0 && thirst.Length > 0 ? cold + ", " + thirst : cold + thirst);
+            // The same body as bars at the bottom left (M1.F, CANON ruling 48), the words above staying as they are.
+            _hud?.SetBody(BodyBars.Read(founder.Water01, founder.CoreC));
             _player?.SetWorkCapacity(Hydration.CapacityOf(founder.Water01));
         }
 
@@ -431,6 +433,7 @@ namespace EarthGame.Client
                 DrawMirrors(nowMs);
                 ControlsFrame presses = _player.TakePresses();
                 if (presses.Screenshot && !Application.isBatchMode) Screenshot();
+                if (presses.BodyBars) _hud?.ToggleBars();
                 if (_devPanel != null && _devPanel.Open)
                 {
                     // The panel has the mouse: its key or Escape gives it back, and the hands rest meanwhile (M1.D).
