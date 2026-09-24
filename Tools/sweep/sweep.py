@@ -23,8 +23,7 @@ Claude's tool: it runs the project's own tools and checks and reports their exit
 Usage, from the sweep copy's root, in the daytime:
     python Tools/sweep/sweep.py [--force] [--only name,name] [--list]
 --force sweeps a commit already swept; --only runs the named steps and what they need; --list prints the steps.
-Exit 0 when every step that ran exited 0 (a census of another region's exit 2 counts as no verdict); 1 when any was red or
-skipped; 2 when the sweep did not start (not the sweep's copy, the quiet hours, another sweep running, the pull refused).
+Exit 0 when every step that ran exited 0 (or with an exit NO_VERDICT names as no verdict); 1 when any was red or skipped; 2 when the sweep did not start (not the sweep's copy, the quiet hours, another sweep running, the pull refused).
 """
 import argparse
 import json
@@ -47,7 +46,9 @@ NO_WINDOW = 0x08000000
 POLL_S = 15
 STEP_TIMEOUT_S = 3 * 3600
 CHECKS = "Tools/verifiers/checks/"
-NO_VERDICT = {"census-valley": 2, "census-whole": 2}   # census_check says so, and exits 2, for a region with no landmark table
+# A step's exit that its check states is no verdict, not red. The valleys' census exited 2 until it held their landmarks
+# (2026-09-24); a 2 from it now is a missing layer, and red.
+NO_VERDICT = {}
 
 
 class Step:

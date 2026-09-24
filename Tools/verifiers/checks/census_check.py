@@ -44,9 +44,37 @@ Rows, each printed with both numbers:
      in the region (CANON ruling 20, which on 2026-09-10 withdrew the point this check once held the region to:
      35.159 S 150.6485 E, recorded as "the Cave Beach swale" though it lies behind Bherwerre Beach).
 
-Every landmark above is Bherwerre's. A world set in another region (world.json's "region", since WG.2, 2026-09-22) has
-no census here yet: the check says so and exits 2 rather than judging the valley by the peninsula's lakes; the
-Kangaroo Valley's census against its own published points is owed (DEBTS.md, "The valley has no census").
+Every landmark above is Bherwerre's. The Kangaroo Valley's (since 2026-09-24) serve both of its regions, the 8 km box about
+Fitzroy Falls and the whole valley; a landmark whose search reaches past the box's edge is printed as a note. Its sources,
+none the bake's input (AWS Terrain Tiles' heights, OpenStreetMap's water outlines):
+  - Fitzroy Falls on Yarrunga Creek: the NSW Government's map point (nsw.gov.au, "Fitzroy Falls", 34.648011 S
+    150.482544 E); 81 m (Wikipedia) and "nearly 100m" (NSW National Parks, the Fitzroy Falls lookout's page);
+  - Belmore Falls on Barrengarry Creek: Wikipedia's point to the second (34.64028 S 150.55972 E); 77 to 130 m in three
+    drops (Wikipedia, from the Bonzle Digital Atlas), the top at 552 m AHD (Wikipedia) or 572 m (Wikidata Q38406);
+  - Carrington Falls on the Kangaroo River: the NSW Government's map point (nsw.gov.au, "Carrington Falls, Budderoo
+    National Park", 34.623921 S 150.654809 E), which "drops 50 metres"; the top at 542 m (Wikipedia, whose 130 to 160 m
+    is the descent from the plateau to the valley floor, printed and not judged);
+  - Hampden Bridge, Moss Vale Road's 77 m span over the Kangaroo River: Wikipedia's point to the second (34.72778 S
+    150.52111 E);
+  - the river's gauge 215220 at 34.73 S 150.52 E, with a catchment of 334 km2 (Bioregional Assessments, the Sydney Basin
+    bioregion's context statement, table 17, from the Sydney Catchment Authority's and the NSW Office of Water's data);
+  - the village of Kangaroo Valley at 86 m, Wikipedia's point to the minute (34.7333 S 150.5333 E).
+
+The valley's rows, each printed with both numbers:
+  9. each fall: the creek is the world's trickle, creek and stream cells within 300 m of the point that gather at least
+     1 km2 (a fall's named creek drains the plateau above it; the gullies off the same cliff gather hectares), and the fall
+     the greatest drop from a creek cell to the lowest creek cell within 100 m of it (a plunge the source's cells spread
+     over tens of metres). It passes within half the least and twice the most published height;
+ 10. Belmore's and Carrington's tops: the cell the fall drops from, within 30 m of the published top;
+ 11. the Kangaroo River runs under Hampden Bridge: the river's line, the cells within 2 km of the bridge's point that
+     gather at least half what the most-gathering cell there gathers, passes within 150 m of the point;
+ 12. the river at the gauge gathers its 334 km2: the greatest catchment within 800 m of the gauge's point (stated to a
+     hundredth of a degree), within a quarter either way;
+ 13. the escarpment: Belmore's top stands over the village's ground by the published rise (552 or 572 m less 86 m),
+     within 15 %.
+Rows the world is known to fail are owed, each under the Docs/DEBTS.md row OWED_BY_REGION names, as in species_check: an
+owed row prints its numbers and "owed" and does not fail the check; an owed row that passes does, until it is taken out
+of the table and its debt moved to Paid.
 
 Exit 0 when every row passes, 1 when any fails, 2 when a layer is missing or the region has no landmarks here.
 Run from the repository root:  python Tools/verifiers/checks/census_check.py [world folder]
@@ -74,6 +102,34 @@ BAY_POINT = (-35.136686 + 500.0 / 111195.0, 150.7180)
 
 SEA, LAKE, SWAMP = 7, 5, 6
 BEACH, DUNE, CLIFF, PLATFORM = 2, 4, 128, 256
+
+# The Kangaroo Valley's landmarks, the sources the docstring names. A fall: its name, its creek, the published point, the
+# least and most published height of the fall (m), and the least and most published height of its top (m) or None.
+VALLEY_REGIONS = ("kangaroo-valley", "kangaroo-valley-whole")
+VALLEY_FALLS = (
+    ("Fitzroy Falls", "Yarrunga Creek", -34.648011, 150.482544, 81.0, 100.0, None),
+    ("Belmore Falls", "Barrengarry Creek", -34.64028, 150.55972, 77.0, 130.0, (552.0, 572.0)),
+    ("Carrington Falls", "the Kangaroo River", -34.623920585248, 150.65480947495, 50.0, 50.0, (542.0, 542.0)),
+)
+HAMPDEN_BRIDGE = (-34.72778, 150.52111)
+GAUGE_215220 = (-34.73, 150.52, 334.0)
+VILLAGE = (-34.7333, 150.5333, 86.0)
+TRICKLE, STREAM = 2, 4
+FALL_SEARCH_M, CREEK_MIN_KM2, FALL_RUN_M, FALL_FACTOR, TOP_M = 300.0, 1.0, 100.0, 2.0, 30.0
+BRIDGE_M, RIVER_REACH_M, GAUGE_SEARCH_M, GAUGE_SHARE, RISE_SHARE = 150.0, 2000.0, 800.0, 0.25, 0.15
+# The valley's rows the world is known to fail, a table per region, each owed under the DEBTS.md row named. Found by these
+# rows' first run (2026-09-24): a lake is a sink where the world's water stops, so a pond on a creek's course ends all it
+# gathered, and the creek below it starts again from nothing.
+PONDS = "The valley's rivers end in ponds"
+OWED_BY_REGION = {
+    "kangaroo-valley": {"Fitzroy Falls: Yarrunga Creek falls": PONDS},
+    "kangaroo-valley-whole": {
+        "Fitzroy Falls: Yarrunga Creek falls": PONDS,
+        "Carrington Falls: the Kangaroo River falls": PONDS,
+        "the Kangaroo River runs under Hampden Bridge": PONDS,
+        "the river at gauge 215220 gathers its catchment": PONDS,
+    },
+}
 
 
 def load(sidecar_path):
@@ -164,22 +220,179 @@ def lake_within(frame, water, lake_patches, east, north, radius_m):
     return cells, largest, largest_d, near
 
 
+def local_disc(frame, east, north, radius_m):
+    """The cells within a radius of a local point, as row and column index arrays, from a window about the point (the whole
+    valley's grid is 64 million cells, too many to measure a distance over for each landmark)."""
+    r0, c0 = int(round((frame.half - north) / frame.cell)), int(round((east + frame.half) / frame.cell))
+    k = int(math.ceil(radius_m / frame.cell)) + 1
+    rr, cc = np.meshgrid(np.arange(r0 - k, r0 + k + 1), np.arange(c0 - k, c0 + k + 1), indexing="ij")
+    keep = (cc * frame.cell - frame.half - east) ** 2 + (frame.half - rr * frame.cell - north) ** 2 <= radius_m * radius_m
+    keep &= (rr >= 0) & (rr < frame.rows) & (cc >= 0) & (cc < frame.cols)
+    return rr[keep], cc[keep]
+
+
+def reaches_past(frame, east, north, radius_m):
+    """How far a search of this radius about a local point reaches past the box's edge, m; 0 when it stays inside."""
+    return max(0.0, abs(east) + radius_m - frame.half, abs(north) + radius_m - frame.half)
+
+
+def fall(frame, heights, rows, cols, creek):
+    """The greatest drop from a creek cell among (rows, cols) to the lowest creek cell within FALL_RUN_M of it, as (the drop,
+    the upper cell, the lower cell); None when no creek cell is among them."""
+    k = int(math.ceil(FALL_RUN_M / frame.cell))
+    dr, dc = np.meshgrid(np.arange(-k, k + 1), np.arange(-k, k + 1), indexing="ij")
+    within = (dr * dr + dc * dc) * frame.cell * frame.cell <= FALL_RUN_M * FALL_RUN_M
+    dr, dc = dr[within], dc[within]
+    on = creek[rows, cols]
+    best = None
+    for r, c in zip(rows[on], cols[on]):
+        rr, cc = r + dr, c + dc
+        ok = (rr >= 0) & (rr < frame.rows) & (cc >= 0) & (cc < frame.cols)
+        rr, cc = rr[ok], cc[ok]
+        low = int(np.argmin(np.where(creek[rr, cc], heights[rr, cc], np.inf)))
+        drop = float(heights[r, c]) - float(heights[rr[low], cc[low]])
+        if best is None or drop > best[0]:
+            best = (drop, (int(r), int(c)), (int(rr[low]), int(cc[low])))
+    return best
+
+
+def valley(region, frame, heights, water, catchment):
+    """The Kangaroo Valley's census, rows 9 to 13 of the docstring."""
+    owed_rows = OWED_BY_REGION.get(region, {})
+    km2 = frame.cell * frame.cell / 1e6
+    failures, owed = [], []
+
+    def judge(name, ok, detail):
+        debt = owed_rows.get(name)
+        if debt is None:
+            print("%-46s %s  %s" % (name, "ok " if ok else "FAIL", detail))
+            if not ok:
+                failures.append(name)
+        elif ok:
+            print("%-46s PAID %s; take the row out of OWED_BY_REGION and move \"%s\" to Paid" % (name, detail, debt))
+            failures.append(name + " (passes, still owed)")
+        else:
+            print("%-46s owed %s (DEBTS.md: \"%s\")" % (name, detail, debt))
+            owed.append(name)
+
+    def note(name, detail):
+        print("%-46s note %s" % (name, detail))
+
+    def from_point(r, c, east, north):
+        return math.hypot(c * frame.cell - frame.half - east, frame.half - r * frame.cell - north)
+
+    # 9 and 10. The falls, and the tops they fall from.
+    creek = (water >= TRICKLE) & (water <= STREAM) & (catchment >= CREEK_MIN_KM2 / km2)
+    tops = {}
+    for name, stream, lat, lon, low, high, top in VALLEY_FALLS:
+        title, top_title = "%s: %s falls" % (name, stream), "%s: the top it falls from" % name
+        e, n = frame.local(lat, lon)
+        past = reaches_past(frame, e, n, FALL_SEARCH_M)
+        if past > 0.0:
+            note(title, "the search about the point (east %.0f, north %.0f) reaches %.0f m past this box's edge; not judged here" % (e, n, past))
+            continue
+        published = ("%.0f m" % low) if low == high else ("%.0f to %.0f m" % (low, high))
+        rows, cols = local_disc(frame, e, n, FALL_SEARCH_M)
+        found = fall(frame, heights, rows, cols, creek)
+        if found is None:
+            judge(title, False, "no creek gathering %.0f km2 within %.0f m of the point, where the most any cell gathers is %.2f km2; published %s"
+                  % (CREEK_MIN_KM2, FALL_SEARCH_M, float(catchment[rows, cols].max()) * km2, published))
+            if top is not None:
+                judge(top_title, False, "no fall found to have a top")
+            continue
+        drop, (tr, tc), (lr, lc) = found
+        tops[name] = float(heights[tr, tc])
+        judge(title, low / FALL_FACTOR <= drop <= high * FALL_FACTOR,
+              "%.1f m within %.0f m of run, from %.1f m at %.0f m from the point (gathering %.1f km2) to %.1f m; published %s"
+              % (drop, FALL_RUN_M, tops[name], from_point(tr, tc, e, n), float(catchment[tr, tc]) * km2, float(heights[lr, lc]), published))
+        if top is not None:
+            off = max(0.0, top[0] - tops[name], tops[name] - top[1])
+            judge(top_title, off <= TOP_M, "the fall drops from %.1f m; published %s, %.1f m from it"
+                  % (tops[name], ("%.0f m" % top[0]) if top[0] == top[1] else ("%.0f or %.0f m" % top), off))
+
+    # 11. The river under the bridge: its line is the cells within RIVER_REACH_M of the bridge's point that gather at least
+    # half what the most-gathering cell there does, so a side stream that happens to pass the bridge does not stand for it.
+    title = "the Kangaroo River runs under Hampden Bridge"
+    e, n = frame.local(*HAMPDEN_BRIDGE)
+    past = reaches_past(frame, e, n, RIVER_REACH_M)
+    if past > 0.0:
+        note(title, "the search about the bridge's point (east %.0f, north %.0f) reaches %.0f m past this box's edge; not judged here" % (e, n, past))
+    else:
+        rows, cols = local_disc(frame, e, n, RIVER_REACH_M)
+        gathered = catchment[rows, cols]
+        line = gathered >= 0.5 * float(gathered.max())
+        d = np.hypot(cols[line] * frame.cell - frame.half - e, frame.half - rows[line] * frame.cell - n)
+        i = int(np.argmin(d))
+        judge(title, float(d[i]) <= BRIDGE_M,
+              "the river's line (the cells within %.0f m gathering at least half the most there, %.1f km2) passes %.0f m from the bridge's"
+              " point, gathering %.1f km2 there; the span is 77 m, the search %.0f m"
+              % (RIVER_REACH_M, float(gathered.max()) * km2, float(d[i]), float(gathered[line][i]) * km2, BRIDGE_M))
+
+    # 12. What the river gathers at the gauge.
+    title = "the river at gauge 215220 gathers its catchment"
+    e, n = frame.local(GAUGE_215220[0], GAUGE_215220[1])
+    past = reaches_past(frame, e, n, GAUGE_SEARCH_M)
+    if past > 0.0:
+        note(title, "the search about the gauge's point (east %.0f, north %.0f) reaches %.0f m past this box's edge; not judged here" % (e, n, past))
+    else:
+        rows, cols = local_disc(frame, e, n, GAUGE_SEARCH_M)
+        i = int(np.argmax(catchment[rows, cols]))
+        most = float(catchment[rows[i], cols[i]]) * km2
+        judge(title, abs(most - GAUGE_215220[2]) <= GAUGE_SHARE * GAUGE_215220[2],
+              "at most %.1f km2 within %.0f m of the gauge's point (%.0f m from it, water class %d); published %.0f km2"
+              % (most, GAUGE_SEARCH_M, from_point(rows[i], cols[i], e, n), int(water[rows[i], cols[i]]), GAUGE_215220[2]))
+
+    # 13. The escarpment, from the village's ground to Belmore's top.
+    title = "the escarpment rises from the floor to Belmore"
+    e, n = frame.local(VILLAGE[0], VILLAGE[1])
+    belmore = VALLEY_FALLS[1]
+    be, bn = frame.local(belmore[2], belmore[3])
+    if reaches_past(frame, e, n, 0.0) > 0.0 or reaches_past(frame, be, bn, FALL_SEARCH_M) > 0.0:
+        note(title, "the village's point (east %.0f, north %.0f) or Belmore Falls' search lies past this box's edge; not judged here" % (e, n))
+    elif belmore[0] not in tops:
+        judge(title, False, "no fall found at Belmore to measure its top")
+    else:
+        r, c = frame.cell_of(e, n)
+        floor = float(heights[r, c])
+        rise = tops[belmore[0]] - floor
+        least, most = belmore[6][0] - VILLAGE[2], belmore[6][1] - VILLAGE[2]
+        judge(title, least * (1.0 - RISE_SHARE) <= rise <= most * (1.0 + RISE_SHARE),
+              "Belmore's top at %.1f m over the village's ground at %.1f m: %.1f m; published %.0f or %.0f m (the top at %.0f or %.0f m, the village at %.0f m)"
+              % (tops[belmore[0]], floor, rise, least, most, belmore[6][0], belmore[6][1], VILLAGE[2]))
+
+    if failures:
+        print("census_check: FAIL (%s)" % ", ".join(failures))
+        return 1
+    if owed:
+        print("census_check: ok, every judged row of the valley passes; %d row(s) owed in DEBTS.md" % len(owed))
+    else:
+        print("census_check: ok, the valley's falls, river and escarpment are where the sources put them")
+    return 0
+
+
 def main(argv):
     world = argv[1] if len(argv) > 1 else DEFAULT_WORLD
     layers = os.path.join(ROOT, world, "layers")
+    world_json = os.path.join(ROOT, world, "world.json")
+    if os.path.isfile(world_json) and json.load(open(world_json, encoding="utf-8")).get("region") in VALLEY_REGIONS:
+        sidecar, water = load(os.path.join(layers, "water.json"))
+        _, heights = load(os.path.join(layers, "heights.json"))
+        _, catchment = load(os.path.join(layers, "catchment.json"))
+        if water is None or heights is None or catchment is None:
+            print("a layer is missing under %s (water, heights and catchment are needed)" % layers)
+            return 2
+        return valley(json.load(open(world_json, encoding="utf-8"))["region"], Frame(sidecar), heights, water, catchment)
     sidecar, water = load(os.path.join(layers, "water.json"))
     _, surface = load(os.path.join(layers, "surface.json"))
     _, topology = load(os.path.join(layers, "topology.json"))
     _, heights = load(os.path.join(layers, "heights.json"))
-    world_json = os.path.join(ROOT, world, "world.json")
     if water is None or surface is None or topology is None or heights is None or not os.path.isfile(world_json):
         print("a layer is missing under %s (water, surface, topology, heights and world.json are needed)" % layers)
         return 2
     region = json.load(open(world_json, encoding="utf-8")).get("region", "bherwerre")
     if region != "bherwerre":
-        print("census_check: this file holds Bherwerre's landmarks (Windermere, McKenzie, Blacks Waterhole, Ryans Swamp, Jervis Bay, "
-              "Cave Beach, Steamers Head); the world is set in %s, whose census against published points is owed (DEBTS.md: "
-              "\"The valley has no census\"); no verdict" % region)
+        print("census_check: this file holds Bherwerre's landmarks and the Kangaroo Valley's; the world is set in %s, which has"
+              " none here; no verdict" % region)
         return 2
     frame = Frame(sidecar)
     failures = []
