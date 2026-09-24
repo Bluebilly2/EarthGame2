@@ -351,6 +351,10 @@ steepest walls read bare, the thinned far crowns as pale flat squares, and the f
 plant table and of the far ground); the precision at the far corner is for his eyes in play, stills cannot show a shimmer.
 DEBTS' first table carries "The whole valley's look".
 
-**Not done here:** the loading scenario (`Tools/world/loading.py` and `loading_check`) on the shell's new order, which moves to
-the side worker's own copy of the project with the ports that copy is given; the valley's own plant table and stone rule
-(BF.4's); the census's landmarks for the valley; the ground under the dams (DEBTS).
+**The loading scenario** on the shell's new order, from the side worker's own copy of the project (M1.Bd): `loading.py --build`
+built its harness from 15e05e3 and ran the Unity edit-mode tests, 10 of 10 passed, then the three launches (a new world, the
+continue, the missing data); `loading_check` on the run (`Artefacts/loading/20260924T071525492073Z`): 33 rows passed, none
+failed. `loading.py` now names its folder with the copy's tag and keeps the quiet hours, as the other run tools do.
+
+**Not done here:** the valley's own plant table and stone rule (BF.4's); the census's landmarks for the valley; the ground under
+the dams; the in-game making's time (DEBTS).

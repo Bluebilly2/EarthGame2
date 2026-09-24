@@ -10,6 +10,9 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import machine  # noqa: E402  (which copy this is, and the quiet hours: M1.Bd)
+
 ROOT = Path(__file__).resolve().parents[2]
 EDITOR_VERSION = next(line.split(":", 1)[1].strip()
                       for line in (ROOT / "Unity/ProjectSettings/ProjectVersion.txt").read_text().splitlines()
@@ -35,7 +38,10 @@ def main():
     parser.add_argument("--player", type=Path, default=ROOT / "Build/Harness/EarthGame2.exe")
     parser.add_argument("--unity", type=Path, default=UNITY)
     args = parser.parse_args()
-    directory = ROOT / "Artefacts/loading" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    # It builds and launches the game three times: none of it in the quiet hours (CANON ruling 47). The folder ends with the
+    # copy's tag, since the copies share one Artefacts and two runs may start in the same second (M1.Bd, 2026-09-24).
+    machine.refuse_in_quiet_hours("loading")
+    directory = ROOT / "Artefacts/loading" / (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ") + machine.tag())
     directory.mkdir(parents=True)
     if args.build:
         editor = [args.unity, "-batchmode", "-nographics", "-projectPath", ROOT / "Unity"]
