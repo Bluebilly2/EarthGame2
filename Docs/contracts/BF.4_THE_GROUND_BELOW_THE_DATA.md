@@ -2,7 +2,7 @@
 
 **Status:** drafted 2026-09-23, the fourth of the beta's foundations (`Docs/BETA_MAP.md` §7, F4; CANON ruling 41: "Treat
 the world itself as a missing foundational system"). Stage one built and closed 2026-09-23 (6172bd5; its exit record below);
-stages two and three to come. Owner: Claude (the main session). Built in three stages, each
+stage two built 2026-09-24 (its record below); stage three to come. Owner: Claude (the main session). Built in three stages, each
 shippable alone: stage one, one ground with relief below the data; stage two, the ground underfoot; stage three, rock
 that stands, the stone of the place and the country's things. William's lane: his eyes on the ground in frames and in
 play, his hands on the walk, and his yes to any data the stone of the place needs.
@@ -77,6 +77,22 @@ the client's Terrain posts sample the function, so what is drawn is what is walk
    sand is walked at about three-quarters of the firm pace; the client's mover and the server's ceiling read the same
    law. The body: the server's exertion counts the coefficient, so a founder toiling through sand warms and thirsts as
    the cost says. The footsteps (`Footing`) group the same answer for the ear, one owner of what lies underfoot.
+
+   *Amended 2026-09-24, before it was built.* `Underfoot.Of(cover code, water depth)` gives the grounds of Pandolf,
+   Givoni and Goldman's table (J Appl Physiol 43:577, 1977, from Soule and Goldman 1972), their own coefficients: made
+   ground 1.0 (rock), a dirt road 1.1 (bare earth, and a beach's sand in the wettest quarter, which packs), light brush 1.2
+   (grass, the forest floor, sedge in the drier half), heavy brush 1.5 (heath, bracken), a swampy bog 1.8 (a swamp's floor,
+   sedge in the wetter half) and loose sand 2.1 (a dune, a beach's dry sand). The table held 1.8 for "sand, scree, deep
+   mud", which are two of its rows. Water over the top of a foot leaves the walk to the wading law, and the slope is the
+   walking table's already. The walk: at one effort, the speed whose moving cost is the same, the cost going as the
+   coefficient times the speed squared, relative to light brush, the ground the walking table's speeds stand for in this
+   country: loose sand 0.76 of today's pace, a bog 0.82, heavy brush 0.89, bare earth 1.04, rock 1.10. The client's mover
+   takes the ground at its feet from the cover it holds; the server's ceiling takes the faster of the cells a report leaves
+   and reaches, and a fall's ceiling the fastest ground. The body: effort is the gait's, so the server counts a founder's
+   exertion by the speed they would make on light brush, and a runner slowed by sand is still running; the heat a second
+   is the gait's, and the cost of a kilometre rises with the coefficient because the kilometre takes longer. The
+   footsteps keep their own grouping of the same cover byte, since the ear's classes are not the legs' (bracken is heard
+   as grass and walked as heavy brush); the cover byte and the water's depth are the one owner of what lies underfoot.
 
 ### Stage three: rock that stands, the stone of the place, the country's things
 
@@ -195,3 +211,47 @@ DEBTS' first table's.
    one and not the other). The dune scenario's founder slid there, landed at 7.9 m/s and was corrected nineteen times; no
    earlier dune run had a correction. The walk reads the raster over the square of the Terrain's posts, 1.95 m, as the
    Terrain's own triangles did before the relief (`TheWalkIsJudgedByTheRasterAsTheTerrainSamplesIt`).
+
+### Stage two (2026-09-24)
+
+**Built.** `Underfoot.Of` (engine) reads a cover code and the water over it as Pandolf, Givoni and Goldman's grounds, with
+`GroundType` gaining Firm and Bog and loose sand taking its own 2.1. `Locomotion.GroundPace` is the pace at one effort
+against light brush, and `SpeedMs`, `MaxHorizontalSpeedAt` and `Mover.Step` take a ground, the table's by default. The
+server reads its cover layer for it (`WorldState.UnderfootAt`) and the client its cover tile (`Footing.GroundAt`, beside
+the ear's reading of the same tiles, which is unchanged). The validator judges a report on the faster of the grounds it
+leaves and reaches, and a fall on the fastest. The server counts exertion by the pace on the table's ground.
+
+**As run.**
+- `dotnet test Engine/tests/EarthGame.Tests`: 856 passed, 0 failed; `UnderfootTests` 7 of them. Among them, the pace on
+  every ground costs what the table's walk costs by Pandolf's own equation, and a runner off rock onto dry sand is never
+  corrected.
+- Two sabotages, each restored byte for byte: every ground walked at the table's pace turned three red; a dune walked as
+  grass, one.
+- The Unity-shaped compile clean; the edit-mode tests 10 of 10.
+- On the built game (Build/Harness, `BF.4s2` builds):
+  - the dune scenario walked down 25.5° of dune sand at 0.49 m/s and up 27.7° at 0.36, the flat on that sand 1.05 m/s
+    where the table's ground walks 1.39;
+  - at the face, it kept its feet on 34.4° ground 2.2 m from a 36.8° face;
+  - wading went 1.20 m/s on land and 0.69 in the water;
+  - swimming, drinking, the controls (42 of 42), carrying, knapping, the looks and the changes scenarios all passed,
+    with 0 errors each.
+- The corpus walk (two players at 100 ms and 2 % loss, and one SOLO, ten minutes each), after the stride's allowance
+  (below): `join_check --only N2` 12 rows, 0 failed, 0 corrections for all three walkers
+  (`Artefacts/corpus/underfoot-stride-*`).
+
+**What changed on the way.**
+1. *The stride's allowance.* The first corpus walk on the new ground was taken on a build without it. The SOLO walker was
+   corrected ten times in ten minutes, each a runner crossing onto a slower ground and braking: 3.71, then 3.51 m/s
+   against dry sand's 3.37. A body slows at the brake's rate, not in one step. So the run a ground allowed is carried as a
+   landing's fall is, less half the brake's work since (`PlayerSession.Stride`). With it, the same walk had no correction
+   (`ARunnerOffRockOntoSandBrakesWithoutACorrection`). This was not in the amended promise.
+2. *The dune scenario's bounds.* Its descent had to be faster than half a metre a second and slower than the flat. Those
+   bounds were the table's, and dune sand walks at three-quarters of it, so they are now the face's own ground's.
+3. *The scenarios' aim.* The changes scenario's founder now stopped a pace from where it had. It pulled another tuft and
+   cleared another cell, whose bundles came to lie over the nearest stick, so the crosshair met a bundle three times. Its
+   stick to point is now one with no thing lying within 2.5 m. A pick-up that does not find its thing under the crosshair
+   now steps within a metre of it and looks down on it, as a person would. The game is unchanged.
+4. *The footsteps* keep their own grouping of the cover (the amendment): the ear's classes are not the legs'.
+
+What waits on William: his hands on the walk (DEBTS, his table: "The ground underfoot"); the model's stated parts are
+DEBTS' "The ground underfoot is a stated model".

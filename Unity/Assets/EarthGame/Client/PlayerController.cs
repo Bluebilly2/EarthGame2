@@ -80,6 +80,11 @@ namespace EarthGame.Client
         /// server allows the flight; any other corrects it back.
         /// </summary>
         public bool FlightAllowed;
+        /// <summary>
+        /// What the feet stand on at a point (BF.4 stage two): the ground the walk takes its pace from, read off the cover the
+        /// client holds; the table's ground while nothing says.
+        /// </summary>
+        public System.Func<double, double, GroundType> UnderfootAt;
 
         /// <summary>Whether the founder is flying (M1.5e).</summary>
         public bool Flying { get; private set; }
@@ -342,7 +347,8 @@ namespace EarthGame.Client
 
             // A flight with noclip off is stopped by what the walk is stopped by: the same collision, swept the same way (M1.D).
             State = Flying ? Flight.Step(State, _move.x, _move.y, _rise, _crouch, _sprint, YawDeg, PitchDeg, dt, Noclip ? null : _collision, _config)
-                           : Mover.Step(State, input, dt, _collision, _config, _workCapacity);
+                           : Mover.Step(State, input, dt, _collision, _config, _workCapacity,
+                                        UnderfootAt != null ? UnderfootAt(State.East, State.North) : Locomotion.TableGround);
             if (_region != null)
             {
                 double edge = _region.HalfExtentM - EdgeMarginM;

@@ -1291,6 +1291,9 @@ namespace EarthGame.Client
             // Nobody flies until the server says developer mode is on (M1.E). -eg-dev asks for it at once, for the scenarios and
             // the runs, which have no hands to press F2; everyone else asks with F2 (CANON ruling 39).
             _player.FlightAllowed = false;
+            // The ground the walk takes its pace from (BF.4 stage two): the cover and the water the server streamed, as the
+            // footsteps read them.
+            _player.UnderfootAt = GroundUnder;
             if (LaunchArgs.Has("dev")) _client.SendDeveloperMode(true);
             _player.Stepped += OnStepped;
             // The trunks a founder can walk into (M1.6b): the client's, since the server never runs the mover.
@@ -1383,6 +1386,14 @@ namespace EarthGame.Client
             MoverState s = _player.State;
             TileId id = _client.Grid.ForPosition(s.East, s.North);
             return Footing.At(_client.Tiles.Holding(TileLayer.GroundCover, id), _client.Tiles.Holding(TileLayer.WaterDepth, id), s.East, s.North, s.Wading || s.Swimming);
+        }
+
+        /// <summary>What the legs feel at a point (BF.4 stage two): the cover and the water of the tile holding it, as <see cref="Footing.GroundAt"/> reads them.</summary>
+        private GroundType GroundUnder(double east, double north)
+        {
+            if (_client?.Tiles == null || _client.Grid == null) return Locomotion.TableGround;
+            TileId id = _client.Grid.ForPosition(east, north);
+            return Footing.GroundAt(_client.Tiles.Holding(TileLayer.GroundCover, id), _client.Tiles.Holding(TileLayer.WaterDepth, id), east, north);
         }
 
         /// <summary>The grounds the feet have fallen on, as <c>name:count</c> in the order the sounds are listed, for a run log (M1.5c).</summary>

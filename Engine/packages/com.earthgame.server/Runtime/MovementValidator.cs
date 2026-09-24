@@ -86,10 +86,13 @@ namespace EarthGame.Server
             }
         }
 
-        /// <summary>The fastest a body off its feet can cross the ground, m/s: a run with all the height lost since it last stood (M1.5f).</summary>
+        /// <summary>
+        /// The fastest a body off its feet can cross the ground, m/s: a run with all the height lost since it last stood
+        /// (M1.5f), the run taken on the fastest ground (BF.4 stage two), since a body leaving rock at a run carries rock's pace.
+        /// </summary>
         public static double FallCeiling(double stoodUp, double up, MoverConfig mover, double workCapacity01 = 1.0)
         {
-            double run = mover.MaxHorizontalSpeedAt(workCapacity01);
+            double run = mover.MaxHorizontalSpeedAt(workCapacity01, Locomotion.FastestGround);
             double drop = double.IsNaN(stoodUp) ? 0.0 : Math.Max(0.0, stoodUp - up);
             return Math.Sqrt(run * run + 2.0 * mover.Gravity * drop);
         }
@@ -97,9 +100,10 @@ namespace EarthGame.Server
         /// <summary>Null when the report is acceptable; otherwise the reason, in words a log can carry.</summary>
         /// <param name="stoodUp">The height of the last body this player reported standing on the ground; NaN before any.</param>
         /// <param name="landedMs">What a recent landing still allows a body on its feet, m/s (<see cref="Landing.AllowanceAt"/>); zero for none.</param>
+        /// <param name="underfoot">The ground the report is judged on (BF.4 stage two): the faster of those it leaves and reaches.</param>
         public static string Check(in MoverState last, bool hasLast, in MoverState reported, double intervalSeconds,
                                    IHeightSource ground, double halfExtentM, MoverConfig mover, MovementRules rules, double stoodUp = double.NaN,
-                                   double workCapacity01 = 1.0, double landedMs = 0.0)
+                                   double workCapacity01 = 1.0, double landedMs = 0.0, GroundType underfoot = Locomotion.TableGround)
         {
             if (!reported.IsFinite) return "non-finite numbers in the report";
             if (Math.Abs(reported.East) > halfExtentM || Math.Abs(reported.North) > halfExtentM)
@@ -114,7 +118,7 @@ namespace EarthGame.Server
                 double horizontal = Math.Sqrt(de * de + dn * dn) / dt;
                 // A report that lands, the last one off its feet and this one on them, is the end of the fall and judged as it.
                 bool landing = !last.Grounded && reported.Grounded;
-                double ceiling = HorizontalCeiling(reported, stoodUp, mover, workCapacity01, landedMs, landing) * rules.SpeedTolerance;
+                double ceiling = HorizontalCeiling(reported, stoodUp, mover, workCapacity01, landedMs, landing, underfoot) * rules.SpeedTolerance;
                 if (horizontal > ceiling)
                     return "speed " + F(horizontal) + " m/s exceeds the ceiling " + F(ceiling);
                 double vertical = Math.Abs(reported.Up - last.Up) / dt;
@@ -143,11 +147,13 @@ namespace EarthGame.Server
         /// </summary>
         /// <param name="landedMs">What a recent landing still allows a body on its feet, m/s (<see cref="Landing"/>): a run is the least a founder on their feet is allowed, and a founder braking from a fall is allowed the fall's speed less the brake's work.</param>
         /// <param name="landing">Whether this report is the one that lands: judged as the fall it ends.</param>
+        /// <param name="underfoot">The ground a body on its feet runs on (BF.4 stage two); a fall's run is the fastest ground's.</param>
         public static double HorizontalCeiling(in MoverState reported, double stoodUp, MoverConfig mover, double workCapacity01 = 1.0,
-                                               double landedMs = 0.0, bool landing = false)
+                                               double landedMs = 0.0, bool landing = false, GroundType underfoot = Locomotion.TableGround)
         {
-            // The run is the body's (FP.1): a thirsty founder is held to what their capacity allows, as their own mover is.
-            double run = mover.MaxHorizontalSpeedAt(workCapacity01);
+            // The run is the body's (FP.1): a thirsty founder is held to what their capacity allows, as their own mover is,
+            // on the ground under them (BF.4 stage two).
+            double run = mover.MaxHorizontalSpeedAt(workCapacity01, underfoot);
             if (double.IsNaN(stoodUp)) return Math.Max(run, landedMs);
             if (reported.Grounded && !landing) return Math.Max(run, landedMs);
             return FallCeiling(stoodUp, reported.Up, mover, workCapacity01);

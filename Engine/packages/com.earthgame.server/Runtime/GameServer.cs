@@ -293,7 +293,9 @@ namespace EarthGame.Server
                     s.Surroundings = World.SurroundingsAt(s.Body.East, s.Body.Up, s.Body.North);
                     s.SurroundingsTick = World.Tick;
                 }
-                Exertion exertion = Warmth.ExertionOf(s.Body.HorizontalSpeed);
+                // The effort is the gait's (BF.4 stage two): a founder slowed by sand is working as hard as their pace on the
+                // table's ground, so the exertion is judged by that pace and a runner through sand is still running.
+                Exertion exertion = Warmth.ExertionOf(s.Body.HorizontalSpeed / Locomotion.GroundPace(World.UnderfootAt(s.Body.East, s.Body.North)));
                 s.Warmth.Tick(worldSeconds, s.Surroundings, exertion, s.Hydration.WorkCapacity01, 1.0 - s.Hydration.Loss / Hydration.LethalWaterLoss);
                 s.Hydration.Advance(days, s.Warmth.BreathWaterLPerHour, s.Warmth.SweatRateLPerHour);
                 if (!s.Warmth.IsAlive)
@@ -632,11 +634,22 @@ namespace EarthGame.Server
                 double bySequence = (move.Sequence - session.LastSequence) * _accumulator.StepSeconds;
                 interval = Math.Min(bySequence, session.MoveCredit);
             }
-            double landed = session.Landing.AllowanceAt(move.Sequence, _accumulator.StepSeconds, _config.Mover);
+            double landed = Math.Max(session.Landing.AllowanceAt(move.Sequence, _accumulator.StepSeconds, _config.Mover),
+                                     session.Stride.AllowanceAt(move.Sequence, _accumulator.StepSeconds, _config.Mover));
+            // The report is judged on the faster of the grounds it leaves and reaches (BF.4 stage two): the client's mover took
+            // its pace from the cell under its feet, which may be either as the report crosses a cell's edge.
+            GroundType underfoot = World.UnderfootAt(move.Body.East, move.Body.North);
+            if (session.HasBody) underfoot = Locomotion.Faster(underfoot, World.UnderfootAt(session.Body.East, session.Body.North));
             string reason = MovementValidator.Check(session.Body, session.HasBody, move.Body, interval, FeetGround,
-                                                    World.Region.HalfExtentM, _config.Mover, MovementRulesFor(session), session.StoodUp, session.CeilingCapacity, landed);
+                                                    World.Region.HalfExtentM, _config.Mover, MovementRulesFor(session), session.StoodUp, session.CeilingCapacity, landed,
+                                                    underfoot);
             if (reason == null)
             {
+                // A body on its feet keeps what its ground allowed while the brake takes it off, when the next is slower (BF.4
+                // stage two): the run over rock, onto dry sand.
+                double groundRun = _config.Mover.MaxHorizontalSpeedAt(session.CeilingCapacity, underfoot);
+                if (move.Body.Grounded && groundRun > session.Stride.AllowanceAt(move.Sequence, _accumulator.StepSeconds, _config.Mover))
+                    session.Stride = new MovementValidator.Landing { CeilingMs = groundRun, Sequence = move.Sequence };
                 // A body come down on its feet keeps what its fall allowed while the brake takes it off (2026-09-23): the corpus's
                 // walkers, landing from a slide, were corrected while they braked.
                 if (session.HasBody && !session.Body.Grounded && move.Body.Grounded && !double.IsNaN(session.StoodUp))

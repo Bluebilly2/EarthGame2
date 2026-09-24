@@ -112,12 +112,16 @@ namespace EarthGame.Client
                 .With("from_m", slide.FromM).With("lowest_under_m", lowestUnder).With("kept_feet", slideOk).With("walked_into_deg", _walkedDeg)
                 .With("steepest_under_deg", steepestUnder).With("short_of_foot_m", reachedM));
 
-            double flat = Locomotion.SpeedMs(0.0, Gait.Walking, 1.0);
-            bool walkedDown = slideOnly || (downDeg >= 15.0 && downMs > 0.5 && downMs < flat);
+            // The face's own ground sets the pace (BF.4 stage two): a dune's loose sand is walked at three-quarters of the table's
+            // pace, so the descent's bounds, faster than half a metre a second and slower than the flat, are its ground's.
+            GroundType ground = dune.Found && _player.UnderfootAt != null ? _player.UnderfootAt(dune.East, dune.North) : Locomotion.TableGround;
+            double pace = Locomotion.GroundPace(ground);
+            double flat = Locomotion.SpeedMs(0.0, Gait.Walking, 1.0, ground);
+            bool walkedDown = slideOnly || (downDeg >= 15.0 && downMs > 0.5 * pace && downMs < flat);
             bool slowerUp = slideOnly || upMs < downMs;
             _log.Record(T, Tick, "end", new JsonObject().With("frames", _frames).With("errors", _errors)
                 .With("found", dune.Found).With("face_deg", dune.Deg).With("slope_down_deg", downDeg).With("speed_down_ms", downMs)
-                .With("slope_up_deg", upDeg).With("speed_up_ms", upMs).With("flat_ms", flat)
+                .With("slope_up_deg", upDeg).With("speed_up_ms", upMs).With("flat_ms", flat).With("ground", ground.ToString()).With("pace", pace)
                 .With("walked_down", walkedDown).With("slower_up", slowerUp)
                 .With("slide_found", slide.Found).With("slide_face_deg", slide.Deg).With("slide_lowest_under_m", lowestUnder).With("slide_kept_feet", slideOk)
                 .With("slide_steepest_under_deg", steepestUnder));

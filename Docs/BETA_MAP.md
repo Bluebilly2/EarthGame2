@@ -318,7 +318,10 @@ does. The order is the dependency order; leverage decides ties.
    relief below the data (and the dug hollow in it); the ground underfoot felt by the walk and the body; rock that stands,
    the stone of the place and the country's things. **Stage one built 2026-09-23**: one ground (`FineGround`) on both sides
    to the rounding of a double, humps and hollows by cover up to 0.12 m, the hollow in it; the walk judged on the data's own
-   slope. His eyes on its frames are in DEBTS' first table.
+   slope. His eyes on its frames are in DEBTS' first table. **Stage two built 2026-09-24**: the walk's pace is its ground's
+   at one effort, Pandolf's coefficients read off the cover byte (dry sand three-quarters, rock a tenth quicker, grass and
+   the forest floor as they were), on both sides, with the server's exertion the gait's; his hands on it are in the same
+   table.
 5. **BF.5 Fire** (F5). Ignition, the fire in the world, its warmth on the body, the bridge down. G6, G7.
 6. **BF.6 Parts and the camp** (F6). Structures of parts, placement, the shelter terms. G9, G10.
 7. **BF.7 The body's rest** (F7). Hunger and food, wetness and rain, sleep. G8, G11, G12's night.

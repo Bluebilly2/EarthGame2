@@ -543,6 +543,9 @@ namespace EarthGame.Client
             foreach (LyingNearby n in _near)
             {
                 if (n.Thing.Kind != StandLayout.Kind.Stick) continue;
+                // A stick with a thing lying beside it is one the crosshair may meet the thing on the way to: once the walk stopped
+                // a pace elsewhere (BF.4 stage two, 2026-09-24), the cleared cell's bundles came to lie over the nearest stick.
+                if (ThingLiesNear(At(n), ChangesClearOfThingsM)) continue;
                 LyingSite site = LyingSiteReader.Of(_client.Tiles, _client.Grid, n.Thing);
                 WorkOffer offer = Work.Judge(WorkKind.Point, tool, toolState, LyingProperties.DefinitionOf(n.Thing.Kind, site), LyingProperties.StateOf(n.Thing, site));
                 if (!offer.Possible) continue;
@@ -552,6 +555,21 @@ namespace EarthGame.Client
                 best = n;
             }
             return best;
+        }
+
+        /// <summary>How far a stick to point is kept from every thing lying in the world, m.</summary>
+        private const double ChangesClearOfThingsM = 2.5;
+
+        /// <summary>Whether a thing lies within a distance of a point, across the ground.</summary>
+        private bool ThingLiesNear(Double3 at, double withinM)
+        {
+            foreach (EntityView v in _client.Entities.Views.Values)
+            {
+                if (v.Definition == null || !v.HasItem) continue;
+                double de = v.Position.X - at.X, dn = v.Position.Z - at.Z;
+                if (de * de + dn * dn < withinM * withinM) return true;
+            }
+            return false;
         }
 
         /// <summary>The nearest stick lying in the world that carries the pointed mark, or null.</summary>

@@ -25,7 +25,9 @@ namespace EarthGame.Engine
         /// <summary>How close to the ground airborne feet must be to count as resting on it, metres.</summary>
         private const double LandingTolerance = 0.02;
 
-        public static MoverState Step(MoverState s, MoverInput input, double dt, IWorldCollision world, MoverConfig cfg = null, double workCapacity01 = 1.0)
+        /// <param name="underfoot">What the feet stand on (BF.4 stage two, <see cref="Underfoot"/>): the walk's pace is the ground's.</param>
+        public static MoverState Step(MoverState s, MoverInput input, double dt, IWorldCollision world, MoverConfig cfg = null, double workCapacity01 = 1.0,
+                                      GroundType underfoot = Locomotion.TableGround)
         {
             if (world == null) throw new ArgumentNullException(nameof(world));
             cfg = cfg ?? MoverConfig.Default;
@@ -100,7 +102,7 @@ namespace EarthGame.Engine
                     double slopeAlong = 0.0;
                     if (wishLen > Epsilon)
                         slopeAlong = -(groundNormal.X * input.WishEast + groundNormal.Z * input.WishNorth) / (groundNormal.Y * wishLen);
-                    double speed = Locomotion.SpeedMs(slopeAlong, gait, workCapacity01);
+                    double speed = Locomotion.SpeedMs(slopeAlong, gait, workCapacity01, underfoot);
                     if (s.Stance == Stance.Crouching) speed *= cfg.CrouchSpeedFactor;
                     if (s.Wading) speed *= deep ? cfg.DeepWadeSpeedFactor : cfg.WadeSpeedFactor;
                     // The wish becomes a velocity by acceleration, not at once (M1.5h, CANON ruling 34): a body is at nine

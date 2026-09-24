@@ -45,6 +45,11 @@ namespace EarthGame.Server
         /// </summary>
         public MovementValidator.Landing Landing;
         /// <summary>
+        /// The run the ground under this player's last reports allowed (BF.4 stage two), carried as a landing's speed is while
+        /// the brake takes it off: a runner off rock onto dry sand slows at the brake's rate, not in one step.
+        /// </summary>
+        public MovementValidator.Landing Stride;
+        /// <summary>
         /// Whether this player has switched developer mode on (M1.E, CANON ruling 39): off at every join, turned on and off by
         /// the player's own F2, and granted only by a server that may grant it. The server's development mark
         /// (`MovementRules.AllowFlight`) says whether anyone may have it; this says who does.

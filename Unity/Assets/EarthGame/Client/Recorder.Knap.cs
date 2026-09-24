@@ -217,6 +217,16 @@ namespace EarthGame.Client
             Face(thing.Position);
             double aimFrom = T;
             while (T < aimFrom + KnapAimSeconds && (_verbs.Target == null || _verbs.Target.Id.Value != id)) yield return null;
+            if (_verbs.Target == null || _verbs.Target.Id.Value != id)
+            {
+                // Something else lies on the line to it: the changes scenario's cleared cell drops its bundles, and once the walk
+                // stopped a pace elsewhere (BF.4 stage two, 2026-09-24) they lay between the founder and the pointed stick. A
+                // person steps up to it and looks down on it, and so does the scenario.
+                yield return WalkTo(thing.Position.X, thing.Position.Z, 1.0, 8.0, what);
+                Face(thing.Position);
+                aimFrom = T;
+                while (T < aimFrom + KnapAimSeconds && (_verbs.Target == null || _verbs.Target.Id.Value != id)) yield return null;
+            }
             if (_verbs.Target != null && _verbs.Target.Id.Value == id)
             {
                 _script.Use();

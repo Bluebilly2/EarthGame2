@@ -159,10 +159,12 @@ namespace EarthGame.Engine
         public double SwimDepth => StandingEyeHeight - SwimEyeAboveWaterM;
 
         /// <summary>
-        /// The fastest a body of a work capacity can move horizontally on any ground: the validator's ceiling. The capacity
-        /// is the body's, not the config's (FP.1): physiology owns it, and each founder has their own.
+        /// The fastest a body of a work capacity can move horizontally on a ground, the table's by default: the validator's
+        /// ceiling. The capacity is the body's, not the config's (FP.1): physiology owns it, and each founder has their own.
+        /// The ground is where the body stands (BF.4 stage two): a run through dry sand is slower than one over rock.
         /// </summary>
-        public double MaxHorizontalSpeedAt(double workCapacity01) => Locomotion.SpeedMs(Locomotion.FastestWalkSlope, Gait.Running, workCapacity01);
+        public double MaxHorizontalSpeedAt(double workCapacity01, GroundType ground = Locomotion.TableGround) =>
+            Locomotion.SpeedMs(Locomotion.FastestWalkSlope, Gait.Running, workCapacity01, ground);
 
         /// <summary>The fastest the mover can move horizontally on any ground at full capacity.</summary>
         public double MaxHorizontalSpeed => MaxHorizontalSpeedAt(1.0);

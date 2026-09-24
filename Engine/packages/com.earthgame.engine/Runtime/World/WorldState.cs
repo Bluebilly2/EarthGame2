@@ -191,6 +191,22 @@ namespace EarthGame.Engine
             return FineGround.At(this, east, north);
         }
 
+        /// <summary>The cover code of the cell a point stands in, 0 (nothing said) without a cover layer (BF.4 stage two).</summary>
+        public byte CoverCodeAt(double east, double north)
+        {
+            if (Cover == null) return 0;
+            TileCodec.CellOf(Cover.ExtentM, Cover.CellM, east, north, out int row, out int col);
+            if (row < 0 || col < 0 || row >= Cover.Height || col >= Cover.Width) return 0;
+            return (byte)Cover.Code(row, col);
+        }
+
+        /// <summary>What a founder's feet stand on at a point, as the legs feel it (BF.4 stage two): the cover and the water over it.</summary>
+        public GroundType UnderfootAt(double east, double north)
+        {
+            WaterAt(east, north, out double depthM);
+            return Underfoot.Of(CoverCodeAt(east, north), depthM);
+        }
+
         /// <summary>
         /// The raster's own ground under a point (BF.4): what a water's depth is measured over, on the server as the tiles carry
         /// it to the client, and what an animal is kept out of water by; the datum without terrain or beyond it.

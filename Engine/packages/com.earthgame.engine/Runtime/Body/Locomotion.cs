@@ -12,19 +12,25 @@ namespace EarthGame.Engine
     }
 
     /// <summary>
-    /// What is underfoot, which decides how much of each step is wasted. v1 called this enum <c>Terrain</c>; renamed
-    /// in the port because the client layer uses both this namespace and Unity's own, where Terrain is a class.
+    /// What is underfoot, which decides how much of each step is wasted: the grounds of Pandolf, Givoni and Goldman's table
+    /// (<see cref="Locomotion.TerrainFactor"/>), which <see cref="Underfoot"/> reads the world's cover as (BF.4 stage two).
+    /// v1 called this enum <c>Terrain</c>; renamed in the port because the client layer uses both this namespace and Unity's
+    /// own, where Terrain is a class. Firm and Bog were added by BF.4's second stage, after the four v1 had.
     /// </summary>
     public enum GroundType
     {
-        /// <summary>A path, or ground that has been walked before.</summary>
+        /// <summary>Bare rock, a path, ground that has been walked before: the table's blacktop.</summary>
         Made,
         /// <summary>Open grass and light litter: most of this country.</summary>
         LightBrush,
-        /// <summary>Bracken to the waist, fallen branches, tussock.</summary>
+        /// <summary>Bracken to the waist, dense heath, fallen branches.</summary>
         HeavyBrush,
-        /// <summary>Sand, scree, deep mud. Every step gives some of itself back.</summary>
+        /// <summary>Dry sand: a dune, a beach above the wet. Every step gives some of itself back.</summary>
         Loose,
+        /// <summary>Bare earth, and a beach's packed wet sand: the table's dirt road.</summary>
+        Firm,
+        /// <summary>A swamp's floor, wet sedge: the table's swampy bog.</summary>
+        Bog,
     }
 
     /// <summary>
@@ -109,7 +115,7 @@ namespace EarthGame.Engine
         /// like one. It is applied at less than full weight because a person in trouble still walks; they walk
         /// badly.
         /// </summary>
-        public static double SpeedMs(double slope, Gait gait, double workCapacity01)
+        public static double SpeedMs(double slope, Gait gait, double workCapacity01, GroundType ground = TableGround)
         {
             double multiplier = GaitMultiplier(gait);
             if (multiplier <= 0.0) return 0.0;
@@ -117,8 +123,28 @@ namespace EarthGame.Engine
             // The table's numbers are stepping speeds already: no correction from an hour-average, and no floor, since the
             // table ends at the repose with a pace of its own and past it the mover slides (M1.5h; until then Tobler's
             // hour-average was scaled by 1.3 and floored at 0.45 m/s, which is what crawled a founder down a dune).
-            return WalkingSpeedMs(slope) * multiplier * capacity;
+            return WalkingSpeedMs(slope) * multiplier * capacity * GroundPace(ground);
         }
+
+        /// <summary>
+        /// The ground the walking table's speeds stand for in this country (BF.4 stage two): light brush, the grass and the
+        /// forest floor most of it is, so that walking there is as it was before the ground was felt.
+        /// </summary>
+        public const GroundType TableGround = GroundType.LightBrush;
+
+        /// <summary>The ground with the least coefficient, and so the fastest to walk: a fall's ceiling is taken on it.</summary>
+        public const GroundType FastestGround = GroundType.Made;
+
+        /// <summary>
+        /// The share of the table's pace a body makes on this ground at the same effort (BF.4 stage two): the speed whose
+        /// moving cost is the same, Pandolf's moving term going as the coefficient times the speed squared, so the pace goes
+        /// as the square root of the table ground's coefficient over this ground's. Loose sand 0.76, a bog 0.82, heavy brush
+        /// 0.89, bare earth 1.04, rock 1.10. The flat's law, taken on every slope and at a run too.
+        /// </summary>
+        public static double GroundPace(GroundType ground) => Math.Sqrt(TerrainFactor(TableGround) / TerrainFactor(ground));
+
+        /// <summary>The faster of two grounds to walk: the one whose coefficient is the less.</summary>
+        public static GroundType Faster(GroundType a, GroundType b) => TerrainFactor(a) <= TerrainFactor(b) ? a : b;
 
         // ---- Swimming (Sugiyama & Katamoto 1992) ----
 
@@ -153,15 +179,22 @@ namespace EarthGame.Engine
 
         // ---- Pandolf, Givoni & Goldman (1977) ----
 
-        /// <summary>How much of each step a surface gives back. Pandolf's terrain coefficients.</summary>
+        /// <summary>
+        /// How much of each step a surface gives back: Pandolf, Givoni and Goldman's terrain coefficients (J Appl Physiol
+        /// 43:577, 1977, from Soule and Goldman 1972): blacktop 1.0, a dirt road 1.1, light brush 1.2, heavy brush 1.5, a
+        /// swampy bog 1.8, loose sand 2.1. v1's table held 1.8 for "sand, scree, deep mud", which are two of its rows; BF.4's
+        /// second stage gave each its own (2026-09-24).
+        /// </summary>
         public static double TerrainFactor(GroundType ground)
         {
             switch (ground)
             {
                 case GroundType.Made: return 1.0;
+                case GroundType.Firm: return 1.1;
                 case GroundType.LightBrush: return 1.2;
                 case GroundType.HeavyBrush: return 1.5;
-                case GroundType.Loose: return 1.8;
+                case GroundType.Bog: return 1.8;
+                case GroundType.Loose: return 2.1;
                 default: return 1.0;
             }
         }

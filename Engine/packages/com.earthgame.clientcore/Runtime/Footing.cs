@@ -67,6 +67,16 @@ namespace EarthGame.ClientCore
         }
 
         /// <summary>
+        /// What the legs feel underfoot at a point (BF.4 stage two): the same cover and water tiles as the ear's sound, read as
+        /// the walking ground (<see cref="Underfoot"/>), so the ear and the legs read the one cover the server streamed.
+        /// </summary>
+        public static GroundType GroundAt(ReceivedTile cover, ReceivedTile depth, double east, double north)
+        {
+            double metres = depth?.Heights != null ? TileGround.HeightAt(depth, east, north) : 0.0;
+            return Underfoot.Of(CodeAt(cover, east, north), metres);
+        }
+
+        /// <summary>
         /// The code at a point of a tile of codes: its nearest post's, since a code is its cell's and is never blended; 0
         /// (nothing said) with no tile.
         /// </summary>
