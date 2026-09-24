@@ -16,7 +16,8 @@ Rows, each with both numbers:
   3. the crowns' cover: the share of canopied cells lying under a crown, inside the design's 0.5 to 0.95;
   4. every trunk's height inside its species' range, a height step either side;
   5. the sand forest's trees — bangalay and coast banksia standing on beach or dune — inside BioNet's 5 to 20 m, a step
-     either side;
+     either side. An inland box, one whose bake has no cell at or below the datum and whose world has no beach or dune
+     (the 8 km Kangaroo Valley), has no sand forest to judge: the row prints a note and gives no verdict (2026-09-24);
   6. stems a hectare of each tall plant's own canopy, inside the design's 50 to 1,500 (a published benchmark by
      diameter class exists, Gibbons and others 2010, and is not yet read: DEBTS.md);
   7. sticks lie only within a crown's reach, and a cell, of a trunk;
@@ -24,7 +25,8 @@ Rows, each with both numbers:
      shore platform, a cliff, a beach or a creek's or a stream's bed. The soil layer keeps a depth to its own step, so
      a cell within half a step of the thin-soil line is counted thin, and the row says how many cobbled cells were.
 
-Exit 0 when every row passes, 1 when any fails, 2 when the world is missing a layer this needs.
+Exit 0 when every row passes (a row that prints a note gives no verdict), 1 when any fails, 2 when the world is missing a
+layer this needs.
 Run from the repository root:
     python Tools/verifiers/checks/stand_check.py [world folder]
 (default Artefacts/worlds/gate.)
@@ -62,6 +64,22 @@ def layer(world, name):
     sidecar = json.load(open(path, encoding="utf-8"))
     raw = os.path.join(os.path.dirname(path), sidecar["raw"])
     return sidecar, np.fromfile(raw, dtype=NP_DTYPES[sidecar["dtype"]]).reshape(sidecar["height"], sidecar["width"])
+
+
+def lowest_baked(world):
+    """The lowest cell of the bake the world was made from, Data/regions/<region> with the region read off the world's own
+    world.json (Bherwerre when the file does not say, as the worlds before WG.2 were), and the bake's sidecar; the height is
+    None when the bake is not on this machine."""
+    region = "bherwerre"
+    world_json = os.path.join(ROOT, world, "world.json")
+    if os.path.isfile(world_json):
+        region = json.load(open(world_json, encoding="utf-8")).get("region", region)
+    sidecar_path = os.path.join(ROOT, "Data", "regions", region, "heights.json")
+    if not os.path.isfile(sidecar_path):
+        return None, sidecar_path
+    sidecar = json.load(open(sidecar_path, encoding="utf-8"))
+    raw = os.path.join(os.path.dirname(sidecar_path), sidecar.get("raw", "heights.r32"))
+    return float(np.fromfile(raw, dtype="<f4").min()), sidecar_path
 
 
 def legend_names(sidecar):
@@ -176,9 +194,19 @@ def main(argv):
     sand_trees = trunk & sand & np.isin(names, SAND_FOREST)
     sh = heights[sand_trees]
     inside = int(((sh >= SAND_FOREST_M[0] - step) & (sh <= SAND_FOREST_M[1] + step)).sum())
-    expect("the sand forest stands inside BioNet's 5 to 20 m", sh.size > 0 and inside == sh.size,
-           "%d of %d bangalay and coast banksia on sand inside %g-%g m, a step either side%s"
-           % (inside, sh.size, SAND_FOREST_M[0], SAND_FOREST_M[1], (", from %.2f to %.2f m" % (sh.min(), sh.max())) if sh.size else ""))
+    sand_title = "the sand forest stands inside BioNet's 5 to 20 m"
+    lowest, bake = lowest_baked(world) if sh.size == 0 else (None, None)
+    if sh.size == 0 and not sand.any() and lowest is not None and lowest > 0.0:
+        # An inland box has no sand forest to judge: the engine lays a beach or a dune only within reach of the sea, and
+        # BioNet's Bangalay Sand Forest grows on the coast's sands. Whether the box has a sea is read off the bake, not the
+        # world, so a coast whose world lost its beaches still fails here (the sweep's first red, on the 8 km valley,
+        # 2026-09-24).
+        print("%-50s note  an inland box: the bake's lowest cell is %.1f m above the datum (%s) and the world has 0 cells of"
+              " beach or dune; no sand for a sand forest, no verdict" % (sand_title, lowest, os.path.relpath(bake, ROOT)))
+    else:
+        expect(sand_title, sh.size > 0 and inside == sh.size,
+               "%d of %d bangalay and coast banksia on sand inside %g-%g m, a step either side%s"
+               % (inside, sh.size, SAND_FOREST_M[0], SAND_FOREST_M[1], (", from %.2f to %.2f m" % (sh.min(), sh.max())) if sh.size else ""))
 
     rows, bad = [], []
     for name in CROWN_SHARE:
