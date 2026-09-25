@@ -25,6 +25,18 @@ section):
 
 Bangalay's download goes on William's list, put to him by the main session with the geology download.
 
+**Amended the same day by the main session** (ruling 46), on the vegetation map it fetched (NVIS 7.0's pre-1750 Major Vegetation
+Groups, DCCEEW, CC BY 4.0, `Data/cache/nvis/`, `Tools/data/fetch_nvis.py`):
+7. **A sixth new plant, the valley's rainforest canopy tree.** The map puts rainforest on 20.6 % of the whole valley's square,
+   and the plant table grew none: lilly pilly (below, "The rainforest tree").
+8. **The map is the check, never the model's input.** A new verifier row holds the world's canopy share by Major Vegetation
+   Group, and the valley's crown cover against the groups' typical cover. The plants stay placed by their tolerances. The
+   canopy is to rise: the map's groups at their typical cover give about 0.52 of the whole valley's land under crowns,
+   where the world as made covers about 0.33 (its 45 % canopy times the 0.74 of a canopied cell that crowns cover).
+9. Its colours go in `StandForms` in sRGB, as the table's are, and its mesh by the existing path. `StandMeshes.ToColor` is the
+   main session's (M1.6h makes every stand colour linear in one place). Each session tells the other before it touches
+   `StandForms`, `TreeGeometry` or `StandMeshes`.
+
 Owner: Claude (the side worker). The main session's lane: the review before each merge, the sweep after each stage.
 
 ## Why
@@ -110,7 +122,8 @@ holds inside the region as before. The canopy and understory draws (`PlantCommun
 - **Bherwerre:** its twelve, as now, so nothing added to the catalogue can reach the coast.
 - **Both Kangaroo Valley regions** (the same country, one list): blackbutt, old-man banksia, heath banksia, the grass tree,
   bracken, Lomandra, saw-sedge and kangaroo grass (WG.2's "stay"); Sydney blue gum, river oak, the cabbage tree palm, silvertop
-  ash and scribbly gum (WG.2's "come in"). Coast banksia, swamp paperbark and spinifex are out (WG.2's "go"). The source for each
+  ash and scribbly gum (WG.2's "come in"); and, by the amendment, lilly pilly, the rainforest tree: fourteen in all. Coast banksia,
+  swamp paperbark and spinifex are out (WG.2's "go"). The source for each
   is WG.2's table checked against the Atlas's usable records in the whole valley's box (the counts in the table above, and
   kangaroo grass's 85; the 8 km box is too small to judge by: one blackbutt record, none of kangaroo grass).
 - **Bangalay** was named neither way by WG.2 and its records were never fetched for the valley (`fetch_ala.py`'s valley list
@@ -121,10 +134,10 @@ holds inside the region as before. The canopy and understory draws (`PlantCommun
   Shoalhaven's floodplain half a kilometre from the sea, and will be grown nowhere. That is owed (a new DEBTS row) where today
   they are grown across the plateau.
 
-The catalogue itself becomes append-only: the five new plants take the numbers 13 to 17, and no plant is ever reordered or
+The catalogue itself becomes append-only: the new plants take the numbers 13 to 18, and no plant is ever reordered or
 removed, pinned by a test that names every number. The overstory, understory and stand layers all carry a plant by that number.
 
-### 2. Five new plants
+### 2. Five new plants, and the rainforest tree by the amendment
 
 Each number with its source, as the coast's rows have them. The sources: **[P]** PlantNET, the NSW Flora Online (Royal
 Botanic Gardens Sydney), read 2026-09-25; **[A]** the Atlas's records against the recorders' background, the tables above;
@@ -188,6 +201,40 @@ so a person who knows the country can dispute it (the coast's method, CANON ruli
 - Exposure tolerance 0.60: found 2.08 and 1.39 times the background in the middle classes [A], open woodland [P].
 - Shade tolerance 0.15; crown 0.55, a spreading woodland crown as coast banksia's; 0.5 sticks a metre [E].
 - Bark to strip: none. Smooth, with scribbles, shedding in short ribbons [P].
+
+**The rainforest tree** (the amendment's seventh decision): **lilly pilly**, *Syzygium smithii* (PlantNET files it as *Acmena
+smithii*), tree.
+
+Chosen from twelve candidates, whose Atlas records over the whole valley's box were fetched on 2026-09-25 into the side
+worker's scratchpad (12 files, 11,562 to 119,021 bytes, their SHA-256s in the stage-two exit record). The candidates were the
+NSW Scientific Committee's characteristic trees of Illawarra Subtropical Rainforest (brush bloodwood, Illawarra flame tree, giant
+stinging tree, native tamarind, brown beech, red cedar, three figs) and the gullies' warm temperate rainforest (lilly pilly,
+sassafras, coachwood).
+
+Lilly pilly was chosen because:
+- it has the most usable records (503);
+- its records lie in the map's rainforest 1.38 times as often as the recorders' own records do. Sassafras leans harder (1.58)
+  on fewer records (448) and is the runner-up; the purest indicators, native tamarind (1.96) and the Illawarra flame tree
+  (1.66), have 56 and 74 records;
+- it leans to the 15-35 degree slopes the rainforest holds (1.25 to 1.79 times the background);
+- BioNet names it in the valley's own moist forest ("Sydney Blue Gum x Bangalay - Lilly Pilly moist forest in gullies and on
+  sheltered slopes");
+- its fruit is food: white to maroon berries, eaten by Aboriginal people.
+
+Its first values:
+- Height 10-20 m: a tree to 20 m (Wikipedia's account), the floor half the ceiling [E].
+- Moisture 0.60, breadth 0.35: "widespread in rainforest ... often along watercourses" [P] [H]. The records' wetness lean is
+  flat (0.78 to 1.26) [A], hence the breadth.
+- Soil at least 0.10 m: the records' 5th percentile, 0.12 m [A].
+- Slope: full vigour to 0.70 (35 degrees), nothing past 0.80 (39 degrees): the lean to 15-35 degrees above, and the records'
+  99th percentile, 0.79 [A].
+- Exposure tolerance 0.20 and shade tolerance 0.85: a rainforest tree, raised in shade [H] [E]. The records' exposure lean is
+  flat [A].
+- Crown 0.50 of its height: 5 to 15 m wide on a 20 m tree [E from Wikipedia].
+- Sticks 0.3 a metre [E].
+- Bark to strip: none. Smooth to slightly flaky [P].
+- Wood: its air-dry density, hardness and strength are estimates until the Global Wood Density Database (Zanne and others 2009,
+  a download ruling 49 leaves to the agents) is read. The same file gives river oak and scribbly gum a published density.
 
 **What they are first values of.** The tolerances are the build's starting point, not its answer. `species_check` decides, as it
 did for the coast in M1.2b: a number moved to pass a row is moved with its reason written beside it in `ECOSYSTEM.md`.
