@@ -76,8 +76,8 @@ The body's rest is five parts, each shippable alone:
      three-fifths (the 22nd); weak with hunger once the fast is a third adapted (the fourth day, ketosis having subdued "the
      voracious sensation of hunger", World Medical Association 2006); starving at a tenth of body weight lost (after 18.6 days
      of a fast at rest; Gétaz et al. 2012's point for close monitoring); wasting at 18 per cent (after 47.3; "serious medical
-     problems begin"). Death is `IsAlive` false past half the body's protein, the top of Kerndt et al.'s "a third to a half", since the
-     Minnesota men lived with 2.5 kg of Cahill's 6 gone.
+     problems begin"). Death is `IsAlive` false past half the body's protein, the top of Kerndt et al.'s "a third to a half",
+     since the Minnesota men lived with 2.5 kg of Cahill's 6 gone.
 2. **Food eaten, raw and roasted.** `Food` carries six foods of chain G8 as their published composition per 100 g at their
    water (Lomandra leaf bases, bracken rhizome, the long yam's tuber, a greenhood orchid's tubers, pigface fruit, banksia
    nectar), each row naming whose numbers it carries and which are estimates. Their energy is the Australian Food Composition
@@ -121,8 +121,8 @@ The body's rest is five parts, each shippable alone:
    Sanak's measured 385 W/m² after twenty minutes on a board lies between dry sand's 225 and moist sand's 661. A bed is its
    pressed thickness over its conductivity: loose plant fibre at Costes et al.'s straw, 0.0444 + 2.72 × 10⁻⁴ ρ W/(m·K) (2017),
    0.3 of its loose depth kept under the body (an estimate; the army's 15 to 30 cm bough bed lies 5 to 10 cm thick under a
-   body): 20 kg of bracken over 1.2 m² is 1.55 m²·K/W, ten clo. A cold-constricted body on 10 °C ground loses 41 W to moist sand
-   in the first hour and 28 W in the eighth, 38 and 23 to loam, 26 and 13 to dry sand, and 4.5 W on the bracken bed.
+   body): 20 kg of bracken over 1.2 m² is 1.55 m²·K/W, ten clo. A cold-constricted body on 10 °C ground loses 41 W to moist
+   sand in the first hour and 28 W in the eighth, 38 and 23 to loam, 26 and 13 to dry sand, and 4.5 W on the bracken bed.
 6. **Every number carries its source; an estimate says it is one.** In the doc comments, author, year and title or journal;
    the estimates are gathered in For main to decide 17.
 
@@ -212,9 +212,9 @@ apart from its energy (15).
    difference lies, and a colder skin evaporates less.
 10. **Water.** `Warmth`'s constants in water do not cool a body: in 10 °C water, with water's heat transfer taken at the air's,
     the loss stays under the heat made, where Hayward, Eckerson and Collis's equation, fitted to their measurements, has the
-    core falling 2.67 °C an hour (1975).
-    Water takes heat at 43 to 107 W/(m²·K) (Boutelier 1977; English and Hemmerling 2008). Proposed: a water term in `Warmth`
-    when `MoverState` says wading or swimming, part two, with Hayward's cooling as its check.
+    core falling 2.67 °C an hour (1975). Water takes heat at 43 to 107 W/(m²·K) (Boutelier 1977; English and Hemmerling
+    2008). Proposed: a water term in `Warmth` when `MoverState` says wading or swimming, part two, with Hayward's cooling as
+    its check.
 11. **The yam.** The one yam of New South Wales, *Dioscorea transversa*, grows "north from Stanwell Tops" (PlantNET): none on
     the South Coast. Its row stays for the equation's check against the AFCD and for a northern region; or goes.
 12. **Bracken's harm.** v1 made raw bracken "a bad idea", doing "measurable harm", with roasting and pounding its cure
@@ -267,17 +267,17 @@ apart from its energy (15).
    measured shares (0.18 falling to 0.12) with a floor of fat that cannot burn brought death to the hunger strikers' range.
 4. *The founder fed each day.* The refeeding test failed, and the failure was the model's. The fast adapted in any deficit, so
    every night's hours before breakfast built it, and the protein each night spent was never given back. By a line-for-line
-   mirror of the class in Python (which gave the class's own fast to the day), a founder eating 12 MJ once a day and walking
-   eight hours sat at a fifth of the fast's adaptation and burnt 2.8 kg of protein in 60 days, dying of starvation with more fat
-   than they began with. Five changes, each from a source already read:
+   mirror of the class in Python (it gave the failing test's liver, 0.036324756186781035 kg, to every digit the test printed),
+   a founder eating 12 MJ once a day and walking eight hours sat at a fifth of the fast's adaptation and burnt 2.8 kg of
+   protein in 60 days, dying of starvation with more fat than they began with. Five changes, each from a source already read:
    - the fast adapts only while the liver is low, and is undone while it is full (Felig's stages);
    - a surplus gives protein back in the deficit's share (Dulloo et al. 1996);
    - the adapted fall of the basal rate goes as far as the fast's adaptation or the fat spent (the same);
    - the basal rate's tissue is Keys' active tissue, 4.04 kg of it for a kilogram of protein, where it had been Hall's lean
      tissue, 2.6;
    - death at half the body's protein rather than five-twelfths, since the Minnesota men lived with 2.5 kg gone.
-   A fast at rest now kills after 67.3 days where it had after 61.9; the fed founder spends 56 g of protein a night and has it
-   back by morning.
+   A fast at rest now kills after 67.3 days where, by the mirror, it had after 61.9; the fed founder spends 56 g of protein a
+   night and has it back by morning.
 5. *Main moved.* Main took BF.5 part one in (815f2b3) while this was built. The branch was restarted from the newest main
    (36c7acb) before its first commit, and `Wetness` now reads Fanger's areas from `FireWarmth` where it had kept its own copy
    of three of the tables' numbers.
@@ -337,3 +337,51 @@ Found while checking each number against a second source; the model's choice is 
 ## Exit
 
 The promises kept with the counts as run, or "What changed on the way" saying which was not and why.
+
+### Part one (2026-09-25, on the branch)
+
+**What was built.** Five new files under `Runtime/Body/Rest/`, each with its `.meta`, and the folder's `.meta`: `Hunger` (with
+`HungerLevel`), `Food` (with `FoodPreparation`), `Wetness` (with `WetLevel`), `Sleep` (with `Tiredness` and `WakeReason`) and
+`GroundContact` (with `SoilHeat`). Five test files: `HungerTests`, 12; `FoodTests`, 7; `WetnessTests`, 8; `SleepTests`, 8;
+`GroundContactTests`, 5.
+
+**As run.** .NET SDK 10.0.401. `dotnet test Engine/tests/EarthGame.Tests > test-results.txt 2>&1; echo $?` printed 0 at
+d267514, the branch's code on main's 36c7acb: 969 passed, 0 failed, of 969; main alone, in a throwaway worktree of 36c7acb,
+929 passed, 0 failed, so 40 are new. Built first on 6b1aaa1, before main took BF.5 in, the same suite ran 917 passed, 0
+failed (877 and the 40). The suite's source rules (`SourceRulesTests`, 5 passed) read every file under `Engine/packages`, the
+new ones among them: no Unity, no `#if`, no clock or unseeded random, no to-do markers. Eight sabotages, each run over its
+model's test class and restored byte for byte (sha256 checked), on the final code:
+
+| Sabotage | Red |
+|---|---|
+| The protein-sparing shift taken away (the late share set to the early 0.18) | 1 of 12: `ProteinIsSpentFastAtFirstAndSparedOnceTheBrainRunsOnKetones` |
+| No floor to the fat (the floor set to nothing) | 2 of 12: `ATotalFastAtRestKillsWhenTheHungerStrikersDied`, `TheBasalRateFallsAsTheMinnesotaMensDid` |
+| No protein given back by a surplus | 2 of 12: `EatingEnoughEachDayKeepsTheBodyWhole`, `EatingFillsTheStoresAndEndsTheFast` |
+| The fast adapting in any deficit (the liver's mark taken away) | 2 of 12: `EatingEnoughEachDayKeepsTheBodyWhole`, `EatingFillsTheStoresAndEndsTheFast` |
+| The core paying all the heat the water takes (its share set to one) | 1 of 8: `AWetBodyInColdWindLosesMoreAndItsSkinRunsColder` |
+| The ground's transient taken away (the steady disc from the first second) | 3 of 5: `ANightOnBareGroundCostsTensOfWattsAndABedAFew`, `SanaksMeasuredFluxLiesBetweenDrySandAndMoistSand`, `TheGroundTakesMostAtFirstAndSettlesToTheSteadyDisc` |
+| The dawn waking any sleeper (the night's mark taken away) | 1 of 8: `ANightsSleepEndsAtTheDawnAndANapWhenItIsSpent` |
+| Raw starch digested as cooked (0.50 set to 0.97) | 2 of 7: `CookingATuberGivesAboutAThirdMoreAsCarmodyAndWranghamFound`, `RawAndCookedDigestionAreTheMeasuredShares` |
+
+**The numbers as run.** The promises' numbers are as a probe of the built classes printed them: the fast, the fed founder and
+the ration of promise 1; the foods per 100 g and the kilograms for 9.5 MJ of promise 2; the wet body at 10, 5 and 20 °C and
+in rain of promise 3; the sleep's pressure and the work left of promise 4; the ground's losses and the bed of promise 5; and
+`Warmth`'s implied skin in For main to decide 9.
+
+**The downloads.** 245 files, 161,380,167 bytes, each recorded in `BF.7_THE_BODYS_REST_DOWNLOADS.md`. The code's numbers
+came from these among them: for hunger, Cahill 1983's scanned pages (`A_Cahill1983_*`), Cahill et al. 1966, Chow and Hall
+2008, Pontzer et al. 2012, Kerndt et al. 1982's scanned pages (`A_Kerndt1982_*`), Keys et al. 1950's text
+(`A_Keys1950_*`), Roden et al. 2001 for Rothman's NMR, Gétaz et al. 2012, the World Medical Association 2006, Friedl 1995, CAIN's
+list and the Europe PMC record of Dulloo et al. 1996; for food, the AFCD Release 3 workbooks,
+Hodgson and Wahlqvist 1993, Brand-Miller and Holt 1998, Carmody and Wrangham 2009, McGlone et al. 2005, Njume's thesis,
+Maiden 1889, Gott 2008, FAO 2003 and FAO/WHO 1998's chapter, the ANBG's and PlantNET's pages; for water, the EPA's
+Exposure Factors Handbook chapter 7, Pitol et al. 2020, de Dear et al. 1997, Blocken and Carmeliet's review and ASHRAE
+2017's chapter 9; for sleep and the ground, Farouki 1981, Lienhard and Lienhard 2024, Costes et al. 2017, Sanak et al. 2025,
+Skeldon and Dijk 2025, Yetish et al. 2015, the army's FM 21-76 and FM 31-70, and the E-utilities batches holding Goldberg et
+al.'s, Seale and Conway's, Haskell et al.'s and Craven et al.'s abstracts. Others were read from Europe PMC's, Crossref's and
+E-utilities' replies without a file kept, as the record's preamble says: Kreider and Iampietro 1959, Martin 1981, Rusterholz
+et al. 2010, Kurazumi et al. 2004, Hayward, Eckerson and Collis 1975, Castellani et al. 2001 and Launay et al. 2006 among
+them.
+
+**Not run here**, as the brief says: the Unity-shaped compile, the edit-mode tests and the built game. Nothing in part one is
+drawn, heard or felt.
