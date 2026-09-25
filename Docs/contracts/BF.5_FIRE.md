@@ -237,3 +237,123 @@ drying). No smoke as a thing, no fire spreading to the litter or a tree, no cook
 - `Docs/BETA_MAP.md` §7: BF.5 drafted, part one built on the branch.
 - `Warmth` and `Surroundings`: the hook (2); `Wood`: the re-read (4, 5); `ThingWords`: the words (6); `THIRD_PARTY_NOTICES.md`
   (11).
+
+## What changed on the way
+
+1. *A lone stick and a crib.* A crib's burning rate is a stick's among others; a lone thick log given that rate burnt on its
+   own. The fire's heat on a piece became the share of its view the other burning pieces fill, and a stick's own flame's heat
+   was given the inverse root of its thickness, so a lone stick thinner than a pencil burns and a thumb-thick one does not.
+2. *A charred stick's surface.* A stick burnt down to its char had no surface left to glow on; its char was given half the
+   room of the wood it came from.
+3. *The ladder.* A first lay with eight twigs lit nothing above them: the twigs burnt out before the next size caught, as
+   happens to anyone who lays too little kindling. The tests' lay is twenty twigs, ten pencil sticks and six thumb-thick ones
+   under three logs.
+4. *Green wood.* The critical mass flux was first held at its value for the fibre saturation point; green blackbutt then
+   flamed on a small fire. McAllister's trend carried on past his measurements makes it smoulder there and flame only in a
+   hot fire, which is what green wood does.
+5. *Wind and lighting.* At the first heat inside a fire (40 kW/m², an estimate), a lay lit in a 3 m/s breeze never took: the
+   tinder's flame was gone in three seconds, before the twigs caught, and a test held it ("a fire is lit in the lee"). At the
+   measured 60 kW/m² (11) the tinder's glowing char carries the twigs and the fire takes. A finding that turns on one
+   estimate is not a promise; the test is now of the tinder's own flame (Rothermel and Anderson's exponential: half a minute
+   in still air, three seconds in the breeze), and the question is For main to decide 13.
+6. *Friction's footing.* The first chain (μ 0.45, the tip's mean flux, half a milligram of dust a joule) failed most good pairs.
+   Duncan's measured bow drill (reported by the research for this contract) gave μ 0.25, his force and speed, his 0.8 g pile and
+   his 0.1 g coal; the rim's 1.5 times the mean flux, where the notch is cut, is what brings the chain to his 23 to 24 s and
+   Hough's times. The bow drill was added as a method because it is the one measured.
+7. *Friction and water.* Recalibrated, the chain made a coal from wood at the fibre saturation point. Every grain the rub grinds
+   off brings its water with it: a heat budget per kilogram ground (one stated number, the hot grind) sets the wettest wood that
+   can make a coal, placed at 20 per cent where the words begin to call wood damp.
+8. *A coal on a twig.* Counting all of a coal's heat into whatever it touches let a blown coal light a 4 mm twig. A nest wraps a
+   coal and keeps its heat; a solid stick takes only what its breadth subtends and loses heat from its bare wood, and does not
+   catch.
+9. *The fire sizes.* First set as heats, then as their published burn rates, with the heat worked out by this model's own
+   accounting, so the kilograms are the sourced fact.
+10. *The burning rate re-read at its sources.* The first crib rate, v = 2.2 × 10⁻⁶ b^−0.6 m/s credited to Babrauskas, was not
+    found in its source: COMPF2 prints 1.7 × 10⁻⁶ in its text (and 2.48 × 10⁻⁶ in its code). McAllister and Finney's mass flux
+    replaced it, with COMPF2 kept as the second source; the rate became a mass flux over the wood's density, so dense wood burns
+    inward slower, and every burn-through came out one and a half to two times the first's (a 5 cm banksia stick 31 min became
+    55).
+11. *The heats re-read.* The heat inside a fire, first 40 kW/m² as an estimate, is Thomas's measured 60; the char's heat, first
+    30 MJ/kg, is NIST's 32.6; the flame's efficiency, first 0.9, is 0.95, since with the char's heat re-read 0.9 put a
+    kilogram's flame heat at 12.6 MJ, below Tran's effective heat of 13.0 to 14.7; the heat of gasification that slowed wet
+    wood (1.8 MJ/kg) could not be read at its source and was replaced by a fit to the one published point on moisture and
+    burning rate (3.2). Green wood's pace moved from 0.6 to 0.72 of air-dry wood's; the coal's glow from 16 W for three minutes
+    to 13 W for four.
+12. *The work.* The brief named this branch `cloud/bf5-fire-physics`; the harness's own branch name was another. The brief's
+    was used.
+
+## Where the sources disagree
+
+Found while checking each number against a second source; the model's choice is named in each.
+
+- *The net heat of dry wood.* The table's 19.0 gross gives 17.69 net; Phyllis2 measures eucalyptus wood at 17.96, and the
+  firewood tables start from 18.5 (Krajnc, FAO 2015) and 19 (Forest Research), so their heats as cut sit up to 8 per cent above
+  this model's. The standards' hydrogen term is 212.2 J/g per per cent (ISO, with the change to constant pressure), 218.3
+  (Phyllis2) or 219.8 (Wong et al., 9 × 24.42): a few hundredths of a megajoule.
+- *Green wood.* The standards' arithmetic gives green blackbutt (0.6 of its dry mass in water) about two-thirds of what air-dry
+  wood gives, kilogram for kilogram as cut; Victoria's Agriculture Note AG1150 (Brock 2004) says green firewood gives "about
+  40%". In the fire model green wood that only smoulders loses its gas as smoke and keeps only its char's heat, about a fifth of
+  what air-dry wood burnt in flame gives, kilogram for kilogram as cut; the note's figure sits between the two.
+- *The crib law.* McAllister and Finney's exponent is −0.5, Babrauskas's −0.6; COMPF2's constant is 1.7 × 10⁻⁶ in its text and
+  2.48 × 10⁻⁶ in its code. Within a fifth of each other from 4 mm to 10 cm; at 3 mm the crib law is 21 per cent below COMPF2.
+- *Wind on burning cribs.* Half-inch cribs burnt 6 to 62 per cent faster at 0.7 m/s and quarter-inch ones slower (McAllister and
+  Finney 2016); the model speeds every flaming stick alike.
+- *The char.* A fifth of the wood (Tran), 0.16 to 0.23 by species (NIST).
+- *The critical flux.* 11 kW/m² (Babrauskas's fit, 9.0 to 12.2 by orientation), 10 to 13 (Wood Handbook), 12 ± 2 (Bartlett et
+  al.).
+- *Catching.* Babrauskas's correlation gives 53 s at 30 kW/m² for wood of 450 kg/m³; McAllister, Finney and Cohen's poplar caught
+  in 28 s (14 s against their 9.7 at 50). The correlation's own scatter is 64 per cent. Water slows it 1.47 times at 18.5 per cent
+  in their measurements (the model's), where Mikkola's (1 + 4w)² gives 3.0 and Moghtaderi et al. found three times at 30 per cent.
+- *The tinder's moisture limit.* 23.6 per cent (Rothermel and Anderson, the model's), 11 (Manzello et al.'s brands into grass),
+  16 to 40 by the igniter (Blackmarr): For main to decide 7.
+- *The radiant share of a wood fire.* 0.21 (McCarter and Broido) to a third (Sunahara et al.), 0.29 to 0.30 for trees burnt whole
+  at NIST, and 0.41 falling to 0.15 as the wood's water rises (Sung et al. 2025); the model takes 0.30 whatever the water.
+- *Close to a fire.* The point source holds to 5 per cent beyond two and a half widths (Modak); nearer, the sources differ on
+  whether it overstates or understates, and the words say "the reckoning overstates" there.
+- *The skin.* Absorptance 0.95 for the body's long-wave (ASHRAE 55's SolarCal), where its emissivity is 0.97 to 0.98.
+- *Friction.* Wood on wood slides at 0.17 (Aira et al., Scots pine across the grain), 0.2 to 0.3 (Duncan, the model's 0.25) and
+  0.25 to 0.5 (engineering tables). Wood dust glows at 310 to 340 °C on a hot plate (GESTIS-DUST-EX, the model's 340), 330 to 350
+  (Pastier et al.), and Duncan takes 370 within his 340 to 430. The chain gives Duncan's bow drill a coal in 33 s against his
+  measured 23 to 24.
+- *The wood table.* As For main to decide 4 sets out.
+
+## Exit
+
+The promises kept with the counts as run, or "What changed on the way" saying which was not and why.
+
+### Part one (2026-09-25, on the branch)
+
+**What was built.** Seven new files under `Runtime/Fire/`, each with its `.meta`, and the folder's `.meta`: `Combustion` (the
+heat, the char and the gas, the crib rate, the water's and the wind's parts, catching, the critical mass flux, the fire's heat on
+its pieces, the char's glow, the tinder's spread and extinction), `FuelPiece` (a stick or a bundle, its fuel class by
+thickness, and a BF.1 stick read as a piece), `Fire` (the pieces stepped, the phases, the words), `Tinder` (a coal and its
+nest), `FrictionFire` (the three methods' chain and its failures), `FireWarmth` (the point source and Fanger's areas) and
+`FireFuel` (the three fires' kilograms and heat). Three test files: `FireBurningTests`, 17; `FrictionFireTests`, 15;
+`FireWarmthTests`, 10.
+
+**As run.** .NET SDK 10.0.401 (installed by the official script, channel 10.0). `dotnet test Engine/tests/EarthGame.Tests >
+test-results.txt 2>&1; echo $?` printed 0: 911 passed, 0 failed, of 911 (869 before this branch, 42 new); the two tests marked
+for Windows only are not run on Linux. The 869 of main passed on this clone only once the LFS fixture was rebuilt (For main to
+decide 12): before it, 830 passed and 39 failed. The suite's source scans read the new files (no Unity, no `#if`, no clock or
+unseeded random, no to-do markers). Five sabotages, each restored byte for byte (sha256 checked) and each run over the three
+fire test classes:
+
+| Sabotage | Red |
+|---|---|
+| The water taken out of the critical mass flux | 2 of 42: `AFlameWantsGasEnoughAndWaterRaisesTheWant`, `GreenWoodSmouldersWhereAirDryWoodFlamesAndTheWordsSayWhy` |
+| A spun tip's rim heated at its mean (the factor 1.5 set to 1) | 2 of 42: `TheChainMeetsTheTimesItWasMeasuredAndTimedAt`, `TheSurfaceRisesAsASemiInfiniteSolidsDoesAtTheRimWhereTheRubIsFastest` |
+| The dust's heat budget skipped | 1 of 42: `DampWoodTakesTheHeatAndSaysSo` |
+| The tinder's extinction moisture raised to 0.40 | 3 of 42: `AFlameCrossesTinderAsRothermelAndAndersonMeasuredAndNotWhenDamp`, `DampTinderSmokesAndWillNotFlameAndSaysWhy`, `DampTinderWillNotFlameAndSaysWhy` |
+| Every piece's view share forced to one | 1 of 42: `TinderAloneUnderLogsLightsNothing` |
+
+**The numbers as run**, from a probe of the built classes: net heat 17.69 MJ/kg dry, 13.66 as cut at 20 per cent wet basis
+(Krajnc's 14.31), 16.77 given to a fire per kilogram of dry wood at 15 per cent, the gas 13.96; the crib's burn-through at 640
+kg/m³ 1.2 min at 4 mm, 4.9 at 10, 20.0 at 25, 55.2 at 50, 156 at 100 and 442 at 200; catching at 30 kW/m² 52.9 s (McAllister's
+28.0), at 50 kW/m² 14.3 s (9.7); the ladder's logs caught at 1.0 min, flames to 117 min, the peak 34.3 kW, 5.0 kW on average
+while flaming, out at 188 min, 52.2 MJ (16.8 MJ/kg dry); green logs smouldering at 20 min; lit in 3 m/s the logs flame; a lone
+5 mm stick flames 5.7 min and a lone 25 mm one will not; friction as promise 6 gives it, Duncan's bow drill 33.2 s; tinder
+blown 12.4, 15.6, 19.3 and 35.8 s at 8, 15, 20 and 23 per cent, too damp at 25; the coal 12.8 W for 254 s, blown 34.0 W for 96 s;
+the warming fire 14.0 kW and its warmth as promise 8 gives it; the fires' fuel as promise 9 gives it.
+
+**Not run here**, as the brief says: the Unity-shaped compile, the edit-mode tests and the built game. Nothing in part one is
+drawn, heard or felt.
