@@ -165,6 +165,14 @@ namespace EarthGame.Client
         private void CaptureSky(Vector3 toSun, float exposure)
         {
             if (_captureFailed || _sky == null) return;
+            // A player with no graphics device (-nographics, the corpus's walkers) draws nothing and cannot render the sky: a render
+            // forced there made the pipeline again and threw on every face, 10,608 exceptions in the soak of 2026-09-25.
+            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
+            {
+                _captureFailed = true;
+                Debug.Log("[sky] no graphics device: the sky is not rendered into the haze's cube");
+                return;
+            }
             int faces;
             if (_skyCube != null && _nextFace >= 0)
             {
@@ -209,7 +217,18 @@ namespace EarthGame.Client
                 Shader.SetGlobalFloat(SkyCubeTexelsId, SkyCubeTexels);
             }
             _captureClock.Restart();
-            if (!_capture.RenderToCubemap(_skyCube, faces))
+            bool rendered;
+            try
+            {
+                rendered = _capture.RenderToCubemap(_skyCube, faces);
+            }
+            catch (Exception ex)
+            {
+                // A render that throws fails as one that says so: once, not again on every face after.
+                rendered = false;
+                Debug.LogError("[sky] " + ex.Message);
+            }
+            if (!rendered)
             {
                 _captureFailed = true;
                 Debug.LogError("[sky] the sky could not be rendered into the haze's cube; the haze has no colour");
