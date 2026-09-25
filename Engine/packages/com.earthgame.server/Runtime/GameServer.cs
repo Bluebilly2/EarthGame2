@@ -74,9 +74,10 @@ namespace EarthGame.Server
 
         /// <summary>
         /// The ground a founder's reported feet are judged against (BF.4): the world's one ground, relief and hollows with it,
-        /// where until then the raster alone stood; null for a world without terrain, which judges no height.
+        /// where until then the raster alone stood, and the top of a rock that stands where it is higher (stage three), so a
+        /// founder on a boulder is standing; null for a world without terrain, which judges no height.
         /// </summary>
-        private IHeightSource FeetGround => World.Terrain == null ? null : _feetGround ?? (_feetGround = new FineGroundSource(World));
+        private IHeightSource FeetGround => World.Terrain == null ? null : _feetGround ?? (_feetGround = new SurfaceSource(World));
 
         private IHeightSource _feetGround;
 
@@ -757,7 +758,7 @@ namespace EarthGame.Server
                 throw new ArgumentOutOfRangeException(nameof(east), "(" + east + ", " + north + ") is outside the region");
             SavedPlayer p = new SavedPlayer();
             p.Name = name;
-            p.Body = MoverState.AtRest(east, World.GroundAt(east, north), north);
+            p.Body = MoverState.AtRest(east, World.SurfaceAt(east, north), north);
             p.Body.Grounded = true;
             p.SavedTick = World.Tick;
             // Standing a founder somewhere else does not empty their hands.
@@ -1087,7 +1088,7 @@ namespace EarthGame.Server
                 // The flake comes away beside the core and falls from a put-down's height; off a held core it falls at the
                 // founder's feet.
                 Double3 where = corePlace != 0 ? at : FlakeFalls(at, session.Body.Feet, core.FlakesTaken);
-                Entity flake = World.SpawnItem(DefinitionCatalogue.FlakeOf(coreStone), where.X, where.Z, World.GroundAt(where.X, where.Z) + Hands.ReleaseM, session.YawDeg);
+                Entity flake = World.SpawnItem(DefinitionCatalogue.FlakeOf(coreStone), where.X, where.Z, World.SurfaceAt(where.X, where.Z) + Hands.ReleaseM, session.YawDeg);
                 flake.SetItem(KnappingItems.FlakeOf(result), World.Tick);
             }
             return outcome;
@@ -1117,7 +1118,7 @@ namespace EarthGame.Server
             double side = FlakeSideM * ((flakesTaken + 1) / 2) * (flakesTaken % 2 == 1 ? 1.0 : -1.0);
             double east = core.X + dx * FlakeTowardsM - dz * side, north = core.Z + dz * FlakeTowardsM + dx * side;
             if (Math.Abs(east) > World.Region.HalfExtentM || Math.Abs(north) > World.Region.HalfExtentM) return core;
-            return new Double3(east, World.GroundAt(east, north), north);
+            return new Double3(east, World.SurfaceAt(east, north), north);
         }
 
         /// <summary>Where a founder's eye is, as the server holds their body: a verb's reach is measured from here.</summary>
@@ -1473,7 +1474,7 @@ namespace EarthGame.Server
                     east = at.X + 0.25 * (i % 3 - 1);
                     north = at.Z + 0.25 * (i / 3);
                 }
-                Entity e = World.SpawnItem(made.Definition, east, north, World.GroundAt(east, north) + Hands.ReleaseM, session.YawDeg);
+                Entity e = World.SpawnItem(made.Definition, east, north, World.SurfaceAt(east, north) + Hands.ReleaseM, session.YawDeg);
                 ItemComponent fall = default;
                 fall.Resting = false;
                 fall.State = made.State;
@@ -1522,7 +1523,7 @@ namespace EarthGame.Server
                 MadeThing made = r.Made[i];
                 double east = at.X + made.AcrossM + (made.AlongM == 0.0 && made.AcrossM == 0.0 ? 0.25 * (i % 3 - 1) : 0.0);
                 double north = at.Z + made.AlongM + (made.AlongM == 0.0 && made.AcrossM == 0.0 ? 0.25 * (i / 3) : 0.0);
-                Entity e = World.SpawnItem(made.Definition, east, north, World.GroundAt(east, north) + Hands.ReleaseM, session.YawDeg);
+                Entity e = World.SpawnItem(made.Definition, east, north, World.SurfaceAt(east, north) + Hands.ReleaseM, session.YawDeg);
                 ItemComponent fall = default;
                 fall.Resting = false;
                 fall.State = made.State;
@@ -1785,7 +1786,7 @@ namespace EarthGame.Server
                 east = at.X;
                 north = at.Z;
             }
-            return new Double3(east, World.GroundAt(east, north), north);
+            return new Double3(east, World.SurfaceAt(east, north), north);
         }
 
         /// <summary>A number folded onto [0, period): a bearing that stays a bearing however it is added to.</summary>

@@ -43,9 +43,13 @@ namespace EarthGame.ClientCore
         public uint GroundCrc;
         /// <summary>The checksum of the one ground they were stood on (BF.4, <see cref="GroundSnapshot.Crc"/>); zero for the raster alone.</summary>
         public uint ReliefCrc;
+        /// <summary>The stone tile the rocks were decided from (BF.4 stage three); zero for none, and then no rocks.</summary>
+        public uint StoneCrc;
         public StandTree[] Trees;
         public LooseInstance[] Sticks;
         public LooseInstance[] Cobbles;
+        /// <summary>The rocks that stand on the tile's cells (BF.4 stage three), as the server decides them.</summary>
+        public StandingRock[] Rocks;
     }
 
     /// <summary>
@@ -82,6 +86,11 @@ namespace EarthGame.ClientCore
         /// <param name="fine">The one ground over the tile and the tiles its things spill into (BF.4), a copy the worker alone reads (<see cref="ClientGround.SnapshotFor"/>); null stands everything on the tile's raster alone.</param>
         public static PreparedStand Prepare(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, TileGrid grid, LooseTaken taken, ReceivedTile depth, Dictionary<long, byte> trunkFlags,
                                             GroundSnapshot fine)
+            => Prepare(stand, loose, ground, grid, taken, depth, trunkFlags, fine, null);
+
+        /// <param name="stone">The tile's stone codes (BF.4 stage three): with the snapshot's cover and the loose layer, what the rocks that stand are decided from; null places no rocks yet.</param>
+        public static PreparedStand Prepare(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, TileGrid grid, LooseTaken taken, ReceivedTile depth, Dictionary<long, byte> trunkFlags,
+                                            GroundSnapshot fine, ReceivedTile stone)
         {
             if (stand == null) throw new ArgumentNullException(nameof(stand));
             if (ground == null) throw new ArgumentNullException(nameof(ground));
@@ -101,6 +110,12 @@ namespace EarthGame.ClientCore
             List<StandTree> trees = new List<StandTree>();
             List<LooseInstance> sticks = new List<LooseInstance>();
             List<LooseInstance> cobbles = new List<LooseInstance>();
+            List<StandingRock> rocks = new List<StandingRock>();
+            // The rocks are decided from the cover, the loose layer, the stone and the stand on the tile's own posts, and the one
+            // ground without its hollows: all of it, or none are placed until it is held.
+            ReceivedTile cover = fine?.OwnCover;
+            bool rocksKnown = loose != null && OnePosts(stand, cover) && OnePosts(stand, stone);
+            IHeightSource undug = fine?.Undug;
             for (int z = 0; z <= lastZ; z++)
                 for (int x = 0; x <= lastX; x++)
                 {
@@ -134,14 +149,17 @@ namespace EarthGame.ClientCore
                     }
                     if (loose == null) continue;
                     byte things = loose.Codes[z, x];
+                    StandingRock rock = default;
+                    bool hasRock = rocksKnown && StandingRocks.TryDecide(row, col, cover.Codes[z, x], things, stone.Codes[z, x], code, cell, grid.ExtentM, undug, out rock);
+                    if (hasRock) rocks.Add(rock);
                     if (things == 0) continue;
                     if (depth?.Heights != null && !LiesUnder(TileGround.HeightAt(depth, postEast, postNorth))) continue;
                     LooseTaken.Cell gone = default;
                     taken?.TryGet(row, col, out gone);
                     for (int k = 0; k < LooseCodes.SticksOf(things); k++)
-                        if ((gone.Sticks & (1 << k)) == 0) sticks.Add(Lying(StandLayout.Kind.Stick, row, col, k, cellCm, postEast, postNorth, ground, fine));
+                        if ((gone.Sticks & (1 << k)) == 0) sticks.Add(Lying(StandLayout.Kind.Stick, row, col, k, cellCm, postEast, postNorth, ground, fine, hasRock, rock));
                     for (int k = 0; k < LooseCodes.CobblesOf(things); k++)
-                        if ((gone.Cobbles & (1 << k)) == 0) cobbles.Add(Lying(StandLayout.Kind.Cobble, row, col, k, cellCm, postEast, postNorth, ground, fine));
+                        if ((gone.Cobbles & (1 << k)) == 0) cobbles.Add(Lying(StandLayout.Kind.Cobble, row, col, k, cellCm, postEast, postNorth, ground, fine, hasRock, rock));
                 }
             return new PreparedStand
             {
@@ -150,11 +168,17 @@ namespace EarthGame.ClientCore
                 LooseCrc = loose != null ? loose.Crc32 : 0u,
                 GroundCrc = ground.Crc32,
                 ReliefCrc = fine != null ? fine.Crc : 0u,
+                StoneCrc = rocksKnown ? stone.Crc32 : 0u,
                 Trees = trees.ToArray(),
                 Sticks = sticks.ToArray(),
                 Cobbles = cobbles.ToArray(),
+                Rocks = rocks.ToArray(),
             };
         }
+
+        /// <summary>Whether a code tile lies on a tile's own posts.</summary>
+        private static bool OnePosts(ReceivedTile tile, ReceivedTile codes) =>
+            codes?.Codes != null && codes.Id.Equals(tile.Id) && codes.Posts == tile.Posts && Math.Abs(codes.CellM - tile.CellM) < 1e-9;
 
         /// <summary>
         /// A thing lying, placed as it is drawn (M1.5b): its cell's centre moved by the layout, on the ground the tile
@@ -165,9 +189,13 @@ namespace EarthGame.ClientCore
 
         /// <summary>A thing lying, placed as it is drawn, on the one ground (BF.4) where it is given; the tile's raster alone where it is not.</summary>
         public static LooseInstance Lying(LyingThing thing, ReceivedTile ground, double cellM, double extentM, IHeightSource fine)
+            => Lying(thing, ground, cellM, extentM, fine, false, default);
+
+        /// <summary>The same, moved off the rock standing on its cell where its place falls inside it (BF.4 stage three).</summary>
+        public static LooseInstance Lying(LyingThing thing, ReceivedTile ground, double cellM, double extentM, IHeightSource fine, bool hasRock, in StandingRock rock)
         {
             StandLayout.CellCentre(thing.Row, thing.Col, cellM, extentM, out double east, out double north);
-            return Lying(thing.Kind, thing.Row, thing.Col, thing.Index, (int)Math.Round(cellM * 100.0), east, north, ground, fine);
+            return Lying(thing.Kind, thing.Row, thing.Col, thing.Index, (int)Math.Round(cellM * 100.0), east, north, ground, fine, hasRock, rock);
         }
 
         /// <summary>The ground under a thing: the one ground where it is held there, else the tile's own raster.</summary>
@@ -209,11 +237,13 @@ namespace EarthGame.ClientCore
             return col >= westCol && col <= westCol + span && row <= southRow && row >= southRow - span;
         }
 
-        private static LooseInstance Lying(StandLayout.Kind kind, int row, int col, int index, int cellCm, double postEast, double postNorth, ReceivedTile ground, IHeightSource fine)
+        private static LooseInstance Lying(StandLayout.Kind kind, int row, int col, int index, int cellCm, double postEast, double postNorth, ReceivedTile ground, IHeightSource fine,
+                                           bool hasRock, in StandingRock rock)
         {
             StandLayout.Place(row, col, kind, index, cellCm, out int eastCm, out int northCm, out int yaw);
             double east = postEast + eastCm / 100.0;
             double north = postNorth + northCm / 100.0;
+            StandingRocks.LyingPlace(hasRock, rock, ref east, ref north);
             return new LooseInstance
             {
                 East = (float)east,

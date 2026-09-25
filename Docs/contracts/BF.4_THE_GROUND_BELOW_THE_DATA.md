@@ -2,7 +2,9 @@
 
 **Status:** drafted 2026-09-23, the fourth of the beta's foundations (`Docs/BETA_MAP.md` §7, F4; CANON ruling 41: "Treat
 the world itself as a missing foundational system"). Stage one built and closed 2026-09-23 (6172bd5; its exit record below);
-stage two built 2026-09-24 (its record below); stage three to come. Owner: Claude (the main session). Built in three stages, each
+stage two built 2026-09-24 (its record below); stage three's first part, rock that stands (promise 5 as amended below),
+built 2026-09-25 (its record below); the country's things next, and the stone of the place when William has said yes to its
+two files. Owner: Claude (the main session). Built in three stages, each
 shippable alone: stage one, one ground with relief below the data; stage two, the ground underfoot; stage three, rock
 that stands, the stone of the place and the country's things. William's lane: his eyes on the ground in frames and in
 play, his hands on the walk, and his yes to any data the stone of the place needs.
@@ -108,6 +110,45 @@ the client's Terrain posts sample the function, so what is drawn is what is walk
    bark and tinder under the trees that shed them, dead wood (fallen limbs, rotting logs) in forest by the stand's
    height, gravel in creek beds; each kind with its properties from its place as BF.1 gave the sticks, taken as a bit
    beside the layer (a new change layer in the region file, which its length-prefixed diffs allow without a version).
+
+   *Amended 2026-09-25, before it was built (promise 5).* What the code map of that day found shaped it: the client holds no
+   topology, so "a crest" and "a shore platform" are not facts both sides share (the cover byte folds cliff, platform and
+   thin soil into one `GroundCover.Rock`), and the server keeps no rule that things stay out of a trunk. So a rock is
+   decided cell by cell from what both sides do hold: the cell's cover byte, its loose code's cobbles, its stone code, its
+   stand code, and the slope of the one ground across the cell (`FineGround` at the post's four neighbours 2 m off, both
+   sides equal to the millimetre since stage one). The rule, a first model to be judged in frames (DEBTS):
+
+   | Where | What stands | In how many cells | Size |
+   |---|---|---|---|
+   | Rock cover under 15° (a shore platform, flat bare rock) | a boulder | 6 % and 2 % more a cobble the cell holds | 0.35 to 1.8 m across, most under 0.7 |
+   | Rock cover, 15° to 40° (below a cliff, steep bare rock) | a boulder | 30 % | 0.5 to 2.3 m across |
+   | Rock cover, 40° and steeper (a cliff) | a ledge lying along the slope's contour | 55 % | 1.6 to 3.0 m long, 0.8 to 1.4 m out, 0.35 to 0.8 m thick |
+   | Any other dry cover with cobbles (thin soil over stone) | a boulder | 3 % a cobble | 0.3 to 1.2 m across |
+   | Sand, a dune, water, a swamp, a cell with a trunk or with no stone | nothing | | |
+
+   A rock is a superellipsoid, blocky or rounded by its stone (sandstone blocky, basalt sub-rounded, granite rounded,
+   shale in slabs, the quartzites and volcanics angular), in one of six variants a stone, its axes and yaw hashed from the
+   cell in whole numbers. **A rock keeps inside its own cell**, clear of the cell's edge by half a metre (a trunk's foot
+   in the next cell), so whether a point is on a rock is one cell's question, the tile a client prepares holds everything a
+   rock is decided from, and no rock needs a neighbour's codes. A boulder sits with its widest part three tenths of its
+   half-height above the lowest ground round it, so it rests on a slope without floating; a ledge straddles the slope,
+   half in it. **The feet ground** is the one ground or a rock's top, whichever is higher: the server's movement check
+   judges a founder standing on a boulder by it (today a report more than a metre off the one ground is corrected), a thing
+   let go or falling comes to rest on it, and a stick or a cobble whose place falls inside a rock is moved out past the
+   rock's foot, on both sides by one function. The client draws the rocks instanced out to the near band's 250 m, casting
+   shadows, colour in the meshes; lends convex bodies of the drawn meshes to the rocks within reach of the founder, as the
+   trunks are lent capsules; names a rock under the crosshair with its stone; and hides them all with `-eg-hide rocks`.
+   Not in it: rocks in water (a creek's boulders), tufts kept out of a rock (a tuft there grows against it), animals going
+   round rocks, a boulder as an anvil.
+
+   Proved by: `StandingRocksTests` (the rule's places; the server's rocks and a client's from the tiles equal to a
+   micrometre; a rock inside its cell; seated on the ground; the feet ground over and beside a rock; a thing let go over a
+   boulder resting on it; litter moved out, alike on both sides; a founder standing on a boulder not corrected); sabotages
+   (the server's feet ground without the rocks; a rule on the client that drops a stone's cobbles; the litter left inside);
+   the edit-mode tests of the meshes (closed, convex, within a stated distance of the superellipsoid they are drawn from); in
+   the built game the corpus walk's N2 rows, the scenarios, and frames at Point Perpendicular's cliffs and platform and at the
+   valley's escarpment, with and without the rocks, 1440p and 1080p, for William's eyes; the rocks counted by kind and
+   stone on both places' worlds; and the cost, placing on the worker and the rocks' share of the frame.
 
 ## Non-goals
 
@@ -255,3 +296,74 @@ leaves and reaches, and a fall on the fastest. The server counts exertion by the
 
 What waits on William: his hands on the walk (DEBTS, his table: "The ground underfoot"); the model's stated parts are
 DEBTS' "The ground underfoot is a stated model".
+
+### Stage three, part one: rock that stands (2026-09-25)
+
+**Built.** `StandingRocks` (engine): the rule of the amended promise 5, a rock a `StandingRock` superellipsoid decided cell by cell
+from the cover byte, the cobbles, the stone, the stand and the undug ground's slope, inside its cell; `SurfaceAt` on the world
+(the one ground or a rock's top), read by the movement check (`SurfaceSource`), the fall of things, a thing let go, put down,
+knapped off or made by work, and where a founder is stood; `LyingPlace`, the litter moved to a rock's foot on both sides; the
+dig refused under a boulder; `BedrockOf`; `ThingWords.RockWords`; the census and the host's `rocks` and `rocks near`. On the
+client: rocks placed with a tile's things (`StandPreparation`, from the stone tile as well) and on the main thread
+(`ClientRocks`); drawn (`StandMeshes.Rock`, `StandViews`), lent bodies (`RockBodies`), named under the crosshair, hidden by
+`-eg-hide rocks`; the ground probe feeling for low props under the round foot (`PhysxCollision`); the rocks scenario and
+`Tools/world/rocks.py`, a step of the sweep.
+
+**As run.**
+- `dotnet test Engine/tests/EarthGame.Tests`: 871 passed, 0 failed. `StandingRocksTests` 11 of them, on the ground world of
+  stage one with five stones, cobbles and trees: 6,208 rocks, each the same on the server and on a client from its tiles to a
+  micrometre, every rim inside its cell (the farthest 1.457 m from its post of 1.5 allowed), every boulder seated within 3 cm
+  of its seat between the sixteen points it was seated by, the counts by kind against the table's chances within four
+  standard deviations (flat rock 2,277 where 2,296.8 were expected, steep rock 33 where 24.6, cliffs 170 where 161.7, thin
+  soil 3,425 where 3,602.0), a founder on the tallest standing and one 1.2 m above it not, a cobble let fall
+  over a rock resting on its top, 568 sticks and cobbles moved to a rock's foot alike on both sides, a dig beside a boulder
+  leaving it where it was, and none under it.
+- Three sabotages, each restored byte for byte: the server's surface without the rocks (three red); a client's rule that
+  drops a cell's cobbles (two red); the litter left inside the rocks (one red).
+- The Unity-shaped compile clean; the edit-mode tests 12 of 13, the uncommitted review probe's own failure aside: every rock
+  mesh within its roughness of its superellipsoid, every body on it and under 255 faces; the launch arguments' negative number.
+- The rocks counted on the three worlds by the host (`rocks`): Bherwerre 3,935 over 64 km² (3,261 boulders on flat rock, 492
+  on steep, 60 on thin soil, 122 ledges; 3,921 sandstone, 14 silcrete), in 0.2 s; the 8 km valley 99,138 (63,991 ledges,
+  30,111 boulders on steep rock, 5,015 on thin soil, 21 on flat), in 0.3 s; the whole valley 841,392 (454,292 ledges, 320,081
+  on steep rock, 65,799 on thin soil, 1,220 on flat), in 2.0 s.
+- In the built game (Build/Harness, `BF.4s3-rocks`), `rocks.py` on the gate world: walked at a sandstone boulder 0.58 m high,
+  the founder met it and was stopped and slid along it, the body's middle never nearer its outline than 0.30 m against its
+  0.35 m radius; stood on a sandstone boulder 0.32 m high, the feet at 1.541 m on its surface at 1.541 m, the ground 1.220 m;
+  no correction on either. The litter, controls (42 of 42), trunk, knap, changes (`tile_check` ok), drink and dune scenarios
+  passed; the knap's one correction is its own stand at the wake by the panel, as before; the dune's numbers are stage two's.
+- The cost, each a full turn held 20 s (`vantages.py --hold 20`, the RTX 5070 Ti), with the rocks and without (`--hide rocks`):
+  at the valley's escarpment, where they are thickest, the frame's median 5.2 ms against 4.8 (p95 6.1 against 6.0); at the falls
+  4.6 against 4.3 (6.0 against 5.8); at Bherwerre's wake 3.6 against 3.4 (5.0 against 4.7). The census of a whole world takes
+  the host 0.2 to 2.0 s.
+- The corpus walk (two players at 100 ms and 2 % loss, and one SOLO, ten minutes each, on the rocks build): `join_check --only N2`
+  12 rows, 0 failed, 0 corrections for all three walkers, every named segment reached, the platform's among them
+  (`Artefacts/corpus/rocks-walk-20260924T235815Z`).
+
+**What changed on the way.**
+1. *The rocks' stone.* The first count on Bherwerre found 3,454 of its 3,935 rocks rhyolite and quartz: the stone layer names
+   what lies about to be picked up, beach pebbles on the platforms, where a boulder is the rock beneath. `BedrockOf` makes a rock
+   of the Sydney Basin's sandstone where the layer names a stone the two places have only as pebbles and veins, until the stone
+   of the place (DEBTS).
+2. *The step that went into a rock.* The first walks went through a boulder: the step up lifted the body, found the way over a
+   low rim clear, and let it down by a ray down its middle, which found the ground beside the rock; the body stood inside it, and
+   a capsule cast that starts inside a collider sees nothing. The client's ground probe now feels for props under the whole
+   round foot (a sphere cast beside the ray); the Terrain keeps the ray, and the dune's numbers did not move.
+3. *A knee-high boulder is jumped onto.* With the step taken only where the round foot lands flat, a low rock's steep rim is no
+   step; a jump from a standstill rose half a metre and did not carry far enough forward. The scenario stands the founder on the
+   rock by the host instead of walking onto it; the feel is William's (DEBTS).
+4. *The seat.* Eight points round a rim left a boulder standing a tenth of a metre above the ground between them where the
+   ground folds over a scarp's edge; sixteen leave 3 cm.
+5. *The body's fit.* Six rings of ten faces let a founder pressing on a blocky sandstone's side reach 0.24 m into its shape by
+   the round foot's measure; eight rings of fourteen, 224 faces, leave the body's middle at most 0.05 m inside the outline, and
+   the scenario measures that, not the round foot, against a blocky rock's side, where its top climbs so steeply inside the rim
+   that a few centimetres read as a sixth of a metre.
+6. *A negative number on the command line.* The launch arguments took any word with a leading dash for the next key, and the
+   scenario lost the east of a rock in the west half of the region; a dash before a digit is now a sign.
+7. *Ledges keep inside their cell* at 1.6 to 3.0 m long, where the draft said 3.4.
+8. *The colour.* The first frames drew the sandstone a fresh buff, and on the valley's shaded walls every rock stood out as a pale
+   spot; it is now a weathered grey-buff between the ground palette's dry and wet rock, its lichen and rust fewer. Their sunlit
+   tops still read light against a face turned from a low sun, which is the light's and for William's eyes (DEBTS).
+
+What waits on William: his eyes on the rocks and his hands on meeting them (DEBTS, his table: "The rocks that stand"); his yes
+to the geology's two files for the stone of the place. The model's stated parts are DEBTS' "The rocks' table is stated, not
+measured", "A rock's stone is a stated rule until the stone of the place" and "What the rocks do not yet do".

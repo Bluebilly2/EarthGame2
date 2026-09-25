@@ -59,6 +59,19 @@ namespace EarthGame.Engine
             return sb.ToString();
         }
 
+        /// <summary>A rock that stands in a person's words (BF.4 stage three): "a sandstone boulder, waist-high", "a ledge of basalt".</summary>
+        public static string RockWords(in StandingRock rock)
+        {
+            StoneType stone = rock.StoneType;
+            string of = stone != null ? stone.Name.ToLowerInvariant() : "stone";
+            if (rock.Form == RockForm.Ledge) return "a ledge of " + of;
+            // What stands above its seat, the rest being in the ground.
+            return (StartsWithVowel(of) ? "an " : "a ") + of + " boulder, " + HeightWord((1.0 + StandingRocks.SeatShare) * rock.HalfHeight);
+        }
+
+        /// <summary>A height against the body: knee-high under 0.5 m, waist-high to 1.0, chest-high to 1.4, head-high beyond.</summary>
+        public static string HeightWord(double m) => m < 0.5 ? "knee-high" : m < 1.0 ? "waist-high" : m < 1.4 ? "chest-high" : "head-high";
+
         /// <summary>A tuft in a person's words (BF.3): "a lomandra tuft" when its plant is known, else by its shape.</summary>
         public static string TuftWords(TuftShape shape, PlantSpecies species) =>
             species != null ? (StartsWithVowel(species.DisplayName) ? "an " : "a ") + species.DisplayName + " tuft" : Tufts.NameOf(shape);

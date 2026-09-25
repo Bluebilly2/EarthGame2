@@ -176,7 +176,7 @@ namespace EarthGame.Engine
         {
             double east = Wake.HasValue ? Wake.Value.X : 0.0;
             double north = Wake.HasValue ? Wake.Value.Z : 0.0;
-            double up = Terrain != null ? Math.Max(Heightfield.SeaLevelM, GroundAt(east, north)) : Heightfield.SeaLevelM;
+            double up = Terrain != null ? Math.Max(Heightfield.SeaLevelM, SurfaceAt(east, north)) : Heightfield.SeaLevelM;
             return new Double3(east, up, north);
         }
 
@@ -190,6 +190,13 @@ namespace EarthGame.Engine
             if (Terrain == null || !Terrain.Contains(east, north)) return Heightfield.SeaLevelM;
             return FineGround.At(this, east, north);
         }
+
+        /// <summary>
+        /// What a foot or a thing meets at a point (BF.4 stage three): the one ground, or the top of a rock that stands there where
+        /// that is higher. Where a founder is put, what a thing let go or falling comes to rest on, and what the movement check
+        /// judges a founder's feet by.
+        /// </summary>
+        public double SurfaceAt(double east, double north) => StandingRocks.SurfaceAt(this, east, north);
 
         /// <summary>The cover code of the cell a point stands in, 0 (nothing said) without a cover layer (BF.4 stage two).</summary>
         public byte CoverCodeAt(double east, double north)
@@ -353,7 +360,7 @@ namespace EarthGame.Engine
         /// </summary>
         public Entity SpawnItem(Definition definition, double east, double north, double? up = null, float yawDeg = 0f)
         {
-            double ground = GroundAt(east, north);
+            double ground = SurfaceAt(east, north);
             double at = up.HasValue ? Math.Max(up.Value, ground) : ground;
             Entity e = Entities.Spawn(definition, new Double3(east, at, north), yawDeg, Tick);
             ItemComponent item = default;

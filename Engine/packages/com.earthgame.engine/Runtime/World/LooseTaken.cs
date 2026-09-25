@@ -102,6 +102,9 @@ namespace EarthGame.Engine
             StandLayout.Place(thing.Row, thing.Col, thing.Kind, thing.Index, (int)Math.Round(loose.CellM * 100.0), out int eastCm, out int northCm, out _);
             east += eastCm / 100.0;
             north += northCm / 100.0;
+            // A thing whose place falls inside a rock that stands lies at its foot (BF.4 stage three).
+            bool rock = StandingRocks.TryOfCell(world, thing.Row, thing.Col, out StandingRock standing);
+            StandingRocks.LyingPlace(rock, standing, ref east, ref north);
             at = new Double3(east, world.GroundAt(east, north), north);
             return true;
         }

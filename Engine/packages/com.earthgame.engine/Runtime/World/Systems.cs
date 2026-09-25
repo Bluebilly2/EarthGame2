@@ -34,7 +34,8 @@ namespace EarthGame.Engine
                 double speed = item.FallSpeed + GravityMps2 * dt;
                 Double3 p = e.Position;
                 double up = p.Y - speed * dt;
-                double ground = world.GroundAt(p.X, p.Z);
+                // A thing falling onto a rock that stands comes to rest on its top (BF.4 stage three).
+                double ground = world.SurfaceAt(p.X, p.Z);
                 if (up <= ground)
                 {
                     up = ground;

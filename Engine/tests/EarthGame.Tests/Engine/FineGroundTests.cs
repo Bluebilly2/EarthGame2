@@ -58,8 +58,8 @@ namespace EarthGame.Tests.Engine
         public static RegionRaster Heights() => TestRasters.FromLaw(Side, CellM, ExtentM, "fine", Height);
         public static RegionRaster Cover() => TestRasters.FromCodes(Side, CellM, ExtentM, "fine_cover", "cover", CoverAt, null);
 
-        public static WorldState Make(ulong seed = Seed, bool withCover = true, RegionRaster stand = null, RegionRaster loose = null) =>
-            new WorldState(seed, Region, Region.WakeClock(), new Heightfield(Heights()), 0, null, null, withCover ? Cover() : null, stand, loose);
+        public static WorldState Make(ulong seed = Seed, bool withCover = true, RegionRaster stand = null, RegionRaster loose = null, RegionRaster stone = null) =>
+            new WorldState(seed, Region, Region.WakeClock(), new Heightfield(Heights()), 0, null, null, withCover ? Cover() : null, stand, loose, stone);
 
         public static TileGrid Grid() => new TileGrid(ExtentM);
 
@@ -74,6 +74,7 @@ namespace EarthGame.Tests.Engine
                 case TileLayer.GroundCover: encoded = TileCodec.EncodeCodes(world.Cover, layer, grid, id); break;
                 case TileLayer.Stand: encoded = TileCodec.EncodeCodes(world.Stand, layer, grid, id); break;
                 case TileLayer.Loose: encoded = TileCodec.EncodeCodes(world.Loose, layer, grid, id); break;
+                case TileLayer.Stone: encoded = TileCodec.EncodeCodes(world.Stone, layer, grid, id); break;
                 default: throw new ArgumentOutOfRangeException(nameof(layer));
             }
             ReceivedTile tile = new ReceivedTile

@@ -95,6 +95,7 @@ def steps(run, short):
         Step("dune", py("Tools/world/dune.py", "--world", gate), play, makes="dune-"),
         Step("dune-at-face", py("Tools/world/dune.py", "--world", gate, "--at-face"), play, makes="dune-"),
         Step("changes", py("Tools/world/changes.py", "--world", gate), play, makes="changes-"),
+        Step("rocks", py("Tools/world/rocks.py", "--world", gate), play, makes="rocks-"),
         Step("idle", py("Tools/world/idle.py", "--world", gate), play, makes="idle-"),
         Step("looks", py("Tools/world/looks.py", "--world", gate), play, makes="looks-"),
         Step("stream", py("Tools/world/stream.py", "--world", gate), play),

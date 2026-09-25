@@ -182,6 +182,17 @@ namespace EarthGame.Engine
         /// <summary>The ground at a point as the server holds the world; the datum without terrain.</summary>
         public static double At(WorldState world, double east, double north) =>
             TryQuad(world, east, north, out GroundQuad q) ? At(q, east, north, world.Seed) : Heightfield.SeaLevelM;
+
+        /// <summary>
+        /// The ground at a point as the server holds the world, as if nothing had been dug (BF.4 stage three): what a rock that
+        /// stands is seated on, so a dig beside it does not move it; the datum without terrain or beyond it.
+        /// </summary>
+        public static double UndugAt(WorldState world, double east, double north)
+        {
+            if (world?.Terrain == null || !world.Terrain.Contains(east, north) || !TryQuad(world, east, north, out GroundQuad q)) return Heightfield.SeaLevelM;
+            q.SW.DugCm = q.SE.DugCm = q.NW.DugCm = q.NE.DugCm = 0;
+            return At(q, east, north, world.Seed);
+        }
     }
 
     /// <summary>The ground as a height source (BF.4): the server's <see cref="FineGround"/>, for what judges a founder against it.</summary>
@@ -195,6 +206,23 @@ namespace EarthGame.Engine
         }
 
         public double HeightAt(double east, double north) => _world.GroundAt(east, north);
+    }
+
+    /// <summary>
+    /// What a founder's feet meet as a height source (BF.4 stage three): the one ground, or the top of a rock that stands where
+    /// that is higher (<see cref="StandingRocks.SurfaceAt"/>). What the movement check judges a report against, so a founder
+    /// standing on a boulder is standing, not a metre off the ground.
+    /// </summary>
+    public sealed class SurfaceSource : IHeightSource
+    {
+        private readonly WorldState _world;
+
+        public SurfaceSource(WorldState world)
+        {
+            _world = world ?? throw new ArgumentNullException(nameof(world));
+        }
+
+        public double HeightAt(double east, double north) => _world.SurfaceAt(east, north);
     }
 
     /// <summary>

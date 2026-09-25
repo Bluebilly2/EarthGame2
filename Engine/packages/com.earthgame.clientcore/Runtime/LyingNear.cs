@@ -50,19 +50,22 @@ namespace EarthGame.ClientCore
                     // What the lake bed keeps to itself is neither seen nor reached (M1.6e): the same rule as the drawing's.
                     ReceivedTile depth = tiles.Holding(TileLayer.WaterDepth, id);
                     if (depth?.Heights != null && !StandPreparation.LiesUnder(TileGround.HeightAt(depth, centreEast, centreNorth))) continue;
-                    Add(row, col, StandLayout.Kind.Stick, LooseCodes.SticksOf(code), tile, groundOne, cell, grid.ExtentM, taken, into);
-                    Add(row, col, StandLayout.Kind.Cobble, LooseCodes.CobblesOf(code), tile, groundOne, cell, grid.ExtentM, taken, into);
+                    // A thing whose place falls inside the rock standing on its cell lies at its foot, as it is drawn (BF.4 stage three).
+                    StandingRock rock = default;
+                    bool hasRock = groundOne != null && ClientRocks.TryOfCell(tiles.Holding, grid, groundOne.Undug, cell, row, col, out rock);
+                    Add(row, col, StandLayout.Kind.Stick, LooseCodes.SticksOf(code), tile, groundOne, cell, grid.ExtentM, taken, into, hasRock, rock);
+                    Add(row, col, StandLayout.Kind.Cobble, LooseCodes.CobblesOf(code), tile, groundOne, cell, grid.ExtentM, taken, into, hasRock, rock);
                 }
         }
 
         private static void Add(int row, int col, StandLayout.Kind kind, int count, ReceivedTile ground, ClientGround one, double cellM, double extentM,
-                                LooseTaken taken, List<LyingNearby> into)
+                                LooseTaken taken, List<LyingNearby> into, bool hasRock, in StandingRock rock)
         {
             for (int k = 0; k < count; k++)
             {
                 LyingThing thing = new LyingThing(row, col, kind, k);
                 if (taken != null && taken.IsTaken(thing)) continue;
-                into.Add(new LyingNearby { Thing = thing, Instance = StandPreparation.Lying(thing, ground, cellM, extentM, one) });
+                into.Add(new LyingNearby { Thing = thing, Instance = StandPreparation.Lying(thing, ground, cellM, extentM, one, hasRock, rock) });
             }
         }
     }

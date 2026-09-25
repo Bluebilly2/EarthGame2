@@ -57,6 +57,8 @@ namespace EarthGame.Client
         private static readonly Dictionary<int, Mesh> Tufts = new Dictionary<int, Mesh>();
         private static readonly Dictionary<int, Mesh> StrippedTrees = new Dictionary<int, Mesh>();
         private static readonly Dictionary<int, Mesh> Logs = new Dictionary<int, Mesh>();
+        private static readonly Dictionary<int, Mesh> Rocks = new Dictionary<int, Mesh>();
+        private static readonly Dictionary<int, Mesh> RockBodies = new Dictionary<int, Mesh>();
 
         /// <summary>The colour of a trunk whose bark is taken (BF.3): the pale sapwood, wet.</summary>
         private static readonly Color Sapwood = new Color(0.86f, 0.80f, 0.66f);
@@ -251,6 +253,130 @@ namespace EarthGame.Client
             mesh = data.ToMesh("Cobble " + v);
             Cobbles[v] = mesh;
             return mesh;
+        }
+
+        // ------------------------------------------------------------------ rock that stands (BF.4 stage three)
+
+        /// <summary>How finely a drawn rock is cut: rings from its foot to its top, and faces round each ring.</summary>
+        private const int RockRings = 10, RockAround = 16;
+
+        /// <summary>How finely a rock's body is cut: 224 faces, under the 255 the physics allows a convex body. With six rings of ten, a founder pressing on a blocky sandstone's side reached 0.24 m into its shape as the server holds it by the round foot's measure; with these, the body's middle stays within 0.05 m of its outline (2026-09-25).</summary>
+        private const int RockBodyRings = 8, RockBodyAround = 14;
+
+        /// <summary>How far a drawn rock's surface is pushed in or out of the superellipsoid it is drawn from, a share of each half-axis.</summary>
+        public const float RockRoughness = 0.04f;
+
+        /// <summary>How many rock meshes there are: every stone's, of both forms, in every variant.</summary>
+        public static int RockGroups => StoneType.All.Count * 2 * StandingRocks.Variants;
+
+        /// <summary>Which rock mesh a rock is drawn in: its stone's, of its form, in its variant.</summary>
+        public static int RockGroup(int stone, RockForm form, int variant) =>
+            (stone * 2 + (form == RockForm.Ledge ? 1 : 0)) * StandingRocks.Variants + ((variant % StandingRocks.Variants) + StandingRocks.Variants) % StandingRocks.Variants;
+
+        /// <summary>
+        /// A rock that stands, drawn (BF.4 stage three): the superellipsoid of its stone, form and variant
+        /// (<see cref="StandingRocks.ShapeOf"/>) at unit half-axes, across on x, up on y and along on z, its surface pushed in and
+        /// out by <see cref="RockRoughness"/> of each half-axis so no two faces lie in one plane. Each face is its stone's colour
+        /// (<see cref="StandForms.RockOf"/>), darker toward the foot where the ground keeps it damp, a sandstone's streaked down with
+        /// rust, and the sunlit tops of the stones that grow it patched with lichen. The client scales it to the rock's half-axes.
+        /// </summary>
+        public static Mesh Rock(int stone, RockForm form, int variant)
+        {
+            int key = RockGroup(stone, form, variant);
+            if (Rocks.TryGetValue(key, out Mesh mesh)) return mesh;
+            Vector3[,] points = RockPoints(stone, form, variant, RockRings, RockAround, true);
+            StoneType s = StoneType.All[stone];
+            Color colour = ToColor(StandForms.RockOf(s)), stain = ToColor(StandForms.RockStain), lichen = ToColor(StandForms.Lichen);
+            bool stains = ReferenceEquals(s, StoneType.Sandstone);
+            bool lichens = !(ReferenceEquals(s, StoneType.Basalt) || ReferenceEquals(s, StoneType.Obsidian) || ReferenceEquals(s, StoneType.Shale));
+            int seed = key * 131 + 7;
+            MeshData data = new MeshData();
+            for (int ring = 0; ring < RockRings; ring++)
+                for (int k = 0; k < RockAround; k++)
+                {
+                    int next = (k + 1) % RockAround;
+                    Vector3 a = points[ring, k], b = points[ring, next], c = points[ring + 1, next], d = points[ring + 1, k];
+                    // Two faces a quad; at the foot and the top one of them has no area, and is dropped.
+                    Color first = RockFace(a, b, c, seed, ring * RockAround + k, k, colour, stain, lichen, stains, lichens);
+                    Color second = RockFace(a, c, d, seed, ring * RockAround + k + RockRings * RockAround, k, colour, stain, lichen, stains, lichens);
+                    data.AddFace(a, b, c, Vector3.zero, first, first, first);
+                    data.AddFace(a, c, d, Vector3.zero, second, second, second);
+                }
+            mesh = data.ToMesh("Rock " + s.Name + " " + form + " " + variant);
+            Rocks[key] = mesh;
+            return mesh;
+        }
+
+        /// <summary>
+        /// A rock's body (BF.4 stage three): the same superellipsoid, smooth and coarser, which the client's physics wraps in a
+        /// convex hull; so a founder is stopped by, and stands on, the rock the server judges them by, to a few centimetres.
+        /// </summary>
+        public static Mesh RockBody(int stone, RockForm form, int variant)
+        {
+            int key = RockGroup(stone, form, variant);
+            if (RockBodies.TryGetValue(key, out Mesh mesh)) return mesh;
+            Vector3[,] points = RockPoints(stone, form, variant, RockBodyRings, RockBodyAround, false);
+            List<Vector3> verts = new List<Vector3>();
+            List<int> tris = new List<int>();
+            for (int ring = 0; ring <= RockBodyRings; ring++)
+                for (int k = 0; k < RockBodyAround; k++) verts.Add(points[ring, k]);
+            for (int ring = 0; ring < RockBodyRings; ring++)
+                for (int k = 0; k < RockBodyAround; k++)
+                {
+                    int next = (k + 1) % RockBodyAround;
+                    int a = ring * RockBodyAround + k, b = ring * RockBodyAround + next, c = (ring + 1) * RockBodyAround + next, d = (ring + 1) * RockBodyAround + k;
+                    tris.Add(a); tris.Add(c); tris.Add(b);
+                    tris.Add(a); tris.Add(d); tris.Add(c);
+                }
+            mesh = new Mesh { name = "Rock body " + StoneType.All[stone].Name + " " + form + " " + variant };
+            mesh.SetVertices(verts);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateBounds();
+            RockBodies[key] = mesh;
+            return mesh;
+        }
+
+        /// <summary>
+        /// The superellipsoid's points at unit half-axes, ring by ring from its foot to its top (Barr's parametric form,
+        /// |cos|^ε and |sin|^ε with their signs), each pushed in or out along its own line by up to <see cref="RockRoughness"/>
+        /// when <paramref name="rough"/>; the foot and the top are single points.
+        /// </summary>
+        private static Vector3[,] RockPoints(int stone, RockForm form, int variant, int rings, int around, bool rough)
+        {
+            StandingRocks.ShapeOf(stone, form, variant, out double squareUp, out double squareAround);
+            Vector3[,] points = new Vector3[rings + 1, around];
+            int seed = RockGroup(stone, form, variant) * 977 + 3;
+            for (int ring = 0; ring <= rings; ring++)
+            {
+                double eta = -0.5 * System.Math.PI + System.Math.PI * ring / rings;
+                double ce = Signed(System.Math.Cos(eta), squareUp), se = Signed(System.Math.Sin(eta), squareUp);
+                if (ring == 0 || ring == rings) ce = 0.0;
+                for (int k = 0; k < around; k++)
+                {
+                    double omega = -System.Math.PI + 2.0 * System.Math.PI * k / around;
+                    double cw = Signed(System.Math.Cos(omega), squareAround), sw = Signed(System.Math.Sin(omega), squareAround);
+                    Vector3 p = new Vector3((float)(ce * sw), (float)se, (float)(ce * cw));
+                    float push = rough && ring > 0 && ring < rings ? RockRoughness * (2f * Hash01(seed, ring * around + k) - 1f) : 0f;
+                    points[ring, k] = p * (1f + push);
+                }
+            }
+            return points;
+        }
+
+        private static double Signed(double v, double exponent) => System.Math.Sign(v) * System.Math.Pow(System.Math.Abs(v), exponent);
+
+        /// <summary>One face of a rock's colour: its stone's, a little lighter or darker, darker below its middle, and a stain or lichen where they fall.</summary>
+        private static Color RockFace(Vector3 a, Vector3 b, Vector3 c, int seed, int face, int column, Color stone, Color stain, Color lichen, bool stains, bool lichens)
+        {
+            Vector3 centre = (a + b + c) / 3f;
+            Color colour = Scale(stone, Jitter(seed, face, 0.08f));
+            // Toward the foot, which the ground keeps damp: three quarters as bright at the very bottom.
+            if (centre.y < 0f) colour = Scale(colour, 1f + 0.25f * centre.y);
+            // Rust runs down a sandstone's side in streaks: whole columns of faces, above the foot.
+            if (stains && centre.y > -0.5f && Hash01(seed + 3, column) < 0.12f) colour = Color.Lerp(colour, stain, 0.45f);
+            // Lichen on the tops the sun and the rain reach.
+            if (lichens && centre.y > 0.35f && Hash01(seed + 5, face) < 0.25f) colour = Color.Lerp(colour, lichen, 0.5f);
+            return colour;
         }
 
         // ------------------------------------------------------------------ the understorey (M1.6c)

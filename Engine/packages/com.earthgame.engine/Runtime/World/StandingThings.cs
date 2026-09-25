@@ -63,6 +63,8 @@ namespace EarthGame.Engine
         /// <summary>The plant the understorey layer names on the cell, or null.</summary>
         public PlantSpecies Understory;
         public Double3 Centre;
+        /// <summary>Whether a rock stands on the cell (BF.4 stage three): nothing digs under a boulder.</summary>
+        public bool RockStands;
 
         /// <summary>How many of the cover's own tufts still stand: none once the cell is cleared, and never more than the change bits can mark.</summary>
         public int TuftsLeft
@@ -210,6 +212,7 @@ namespace EarthGame.Engine
             }
             site.SoilDepthM = Inside(world.SoilDepth, row, col) ? world.SoilDepth[row, col] : 0.0;
             site.Understory = UnderstoryAt(world, row, col);
+            site.RockStands = StandingRocks.TryOfCell(world, row, col, out _);
             StandLayout.CellCentre(row, col, cover.CellM, cover.ExtentM, out double east, out double north);
             site.Centre = new Double3(east, world.GroundAt(east, north), north);
             world.WaterAt(east, north, out double depth);

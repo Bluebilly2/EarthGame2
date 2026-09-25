@@ -75,6 +75,23 @@ namespace EarthGame.ClientCore
             return HeightAt(ground, _tiles(TileLayer.GroundCover, id), Seed, _grid.ExtentM, null, east, north);
         }
 
+        /// <summary>The ground as if nothing had been dug, as a height source (BF.4 stage three): what a rock that stands is seated on.</summary>
+        public IHeightSource Undug => _undug ?? (_undug = new UndugGround(this));
+
+        private IHeightSource _undug;
+
+        private sealed class UndugGround : IHeightSource
+        {
+            private readonly ClientGround _ground;
+
+            public UndugGround(ClientGround ground)
+            {
+                _ground = ground;
+            }
+
+            public double HeightAt(double east, double north) => _ground.UndugAt(east, north);
+        }
+
         /// <summary>
         /// The ground at a point of one tile, from what a worker was handed (M1.4e): the tile's ground, its cover (null for none
         /// yet, and then no relief), the seed and the dug depth by cell (null for none). The tile's own posts and no neighbour's,
@@ -230,13 +247,38 @@ namespace EarthGame.ClientCore
         public uint Crc { get; }
 
         /// <summary>The ground at a point, from the tile of the four the point lies on, or the own tile's posts carried on; NaN if even the own tile's ground is not held.</summary>
-        public double HeightAt(double east, double north)
+        public double HeightAt(double east, double north) => At(east, north, _dug);
+
+        /// <summary>The ground at a point as if nothing had been dug (BF.4 stage three): what a rock that stands is seated on.</summary>
+        public double UndugAt(double east, double north) => At(east, north, null);
+
+        /// <summary>The same ground without its hollows, as a height source.</summary>
+        public IHeightSource Undug => _undug ?? (_undug = new UndugGround(this));
+
+        /// <summary>The own tile's cover, where it is held on the ground's own posts; null where it is not.</summary>
+        public ReceivedTile OwnCover => _cover[0];
+
+        private IHeightSource _undug;
+
+        private double At(double east, double north, Func<int, int, byte> dug)
         {
             TileId id = _grid.ForPosition(east, north);
             for (int i = 0; i < 4; i++)
                 if (_ground[i] != null && _ids[i].Equals(id))
-                    return ClientGround.HeightAt(_ground[i], _cover[i], _seed, _grid.ExtentM, _dug, east, north);
-            return _ground[0] != null ? ClientGround.HeightAt(_ground[0], _cover[0], _seed, _grid.ExtentM, _dug, east, north) : double.NaN;
+                    return ClientGround.HeightAt(_ground[i], _cover[i], _seed, _grid.ExtentM, dug, east, north);
+            return _ground[0] != null ? ClientGround.HeightAt(_ground[0], _cover[0], _seed, _grid.ExtentM, dug, east, north) : double.NaN;
+        }
+
+        private sealed class UndugGround : IHeightSource
+        {
+            private readonly GroundSnapshot _snapshot;
+
+            public UndugGround(GroundSnapshot snapshot)
+            {
+                _snapshot = snapshot;
+            }
+
+            public double HeightAt(double east, double north) => _snapshot.UndugAt(east, north);
         }
     }
 }

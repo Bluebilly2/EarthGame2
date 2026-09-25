@@ -598,6 +598,7 @@ namespace EarthGame.Engine
                         case GroundCover.SwampFloor: return Refuse(kind, VerbOutcome.WontWork, "the swamp's floor is wet mud: it will not hold a hole");
                         case GroundCover.Unknown: return Refuse(kind, VerbOutcome.WontWork, "the ground here is not known");
                     }
+                    if (site.RockStands) return Refuse(kind, VerbOutcome.WontWork, "a boulder sits on this ground");
                     if (site.SoilDepthM < LeastSoilM) return Refuse(kind, VerbOutcome.WontWork, "the soil is too thin here: the stick meets stone");
                     if (site.SoilDepthM - site.DugCm / 100.0 < DigStepCm / 100.0 - 1e-6) return Refuse(kind, VerbOutcome.WontWork, "the hole is down to the stone");
                     bool sand = site.Cover == GroundCover.Sand || site.Cover == GroundCover.DuneSand;

@@ -239,7 +239,8 @@ namespace EarthGame.Engine
             if (Math.Abs(at.X) > half || Math.Abs(at.Z) > half) return VerbOutcome.OutOfReach;
             // Picked up in this very tick, it is still in the store until the tick ends.
             if (world.Entities.TryGet(thing.Id, out _)) return VerbOutcome.NotNow;
-            double ground = world.GroundAt(at.X, at.Z);
+            // Over a rock that stands, let go above its top (BF.4 stage three), never inside it.
+            double ground = world.SurfaceAt(at.X, at.Z);
             Entity e = world.Entities.Return(thing.Id, thing.Definition, new Double3(at.X, Math.Max(at.Y, ground) + ReleaseM, at.Z), yawDeg, thing.SpawnTick, world.Tick);
             e.SetItem(LetGo(thing.Item), world.Tick);
             Remove(thing.Place);
@@ -253,7 +254,7 @@ namespace EarthGame.Engine
         /// </summary>
         public void LetGoOfEverything(WorldState world, Double3 at, float yawDeg)
         {
-            double ground = world.GroundAt(at.X, at.Z);
+            double ground = world.SurfaceAt(at.X, at.Z);
             Double3 place = new Double3(at.X, Math.Max(at.Y, ground) + ReleaseM, at.Z);
             for (int i = 0; i < _things.Count; i++)
             {

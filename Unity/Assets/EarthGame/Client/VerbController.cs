@@ -67,6 +67,8 @@ namespace EarthGame.Client
         private readonly IHeightSource _ground;
         private readonly StreamedWater _water;
         private readonly TrunkBodies _trunks;
+        /// <summary>The rocks' bodies (BF.4 stage three): what the crosshair met, when it met one of them.</summary>
+        private readonly RockBodies _rocks;
         private readonly UnderstoreyViews _understorey;
         /// <summary>The one ground (BF.4): what the litter lies on as it is drawn, so the crosshair meets a stick where it is.</summary>
         private readonly ClientGround _fine;
@@ -98,6 +100,9 @@ namespace EarthGame.Client
         /// <summary>The trunk under the crosshair within reach (BF.3), met through its body, or null.</summary>
         public TrunkNearby? TargetTrunk { get; private set; }
 
+        /// <summary>The rock that stands under the crosshair within reach (BF.4 stage three): named, and a thing in hand put down on it.</summary>
+        public StandingRock? TargetRock { get; private set; }
+
         /// <summary>The tuft of the understorey under the crosshair within reach (BF.3), or null.</summary>
         public UnderstoreyTuft? TargetTuft { get; private set; }
 
@@ -117,7 +122,8 @@ namespace EarthGame.Client
         public string Line { get; private set; } = string.Empty;
 
         public VerbController(GameClient client, EntityViews entities, PlayerController player, Camera camera, HudController hud, HandView hand,
-                              IHeightSource ground = null, StreamedWater water = null, TrunkBodies trunks = null, UnderstoreyViews understorey = null, ClientGround fine = null)
+                              IHeightSource ground = null, StreamedWater water = null, TrunkBodies trunks = null, UnderstoreyViews understorey = null, ClientGround fine = null,
+                              RockBodies rocks = null)
         {
             _player = player;
             _camera = camera;
@@ -126,6 +132,7 @@ namespace EarthGame.Client
             _ground = ground;
             _water = water;
             _trunks = trunks;
+            _rocks = rocks;
             _understorey = understorey;
             _fine = fine;
             Rebind(client, entities);
@@ -210,6 +217,7 @@ namespace EarthGame.Client
                 Target = null;
                 TargetLying = null;
                 TargetTrunk = null;
+                TargetRock = null;
                 TargetTuft = null;
                 GroundCell = null;
                 Ground = null;
@@ -375,6 +383,8 @@ namespace EarthGame.Client
                 site.DugCm = change.DugCm;
             }
             site.SoilDepthM = AssumedSoilM;
+            // A boulder on the cell (BF.4 stage three), as the server decides it: nothing digs under one.
+            site.RockStands = _fine != null && ClientRocks.TryOfCell(_client.Tiles.Holding, _client.Grid, _fine.Undug, cellM, row, col, out _);
             Vector3 at = Ground.Value;
             if (_water != null && _ground != null)
             {
@@ -480,6 +490,7 @@ namespace EarthGame.Client
             Target = null;
             TargetLying = null;
             TargetTrunk = null;
+            TargetRock = null;
             TargetTuft = null;
             GroundCell = null;
             Ground = null;
@@ -492,8 +503,10 @@ namespace EarthGame.Client
             bool onGround = hitAny && hit.collider != null && hit.collider.gameObject.layer == Layers.Terrain;
             TrunkNearby trunkHit = default;
             bool onTrunk = hitAny && !onGround && _trunks != null && _trunks.TryTrunkOf(hit.collider, out trunkHit);
+            StandingRock rockHit = default;
+            bool onRock = hitAny && !onGround && !onTrunk && _rocks != null && _rocks.TryRockOf(hit.collider, out rockHit);
             float nearestM = hitAny ? hit.distance : within;
-            int which = onTrunk ? 4 : onGround ? 5 : 0;
+            int which = onTrunk ? 4 : onRock ? 6 : onGround ? 5 : 0;
             Double3 body = _player.Eye;
             EntityView entity = null;
             if (_entities != null && _entities.Pick(ray, nearestM, out EntityView picked, out float pickedM))
@@ -535,6 +548,18 @@ namespace EarthGame.Client
                 {
                     Double3 at = new Double3(hit.point.x, hit.point.y, hit.point.z);
                     if (Double3.Distance(body, at) <= Hands.ReachM + 0.1) TargetTrunk = trunkHit;
+                    return;
+                }
+                case 6:
+                {
+                    // A rock that stands (BF.4 stage three) hides the ground behind it; it is named, and a thing in hand is put down
+                    // where the crosshair meets it, which the server lets rest on its top. No work on the ground is offered on it.
+                    Double3 at = new Double3(hit.point.x, hit.point.y, hit.point.z);
+                    if (Double3.Distance(body, at) <= Hands.ReachM + 0.1)
+                    {
+                        TargetRock = rockHit;
+                        Ground = hit.point;
+                    }
                     return;
                 }
             }
@@ -656,6 +681,12 @@ namespace EarthGame.Client
                 TrunkTarget(trunk, out Definition kind, out ThingState state);
                 WorkOffer? work = WorkOfferFor(carrying, kind, state);
                 return work.HasValue ? name + " — hold to " + work.Value.Words : name;
+            }
+            // A rock that stands (BF.4 stage three), named by its stone and form; a thing in hand can be put down on it.
+            if (TargetRock.HasValue)
+            {
+                string name = ThingWords.RockWords(TargetRock.Value);
+                return use.Length > 0 ? name + " — " + use : name;
             }
             // The ground (BF.3): cleared with empty hands, dug with a pointed stick; a thing in hand is put down on it.
             WorkOffer? ground = GroundCell.HasValue ? GroundOfferFor(carrying) : null;

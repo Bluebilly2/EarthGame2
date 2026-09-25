@@ -113,6 +113,8 @@ namespace EarthGame.Client
         private HandView _hand;
         private Sounds _sounds;
         private TrunkBodies _trunks;
+        /// <summary>The rocks a founder can walk into and stand on (BF.4 stage three), lent bodies as the trunks are.</summary>
+        private RockBodies _rocks;
         /// <summary>How many feet have fallen on each ground (M1.5c), for a run log.</summary>
         private readonly Dictionary<FootingSound, int> _heard = new Dictionary<FootingSound, int>();
         /// <summary>How many times something has been taken from each tile's cells (M1.5b), so the stand knows to place it again.</summary>
@@ -151,6 +153,12 @@ namespace EarthGame.Client
         public TileHeightfield Ground => _ground;
         /// <summary>The one ground (BF.4), for a scenario to set beside the Terrain it drew.</summary>
         public ClientGround FineGround => _fine;
+
+        /// <summary>What stands and lies on the ground, drawn (M1.6a), for a scenario that looks for a rock among them (BF.4 stage three).</summary>
+        public StandViews Stand => _stand;
+
+        /// <summary>How many rocks have bodies now (BF.4 stage three), for a run's record.</summary>
+        public int RockBodiesStanding => _rocks != null ? _rocks.Standing : 0;
         public bool ViewBuilt { get; private set; }
         /// <summary>What grows underfoot (M1.6c), for a run to count and a scenario to hide.</summary>
         public UnderstoreyViews Understorey => _understorey;
@@ -423,6 +431,7 @@ namespace EarthGame.Client
                 DrainPreparations();
                 // The trunks round the body are given their capsules before the mover's next step walks into them (M1.6b).
                 _trunks?.Follow(_player.State.East, _player.State.North, _client.Tiles, _client.Grid, _client.Changes);
+                _rocks?.Follow(_player.State.East, _player.State.North, _stand);
                 _understorey?.Follow(_player.State.East, _player.State.North, _client.Tiles, _client.Grid, _client.Changes);
                 if (_stand != null && _camera != null) _stand.Draw(_camera, _sun);
                 if (_camera != null) _understorey?.Draw(_camera);
@@ -654,7 +663,8 @@ namespace EarthGame.Client
             _stand.Want(stand, loose, _client.Tiles.Holding(TileLayer.Ground, id),
                         StandPreparation.TakenIn(_client.Taken, loose, _client.Grid), version,
                         _client.Tiles.Holding(TileLayer.WaterDepth, id),
-                        StandPreparation.TrunkFlagsIn(_client.Changes, stand, _client.Grid), changed, _fine?.SnapshotFor(id));
+                        StandPreparation.TrunkFlagsIn(_client.Changes, stand, _client.Grid), changed, _fine?.SnapshotFor(id),
+                        _client.Tiles.Holding(TileLayer.Stone, id));
         }
 
         /// <summary>What of each changed cell has been drawn (BF.3): its tufts taken, its trunk's flags and its ground's, so a change that alters none of them is drawn once.</summary>
@@ -775,9 +785,10 @@ namespace EarthGame.Client
             }
             // The water's depth too (M1.6e): a lake bed's sticks and cobbles are placed again, and left out, when it arrives. And the
             // cover (BF.4), which the ground's relief under everything is grown from; a tile's ground or cover places again the tiles
-            // east and north of it as well, whose edge things lie on it.
+            // east and north of it as well, whose edge things lie on it. And the stone, which the rocks that stand are decided from
+            // (BF.4 stage three).
             if (tile.Layer == TileLayer.Stand || tile.Layer == TileLayer.Loose || tile.Layer == TileLayer.Ground || tile.Layer == TileLayer.WaterDepth
-                || tile.Layer == TileLayer.GroundCover) WantStand(tile.Id);
+                || tile.Layer == TileLayer.GroundCover || tile.Layer == TileLayer.Stone) WantStand(tile.Id);
             if (tile.Layer == TileLayer.Ground || tile.Layer == TileLayer.GroundCover)
             {
                 WantStand(new TileId(tile.Id.Ix + 1, tile.Id.Iz));
@@ -1196,6 +1207,14 @@ namespace EarthGame.Client
                         Debug.Log("[client] -eg-hide relief: hidden");
                         continue;
                     }
+                    if (name == "rocks" && _stand != null)
+                    {
+                        // The rocks that stand (BF.4 stage three), drawn and solid, for a frame beside one with them; the server keeps
+                        // them, so a thing let go over one still rests on its top.
+                        _stand.DrawRocks = false;
+                        Debug.Log("[client] -eg-hide rocks: hidden");
+                        continue;
+                    }
                     if (name == "understorey" && _understorey != null)
                     {
                         _understorey.Drawn = false;
@@ -1298,11 +1317,12 @@ namespace EarthGame.Client
             _player.Stepped += OnStepped;
             // The trunks a founder can walk into (M1.6b): the client's, since the server never runs the mover.
             _trunks = new TrunkBodies(transform) { Ground = _fine };
+            _rocks = new RockBodies(transform);
             _sounds = new Sounds(_camera.transform);
 
             // The verbs (M1.5a): what the crosshair is on, the verb line, the carrying window and the thing in hand.
             if (_stand != null) _hand = new HandView(_camera, _stand.LooseMaterial);
-            _verbs = new VerbController(_client, _entityViews, _player, _camera, _hud, _hand, _ground, _ground != null ? new StreamedWater(_ground, _depth) : null, _trunks, _understorey, _fine);
+            _verbs = new VerbController(_client, _entityViews, _player, _camera, _hud, _hand, _ground, _ground != null ? new StreamedWater(_ground, _depth) : null, _trunks, _understorey, _fine, _rocks);
             // The developer's panel (M1.D), on an object of its own, since an object holds one UIDocument and the HUD's is on
             // this one. Built in every game since M1.E and opened only while developer mode is on, which F2 turns on and off.
             _devPanel = new GameObject("Developer panel").AddComponent<DevPanelController>();
@@ -1455,6 +1475,7 @@ namespace EarthGame.Client
             _verbs?.Dispose();
             _hand?.Dispose();
             _trunks?.Dispose();
+            _rocks?.Dispose();
             _understorey?.Dispose();
             _sounds?.Dispose();
             if (_player != null) _player.Stepped -= OnStepped;

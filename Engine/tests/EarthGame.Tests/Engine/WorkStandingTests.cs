@@ -200,6 +200,12 @@ namespace EarthGame.Tests.Engine
             Assert.That(Work.JudgeGround(WorkKind.Dig, DefinitionCatalogue.Stick, PointedStick(), Site(GroundCover.SwampFloor, 3, null, 0.8)).Outcome, Is.EqualTo(VerbOutcome.WontWork), "wet swamp");
             Assert.That(Work.JudgeGround(WorkKind.Dig, DefinitionCatalogue.Stick, PointedStick(), Site(GroundCover.Grass, 1, null, 0.5, waterM: 0.1)).Outcome, Is.EqualTo(VerbOutcome.WontWork), "under water");
             Assert.That(Work.JudgeGround(WorkKind.Dig, DefinitionCatalogue.Stick, PointedStick(), Site(GroundCover.Grass, 1, null, 0.05)).Outcome, Is.EqualTo(VerbOutcome.WontWork), "thin soil");
+            // Nothing digs under a boulder (BF.4 stage three).
+            GroundSite underBoulder = soil;
+            underBoulder.RockStands = true;
+            WorkOffer boulder = Work.JudgeGround(WorkKind.Dig, DefinitionCatalogue.Stick, PointedStick(), underBoulder);
+            Assert.That(boulder.Outcome, Is.EqualTo(VerbOutcome.WontWork), "a boulder sits there");
+            Assert.That(boulder.Words, Does.Contain("boulder"));
 
             GroundResult first = Work.ApplyGround(WorkKind.Dig, DefinitionCatalogue.Stick, PointedStick(), soil, 11);
             Assert.That(first.DugCm, Is.EqualTo((byte)Work.DigStepCm));

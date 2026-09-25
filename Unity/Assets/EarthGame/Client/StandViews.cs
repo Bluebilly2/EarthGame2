@@ -45,6 +45,10 @@ namespace EarthGame.Client
     /// from its two far layers into quarter-tile blocks of far trees, one a far square, and drawn in the far band only
     /// where that tile's own stand is not held, so the forest reaches the region's edge and gives way to the real trees
     /// as the founder walks among them.</para>
+    ///
+    /// <para>The rocks that stand (BF.4 stage three) are placed with the rest of a tile's things, from its stone tile as
+    /// well, and drawn out to <see cref="RockDrawM"/>, casting shadows, in the view or shading it; the ones near a founder are
+    /// what <see cref="RockBodies"/> lends bodies to (<see cref="RocksNear"/>), so a rock is solid where it is drawn.</para>
     /// </summary>
     public sealed class StandViews
     {
@@ -53,6 +57,9 @@ namespace EarthGame.Client
 
         /// <summary>How far off sticks and cobbles are drawn, m.</summary>
         public const float LooseDrawM = 60f;
+
+        /// <summary>How far off the rocks that stand are drawn, m: the near trees' band (BF.4 stage three).</summary>
+        public const float RockDrawM = 250f;
 
         /// <summary>
         /// A cobble's size, m: the item's own diameter (<see cref="DefinitionCatalogue.Cobble"/>), so a cobble lying in the
@@ -102,13 +109,15 @@ namespace EarthGame.Client
         private readonly Mesh[] _far;
         private readonly Mesh[] _sticks;
         private readonly Mesh[] _cobbles;
+        private readonly Mesh[] _rocks;
         private readonly Material _nearMaterial;
         private readonly Material _farMaterial;
         private readonly Material _looseMaterial;
+        private readonly Material _rockMaterial;
         private readonly Dictionary<TileId, TileStand> _held = new Dictionary<TileId, TileStand>();
         private readonly Dictionary<TileId, Task<TileStand>> _building = new Dictionary<TileId, Task<TileStand>>();
-        private readonly Dictionary<TileId, (ReceivedTile Stand, ReceivedTile Loose, ReceivedTile Ground, LooseTaken Taken, int TakenVersion, ReceivedTile Depth, Dictionary<long, byte> TrunkFlags, int ChangesVersion, GroundSnapshot Fine)> _wanted =
-            new Dictionary<TileId, (ReceivedTile, ReceivedTile, ReceivedTile, LooseTaken, int, ReceivedTile, Dictionary<long, byte>, int, GroundSnapshot)>();
+        private readonly Dictionary<TileId, (ReceivedTile Stand, ReceivedTile Loose, ReceivedTile Ground, LooseTaken Taken, int TakenVersion, ReceivedTile Depth, Dictionary<long, byte> TrunkFlags, int ChangesVersion, GroundSnapshot Fine, ReceivedTile Stone)> _wanted =
+            new Dictionary<TileId, (ReceivedTile, ReceivedTile, ReceivedTile, LooseTaken, int, ReceivedTile, Dictionary<long, byte>, int, GroundSnapshot, ReceivedTile)>();
         private readonly Dictionary<TileId, TileStand> _ring = new Dictionary<TileId, TileStand>();
         private readonly Dictionary<TileId, Task<TileStand>> _ringBuilding = new Dictionary<TileId, Task<TileStand>>();
         private readonly List<Matrix4x4>[] _nearGather;
@@ -123,6 +132,8 @@ namespace EarthGame.Client
         private readonly float _tallestM;
         private readonly List<Matrix4x4>[] _stickGather;
         private readonly List<Matrix4x4>[] _cobbleGather;
+        private readonly List<Matrix4x4>[] _rockGather;
+        private readonly List<Matrix4x4>[] _rockShadowGather;
         private readonly Plane[] _view = new Plane[6];
         private readonly Stopwatch _clock = new Stopwatch();
 
@@ -150,6 +161,15 @@ namespace EarthGame.Client
         /// <summary>Whether the sticks and cobbles are drawn; <c>-eg-hide loose</c> turns them off.</summary>
         public bool DrawLoose { get; set; } = true;
 
+        /// <summary>Whether the rocks that stand are drawn (BF.4 stage three); <c>-eg-hide rocks</c> turns them off, and their bodies with them.</summary>
+        public bool DrawRocks { get; set; } = true;
+
+        /// <summary>Counts the tiles' rocks placed or let go, so what follows them knows when to look again.</summary>
+        public int RocksVersion { get; private set; }
+
+        /// <summary>How many rocks the last <see cref="Draw"/> handed over, lit and shadow-only, for a run's record.</summary>
+        public int RocksDrawn { get; private set; }
+
         /// <summary>Whether the near trees cast shadows; <c>-eg-hide shadows</c> turns them off, so what the shadows cost can be measured apart from the trees.</summary>
         public bool DrawShadows { get; set; } = true;
 
@@ -175,8 +195,19 @@ namespace EarthGame.Client
             public int Trees;
             public List<Matrix4x4>[] Sticks;
             public List<Matrix4x4>[] Cobbles;
-            private bool _any;
-            private Vector3 _min, _max;
+            /// <summary>The block's rocks (BF.4 stage three), by rock mesh, and the box round them, which the view is tested against.</summary>
+            public List<Matrix4x4>[] Rocks;
+            public Bounds RockBounds;
+            private bool _any, _anyRock;
+            private Vector3 _min, _max, _rockMin, _rockMax;
+
+            public void GrowRock(Vector3 min, Vector3 max)
+            {
+                _rockMin = _anyRock ? Vector3.Min(_rockMin, min) : min;
+                _rockMax = _anyRock ? Vector3.Max(_rockMax, max) : max;
+                _anyRock = true;
+                RockBounds = new Bounds((_rockMin + _rockMax) * 0.5f, _rockMax - _rockMin);
+            }
 
             public void Grow(Vector3 min, Vector3 max)
             {
@@ -204,6 +235,10 @@ namespace EarthGame.Client
             public int ChangesVersion;
             /// <summary>The one ground it was stood on (BF.4, <see cref="GroundSnapshot.Crc"/>), zero for the raster alone.</summary>
             public uint ReliefCrc;
+            /// <summary>The stone tile its rocks were decided from (BF.4 stage three), zero for none.</summary>
+            public uint StoneCrc;
+            /// <summary>Its rocks, as they were decided: what <see cref="RocksNear"/> answers from.</summary>
+            public StandingRock[] Rocks;
             public Block[] Blocks;
             public int Trees;
             /// <summary>All the tile's trees, foot to crown, when it has any: a whole tile out of the view and out of reach is passed over.</summary>
@@ -241,9 +276,17 @@ namespace EarthGame.Client
                 _sticks[v] = StandMeshes.Stick(v);
                 _cobbles[v] = StandMeshes.Cobble(v);
             }
+            _rocks = new Mesh[StandMeshes.RockGroups];
+            for (int stone = 0; stone < StoneType.All.Count; stone++)
+                for (int v = 0; v < StandingRocks.Variants; v++)
+                {
+                    _rocks[StandMeshes.RockGroup(stone, RockForm.Boulder, v)] = StandMeshes.Rock(stone, RockForm.Boulder, v);
+                    _rocks[StandMeshes.RockGroup(stone, RockForm.Ledge, v)] = StandMeshes.Rock(stone, RockForm.Ledge, v);
+                }
             _nearMaterial = Band(template, "Stand near", 0f, SplitM);
             _farMaterial = Band(template, "Stand far", 1f, SplitM);
             _looseMaterial = Band(template, "Loose near", 0f, LooseDrawM);
+            _rockMaterial = Band(template, "Rock near", 0f, RockDrawM);
             _nearGather = Lists(groups);
             _shadowGather = Lists(groups);
             _plainGather = Lists(groups);
@@ -254,6 +297,8 @@ namespace EarthGame.Client
             foreach (PlantSpecies species in StandCodes.Tall) _tallestM = Mathf.Max(_tallestM, (float)species.MaxHeightM);
             _stickGather = Lists(StandPreparation.Variants);
             _cobbleGather = Lists(StandPreparation.Variants);
+            _rockGather = Lists(_rocks.Length);
+            _rockShadowGather = Lists(_rocks.Length);
         }
 
         /// <summary>
@@ -263,17 +308,18 @@ namespace EarthGame.Client
         /// counts them); a request while one is running is kept and answered when that one is taken.
         /// </summary>
         public void Want(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, LooseTaken taken = null, int takenVersion = 0, ReceivedTile depth = null)
-            => Want(stand, loose, ground, taken, takenVersion, depth, null, 0, null);
+            => Want(stand, loose, ground, taken, takenVersion, depth, null, 0, null, null);
 
         /// <param name="trunkFlags">What has been done to the tile's trunks (BF.3), a copy the worker alone reads; <paramref name="changesVersion"/> counts the changes, as the takings are counted.</param>
         /// <param name="fine">The one ground under the tile's things (BF.4), a copy the worker alone reads; null stands them on the raster alone.</param>
+        /// <param name="stone">The tile's stone (BF.4 stage three): with the loose layer and the snapshot's cover, what its rocks are decided from; null places none yet.</param>
         public void Want(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, LooseTaken taken, int takenVersion, ReceivedTile depth, Dictionary<long, byte> trunkFlags, int changesVersion,
-                         GroundSnapshot fine)
+                         GroundSnapshot fine, ReceivedTile stone)
         {
             if (stand == null || stand.Codes == null || ground == null || ground.Heights == null) return;
             TileId id = stand.Id;
-            _wanted[id] = (stand, loose, ground, taken, takenVersion, depth, trunkFlags, changesVersion, fine);
-            if (!_building.ContainsKey(id) && !IsBuiltFrom(id, stand, loose, ground, takenVersion, depth, changesVersion, fine)) Start(id);
+            _wanted[id] = (stand, loose, ground, taken, takenVersion, depth, trunkFlags, changesVersion, fine, stone);
+            if (!_building.ContainsKey(id) && !IsBuiltFrom(id, stand, loose, ground, takenVersion, depth, changesVersion, fine, stone)) Start(id);
         }
 
         /// <summary>Swaps in one finished tile; false when none has finished. A dictionary write, so it keeps inside the streaming budget.</summary>
@@ -298,7 +344,8 @@ namespace EarthGame.Client
             }
             if (!_wanted.TryGetValue(done, out var want)) return true;
             _held[done] = task.Result;
-            if (!IsBuiltFrom(done, want.Stand, want.Loose, want.Ground, want.TakenVersion, want.Depth, want.ChangesVersion, want.Fine)) Start(done);
+            RocksVersion++;
+            if (!IsBuiltFrom(done, want.Stand, want.Loose, want.Ground, want.TakenVersion, want.Depth, want.ChangesVersion, want.Fine, want.Stone)) Start(done);
             return true;
         }
 
@@ -384,8 +431,28 @@ namespace EarthGame.Client
         /// <summary>A tile the client let go of: its things leave with it.</summary>
         public void Drop(TileId id)
         {
-            _held.Remove(id);
+            if (_held.Remove(id)) RocksVersion++;
             _wanted.Remove(id);
+        }
+
+        /// <summary>
+        /// The rocks the held tiles place within a distance of a point across the ground, added to a list (BF.4 stage three): what
+        /// is drawn, so what is given a body. None while the rocks are hidden.
+        /// </summary>
+        public void RocksNear(double east, double north, double radiusM, List<StandingRock> into)
+        {
+            if (into == null || !DrawRocks) return;
+            double r2 = radiusM * radiusM;
+            Vector3 at = new Vector3((float)east, 0f, (float)north);
+            foreach (TileStand tile in _held.Values)
+            {
+                if (tile.Rocks == null || tile.Rocks.Length == 0 || Reach(at, tile.Ground) > radiusM + 2.0) continue;
+                foreach (StandingRock rock in tile.Rocks)
+                {
+                    double dx = rock.East - east, dz = rock.North - north;
+                    if (dx * dx + dz * dz <= r2) into.Add(rock);
+                }
+            }
         }
 
         /// <summary>
@@ -418,6 +485,9 @@ namespace EarthGame.Client
             Clear(_farGather);
             Clear(_stickGather);
             Clear(_cobbleGather);
+            Clear(_rockGather);
+            Clear(_rockShadowGather);
+            _rockMaterial.SetVector(EyeId, at);
             int trees = 0;
             foreach (TileStand tile in _held.Values)
             {
@@ -456,6 +526,13 @@ namespace EarthGame.Client
                     {
                         Gather(block.Sticks, _stickGather);
                         Gather(block.Cobbles, _cobbleGather);
+                    }
+                    // The rocks (BF.4 stage three): lit where they are in the view, and into the shadows alone where they are not
+                    // but their shadows could reach what is.
+                    if (DrawRocks && block.Rocks != null && d < RockDrawM + BlockReach)
+                    {
+                        if (GeometryUtility.TestPlanesAABB(_view, block.RockBounds)) Gather(block.Rocks, _rockGather);
+                        else if (DrawShadows && d - BlockReach < shadowM) Gather(block.Rocks, _rockShadowGather);
                     }
                 }
             }
@@ -500,6 +577,15 @@ namespace EarthGame.Client
                 Submit(_looseMaterial, _sticks[v], _stickGather[v], loose, ShadowCastingMode.Off);
                 Submit(_looseMaterial, _cobbles[v], _cobbleGather[v], loose, ShadowCastingMode.Off);
             }
+            Bounds rocks = new Bounds(eye, new Vector3(2f * (RockDrawM + BlockM), 2000f, 2f * (RockDrawM + BlockM)));
+            int rocksDrawn = 0;
+            for (int g = 0; g < _rocks.Length; g++)
+            {
+                Submit(_rockMaterial, _rocks[g], _rockGather[g], rocks, DrawShadows ? ShadowCastingMode.On : ShadowCastingMode.Off);
+                Submit(_rockMaterial, _rocks[g], _rockShadowGather[g], rocks, ShadowCastingMode.ShadowsOnly);
+                rocksDrawn += _rockGather[g].Count + _rockShadowGather[g].Count;
+            }
+            RocksDrawn = rocksDrawn;
             LastDrawMs = _clock.Elapsed.TotalMilliseconds;
         }
 
@@ -512,24 +598,26 @@ namespace EarthGame.Client
             UnityEngine.Object.Destroy(_nearMaterial);
             UnityEngine.Object.Destroy(_farMaterial);
             UnityEngine.Object.Destroy(_looseMaterial);
+            UnityEngine.Object.Destroy(_rockMaterial);
         }
 
-        private bool IsBuiltFrom(TileId id, ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, int takenVersion, ReceivedTile depth, int changesVersion, GroundSnapshot fine) =>
+        private bool IsBuiltFrom(TileId id, ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, int takenVersion, ReceivedTile depth, int changesVersion, GroundSnapshot fine,
+                                 ReceivedTile stone) =>
             _held.TryGetValue(id, out TileStand have) && have.StandCrc == stand.Crc32 && have.GroundCrc == ground.Crc32
             && have.LooseCrc == (loose != null ? loose.Crc32 : 0u) && have.TakenVersion == takenVersion && have.DepthCrc == (depth != null ? depth.Crc32 : 0u)
-            && have.ChangesVersion == changesVersion && have.ReliefCrc == (fine != null ? fine.Crc : 0u);
+            && have.ChangesVersion == changesVersion && have.ReliefCrc == (fine != null ? fine.Crc : 0u) && have.StoneCrc == (stone?.Codes != null ? stone.Crc32 : 0u);
 
         private void Start(TileId id)
         {
             var want = _wanted[id];
-            _building[id] = Task.Run(() => Build(want.Stand, want.Loose, want.Ground, want.Taken, want.TakenVersion, want.Depth, want.TrunkFlags, want.ChangesVersion, want.Fine));
+            _building[id] = Task.Run(() => Build(want.Stand, want.Loose, want.Ground, want.Taken, want.TakenVersion, want.Depth, want.TrunkFlags, want.ChangesVersion, want.Fine, want.Stone));
         }
 
         /// <summary>On a worker: the tile's things placed, less what was taken and felled, and the matrices every one of them is drawn by, sorted into the tile's blocks.</summary>
         private TileStand Build(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, LooseTaken taken, int takenVersion, ReceivedTile depth, Dictionary<long, byte> trunkFlags, int changesVersion,
-                                GroundSnapshot fine)
+                                GroundSnapshot fine, ReceivedTile stone)
         {
-            PreparedStand prepared = StandPreparation.Prepare(stand, loose, ground, _grid, taken, depth, trunkFlags, fine);
+            PreparedStand prepared = StandPreparation.Prepare(stand, loose, ground, _grid, taken, depth, trunkFlags, fine, stone);
             _grid.Origin(stand.Id, out double originEast, out double originNorth);
             TileStand tile = new TileStand
             {
@@ -540,6 +628,9 @@ namespace EarthGame.Client
                 TakenVersion = takenVersion,
                 ChangesVersion = changesVersion,
                 ReliefCrc = prepared.ReliefCrc,
+                // A stone tile not on the stand's posts decides nothing: what the tile is placed again for is what it was placed from.
+                StoneCrc = stone?.Codes != null ? stone.Crc32 : 0u,
+                Rocks = prepared.Rocks,
                 Blocks = new Block[_blocksPerSide * _blocksPerSide],
                 Trees = prepared.Trees.Length,
                 Ground = new Bounds(new Vector3((float)(originEast + 0.5 * _grid.TileSizeM), 0f, (float)(originNorth + 0.5 * _grid.TileSizeM)),
@@ -592,6 +683,18 @@ namespace EarthGame.Client
                 Block block = BlockAt(tile, originEast, originNorth, c.East, c.North);
                 if (block.Cobbles == null) block.Cobbles = new List<Matrix4x4>[StandPreparation.Variants];
                 (block.Cobbles[c.Variant] ?? (block.Cobbles[c.Variant] = new List<Matrix4x4>())).Add(Trs(c.East, c.Up, c.North, c.YawDeg, CobbleSizeM, CobbleSizeM, CobbleSizeM));
+            }
+            // The rocks (BF.4 stage three): the mesh at unit half-axes, across on x, up on y and along on z, scaled to the rock's,
+            // turned to its yaw and set at its middle.
+            foreach (StandingRock r in prepared.Rocks)
+            {
+                float east = (float)r.East, north = (float)r.North;
+                Block block = BlockAt(tile, originEast, originNorth, east, north);
+                if (block.Rocks == null) block.Rocks = new List<Matrix4x4>[_rocks.Length];
+                int g = StandMeshes.RockGroup(r.Stone, r.Form, r.Variant);
+                (block.Rocks[g] ?? (block.Rocks[g] = new List<Matrix4x4>())).Add(Trs(east, (float)r.MidUp, north, r.YawDeg, (float)r.HalfWidth, (float)r.HalfHeight, (float)r.HalfLength));
+                float reach = (float)Math.Max(r.HalfLength, r.HalfWidth) * 1.5f;
+                block.GrowRock(new Vector3(east - reach, (float)(r.MidUp - r.HalfHeight), north - reach), new Vector3(east + reach, (float)(r.MidUp + r.HalfHeight), north + reach));
             }
             return tile;
         }

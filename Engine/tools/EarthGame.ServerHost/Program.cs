@@ -27,7 +27,7 @@ namespace EarthGame.ServerHost
     ///   the default is 1, this machine alone, the harness's: nothing off the machine can join and the firewall has
     ///   nothing to ask, M1.Ba and M1.Bb)
     ///   +server.bridge 0  (the beta arc's bridge down: the cold can kill; on by default, FP.2 and CANON ruling 33)
-    /// Console commands: status, pause, resume, digest, stop.
+    /// Console commands: status, pause, resume, digest, rocks (the rocks that stand counted, BF.4 stage three), stop.
     ///
     /// <para>The host is the server's clock and its instruments: it times each update for the tick statistics,
     /// reads the managed heap and the working set, and writes the bodies digest of every session per tick, so
@@ -274,6 +274,14 @@ namespace EarthGame.ServerHost
                                 Log("digest " + server.Digest() + " at tick " + world.Tick);
                                 instruments.Command("digest");
                                 break;
+                            case "rocks":
+                            {
+                                Stopwatch counting = Stopwatch.StartNew();
+                                foreach (string line in StandingRocks.Census(world).Split('\n'))
+                                    if (line.Length > 0) Log("rocks  " + line);
+                                Log("rocks  counted in " + counting.Elapsed.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + " s");
+                                break;
+                            }
                             case "status":
                                 Log("tick " + world.Tick + ", " + world.Clock.UtcText + ", players " + server.Sessions.Count
                                     + (server.Paused ? ", paused" : "") + ", dropped " + server.DroppedSeconds.ToString("0.00", CultureInfo.InvariantCulture) + " s"
@@ -293,8 +301,9 @@ namespace EarthGame.ServerHost
                                 break;
                             default:
                                 if (cmd.StartsWith("spawn ", StringComparison.Ordinal)) Spawn(server, cmd);
+                                else if (cmd.StartsWith("rocks near ", StringComparison.Ordinal)) RocksNear(world, cmd);
                                 else if (cmd.StartsWith("stand ", StringComparison.Ordinal)) Stand(server, cmd);
-                                else Log("unknown command '" + cmd + "' (status, pause, resume, digest, spawn <key> <east> <north> [<up>], stand <name> <east> <north>, save, stop)");
+                                else Log("unknown command '" + cmd + "' (status, pause, resume, digest, rocks, spawn <key> <east> <north> [<up>], stand <name> <east> <north>, save, stop)");
                                 break;
                         }
                     }
@@ -618,6 +627,42 @@ namespace EarthGame.ServerHost
             catch (Exception ex) when (ex is FormatException || ex is ArgumentException)
             {
                 Log("stand refused: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// rocks near &lt;east&gt; &lt;north&gt; &lt;metres&gt;: the rocks that stand within a distance of a point (BF.4 stage three), nearest
+        /// first, four hundred at most, each a line a tool can read: where, what form and stone, how high its top stands over the ground at
+        /// its middle, its half-axes and yaw, and the row of the table that put it there.
+        /// </summary>
+        private static void RocksNear(WorldState world, string cmd)
+        {
+            string[] parts = cmd.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 5 || !double.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out double east)
+                || !double.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out double north)
+                || !double.TryParse(parts[4], NumberStyles.Float, CultureInfo.InvariantCulture, out double radius) || world.Cover == null)
+            {
+                Log("rocks near takes an east, a north and a distance, in a world with a cover layer");
+                return;
+            }
+            double cell = world.Cover.CellM;
+            TileCodec.CellOf(world.Cover.ExtentM, cell, east, north, out int row0, out int col0);
+            int reach = (int)Math.Ceiling(radius / cell);
+            List<(double Away, StandingRock Rock)> found = new List<(double, StandingRock)>();
+            for (int row = row0 - reach; row <= row0 + reach; row++)
+                for (int col = col0 - reach; col <= col0 + reach; col++)
+                {
+                    if (!StandingRocks.TryOfCell(world, row, col, out StandingRock rock)) continue;
+                    double away = Math.Sqrt((rock.East - east) * (rock.East - east) + (rock.North - north) * (rock.North - north));
+                    if (away <= radius) found.Add((away, rock));
+                }
+            found.Sort((a, b) => a.Away.CompareTo(b.Away));
+            Log("rocks near " + found.Count + " within " + radius.ToString("0", CultureInfo.InvariantCulture) + " m");
+            for (int i = 0; i < Math.Min(400, found.Count); i++)
+            {
+                StandingRock r = found[i].Rock;
+                Log(string.Format(CultureInfo.InvariantCulture, "rock {0:0.00} {1:0.00} {2} {3} above {4:0.00} half {5:0.00} {6:0.00} {7:0.00} yaw {8} {9} away {10:0.0}",
+                    r.East, r.North, r.Form, r.StoneType.Name, r.TopUp - world.GroundAt(r.East, r.North), r.HalfLength, r.HalfWidth, r.HalfHeight, r.YawDeg, r.Place, found[i].Away));
             }
         }
 

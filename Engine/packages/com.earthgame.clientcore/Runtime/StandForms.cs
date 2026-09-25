@@ -89,6 +89,34 @@ namespace EarthGame.ClientCore
         public static readonly Rgb Cobble = new Rgb(0.56f, 0.53f, 0.48f);
 
         /// <summary>
+        /// A rock that stands, by its stone (BF.4 stage three), a first model for William's eyes: the sandstone weathered grey-buff,
+        /// between the ground palette's dry and wet rock, with a rust stain; quartzite and quartz pale, silcrete and chert grey-brown,
+        /// rhyolite pinkish, basalt near black, granite a speckled grey, shale dark. The first frames (2026-09-25) drew the sandstone
+        /// a fresh buff, and on the valley's shaded walls every boulder stood out as a pale spot on the grey rock it lay on.
+        /// </summary>
+        public static Rgb RockOf(StoneType stone)
+        {
+            if (ReferenceEquals(stone, StoneType.Sandstone)) return new Rgb(0.52f, 0.47f, 0.40f);
+            if (ReferenceEquals(stone, StoneType.Quartzite)) return new Rgb(0.74f, 0.72f, 0.68f);
+            if (ReferenceEquals(stone, StoneType.Quartz)) return new Rgb(0.84f, 0.83f, 0.80f);
+            if (ReferenceEquals(stone, StoneType.Silcrete)) return new Rgb(0.50f, 0.47f, 0.43f);
+            if (ReferenceEquals(stone, StoneType.Chert)) return new Rgb(0.50f, 0.47f, 0.44f);
+            if (ReferenceEquals(stone, StoneType.Flint)) return new Rgb(0.40f, 0.38f, 0.36f);
+            if (ReferenceEquals(stone, StoneType.Rhyolite)) return new Rgb(0.62f, 0.52f, 0.50f);
+            if (ReferenceEquals(stone, StoneType.Basalt)) return new Rgb(0.28f, 0.28f, 0.29f);
+            if (ReferenceEquals(stone, StoneType.Granite)) return new Rgb(0.63f, 0.60f, 0.58f);
+            if (ReferenceEquals(stone, StoneType.Shale)) return new Rgb(0.36f, 0.34f, 0.32f);
+            if (ReferenceEquals(stone, StoneType.Obsidian)) return new Rgb(0.12f, 0.12f, 0.13f);
+            return Cobble;
+        }
+
+        /// <summary>The rust a sandstone's iron leaves in streaks down its faces.</summary>
+        public static readonly Rgb RockStain = new Rgb(0.52f, 0.38f, 0.26f);
+
+        /// <summary>The pale grey-green of the lichen on a rock's sunlit top.</summary>
+        public static readonly Rgb Lichen = new Rgb(0.56f, 0.58f, 0.50f);
+
+        /// <summary>
         /// What a tuft of the understorey is coloured at the ground (M1.6c): the heath's shrubs dark and woody, the
         /// sedge's clumps grey-green, bracken's fronds a fresher green, and grass drier than any of them, as this coast's
         /// is by the end of summer.

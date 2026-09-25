@@ -33,6 +33,9 @@ namespace EarthGame.Client
         {
             Vector3 origin = new Vector3((float)feet.X, (float)(feet.Y + stepUp + Skin), (float)feet.Z);
             float reach = (float)(stepUp + maxDown) + Skin;
+            bool found = false;
+            groundUp = 0.0;
+            normal = Double3.Up;
             if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, reach, _mask, QueryTriggerInteraction.Ignore))
             {
                 groundUp = hit.point.y;
@@ -42,11 +45,28 @@ namespace EarthGame.Client
                 // walkable slide, nor speeds or slows the pace. What stands on the ground (a trunk, a thing) keeps the normal it was met at.
                 if (_walk != null && hit.collider is TerrainCollider && _walk.TryWalkNormalAt(hit.point.x, hit.point.z, TerrainTileBuilder.PostSpacingM, out Double3 walk))
                     normal = walk;
-                return true;
+                found = true;
             }
-            groundUp = 0.0;
-            normal = Double3.Up;
-            return false;
+            // What stands low on the ground, a rock (BF.4 stage three), is met by the body's round foot, not by a ray down its middle.
+            // A body whose side met a low rock was stepped up and let down by the ray alone, which found the ground beside the rock:
+            // the body stood inside it, and a capsule cast that starts inside a collider sees nothing, so it walked on through (the
+            // rocks scenario's first walks, 2026-09-25). Felt for with the foot, a rock under any part of it is where the body
+            // stands, on its top where the face there is one to stand on, and nowhere a steep side lets it stand: the step is not
+            // taken, and the body slides along the rock. The Terrain keeps the ray, as it was.
+            float foot = (float)radius - Skin;
+            Vector3 centre = new Vector3((float)feet.X, (float)(feet.Y + stepUp + radius), (float)feet.Z);
+            if (Physics.SphereCast(centre, foot, Vector3.down, out RaycastHit prop, reach, Layers.Mask(Layers.Props), QueryTriggerInteraction.Ignore))
+            {
+                // The foot's lowest point, where the body's feet are, when it rests on what it met.
+                double rests = centre.y - prop.distance - radius;
+                if (!found || rests > groundUp)
+                {
+                    groundUp = rests;
+                    normal = new Double3(prop.normal.x, prop.normal.y, prop.normal.z);
+                    found = true;
+                }
+            }
+            return found;
         }
 
         public bool SweepCapsule(Double3 feet, double radius, double height, Double3 delta, out double fraction, out Double3 normal)
