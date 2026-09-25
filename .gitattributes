@@ -44,4 +44,9 @@
 *.otf filter=lfs diff=lfs merge=lfs -text
 *.r16 filter=lfs diff=lfs merge=lfs -text
 *.r32 filter=lfs diff=lfs merge=lfs -text
+# The engine's test fixtures are a few hundred bytes that every clone's tests read, so they live in git itself and never
+# in LFS: tiny.r32 went in as an LFS pointer whose object the remote never received, and a fresh clone failed 39 tests
+# (found by the cloud session, 2026-09-25).
+Data/fixtures/**/*.r16 -filter -diff -merge -text
+Data/fixtures/**/*.r32 -filter -diff -merge -text
 *.dll binary
