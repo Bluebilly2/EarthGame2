@@ -164,7 +164,7 @@ namespace EarthGame.Engine
         /// <summary>Per species in <see cref="AnimalSpecies.All"/>, animals per km².</summary>
         public float[][] Capacity { get; }
 
-        private WorldLayers(RegionRaster heights, RegionRaster waterBodies, Action<string> progress, Region region)
+        private WorldLayers(RegionRaster heights, RegionRaster waterBodies, Action<string> progress, Region region, IMakingWatcher watcher = null)
         {
             Heights = heights;
             Width = heights.Width;
@@ -191,6 +191,8 @@ namespace EarthGame.Engine
             Capacity = new float[AnimalSpecies.All.Count][];
             for (int s = 0; s < Capacity.Length; s++) Capacity[s] = new float[count];
             _plants = Region.PlantsOf(region);
+            // A watcher (the loading screen's map) is handed the layers before the first step: the heights are there already.
+            watcher?.Began(this);
             progress?.Invoke("Finding lakes and wetlands");
             _lake = Lakes(heights, waterBodies);
             progress?.Invoke("Finding where the lakes spill");
@@ -219,11 +221,12 @@ namespace EarthGame.Engine
         /// them the lakes are read off the ground alone. The region names the lakes that hold their water and the dams
         /// (WG.1b); by default the one the heights' sidecar names.
         /// </summary>
-        public static WorldLayers Compute(RegionRaster heights, ulong seed, RegionRaster waterBodies = null, Action<string> progress = null, Region region = null)
+        public static WorldLayers Compute(RegionRaster heights, ulong seed, RegionRaster waterBodies = null, Action<string> progress = null, Region region = null,
+                                          IMakingWatcher watcher = null)
         {
             if (heights == null) throw new ArgumentNullException(nameof(heights));
             ValidateInputs(heights, waterBodies);
-            WorldLayers w = new WorldLayers(heights, waterBodies, progress, region ?? Region.ById(heights.RegionId));
+            WorldLayers w = new WorldLayers(heights, waterBodies, progress, region ?? Region.ById(heights.RegionId), watcher);
             progress?.Invoke("Reading slopes and wind exposure");
             w.SlopeAndExposure();
             progress?.Invoke("Measuring the shore");

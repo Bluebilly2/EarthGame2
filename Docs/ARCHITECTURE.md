@@ -53,6 +53,16 @@ stages, without joining the worker on exit. The overlay closes on the client's
 existing collidable-terrain-and-snapshot readiness event. Client view construction
 still runs on the main thread; this slice does not claim a frame-time budget for it.
 
+What the loading panel shows (2026-09-25, William's choice of the phases' bars and a map): `LoadingSteps` (engine) is the one
+table of the steps a making and an opening report, in order, each with its phase and its share of the time as measured in the
+game (the loading recorder's `stage_times`), and `LoadingStepsTests` holds a real making's and opening's reports to it;
+`LoadingProgress` turns the reports and the game's clock into the fraction done, the time left at the pace kept so far and
+each phase's state and time. `IMakingWatcher` (engine) is handed the making's `WorldLayers` before its first step and the wake
+once chosen, through an optional parameter of `WorldPreparation.Load`, `WorldCreation.Create` and `WorldLayers.Compute`;
+`MakingMap` (ClientCore) is the loading panel's watcher, and paints a picture of the region on a worker from only the arrays
+whose steps have ended, which the next step's report says (the land's relief at once, then the water, the canopy and the
+cover), with the wake marked on it. A join, which reports no steps, keeps a moving mark and no map.
+
 ## 3. The world
 
 - **Frame:** tangent plane at the region centre, +X east, +Y up, +Z north, planet radius 6,371,000 m

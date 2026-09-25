@@ -40,7 +40,8 @@ namespace EarthGame.Server
         /// Runs the chain and writes the folder. The date is the host's; the engine reads no clock. The water bodies
         /// are the bake's mapped outlines when the region has them (<c>water_bodies.json</c> beside the heights).
         /// </summary>
-        public static Result Create(string worldDir, Region region, ulong seed, RegionRaster heights, string nowUtcText, RegionRaster waterBodies = null, Action<string> progress = null)
+        public static Result Create(string worldDir, Region region, ulong seed, RegionRaster heights, string nowUtcText, RegionRaster waterBodies = null, Action<string> progress = null,
+                                    IMakingWatcher watcher = null)
         {
             if (region == null) throw new ArgumentNullException(nameof(region));
             if (heights == null) throw new ArgumentNullException(nameof(heights));
@@ -48,10 +49,11 @@ namespace EarthGame.Server
             // Each stage of the making lets go of the last one's scratch before it asks for its own (WG.2b, 2026-09-23): a 16 km world
             // was made at a peak of 5.2 to 5.8 GB committed of which 2.9 were in use when the wake was chosen, and 1.7 once collected.
             Action<string> stage = s => { Settle(); progress?.Invoke(s); };
-            WorldLayers layers = WorldLayers.Compute(heights, seed, waterBodies, stage);
+            WorldLayers layers = WorldLayers.Compute(heights, seed, waterBodies, stage, null, watcher);
             stage("Choosing the wake");
             WakeScorer scorer = new WakeScorer(layers);
             WakeScore wake = scorer.Best();
+            watcher?.WakeChosen(wake.East, wake.North);
             string census = scorer.Census(wake) + layers.WaterCensus();
 
             string dir = Path.Combine(worldDir, LayersFolder);

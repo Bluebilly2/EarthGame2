@@ -73,14 +73,20 @@ namespace EarthGame.Client
             // its evidence needs no loading frame, and recording never holds back normal startup.
             yield return null;
             if (_screen != null && _error == null) yield return Capture("loading");
-            // The bar part-way (2026-09-25): a frame once it shows half the loading done, if the loading lasts that long.
-            bool half = false;
+            // The bar part-way (2026-09-25): a frame once it shows half the loading done, and one at nine tenths, when the map
+            // has its water, its forest, its cover and the wake, if the loading lasts that long.
+            bool half = false, late = false;
             while (!_ready && _error == null)
             {
                 if (!half && _screen != null && _screen.Fraction >= 0.5)
                 {
                     half = true;
                     yield return Capture("loading-half");
+                }
+                if (!late && _screen != null && _screen.Fraction >= 0.9)
+                {
+                    late = true;
+                    yield return Capture("loading-late");
                 }
                 yield return null;
             }

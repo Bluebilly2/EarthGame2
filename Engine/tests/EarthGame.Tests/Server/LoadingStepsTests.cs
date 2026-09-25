@@ -79,6 +79,38 @@ namespace EarthGame.Tests.Server
             Assert.That(StepsOf(reports), Is.EqualTo(Reported(LoadingSteps.Opening)));
         }
 
+        /// <summary>A watcher that counts what it is handed.</summary>
+        private sealed class Recording : IMakingWatcher
+        {
+            public int Began;
+            public double WakeEast = double.NaN, WakeNorth = double.NaN;
+            void IMakingWatcher.Began(WorldLayers layers) => Began++;
+            void IMakingWatcher.WakeChosen(double east, double north)
+            {
+                WakeEast = east;
+                WakeNorth = north;
+            }
+        }
+
+        [Test]
+        public void AMakingHandsItsWatcherTheLayersOnceAndTheWakeItWakesAtAndAnOpeningNothing()
+        {
+            var making = new Recording();
+            using (WorldPreparation.Result made = WorldPreparation.Load(_world, _data, Region, 1347, Now, null, CancellationToken.None, making))
+            {
+                Assert.That(making.Began, Is.EqualTo(1));
+                Assert.That(made.World.Wake.HasValue, Is.True);
+                Assert.That(making.WakeEast, Is.EqualTo(made.World.Wake.Value.X).Within(1e-9), "the wake the map marks is the world's");
+                Assert.That(making.WakeNorth, Is.EqualTo(made.World.Wake.Value.Z).Within(1e-9));
+            }
+            var opening = new Recording();
+            using (WorldPreparation.Load(_world, Path.Combine(_root, "absent"), Region, 1347, Now, null, CancellationToken.None, opening))
+            {
+                Assert.That(opening.Began, Is.Zero, "an opening makes nothing");
+                Assert.That(double.IsNaN(opening.WakeEast), Is.True);
+            }
+        }
+
         [Test]
         public void EveryStepHasATimeAndBothLoadingsBeginAlikeAndEndOnTheGround()
         {

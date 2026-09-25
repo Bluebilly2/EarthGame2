@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.IO;
 using EarthGame.Client;
+using EarthGame.ClientCore;
 using EarthGame.Engine;
 using EarthGame.Server;
 using EarthGame.Shared;
@@ -190,7 +191,9 @@ namespace EarthGame.Bootstrap
             var cancellation = new CancellationTokenSource();
             _preparationCancellation = cancellation;
             CancellationToken token = cancellation.Token;
-            _preparation = Task.Run(() => WorldPreparation.Load(worldDir, dataDir, region, seed, now, stages.Enqueue, token));
+            // The loading screen's map watches the making (2026-09-25): handed the layers as they are made, and the wake.
+            MakingMap map = _loading != null ? _loading.Map : null;
+            _preparation = Task.Run(() => WorldPreparation.Load(worldDir, dataDir, region, seed, now, stages.Enqueue, token, map));
             // Observe errors even if the Unity object disappears before the task finishes.
             _preparation.ContinueWith(task => { _ = task.Exception; }, CancellationToken.None,
                 TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);

@@ -71,12 +71,12 @@ namespace EarthGame.Server
         /// the first. A load that fails lets the folder go; one that succeeds holds it until its result is disposed.
         /// </summary>
         public static Result Load(string worldDir, string dataDir, Region region, ulong seed, string nowUtc,
-            Action<string> progress, CancellationToken cancellation)
+            Action<string> progress, CancellationToken cancellation, IMakingWatcher watcher = null)
         {
             WorldLock hold = WorldLock.Take(worldDir);
             try
             {
-                Result result = LoadHeld(worldDir, dataDir, region, seed, nowUtc, progress, cancellation);
+                Result result = LoadHeld(worldDir, dataDir, region, seed, nowUtc, progress, cancellation, watcher);
                 result.Hold = hold;
                 return result;
             }
@@ -88,7 +88,7 @@ namespace EarthGame.Server
         }
 
         private static Result LoadHeld(string worldDir, string dataDir, Region region, ulong seed, string nowUtc,
-            Action<string> progress, CancellationToken cancellation)
+            Action<string> progress, CancellationToken cancellation, IMakingWatcher watcher)
         {
             void Report(string stage)
             {
@@ -137,7 +137,7 @@ namespace EarthGame.Server
             Report("Reading lakes and wetlands");
             string waterPath = Path.Combine(dataDir, "water_bodies.json");
             RegionRaster outlines = File.Exists(waterPath) ? RegionRaster.Load(waterPath) : null;
-            WorldCreation.Result created = WorldCreation.Create(worldDir, region, seed, bake.Raster, nowUtc, outlines, Report);
+            WorldCreation.Result created = WorldCreation.Create(worldDir, region, seed, bake.Raster, nowUtc, outlines, Report, watcher);
             // The layers as computed are on disk now; letting them go before the world is read back keeps the two from being held
             // at once (WG.2b, 2026-09-23: at 32 km they are some 7 GB, and the read-back a further gigabyte).
             created.Computed = null;
