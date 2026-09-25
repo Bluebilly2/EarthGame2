@@ -22,6 +22,7 @@ namespace EarthGame.Client
         private readonly List<object> _samples = new List<object>();
         private readonly List<object> _frames = new List<object>();
         private readonly List<object> _stages = new List<object>();
+        private readonly List<object> _stageTimes = new List<object>();
 
         public void Begin(string dir, LoadingController screen)
         {
@@ -32,7 +33,12 @@ namespace EarthGame.Client
             StartCoroutine(Record());
         }
 
-        public void Stage(string stage) => _stages.Add(stage);
+        /// <summary>A stage as the loading reported it, and when (the stage times measure the loading screen's shares, LoadingSteps).</summary>
+        public void Stage(string stage)
+        {
+            _stages.Add(stage);
+            _stageTimes.Add(new JsonObject().With("t", Time.realtimeSinceStartupAsDouble - _started).With("stage", stage));
+        }
 
         public void Prepared()
         {
@@ -67,7 +73,17 @@ namespace EarthGame.Client
             // its evidence needs no loading frame, and recording never holds back normal startup.
             yield return null;
             if (_screen != null && _error == null) yield return Capture("loading");
-            while (!_ready && _error == null) yield return null;
+            // The bar part-way (2026-09-25): a frame once it shows half the loading done, if the loading lasts that long.
+            bool half = false;
+            while (!_ready && _error == null)
+            {
+                if (!half && _screen != null && _screen.Fraction >= 0.5)
+                {
+                    half = true;
+                    yield return Capture("loading-half");
+                }
+                yield return null;
+            }
             if (_error != null)
             {
                 yield return Capture("failed");
@@ -77,7 +93,7 @@ namespace EarthGame.Client
             var evidence = new JsonObject().With("format", "eg2.loading").With("version", 1)
                 .With("outcome", _error != null ? "failed" : "ready").With("error", _error ?? "")
                 .With("returned_to_menu", _returnedToMenu).With("preparation_s", _preparedAt).With("updates", _updates)
-                .With("samples", _samples).With("stages", _stages).With("frames", _frames);
+                .With("samples", _samples).With("stages", _stages).With("stage_times", _stageTimes).With("frames", _frames);
             File.WriteAllText(Path.Combine(_dir, "loading.json"), Json.Write(evidence, true));
             if (_error != null) Application.Quit(1);
         }

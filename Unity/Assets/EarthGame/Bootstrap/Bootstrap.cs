@@ -202,7 +202,7 @@ namespace EarthGame.Bootstrap
             {
                 _loading?.SetStage(stage);
                 _loadingRecorder?.Stage(stage);
-                Debug.Log("[loading] " + stage);
+                Debug.Log("[loading] " + stage + " at " + (Time.realtimeSinceStartupAsDouble - _loadingStarted).ToString("0.0", CultureInfo.InvariantCulture) + " s");
             }
             if (_preparation == null) return;
             _loadingUpdates++;
@@ -261,7 +261,7 @@ namespace EarthGame.Bootstrap
         private void StartConnections(Region region, WorldState world, WorldSaveInfo saved)
         {
             if (_quitting) return;
-            _loading?.SetStage("Preparing the ground around you");
+            _loading?.SetStage(LoadingSteps.PreparingGround);
             UdpOptions clientOptions = ClientUdpOptions();
             switch (_mode)
             {

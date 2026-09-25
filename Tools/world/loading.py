@@ -37,6 +37,8 @@ def main():
     parser.add_argument("--build", action="store_true")
     parser.add_argument("--player", type=Path, default=ROOT / "Build/Harness/EarthGame2.exe")
     parser.add_argument("--unity", type=Path, default=UNITY)
+    parser.add_argument("--region", default=None, help="the region a new world is made in (-eg-region); the launch's own, Bherwerre, when not given")
+    parser.add_argument("--timeout", type=int, default=240, help="seconds each launch is given; the whole valley's making takes minutes")
     args = parser.parse_args()
     # It builds and launches the game three times: none of it in the quiet hours (CANON ruling 47). The folder ends with the
     # copy's tag, since the copies share one Artefacts and two runs may start in the same second (M1.Bd, 2026-09-24).
@@ -63,7 +65,9 @@ def main():
                    "-eg-record", output, "-eg-loading-record", output]
         if scenario == "missing":
             command += ["-eg-data", directory / "absent-data"]
-        code = run(command, 240)
+        if args.region:
+            command += ["-eg-region", args.region]
+        code = run(command, args.timeout)
         (output / "process.json").write_text(json.dumps({"exit": code}), encoding="utf-8")
         expected = 1 if scenario == "missing" else 0
         if code != expected:
