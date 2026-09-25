@@ -5,8 +5,9 @@ and sleep as physics in the engine, is written as a proposal with code on the br
 36c7acb: new files only (`Engine/packages/com.earthgame.engine/Runtime/Body/Rest/` and five test files under
 `Engine/tests/EarthGame.Tests/Engine/`), no existing file changed, so nothing on main moves until main takes it. The parts
 after it are named here and not built. Owner: Claude (the main session, when it takes this). William's lane: nothing in part
-one wants his eyes or his hands; his word is wanted on two questions of taste (For main to decide, 1 and 2: the clock while
-the founder sleeps, and the founder's body), and the parts after it want his eyes on the words and his hands on a night slept.
+one wants his eyes or his hands; his word is wanted on one question of taste (For main to decide 2, the founder's body), the
+other he gave while this was open (1, the clock while the founder sleeps: ruling 52), and the parts after it want his eyes on
+the words and his hands on a night slept.
 
 ## Why this next
 
@@ -174,12 +175,14 @@ apart from its energy (15).
 
 ## For main to decide
 
-1. **The clock while the founder sleeps (William's).** The world runs a day in thirty real minutes, so ten hours asleep pass
-   in twelve and a half real minutes. v1 lived the night at twelve times the world's rate (`Docs/v1/SLICE2_5_SLEEP.md`:
-   "Sleeping does not skip the night, it lives it at speed"). Everything on the world's clock (the body, a fire's fuel, the
-   weather) would run at that rate, and with two founders in one world the clock is shared. Recommended: the world's own
-   rate, the clock BF.5's answer recommends for the fire with the body (his word awaited there too), and a speed-up only while
-   every founder in the world is asleep. Whether a night at the game's rate is the game is William's taste.
+1. **The clock while the founder sleeps (William's; answered in ruling 52, 2026-09-25, while this was open).** The world's
+   clock runs at the real pace, a day in a real day, and "sleep speeds the world": when the founder sleeps, "in company, when
+   all sleep", the whole world is simulated faster, "the Earth turning, fires burning down, the body growing cold and
+   thirsty", and "nothing is skipped" (ruling 53 keeps a traveller's own clock for one player alone). Part one keeps no clock:
+   each class takes the caller's seconds, `Sleep`'s pressure is exact for any step, `Hunger` run in hours agrees with itself
+   run in minutes to 1 per cent of the fat burnt and 2 of the protein (its test), and `Wetness` is solved at each step. What
+   stays for part two is the warp's rate and the server's step under it, small enough that the balance is still checked every
+   step (G12) and the cold or thirst can wake a sleeper on time.
 2. **The founder's body (William's).** The model is one founder of 70 kg (`Warmth.MassKg`) with the Hadza men's 13.5 per
    cent fat. The Hadza women carry about a fifth; a heavier or fatter founder lives longer without food and keeps warmer. Who
    the founder is, and whether that is chosen at a new game, is his.
@@ -281,6 +284,8 @@ apart from its energy (15).
 5. *Main moved.* Main took BF.5 part one in (815f2b3) while this was built. The branch was restarted from the newest main
    (36c7acb) before its first commit, and `Wetness` now reads Fanger's areas from `FireWarmth` where it had kept its own copy
    of three of the tables' numbers.
+6. *The clock ruled.* William's rulings 52 and 53 came while the pull request was open: the world's clock at the real pace,
+   and sleep speeding the whole world. For main to decide 1 now records his answer and what part two keeps of it.
 
 ## Where the sources disagree
 
@@ -348,7 +353,9 @@ The promises kept with the counts as run, or "What changed on the way" saying wh
 **As run.** .NET SDK 10.0.401. `dotnet test Engine/tests/EarthGame.Tests > test-results.txt 2>&1; echo $?` printed 0 at
 d267514, the branch's code on main's 36c7acb: 969 passed, 0 failed, of 969; main alone, in a throwaway worktree of 36c7acb,
 929 passed, 0 failed, so 40 are new. Built first on 6b1aaa1, before main took BF.5 in, the same suite ran 917 passed, 0
-failed (877 and the 40). The suite's source rules (`SourceRulesTests`, 5 passed) read every file under `Engine/packages`, the
+failed (877 and the 40). Main moved on while the pull request was open (to 2b68516: WG.2c's stage two, rulings 50 to 53, the
+loading screen's map); the branch merged with it in a throwaway worktree, not pushed, ran 983 passed, 0 failed, and main
+alone 943. The suite's source rules (`SourceRulesTests`, 5 passed) read every file under `Engine/packages`, the
 new ones among them: no Unity, no `#if`, no clock or unseeded random, no to-do markers. Eight sabotages, each run over its
 model's test class and restored byte for byte (sha256 checked), on the final code:
 
