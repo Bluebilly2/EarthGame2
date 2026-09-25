@@ -30,8 +30,8 @@ Plants with fewer records are printed as notes, with no verdict.
 
 Rows the world is known to fail are owed, each under the Docs/DEBTS.md row OWED names, a table per region (the world's
 world.json names its region; Bherwerre's rows are M1.2b's; the valley's, since it grows its own plants (WG.2c), are the
-plants it grows by the coast's rows, the coast's plants of the whole valley's estuary corner it does not carry, the palm on
-the plateau's swamps and the rainforest the model cannot see). An owed row prints its
+plants it grows by the coast's rows, the coast's plants of the whole valley's estuary corner it does not carry, the palm
+crowding the wettest ground and the rainforest the model cannot see). An owed row prints its
 numbers and "owed" where the verdict would be and does not fail the check; an owed row that passes does fail it,
 until it is taken out of OWED and its debt moved to Paid. So the table can only shrink as the world gets better,
 and a row not in it that fails still fails.
@@ -75,7 +75,7 @@ OWN_PLANTS = "grows its region's plants and no others"
 STILL_OFF = "The plants the records still find nearer the sea"
 COAST_ROWS = "The valley grows some plants by the coast's rows"
 ESTUARY = "The coast's plants of the whole valley's estuary corner"
-PALM_SWAMPS = "The palm stands in the plateau's swamps"
+PALM_CROWDS = "The palm crowds the wettest ground"
 MAP_GROUPS = "The canopy does not follow the pre-1750 map's groups"
 OWED_BY_REGION = {
     "bherwerre": {
@@ -94,7 +94,7 @@ OWED_BY_REGION = {
         ("Lomandra", "round its records"): COAST_ROWS,
         ("SawSedge", "round its records"): COAST_ROWS,
         ("OldManBanksia", "round its records"): COAST_ROWS,
-        ("CabbageTreePalm", "round its records"): PALM_SWAMPS,
+        ("CabbageTreePalm", "round its records"): PALM_CROWDS,
     },
     # The whole valley has a sea to measure from, the Shoalhaven's floodplain in its south-east corner, where the coast's plants
     # are recorded.

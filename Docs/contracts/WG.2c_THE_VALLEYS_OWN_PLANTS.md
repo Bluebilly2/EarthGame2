@@ -652,9 +652,11 @@ Round their records (`species_check`; the whole valley's box, then the 8 km box 
 | coast banksia, swamp paperbark | grown nowhere, their 17 and 9 records on the floodplain: owed | none |
 
 The rows owed are 9 on the gate (M1.2b's, unchanged), 5 in the 8 km valley and 12 in the whole, under four DEBTS rows: "The valley
-grows some plants by the coast's rows", "The coast's plants of the whole valley's estuary corner", "The palm stands in the plateau's
-swamps" and, for lilly pilly, "The canopy does not follow the pre-1750 map's groups". "The valley grows the coast's plant table"
-moved to Paid.
+grows some plants by the coast's rows", "The coast's plants of the whole valley's estuary corner", "The palm crowds the wettest
+ground" and, for lilly pilly, "The canopy does not follow the pre-1750 map's groups". "The valley grows the coast's plant table"
+moved to Paid. The palm's row names both of the grove's causes, and the slice that would pay it: "the palm as the eucalypts'
+understorey", a second tall layer standing the palm under the canopy trees as the moist forest carries it (the main session's
+review, 2026-09-25, which agreed the big crowns' row too as a slice of its own, since it moves the coast's stand).
 
 **Two things the frames will show** (the numbers read off the worlds): the palm is the commonest trunk at almost every vantage, 1,080
 of them within 150 m of the whole valley's lake head, because its crown is a quarter of its height and the stand's rule stands

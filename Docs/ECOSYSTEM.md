@@ -320,6 +320,7 @@ their records over the whole valley, Sydney blue gum is 1.11, silvertop ash 1.34
 69 and 53 % of the land on 15 to 25 and 25 to 31 degrees. What the rules cannot yet do is owed in DEBTS.md, each with its cause:
 - the plants grown by the coast's rows (blackbutt, bangalay, old-man banksia, and the understorey's three);
 - the coast's plants of the estuary corner;
-- the palm, which takes the plateau's upland swamps because a plant here has tolerances and no ground it seeks;
+- the palm, which crowds the wettest ground: a plant here has tolerances and no ground it seeks, a palm's small crown stands ten
+  times the stems a blue gum's does, and the model has one tall plant to a cell where the palm really stands under the eucalypts;
 - the map's rainforest and heath, which follow fertility and fire;
 - crowns that fill a big tree's canopy thinly.
