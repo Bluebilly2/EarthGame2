@@ -171,6 +171,45 @@ that tree stands, a cobble where the ground sheds stone (CANON ruling 22).
   2005, *Austral Ecology* 30), is mostly logs, and this slice lays no logs: its sticks are the hand-sized ones, about
   a metre long and 3 to 5 cm thick, so their mass is not held against that figure.
 
+### The country's things (BF.4 promise 7, researched 2026-09-25)
+
+What the second loose layer will lay (dead wood, bark and tinder, driftwood, a creek's gravel) was looked up before its rule
+was written: published figures for all of it, almost none measured on the peninsula or in the valley themselves. **V** the
+number was seen in the source or its abstract; **S** secondhand, through the source named; **E** an estimate, reasoned.
+
+| What | Figure | Source | |
+|---|---|---|---|
+| Dead wood, Australian means | woodland 19 t/ha, open forest about 50, tall open forest 134 | Woldendorp and Keenan 2005, *Austral Ecology* 30:834 | V/S |
+| Dead wood by forest | dry sclerophyll 51 t/ha, wet 109; 18 and 16 % of the wood above ground | Woldendorp, Keenan and Ryan 2002, via Hollis 2011 (UNSW thesis) | S |
+| Dead wood, the south coast | Kioloa's spotted gum, bangalay and blackbutt 8 t/ha (pieces of 5 cm and more); other blackbutt forest 32 to 263 | Ash and Helman 1990, *Cunninghamia* 2, and two ANU theses, via Hollis 2011 | S |
+| Logs, unlogged NSW forest | over 15 cm: shrubby dry blackbutt forest 107.6 m³/ha, wet forest 135; of 30 cm by 5 m and more, 13.9 a hectare dry, 29.1 wet | Threlfall, Law and Peacock 2018, *Austral Ecology* | V |
+| Wood's mass | 96 m³/ha weighed 46 t/ha, about 0.48 t/m³ | Aponte, Tolhurst and Bennett 2014, *Ecological Applications* 24:976 | V |
+| Mass by size | pieces over 22.5 cm hold over 75 % of it, under 7.5 cm under 10 % | Hollis 2011 | V |
+| Fire and ground | repeated mild burns take a third of it, mostly the rotten; gullies hold more than slopes | Aponte 2014; Hollis 2011; Bassett 2015, *Forest Ecology and Management* 340 | V |
+| How long a log lasts | 95 % of its mass gone in a median 49 years | Mackensen, Bauhus and Webber 2003, *Australian Journal of Botany* 51 | S |
+| Litter, sand forest | builds to 16.7 t/ha about ten years after a fire (Seal Rocks); back to its load within 3 years of a burn | Fox, Fox and McKay 1979, *AJB* 27; Penman and York 2010 | V |
+| Bark shed | 1.6 t/ha a year of 5.7 of all litterfall in Kioloa's spotted gum forest | Pook, Gill and Moore 1997, *AJB* 45 | V |
+| Bark as tinder | ribbons 50 cm and longer, under 2 mm thick, light from a lighter; dry stringybark "easily lit with a match" | Hines and others 2010, *Overall Fuel Hazard Assessment Guide* | V |
+| Tinder carried | dried stringybark, powdered dry leaves or grass, a smouldering banksia cone carried alight | Brough Smyth 1878; Howitt 1904 | V |
+| Litter's water | MC = 2.76 + 0.124·RH − 0.0187·T (%): about 6 % on a hot dry afternoon, 21 % on a humid night; fire stops spreading above about 23.5 %; three in four lightings take at 18 % | Matthews and others 2010 (Vesta), via CSIRO; Cruz and others 2022; Cawson and Duff 2019 | V |
+| Driftwood | no count on any Australian beach. California's sandy beaches: 0.02 to 0.11 m² of wood a metre of beach, 0.3 to 1.03 near creek and estuary mouths; storm logs lie at the dune's toe and are buried in 10 to 15 years | Nielsen, Morgan and Dugan 2013 (California Sea Grant); Heathfield and Walker 2011 | V |
+| Rivers' wood | NSW and Victorian rivers were cleared of wood from 1886 to 1995 | Erskine and Webb 2003, *River Research and Applications* 19 | V |
+| The Kangaroo River's bed | of 102.9 km of it and its creeks: gravel 48.5 %, bedrock 36.4 %, fine 10.5 %, mixed 4.7 %; plateau fines, a bedrock gorge below Carrington Falls, gravel to Hampden Bridge, then sandstone gorge | NSW River Styles (GHD 2012) | V |
+| A gravel's size | a sandstone and basalt creek (Widden Brook): median grain 1.06 mm in pools, 4.12 mm in riffles, over cobbles | Keene and others 2008, IAHS 325 | V |
+
+Which bark sheds (PlantNET, EUCLID): blackbutt stringy on the lower trunk and ribbons above; bangalay thick and coarsely
+fibrous; Sydney blue gum rough for its lowest 1 to 4 m and ribbons above; *Angophora costata* large flakes in spring;
+silvertop ash hard and furrowed; the banksias and she-oaks keep theirs. PlantNET calls the swamp paperbark's bark corky,
+where the plant table above has it "in sheets": a lead for the table.
+
+Estimates where nothing was found (**E**): dead wood 40 to 60 t/ha on the coastal sands and 80 to 140 in the escarpment's wet
+forest, a third to a half less on ground burnt lately, of which 2,000 to 6,000 branches a hectare of 2.5 to 10 cm; driftwood on
+Bherwerre's open beaches 0 to 2 large pieces and 10 to 50 sticks a 100 m, five to twenty times that within 1 to 3 km of a creek
+or estuary mouth, more on this Earth than on ours, whose rivers were never cleared; the valley's riffles a median of 20 to
+45 mm, its pools about 1 mm, its creeks below the falls 60 to 120 mm with sandstone blocks of half a metre to three;
+Bherwerre's creeks sand of a quarter to half a millimetre. Not yet read: NSW's log-length benchmarks (4,367 plots, CC BY 4.0,
+on the SEED portal) and Gorecki, Fryirs and Brierley 2006, which measured the Kangaroo River's stones.
+
 ### The stones (v1's open item E0)
 
 v1's `SurfaceGeology` drew flint on coastal plains, and the Sydney Basin has none. What the peninsula offers a

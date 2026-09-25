@@ -132,10 +132,12 @@ the client's Terrain posts sample the function, so what is drawn is what is walk
    stage, which widens the stand cell in the same files. Proved by: the bake's legend against the Survey's own descriptions,
    unit by unit; `stone_check` (a verifier reading the geology layer and the stone layer, not the rule); the census of stone by
    place in both regions; the rocks' count by stone again; the knap scenario on the new stone.
-7. **The country's things.** A second loose layer (tile layer 9, protocol 21): driftwood on beaches and lake shores,
+7. **The country's things.** A second loose layer (tile layer 9, the protocol after the stone's; 21 went to WG.2c): driftwood on beaches and lake shores,
    bark and tinder under the trees that shed them, dead wood (fallen limbs, rotting logs) in forest by the stand's
    height, gravel in creek beds; each kind with its properties from its place as BF.1 gave the sticks, taken as a bit
-   beside the layer (a new change layer in the region file, which its length-prefixed diffs allow without a version).
+   beside the layer (a new change layer in the region file, which its length-prefixed diffs allow without a version). What
+   the published record says of each, with its sources, was gathered on 2026-09-25 (ECOSYSTEM.md, "The country's things");
+   the rule's numbers are taken from it when the promise is built.
 
    *Amended 2026-09-25, before it was built (promise 5).* What the code map of that day found shaped it: the client holds no
    topology, so "a crest" and "a shore platform" are not facts both sides share (the cover byte folds cliff, platform and
