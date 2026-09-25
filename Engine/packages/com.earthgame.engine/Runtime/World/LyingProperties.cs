@@ -98,7 +98,7 @@ namespace EarthGame.Engine
         {
             int cellCm = (int)Math.Round(cellM * 100.0);
             int own = standCodeAt(thing.Row, thing.Col);
-            if (own > 0) return StandCodes.SpeciesOf((byte)own);
+            if (own > 0) return StandCodes.SpeciesOf((ushort)own);
             StandLayout.Place(thing.Row, thing.Col, thing.Kind, thing.Index, cellCm, out int eastCm, out int northCm, out _);
             PlantSpecies best = null;
             long bestD2 = long.MaxValue;
@@ -108,7 +108,7 @@ namespace EarthGame.Engine
                     if (dr == 0 && dc == 0) continue;
                     int code = standCodeAt(thing.Row + dr, thing.Col + dc);
                     if (code <= 0) continue;
-                    PlantSpecies species = StandCodes.SpeciesOf((byte)code);
+                    PlantSpecies species = StandCodes.SpeciesOf((ushort)code);
                     if (species == null) continue;
                     StandLayout.Place(thing.Row + dr, thing.Col + dc, StandLayout.Kind.Trunk, 0, cellCm, out int te, out int tn, out _);
                     long de = (te + dc * cellCm) - eastCm, dn = (tn - dr * cellCm) - northCm;
@@ -128,7 +128,7 @@ namespace EarthGame.Engine
             RegionRaster loose = world.Loose;
             double cellM = loose != null ? loose.CellM : 4.0;
             RegionRaster stand = world.Stand;
-            int StandAt(int row, int col) => stand != null && row >= 0 && col >= 0 && row < stand.Height && col < stand.Width ? (int)stand.Code(row, col) : -1;
+            int StandAt(int row, int col) => stand != null && row >= 0 && col >= 0 && row < stand.Height && col < stand.Width ? StandCodes.CodeAt(stand, row, col) : -1;
             byte cover = 0;
             RegionRaster covers = world.Cover;
             if (covers != null && thing.Row >= 0 && thing.Col >= 0 && thing.Row < covers.Height && thing.Col < covers.Width) cover = (byte)covers.Code(thing.Row, thing.Col);

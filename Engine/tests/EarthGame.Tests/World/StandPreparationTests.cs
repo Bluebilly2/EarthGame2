@@ -15,15 +15,22 @@ namespace EarthGame.Tests.World
         private const int Posts = 251;
         private const double Cell = 4.0;
 
-        private static ReceivedTile Tile(TileId id, TileLayer layer, Func<int, int, byte> codes = null, Func<int, int, float> heights = null)
+        /// <summary>A tile as a client holds it: the stand's codes two bytes a post, every other code layer's one.</summary>
+        private static ReceivedTile Tile(TileId id, TileLayer layer, Func<int, int, ushort> codes = null, Func<int, int, float> heights = null)
         {
             Grid.Origin(id, out double east, out double north);
             ReceivedTile tile = new ReceivedTile { Id = id, Layer = layer, Posts = Posts, CellM = Cell, OriginEast = east, OriginNorth = north, Crc32 = 7u };
-            if (codes != null)
+            if (codes != null && TileLayers.CodeBytes(layer) == 2)
+            {
+                tile.WideCodes = new ushort[Posts, Posts];
+                for (int z = 0; z < Posts; z++)
+                    for (int x = 0; x < Posts; x++) tile.WideCodes[z, x] = codes(z, x);
+            }
+            else if (codes != null)
             {
                 tile.Codes = new byte[Posts, Posts];
                 for (int z = 0; z < Posts; z++)
-                    for (int x = 0; x < Posts; x++) tile.Codes[z, x] = codes(z, x);
+                    for (int x = 0; x < Posts; x++) tile.Codes[z, x] = (byte)codes(z, x);
             }
             if (heights != null)
             {
@@ -41,8 +48,8 @@ namespace EarthGame.Tests.World
         public void ATreeIsDrawnWhereTheServerPutItToTheCentimetre()
         {
             TileId id = new TileId(3, 5);
-            byte code = StandCodes.Pack(PlantSpecies.Blackbutt, 30.0);
-            ReceivedTile stand = Tile(id, TileLayer.Stand, (z, x) => z == 20 && x == 10 ? code : (byte)0);
+            ushort code = StandCodes.Pack(PlantSpecies.Blackbutt, 30.0);
+            ReceivedTile stand = Tile(id, TileLayer.Stand, (z, x) => z == 20 && x == 10 ? code : (ushort)0);
             PreparedStand prepared = StandPreparation.Prepare(stand, null, Ground(id), Grid);
 
             Assert.That(prepared.Trees.Length, Is.EqualTo(1));
@@ -63,8 +70,8 @@ namespace EarthGame.Tests.World
         [Test]
         public void EachCellIsDrawnByOneTileOnly()
         {
-            byte code = StandCodes.Pack(PlantSpecies.CoastBanksia, 8.0);
-            Func<int, int, byte> corners = (z, x) => (z == 0 && x == 0) || (z == Posts - 1 && x == Posts - 1) ? code : (byte)0;
+            ushort code = StandCodes.Pack(PlantSpecies.CoastBanksia, 8.0);
+            Func<int, int, ushort> corners = (z, x) => (z == 0 && x == 0) || (z == Posts - 1 && x == Posts - 1) ? code : (ushort)0;
             TileId inside = new TileId(3, 5), last = new TileId(Grid.TilesPerSide - 1, Grid.TilesPerSide - 1);
             Assert.That(StandPreparation.Prepare(Tile(inside, TileLayer.Stand, corners), null, Ground(inside), Grid).Trees.Length, Is.EqualTo(1),
                 "the far corner belongs to the tile beyond");

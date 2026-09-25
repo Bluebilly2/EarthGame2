@@ -117,8 +117,9 @@ BODY_RADIUS_M = 0.35
 STOUTEST_TRUNK_SHARE = 0.060
 TRUNK_MARGIN_M = 0.25
 BLOCK_CELL_M = 2.0
-# The stand code's five low bits count steps of this (StandCodes.HeightStepM), restated.
-HEIGHT_MASK, HEIGHT_STEP_M = 0x1F, 1.25
+# The stand code's low byte counts steps of this (StandCodes.HeightStepM), restated; its low five bits in a world made
+# before WG.2c (2026-09-25), whose stand is one byte a cell.
+HEIGHT_MASK, ONE_BYTE_HEIGHT_MASK, HEIGHT_STEP_M = 0xFF, 0x1F, 1.25
 BASE_LAP_M = (700.0, 2300.0)
 LAP_MAX_M = 3000.0
 LAP_AIM_M = 1400.0
@@ -210,14 +211,15 @@ class Ground:
         stand layer (a world made before M1.6a)."""
         if not os.path.exists(os.path.join(ROOT, world, "layers", "stand.json")):
             return None
-        _, stand = layer(world, "stand")
+        stand_side, stand = layer(world, "stand")
         codes = stand.astype(np.int64)
+        mask = ONE_BYTE_HEIGHT_MASK if stand_side.get("dtype") == "u8" else HEIGHT_MASK
         rows, cols = np.nonzero(codes)
         n = int(round(2.0 * self.half / BLOCK_CELL_M)) + 1
         blocked = np.zeros((n, n), dtype=bool)
         if not len(rows):
             return blocked
-        heights = (codes[rows, cols] & HEIGHT_MASK) * HEIGHT_STEP_M
+        heights = (codes[rows, cols] & mask) * HEIGHT_STEP_M
         east_cm, north_cm = trunk_offsets(rows, cols, int(round(self.cell * 100.0)))
         east = cols * self.cell - self.half + east_cm / 100.0
         north = self.half - rows * self.cell + north_cm / 100.0

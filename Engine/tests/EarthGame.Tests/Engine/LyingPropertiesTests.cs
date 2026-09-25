@@ -106,7 +106,7 @@ namespace EarthGame.Tests.Engine
             RegionRaster loose = TestRasters.FromCodes(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "made_loose", "loose",
                 (row, col) => row == Row && col == Col ? LooseCodes.Pack(3, 2) : 0u, null);
             RegionRaster stand = TestRasters.FromCodes(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "made_stand", "stand",
-                (row, col) => row == trunkRow && col == trunkCol ? StandCodes.Pack(PlantSpecies.CoastBanksia, 8.0) : 0u, null);
+                (row, col) => row == trunkRow && col == trunkCol ? StandCodes.Pack(PlantSpecies.CoastBanksia, 8.0) : 0u, null, "u16");
             RegionRaster cover = TestRasters.FromCodes(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "made_cover", "cover",
                 (row, col) => GroundCovers.Pack(GroundCover.ForestFloor, 2), null);
             RegionRaster stone = TestRasters.FromCodes(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "made_stone", "stone",

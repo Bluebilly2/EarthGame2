@@ -27,7 +27,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "Tools/verifiers/checks"))
-from stand_check import CROWN_SHARE, height_step, layer, legend_names  # noqa: E402  (one owner of the readers and the table)
+from stand_check import CROWN_SHARE, height_step, layer, legend_names, stand_layout  # noqa: E402  (one owner of the readers and the table)
 
 SQUARE_M = 40.0
 SLOPE_BANDS = [(0, 10), (10, 20), (20, 25), (25, 30), (30, 35), (35, 45), (45, 90)]
@@ -49,6 +49,7 @@ def main(argv):
     m = (stand.shape[0] - 1) // k
     names = legend_names(sidecar)
     step = height_step(sidecar)
+    shift, mask = stand_layout(sidecar)
     tall = sorted(names)
     share_of = np.zeros(max(tall) + 1)
     for code, name in names.items():
@@ -56,8 +57,8 @@ def main(argv):
 
     # Every tree's own crown, a square at a time.
     blocks = stand[: m * k, : m * k].reshape(m, k, m, k).transpose(0, 2, 1, 3).reshape(m, m, k * k)
-    species = (blocks >> 5).astype(np.int64)
-    height = (blocks & 31).astype(np.float64) * step
+    species = (blocks >> shift).astype(np.int64)
+    height = (blocks & mask).astype(np.float64) * step
     area = math.pi / 4.0 * (share_of[species] * height) ** 2
     own = np.minimum(1.0, area.sum(axis=2) / (SQUARE_M * SQUARE_M))
     count = (blocks > 0).sum(axis=2)
@@ -68,7 +69,7 @@ def main(argv):
     most = per.argmax(axis=2)
     metres = np.stack([np.where(species == i, height, 0.0).sum(axis=2) for i in range(max(tall) + 1)], axis=2)
     mean_h = np.take_along_axis(metres, most[..., None], 2)[..., 0] / np.maximum(1, np.take_along_axis(per, most[..., None], 2)[..., 0])
-    mean_h = np.clip(np.round(mean_h / step), 1, 31) * step
+    mean_h = np.clip(np.round(mean_h / step), 1, mask) * step
     far = np.where(count > 0, np.minimum(1.0, count * math.pi / 4.0 * (share_of[most] * mean_h) ** 2 / (SQUARE_M * SQUARE_M)), 0.0)
     del blocks, species, height, area, per, metres
 

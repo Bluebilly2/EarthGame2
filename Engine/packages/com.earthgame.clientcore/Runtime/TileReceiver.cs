@@ -18,10 +18,21 @@ namespace EarthGame.ClientCore
         public uint Crc32;
         /// <summary>Metres, indexed [north, east]: the ground, or the water's depth over it. Null for a layer of codes.</summary>
         public float[,] Heights;
-        /// <summary>Codes, indexed [north, east], for a layer that carries them. Null for a layer of metres.</summary>
+        /// <summary>Codes, indexed [north, east], for a layer of one byte a post. Null for a layer of metres and for a two-byte layer.</summary>
         public byte[,] Codes;
+        /// <summary>
+        /// Codes, indexed [north, east], for a layer of two bytes a post (<see cref="TileLayers.CodeBytes"/>: the stand and the
+        /// far stand, since WG.2c). Null for every other layer.
+        /// </summary>
+        public ushort[,] WideCodes;
         /// <summary>True when the bytes came from the disk cache rather than the wire.</summary>
         public bool FromCache;
+
+        /// <summary>Whether the tile carries codes, of either width.</summary>
+        public bool HasCodes => Codes != null || WideCodes != null;
+
+        /// <summary>The code at a post, of either width; the tile must carry codes (<see cref="HasCodes"/>).</summary>
+        public int CodeAt(int z, int x) => WideCodes != null ? WideCodes[z, x] : Codes[z, x];
     }
 
     /// <summary>Where a client keeps the tiles it has received, so a rejoin asks only for what changed (N3).</summary>
@@ -300,10 +311,12 @@ namespace EarthGame.ClientCore
             TileId id = new TileId(header.Ix, header.Iz);
             float[,] heights = null;
             byte[,] codes = null;
+            ushort[,] wide = null;
             try
             {
-                if (TileLayers.CarriesCodes(header.Layer)) codes = TileCodec.UnpackCodes(bytes, header.Posts);
-                else heights = TileCodec.Unpack(bytes, header.Posts);
+                if (!TileLayers.CarriesCodes(header.Layer)) heights = TileCodec.Unpack(bytes, header.Posts);
+                else if (TileLayers.CodeBytes(header.Layer) == 2) wide = TileCodec.UnpackWideCodes(bytes, header.Posts);
+                else codes = TileCodec.UnpackCodes(bytes, header.Posts);
             }
             catch (InvalidDataException ex)
             {
@@ -321,6 +334,7 @@ namespace EarthGame.ClientCore
                 Crc32 = header.Crc32,
                 Heights = heights,
                 Codes = codes,
+                WideCodes = wide,
                 FromCache = fromCache,
             };
             _held[(header.Layer, id)] = tile;

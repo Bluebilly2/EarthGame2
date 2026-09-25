@@ -33,16 +33,16 @@ namespace EarthGame.ClientCore
             return loose != null ? loose.CellM : RegionCellM;
         }
 
-        /// <summary>A code layer's byte at a world cell, or −1 where no tile of that layer is held for it.</summary>
+        /// <summary>A code layer's code at a world cell, of either width, or −1 where no tile of that layer is held for it.</summary>
         public static int CodeAt(TileReceiver tiles, TileGrid grid, TileLayer layer, int row, int col, double cellM, double extentM)
         {
             StandLayout.CellCentre(row, col, cellM, extentM, out double east, out double north);
             ReceivedTile tile = tiles.Holding(layer, grid.ForPosition(east, north));
-            if (tile?.Codes == null) return -1;
+            if (tile == null || !tile.HasCodes) return -1;
             int x = (int)Math.Round((east - tile.OriginEast) / tile.CellM);
             int z = (int)Math.Round((north - tile.OriginNorth) / tile.CellM);
             if (x < 0 || z < 0 || x >= tile.Posts || z >= tile.Posts) return -1;
-            return tile.Codes[z, x];
+            return tile.CodeAt(z, x);
         }
     }
 }

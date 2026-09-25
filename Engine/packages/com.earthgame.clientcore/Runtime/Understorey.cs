@@ -176,11 +176,11 @@ namespace EarthGame.ClientCore
             trunkEast = 0.0;
             trunkNorth = 0.0;
             radiusM = 0.0;
-            if (stand?.Codes == null || stand.Posts != cover.Posts) return;
+            if (stand?.WideCodes == null || stand.Posts != cover.Posts) return;
             int x = (int)Math.Round((centreEast - stand.OriginEast) / stand.CellM);
             int z = (int)Math.Round((centreNorth - stand.OriginNorth) / stand.CellM);
             if (x < 0 || z < 0 || x >= stand.Posts || z >= stand.Posts) return;
-            byte code = stand.Codes[z, x];
+            ushort code = stand.WideCodes[z, x];
             if (code == 0) return;
             TreeForm form = StandForms.For(StandCodes.SpeciesOf(code));
             if (form == null) return;

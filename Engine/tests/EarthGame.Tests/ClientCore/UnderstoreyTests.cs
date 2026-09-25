@@ -33,7 +33,7 @@ namespace EarthGame.Tests.ClientCore
                     : col <= 115 ? GroundCovers.Pack(GroundCover.Grass, GrassQuarter)
                     : GroundCovers.Pack(GroundCover.Sand, 0), null);
             RegionRaster stand = TestRasters.FromCodes(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "made_stand", "stand",
-                (row, col) => row == TreeRow && col == TreeCol ? StandCodes.Pack(PlantSpecies.OldManBanksia, TreeHeightM) : 0u, null);
+                (row, col) => row == TreeRow && col == TreeCol ? StandCodes.Pack(PlantSpecies.OldManBanksia, TreeHeightM) : 0u, null, "u16");
             return new WorldState(1347UL, Fixture, Fixture.WakeClock(), new Heightfield(TestRasters.MadeCoast()), 0, null, null, cover, stand);
         }
 

@@ -38,7 +38,7 @@ namespace EarthGame.ClientCore
         {
             if (tiles == null || grid == null || into == null || !(radiusM > 0.0)) return;
             ReceivedTile here = tiles.Holding(TileLayer.Stand, grid.ForPosition(east, north));
-            if (here == null || here.Codes == null) return;
+            if (here == null || here.WideCodes == null) return;
             double cell = here.CellM;
             if (!(cell > 0.0)) return;
             // A trunk stands up to half a cell from its cell's centre, so the cells half a cell beyond the reach are read too.
@@ -54,11 +54,11 @@ namespace EarthGame.ClientCore
                     TileId id = grid.ForPosition(centreEast, centreNorth);
                     ReceivedTile stand = tiles.Holding(TileLayer.Stand, id);
                     ReceivedTile tile = tiles.Holding(TileLayer.Ground, id);
-                    if (stand?.Codes == null || tile?.Heights == null || tile.Posts != stand.Posts) continue;
+                    if (stand?.WideCodes == null || tile?.Heights == null || tile.Posts != stand.Posts) continue;
                     int x = (int)Math.Round((centreEast - stand.OriginEast) / cell);
                     int z = (int)Math.Round((centreNorth - stand.OriginNorth) / cell);
                     if (x < 0 || z < 0 || x >= stand.Posts || z >= stand.Posts) continue;
-                    byte code = stand.Codes[z, x];
+                    ushort code = stand.WideCodes[z, x];
                     if (code == 0) continue;
                     PlantSpecies species = StandCodes.SpeciesOf(code);
                     TreeForm form = StandForms.For(species);

@@ -29,7 +29,7 @@ namespace EarthGame.Tests.ClientCore
                 (row, col) => row == Row && col == Col ? StandCodes.Pack(PlantSpecies.Blackbutt, BlackbuttM)
                     : row == Row - 1 && col == Col + 1 ? StandCodes.Pack(PlantSpecies.CoastBanksia, CoastBanksiaM)
                     : row == Row + 1 && col == Col - 1 ? StandCodes.Pack(PlantSpecies.OldManBanksia, OldManBanksiaM)
-                    : 0u, null);
+                    : 0u, null, "u16");
             return new WorldState(1347UL, Fixture, Fixture.WakeClock(), new Heightfield(TestRasters.MadeCoast()), 0, null, null, null, stand);
         }
 

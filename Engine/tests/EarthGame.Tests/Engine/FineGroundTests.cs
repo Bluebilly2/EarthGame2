@@ -87,8 +87,9 @@ namespace EarthGame.Tests.Engine
                 OriginNorth = encoded.OriginNorth,
                 Crc32 = encoded.Crc32,
             };
-            if (TileLayers.CarriesCodes(layer)) tile.Codes = TileCodec.UnpackCodes(encoded.Bytes, encoded.Posts);
-            else tile.Heights = TileCodec.Unpack(encoded.Bytes, encoded.Posts);
+            if (!TileLayers.CarriesCodes(layer)) tile.Heights = TileCodec.Unpack(encoded.Bytes, encoded.Posts);
+            else if (TileLayers.CodeBytes(layer) == 2) tile.WideCodes = TileCodec.UnpackWideCodes(encoded.Bytes, encoded.Posts);
+            else tile.Codes = TileCodec.UnpackCodes(encoded.Bytes, encoded.Posts);
             return tile;
         }
 
@@ -244,7 +245,7 @@ namespace EarthGame.Tests.Engine
         public void TheTreesAndTheLitterStandOnTheGround()
         {
             RegionRaster stand = TestRasters.FromCodes(FineWorld.Side, FineWorld.CellM, FineWorld.ExtentM, "fine_stand", "stand",
-                (row, col) => row % 9 == 0 && col % 7 == 0 ? StandCodes.Pack(PlantSpecies.OldManBanksia, 11.0) : 0u, null);
+                (row, col) => row % 9 == 0 && col % 7 == 0 ? StandCodes.Pack(PlantSpecies.OldManBanksia, 11.0) : 0u, null, "u16");
             RegionRaster loose = TestRasters.FromCodes(FineWorld.Side, FineWorld.CellM, FineWorld.ExtentM, "fine_loose", "loose",
                 (row, col) => row % 5 == 0 && col % 3 == 0 ? LooseCodes.Pack(2, 1) : 0u, null);
             WorldState world = FineWorld.Make(stand: stand, loose: loose);

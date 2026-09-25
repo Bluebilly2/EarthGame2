@@ -123,7 +123,7 @@ namespace EarthGame.Tests.Server
 
         /// <summary>The tiny fixture's stand (M1.6a): one blackbutt on the centre row, a cell east of the middle.</summary>
         private static RegionRaster Stand() => TestRasters.FromCodes(5, 10.0, 40.0, "tiny_stand", "stand",
-            (row, col) => row == 2 && col == 3 ? StandCodes.Pack(PlantSpecies.Blackbutt, 30.0) : 0u, null);
+            (row, col) => row == 2 && col == 3 ? StandCodes.Pack(PlantSpecies.Blackbutt, 30.0) : 0u, null, "u16");
 
         /// <summary>What lies on it: sticks on the blackbutt's cell and its four neighbours, a cobble down the middle column.</summary>
         private static RegionRaster Loose() => TestRasters.FromCodes(5, 10.0, 40.0, "tiny_loose", "loose",
@@ -193,18 +193,18 @@ namespace EarthGame.Tests.Server
             TileId id = new TileId(0, 0);
             ReceivedTile stand = rig.A.Tiles.Holding(TileLayer.Stand, id);
             ReceivedTile loose = rig.A.Tiles.Holding(TileLayer.Loose, id);
-            Assert.That(stand.Codes, Is.Not.Null, "a layer of codes");
+            Assert.That(stand.WideCodes, Is.Not.Null, "a layer of codes, two bytes a post");
             Assert.That(loose.Codes, Is.Not.Null, "a layer of codes");
             RegionRaster standTruth = Stand(), looseTruth = Loose();
             for (int z = 0; z < stand.Posts; z++)
                 for (int x = 0; x < stand.Posts; x++)
                 {
                     int row = stand.Posts - 1 - z;   // a tile's first row is its south edge, a raster's its north
-                    Assert.That(stand.Codes[z, x], Is.EqualTo((byte)standTruth.Code(row, x)), "stand at " + z + "," + x);
+                    Assert.That(stand.WideCodes[z, x], Is.EqualTo((ushort)standTruth.Code(row, x)), "stand at " + z + "," + x);
                     Assert.That(loose.Codes[z, x], Is.EqualTo((byte)looseTruth.Code(row, x)), "loose at " + z + "," + x);
                 }
-            Assert.That(StandCodes.SpeciesOf(stand.Codes[2, 3]), Is.SameAs(PlantSpecies.Blackbutt), "the blackbutt on the centre row");
-            Assert.That(StandCodes.HeightOf(stand.Codes[2, 3]), Is.EqualTo(30.0).Within(StandCodes.HeightStepM));
+            Assert.That(StandCodes.SpeciesOf(stand.WideCodes[2, 3]), Is.SameAs(PlantSpecies.Blackbutt), "the blackbutt on the centre row");
+            Assert.That(StandCodes.HeightOf(stand.WideCodes[2, 3]), Is.EqualTo(30.0).Within(StandCodes.HeightStepM));
             Assert.That(Directory.Exists(Path.Combine(_cacheDir, "fixture", "stand")), Is.True, "each layer caches under its own name");
             Assert.That(Directory.Exists(Path.Combine(_cacheDir, "fixture", "loose")), Is.True);
         }

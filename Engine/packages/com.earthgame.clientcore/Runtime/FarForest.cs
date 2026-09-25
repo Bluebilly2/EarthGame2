@@ -69,7 +69,7 @@ namespace EarthGame.ClientCore
         /// </summary>
         public static void Place(ReceivedTile farStand, ReceivedTile farCount, IHeightSource ground, TileGrid grid, List<FarTree> into)
         {
-            if (farStand?.Codes == null || farCount?.Codes == null || grid == null || into == null) return;
+            if (farStand?.WideCodes == null || farCount?.Codes == null || grid == null || into == null) return;
             if (!farStand.Id.Equals(farCount.Id) || farStand.Posts != farCount.Posts || !(farStand.CellM > 0.0)) return;
             int posts = farStand.Posts;
             double cell = farStand.CellM;
@@ -78,11 +78,12 @@ namespace EarthGame.ClientCore
             for (int z = 0; z <= lastZ; z++)
                 for (int x = 0; x <= lastX; x++)
                 {
-                    byte code = farStand.Codes[z, x];
+                    ushort code = farStand.WideCodes[z, x];
                     int count = farCount.Codes[z, x];
                     if (code == 0 || count <= 0) continue;
-                    PlantSpecies species = StandCodes.SpeciesOf(code);
-                    if (species == null) continue;
+                    int tall = StandCodes.TallIndexOf(code);
+                    if (tall < 0) continue;
+                    PlantSpecies species = StandCodes.Tall[tall];
                     double postEast = farStand.OriginEast + x * cell;
                     double postNorth = farStand.OriginNorth + z * cell;
                     // The post's place in whole centimetres names the square in every tile and every client alike.
@@ -102,7 +103,7 @@ namespace EarthGame.ClientCore
                         YawDeg = (float)((h >> 32) % 360UL),
                         HeightM = (float)height,
                         CrownM = (float)crown,
-                        Tall = TallIndex(species),
+                        Tall = tall,
                         Level = LevelOf(h),
                     });
                 }
@@ -119,14 +120,6 @@ namespace EarthGame.ClientCore
             int level = 0;
             while (level < MostLevel && (own & (1UL << level)) == 0) level++;
             return level;
-        }
-
-        private static int TallIndex(PlantSpecies species)
-        {
-            IReadOnlyList<PlantSpecies> all = StandCodes.Tall;
-            for (int i = 0; i < all.Count; i++)
-                if (ReferenceEquals(all[i], species)) return i;
-            return -1;
         }
     }
 }

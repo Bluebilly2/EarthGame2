@@ -75,6 +75,13 @@ namespace EarthGame.Engine
             }
         }
 
+        /// <summary>
+        /// How many bytes a post of a code layer carries (tile format v4, WG.2c, 2026-09-25): two for the stand and the far
+        /// stand, whose <see cref="StandCodes"/> name a plant by its catalogue number in the high byte and its height in the
+        /// low; one for every other layer of codes. One owner: the encoder packs by it and the receiver unpacks by it.
+        /// </summary>
+        public static int CodeBytes(TileLayer layer) => layer == TileLayer.Stand || layer == TileLayer.FarStand ? 2 : 1;
+
         /// <summary>Whether a byte off the wire names a layer this build knows.</summary>
         public static bool IsKnown(byte value)
         {
@@ -118,7 +125,7 @@ namespace EarthGame.Engine
     }
 
     /// <summary>
-    /// How a tile of one layer is packed for the wire and the disk cache (ARCHITECTURE §10, tile format v2): the
+    /// How a tile of one layer is packed for the wire and the disk cache (ARCHITECTURE §10, tile format v4): the
     /// posts of a tile sampled straight from the raster at its own pitch (a kilometre at 4 m is 251 posts a
     /// side, sharing an edge post with each neighbour). A layer of metres — the ground, and the water's depth
     /// over it — writes each post as centimetres in a signed 16-bit integer, each row its first value then the
@@ -136,10 +143,14 @@ namespace EarthGame.Engine
     /// continues in 16-bit steps between neighbouring posts, so a tile carries any height on Earth. Version 2 held every
     /// height as a 16-bit number of centimetres, ±327 m of the datum, which the sea's coast never reached and the Kangaroo
     /// Valley's plateau, at 700 m, broke on the first encode.</para>
+    ///
+    /// <para>Version 4 (WG.2c, 2026-09-25): the stand and the far stand carry two bytes a post
+    /// (<see cref="TileLayers.CodeBytes"/>), written as two planes through one deflate, every post's high byte and then every
+    /// post's low byte, so the plant numbers' long runs stay runs; every other code layer is one byte a post as before.</para>
     /// </summary>
     public static class TileCodec
     {
-        public const int Version = 3;
+        public const int Version = 4;
         /// <summary>
         /// The largest height a tile will carry, metres either side of the datum: past the deepest trench and the highest
         /// summit, so only a number that is no height on Earth is refused. A height beyond it, and a step between neighbouring
@@ -201,23 +212,26 @@ namespace EarthGame.Engine
             return tile;
         }
 
-        /// <summary>A tile of a code layer: the raster's own codes at each post, refused if any exceeds a byte.</summary>
+        /// <summary>
+        /// A tile of a code layer: the raster's own codes at each post, refused if any exceeds what a post of the layer carries
+        /// (<see cref="TileLayers.CodeBytes"/>). The stand's codes are read through <see cref="StandCodes.CodeAt"/>, so a world
+        /// made with the one-byte stand sends its trees in the two-byte layout.
+        /// </summary>
         public static EncodedTile EncodeCodes(RegionRaster layer, TileLayer which, TileGrid grid, TileId id)
         {
             if (layer == null) throw new ArgumentNullException(nameof(layer));
             if (!layer.IsIntegral) throw new ArgumentException("layer '" + layer.Layer + "' is " + layer.Dtype + ", not a code layer", nameof(layer));
             double cell = layer.CellM;
-            byte[,] codes = null;
+            int bytes = TileLayers.CodeBytes(which);
+            uint ceiling = bytes == 2 ? ushort.MaxValue : byte.MaxValue;
             float[,] widened = Sampled(grid, id, cell, out int posts, out double originEast, out double originNorth, (east, north) =>
             {
                 CellAt(layer, east, north, out int row, out int col);
-                uint code = layer.Code(row, col);
-                if (code > byte.MaxValue) throw new InvalidDataException("layer '" + layer.Layer + "' has the code " + code + ", which a tile carries as one byte");
+                uint code = which == TileLayer.Stand ? StandCodes.CodeAt(layer, row, col) : layer.Code(row, col);
+                if (code > ceiling)
+                    throw new InvalidDataException("layer '" + layer.Layer + "' has the code " + code + ", which a tile carries in " + (bytes == 2 ? "two bytes" : "one byte"));
                 return code;
             });
-            codes = new byte[posts, posts];
-            for (int z = 0; z < posts; z++)
-                for (int x = 0; x < posts; x++) codes[z, x] = (byte)widened[z, x];
             EncodedTile tile = new EncodedTile
             {
                 Id = id,
@@ -226,7 +240,7 @@ namespace EarthGame.Engine
                 CellM = cell,
                 OriginEast = originEast,
                 OriginNorth = originNorth,
-                Bytes = PackCodes(codes, posts),
+                Bytes = PackCodes(widened, posts, bytes),
             };
             tile.Crc32 = Crc32.Compute(tile.Bytes);
             return tile;
@@ -250,9 +264,6 @@ namespace EarthGame.Engine
                 CellAt(stand, east, north, out int row, out int col);
                 return FarSquare(stand, row, col, span, which);
             });
-            byte[,] codes = new byte[posts, posts];
-            for (int z = 0; z < posts; z++)
-                for (int x = 0; x < posts; x++) codes[z, x] = (byte)read[z, x];
             EncodedTile tile = new EncodedTile
             {
                 Id = id,
@@ -261,7 +272,7 @@ namespace EarthGame.Engine
                 CellM = TileLayers.FarCellM,
                 OriginEast = originEast,
                 OriginNorth = originNorth,
-                Bytes = PackCodes(codes, posts),
+                Bytes = PackCodes(read, posts, TileLayers.CodeBytes(which)),
             };
             tile.Crc32 = Crc32.Compute(tile.Bytes);
             return tile;
@@ -283,14 +294,15 @@ namespace EarthGame.Engine
         /// short of half a span after, in rows and in columns, so that two neighbouring far posts never count one tree
         /// twice. For the far count, how many trees stand in it, to a byte; for the far stand, the tall plant most of them
         /// are — the first in <see cref="StandCodes.Tall"/>'s order on a tie — packed by <see cref="StandCodes.Pack"/> at
-        /// those trees' mean height, or zero where no tree stands.
+        /// those trees' mean height, or zero where no tree stands. A world made with the one-byte stand is read through
+        /// <see cref="StandCodes.CodeAt"/>.
         /// </summary>
         public static uint FarSquare(RegionRaster stand, int row, int col, int span, TileLayer which)
         {
             if (stand == null) throw new ArgumentNullException(nameof(stand));
             int tall = StandCodes.Tall.Count;
-            int[] trees = new int[tall + 1];
-            double[] metres = new double[tall + 1];
+            int[] trees = new int[tall];
+            double[] metres = new double[tall];
             int count = 0;
             int before = span / 2;
             for (int r = row - before; r < row - before + span; r++)
@@ -299,20 +311,20 @@ namespace EarthGame.Engine
                 for (int c = col - before; c < col - before + span; c++)
                 {
                     if (c < 0 || c >= stand.Width) continue;
-                    uint code = stand.Code(r, c);
-                    int index = (int)(code >> StandCodes.SpeciesShift);
-                    if (code == 0 || index < 1 || index > tall) continue;
+                    ushort code = StandCodes.CodeAt(stand, r, c);
+                    int index = StandCodes.TallIndexOf(code);
+                    if (code == 0 || index < 0) continue;
                     count++;
                     trees[index]++;
-                    metres[index] += StandCodes.HeightOf((byte)code);
+                    metres[index] += StandCodes.HeightOf(code);
                 }
             }
             if (which == TileLayer.FarCount) return (uint)Math.Min(count, byte.MaxValue);
             if (count == 0) return 0u;
-            int most = 1;
-            for (int i = 2; i <= tall; i++)
+            int most = 0;
+            for (int i = 1; i < tall; i++)
                 if (trees[i] > trees[most]) most = i;
-            return StandCodes.Pack(StandCodes.Tall[most - 1], metres[most] / trees[most]);
+            return StandCodes.Pack(StandCodes.Tall[most], metres[most] / trees[most]);
         }
 
         /// <summary>Walks a tile's posts, north-then-east as the packing does, and collects what a reader returns.</summary>
@@ -460,6 +472,66 @@ namespace EarthGame.Engine
                     throw new InvalidDataException("tile data has bytes beyond " + (posts * posts) + " posts");
             }
             return codes;
+        }
+
+        /// <summary>
+        /// Packs a square of two-byte codes (v4, WG.2c): every post's high byte, north-then-east, and then every post's low
+        /// byte, through one deflate. A plant's number is the same over long runs of posts and its height is not, so the
+        /// numbers kept together deflate to little, where interleaved with the heights they would break every run.
+        /// </summary>
+        public static byte[] PackWideCodes(ushort[,] codes, int posts)
+        {
+            using (MemoryStream output = new MemoryStream())
+            {
+                using (DeflateStream deflate = new DeflateStream(output, CompressionLevel.Optimal, leaveOpen: true))
+                {
+                    for (int z = 0; z < posts; z++)
+                        for (int x = 0; x < posts; x++) deflate.WriteByte((byte)(codes[z, x] >> 8));
+                    for (int z = 0; z < posts; z++)
+                        for (int x = 0; x < posts; x++) deflate.WriteByte((byte)codes[z, x]);
+                }
+                return output.ToArray();
+            }
+        }
+
+        /// <summary>Unpacks a square of two-byte codes (<see cref="PackWideCodes"/>), indexed [north, east].</summary>
+        public static ushort[,] UnpackWideCodes(byte[] bytes, int posts)
+        {
+            if (bytes == null) throw new ArgumentNullException(nameof(bytes));
+            if (posts < 2) throw new ArgumentOutOfRangeException(nameof(posts));
+            ushort[,] codes = new ushort[posts, posts];
+            using (MemoryStream input = new MemoryStream(bytes))
+            using (DeflateStream inflate = new DeflateStream(input, CompressionMode.Decompress))
+            {
+                for (int plane = 0; plane < 2; plane++)
+                    for (int z = 0; z < posts; z++)
+                        for (int x = 0; x < posts; x++)
+                        {
+                            int b = inflate.ReadByte();
+                            if (b < 0)
+                                throw new InvalidDataException("tile data ends after " + (plane * posts * posts + z * posts + x) + " of " + (2 * posts * posts) + " bytes of two-byte posts");
+                            codes[z, x] = plane == 0 ? (ushort)(b << 8) : (ushort)(codes[z, x] | b);
+                        }
+                if (inflate.ReadByte() != -1)
+                    throw new InvalidDataException("tile data has bytes beyond " + (posts * posts) + " two-byte posts");
+            }
+            return codes;
+        }
+
+        /// <summary>Packs the codes a tile's posts were sampled as, one byte or two a post as the layer carries them.</summary>
+        private static byte[] PackCodes(float[,] sampled, int posts, int bytesPerPost)
+        {
+            if (bytesPerPost == 2)
+            {
+                ushort[,] wide = new ushort[posts, posts];
+                for (int z = 0; z < posts; z++)
+                    for (int x = 0; x < posts; x++) wide[z, x] = (ushort)sampled[z, x];
+                return PackWideCodes(wide, posts);
+            }
+            byte[,] codes = new byte[posts, posts];
+            for (int z = 0; z < posts; z++)
+                for (int x = 0; x < posts; x++) codes[z, x] = (byte)sampled[z, x];
+            return PackCodes(codes, posts);
         }
 
         private static int ToCentimetres(float metres)

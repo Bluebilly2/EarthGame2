@@ -69,8 +69,11 @@ namespace EarthGame.Server
     }
 
     /// <summary>
-    /// The world folder (ARCHITECTURE §6): <c>world.json</c> (format <c>eg2.world</c>, version 1: identity, the
-    /// clock's two numbers, the tick, the wake, the layers' checksums and, since M1.3, <c>next_entity_id</c>),
+    /// The world folder (ARCHITECTURE §6): <c>world.json</c> (format <c>eg2.world</c>, version 2: identity, the
+    /// clock's two numbers, the tick, the wake, the layers' checksums and, since M1.3, <c>next_entity_id</c>; version 1 is
+    /// still read and written back as 2, its only difference a stand layer of one byte a cell, which
+    /// <see cref="StandCodes.CodeAt"/> converts as it reads, and version 2 is what keeps an older build from misreading a
+    /// newer world's trees, WG.2c, 2026-09-25),
     /// <c>players/&lt;name&gt;.egp</c> (each player's resting place and, since M1.5a, what they carry; version 1's JSON
     /// is still read and replaced),
     /// <c>regions/r.X.Y.egr</c> (the entities by 512 m cell and, since M1.5b, what has been taken from the loose layer)
@@ -84,7 +87,7 @@ namespace EarthGame.Server
     public static class WorldSave
     {
         public const string Format = "eg2.world";
-        public const int Version = 1;
+        public const int Version = 2;
         public const string WorldFile = "world.json";
         public const string PlayersFolder = "players";
         public const string DigestFile = "digest.txt";
@@ -280,7 +283,8 @@ namespace EarthGame.Server
             string format = doc.StringOr("format", "(none)");
             if (format != Format) throw new InvalidDataException(worldPath + ": format is '" + format + "', expected '" + Format + "'");
             int version = doc.Int("version");
-            if (version != Version) throw new InvalidDataException(worldPath + ": version " + version + "; this build reads " + Version);
+            if (version != 1 && version != Version)
+                throw new InvalidDataException(worldPath + ": version " + version + "; this build reads 1 and " + Version);
             WorldSaveInfo info = new WorldSaveInfo();
             info.RegionId = doc.String("region");
             info.Seed = doc.UInt64("seed");

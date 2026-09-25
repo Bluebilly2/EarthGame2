@@ -55,7 +55,7 @@ namespace EarthGame.Tests.Engine
             int side = FineWorld.Side;
             double cell = FineWorld.CellM, extent = FineWorld.ExtentM;
             return FineWorld.Make(
-                stand: TestRasters.FromCodes(side, cell, extent, "rock_stand", "stand", StandAt, null),
+                stand: TestRasters.FromCodes(side, cell, extent, "rock_stand", "stand", StandAt, null, "u16"),
                 loose: TestRasters.FromCodes(side, cell, extent, "rock_loose", "loose", LooseAt, null),
                 stone: TestRasters.FromCodes(side, cell, extent, "rock_stone", "stone", StoneAt, null));
         }
@@ -191,6 +191,36 @@ namespace EarthGame.Tests.Engine
             Near("steep rock", talusCells, talusSeen, talusExpected);
             Near("cliff", cliffCells, cliffSeen, cliffExpected);
             Near("thin soil", thinCells, thinSeen, thinExpected);
+        }
+
+        /// <summary>The server's one ground without its hollows, as the rule seats a rock on it.</summary>
+        private sealed class Undug : IHeightSource
+        {
+            private readonly WorldState _world;
+            public Undug(WorldState world) => _world = world;
+            public double HeightAt(double east, double north) => FineGround.UndugAt(_world, east, north);
+        }
+
+        /// <summary>
+        /// The rule reads the stand only as whether a trunk stands on a cell (WG.2c keeps that meaning with two bytes a code): a
+        /// cell where a rock stands with no trunk stands none under any tree's code, of any tall plant at any height, and none
+        /// under a code whose low byte is zero, which a cast to one byte would have read as no trunk.
+        /// </summary>
+        [Test]
+        public void TheRuleReadsATwoByteStandCodeOnlyAsWhetherATrunkStands()
+        {
+            WorldState world = Shared;
+            Assert.That(Rocks, Is.Not.Empty, "the fixture stands rocks");
+            StandingRock first = Rocks[0];
+            int row = first.Row, col = first.Col;
+            byte cover = (byte)world.Cover.Code(row, col), loose = (byte)world.Loose.Code(row, col), stone = (byte)world.Stone.Code(row, col);
+            Undug undug = new Undug(world);
+            bool Decide(ushort stand) => StandingRocks.TryDecide(row, col, cover, loose, stone, stand, FineWorld.CellM, FineWorld.ExtentM, undug, out _);
+            Assert.That(Decide(0), Is.True, "with no trunk the rock stands");
+            foreach (PlantSpecies tall in StandCodes.Tall)
+                foreach (double h in new[] { StandCodes.HeightStepM, 40.0, StandCodes.HeightMask * StandCodes.HeightStepM })
+                    Assert.That(Decide(StandCodes.Pack(tall, h)), Is.False, "a " + tall.DisplayName + " " + h + " m tall stands there");
+            Assert.That(Decide((ushort)(1 << StandCodes.SpeciesShift)), Is.False, "a code whose low byte is zero is still a trunk");
         }
 
         [Test]

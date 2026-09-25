@@ -22,7 +22,7 @@ namespace EarthGame.ClientCore
             int loose = CodeAt(tiles, grid, TileLayer.Loose, row, col, cellM);
             int stand = CodeAt(tiles, grid, TileLayer.Stand, row, col, cellM);
             if (cover < 0 || stone < 0 || loose < 0 || stand < 0) return false;
-            return StandingRocks.TryDecide(row, col, (byte)cover, (byte)loose, (byte)stone, (byte)stand, cellM, grid.ExtentM, undug, out rock);
+            return StandingRocks.TryDecide(row, col, (byte)cover, (byte)loose, (byte)stone, (ushort)stand, cellM, grid.ExtentM, undug, out rock);
         }
 
         /// <summary>The rock of the cell a point lies in, and true; false where none stands there or its tiles are not held.</summary>
@@ -34,16 +34,16 @@ namespace EarthGame.ClientCore
             return TryOfCell(tiles, grid, undug, cellM, row, col, out rock);
         }
 
-        /// <summary>A code layer's byte at a world cell, from the tile that draws the cell, or −1 where no such tile is held.</summary>
+        /// <summary>A code layer's code at a world cell, of either width, from the tile that draws the cell, or −1 where no such tile is held.</summary>
         private static int CodeAt(Func<TileLayer, TileId, ReceivedTile> tiles, TileGrid grid, TileLayer layer, int row, int col, double cellM)
         {
             StandLayout.CellCentre(row, col, cellM, grid.ExtentM, out double east, out double north);
             ReceivedTile tile = tiles(layer, grid.ForPosition(east, north));
-            if (tile?.Codes == null) return -1;
+            if (tile == null || !tile.HasCodes) return -1;
             int x = (int)Math.Round((east - tile.OriginEast) / tile.CellM);
             int z = (int)Math.Round((north - tile.OriginNorth) / tile.CellM);
             if (x < 0 || z < 0 || x >= tile.Posts || z >= tile.Posts) return -1;
-            return tile.Codes[z, x];
+            return tile.CodeAt(z, x);
         }
     }
 }

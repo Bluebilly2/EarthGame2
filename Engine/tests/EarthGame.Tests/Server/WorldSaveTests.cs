@@ -85,8 +85,26 @@ namespace EarthGame.Tests.Server
             WorldState world = new WorldState(1, Region.Bherwerre, Region.Bherwerre.WakeClock());
             WorldSave.Write(_dir, world, null, "");
             string path = Path.Combine(_dir, WorldSave.WorldFile);
-            File.WriteAllText(path, File.ReadAllText(path).Replace("\"version\": 1", "\"version\": 7"));
+            File.WriteAllText(path, File.ReadAllText(path).Replace("\"version\": " + WorldSave.Version, "\"version\": 7"));
             Assert.That(() => WorldSave.Read(_dir), Throws.TypeOf<InvalidDataException>().With.Message.Contains("version"));
+        }
+
+        /// <summary>
+        /// A world made before WG.2c (its world file version 1, its stand one byte a cell) is read, and written back as version 2
+        /// at its next save, so an older build refuses it by name from then on rather than misreading a newer world's trees.
+        /// </summary>
+        [Test]
+        public void AVersionOneWorldIsReadAndSavedAsTwo()
+        {
+            WorldState world = new WorldState(1, Region.Bherwerre, Region.Bherwerre.WakeClock());
+            WorldSave.Write(_dir, world, null, "");
+            string path = Path.Combine(_dir, WorldSave.WorldFile);
+            Assert.That(WorldSave.Version, Is.EqualTo(2));
+            File.WriteAllText(path, File.ReadAllText(path).Replace("\"version\": 2", "\"version\": 1"));
+            Assert.That(File.ReadAllText(path), Does.Contain("\"version\": 1"));
+            Assert.That(WorldSave.Read(_dir).RegionId, Is.EqualTo(Region.Bherwerre.Id), "a version-1 world is read");
+            WorldSave.Write(_dir, world, null, "");
+            Assert.That(File.ReadAllText(path), Does.Contain("\"version\": 2"), "and written back as version 2");
         }
 
         [Test]

@@ -10,9 +10,9 @@ namespace EarthGame.Tests.Protocol
         private static PacketReader Reader(PacketWriter w) => new PacketReader(w.Written.ToArray(), 1, w.Written.Length - 1);
 
         [Test]
-        public void TheProtocolIsTwenty()
+        public void TheProtocolIsTwentyOne()
         {
-            Assert.That(ProtocolInfo.Version, Is.EqualTo((ushort)20), "BF.2's work was protocol 18, BF.3's changes 19 and its standing targets 20");
+            Assert.That(ProtocolInfo.Version, Is.EqualTo((ushort)21), "BF.2's work was protocol 18, BF.3's changes 19, its standing targets 20 and WG.2c's two-byte stand 21");
             Assert.That((byte)MessageKind.WorkState, Is.EqualTo((byte)25));
             Assert.That((byte)Verb.Work, Is.EqualTo((byte)6));
             Assert.That((byte)Verb.StopWork, Is.EqualTo((byte)7));

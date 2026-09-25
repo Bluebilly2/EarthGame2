@@ -55,7 +55,7 @@ namespace EarthGame.Tests.Server
         {
             RegionRaster ground = TestRasters.FromLaw(5, 10.0, 40.0, "st_ground", (row, col) => 100f);
             RegionRaster stand = TestRasters.FromCodes(5, 10.0, 40.0, "st_stand", "stand",
-                (row, col) => row == 2 && col == 3 ? StandCodes.Pack(PlantSpecies.SwampPaperbark, 3.0) : row == 1 && col == 1 ? StandCodes.Pack(PlantSpecies.Bangalay, 20.0) : 0u, null);
+                (row, col) => row == 2 && col == 3 ? StandCodes.Pack(PlantSpecies.SwampPaperbark, 3.0) : row == 1 && col == 1 ? StandCodes.Pack(PlantSpecies.Bangalay, 20.0) : 0u, null, "u16");
             RegionRaster cover = TestRasters.FromCodes(5, 10.0, 40.0, "st_cover", "cover",
                 (row, col) => row == 2 && col == 2 ? GroundCovers.Pack(GroundCover.Sedge, 2)
                     : row == 3 && col == 2 ? GroundCovers.Pack(GroundCover.Grass, 3)

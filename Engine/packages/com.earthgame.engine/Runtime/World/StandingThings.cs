@@ -101,7 +101,7 @@ namespace EarthGame.Engine
             trunk = default;
             RegionRaster stand = world?.Stand;
             if (!Inside(stand, row, col)) return false;
-            byte code = (byte)stand.Code(row, col);
+            ushort code = StandCodes.CodeAt(stand, row, col);
             if (code == 0) return false;
             PlantSpecies species = StandCodes.SpeciesOf(code);
             TreeGeometry geometry = TreeGeometries.For(species);
@@ -146,7 +146,7 @@ namespace EarthGame.Engine
             // A cell that carries a tree keeps its tufts out of the bark: the client draws none there, so none stands there.
             if (Inside(world.Stand, row, col))
             {
-                byte standCode = (byte)world.Stand.Code(row, col);
+                ushort standCode = StandCodes.CodeAt(world.Stand, row, col);
                 TreeGeometry geometry = TreeGeometries.For(StandCodes.SpeciesOf(standCode));
                 if (standCode != 0 && geometry != null)
                 {

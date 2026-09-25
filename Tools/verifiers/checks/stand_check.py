@@ -4,7 +4,8 @@ sticks and cobbles lie where they would?
 
 The M1.6a contract (`Docs/contracts/M1.6_WHAT_STANDS_AND_LIES.md`) states the rules; this check restates them in numpy
 against the world's other layers — the overstory, the topology, the water and the soil — and imports nothing the game
-runs. The stand byte and the loose byte are read by the legends their sidecars print. Each tall plant's crown share and
+runs. The stand's codes and the loose byte are read by the legends their sidecars print, the stand's layout by its dtype
+(two bytes since WG.2c, 2026-09-25; one in a world made before: `stand_layout`). Each tall plant's crown share and
 height range are restated here from `Docs/ECOSYSTEM.md`'s tables, so a check that agreed only because it asked the
 engine is not possible; the sand forest's height is NSW BioNet's (its profile of Bangalay Sand Forest, "approximately
 5 - 20 m tall", read 2026-09-10).
@@ -90,8 +91,20 @@ def legend_names(sidecar):
         if "=" in part:
             number, name = part.strip().split("=", 1)
             if number.strip().isdigit():
-                names.setdefault(int(number), name.strip().split(" ")[0])
+                names.setdefault(int(number), name.strip().split(" ")[0].rstrip(";."))
     return names
+
+
+def stand_layout(sidecar):
+    """How a stand code is laid out, by the layer's dtype: (the shift to the plant's number, the mask of the height's steps).
+    Two bytes since WG.2c (2026-09-25), the plant's catalogue number high and the steps low; one byte in a world made
+    before, the plant in the top three bits and the steps in the low five. The plant numbers are the legend's either way."""
+    dtype = sidecar.get("dtype")
+    if dtype == "u16":
+        return 8, 0xFF
+    if dtype == "u8":
+        return 5, 0x1F
+    raise ValueError("a stand layer of dtype %s, which is neither layout" % dtype)
 
 
 def height_step(sidecar):
@@ -135,10 +148,11 @@ def main(argv):
     tall_names = legend_names(stand_side)
     over_names = legend_names(over_side)
 
-    species_code = stand >> 5
-    heights = (stand & 0x1F).astype(np.float64) * step
+    shift, mask = stand_layout(stand_side)
+    species_code = (stand >> shift).astype(np.int64)
+    heights = (stand & mask).astype(np.float64) * step
     trunk = stand > 0
-    names = np.array([""] + [tall_names.get(i, "?") for i in range(1, 8)])[species_code]
+    names = np.array([""] + [tall_names.get(i, "?") for i in range(1, int(species_code.max()) + 1)])[species_code]
     share = np.zeros(stand.shape)
     for name, s in CROWN_SHARE.items():
         share[names == name] = s

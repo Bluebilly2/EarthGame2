@@ -31,7 +31,7 @@ namespace EarthGame.Tests.Engine
             for (int r = 0; r < w.Height; r++)
                 for (int c = 0; c < w.Width; c++)
                 {
-                    byte code = w.Stand[r * w.Width + c];
+                    ushort code = w.Stand[r * w.Width + c];
                     if (code == 0) continue;
                     PlantSpecies species = StandCodes.SpeciesOf(code);
                     double height = StandCodes.HeightOf(code);
@@ -51,7 +51,8 @@ namespace EarthGame.Tests.Engine
                     if (w.Stand[i] == 0) continue;
                     trunks++;
                     Assert.That(w.Overstory[i], Is.Not.EqualTo((byte)0), "a trunk at cell " + i + " where no canopy stands");
-                    Assert.That(StandCodes.SpeciesOf(w.Stand[i]), Is.SameAs(PlantSpecies.All[w.Overstory[i] - 1]), "the trunk at cell " + i + " is its canopy's species");
+                    Assert.That(StandCodes.SpeciesOf(w.Stand[i]), Is.SameAs(PlantSpecies.ByNumber(w.Overstory[i])), "the trunk at cell " + i + " is its canopy's species");
+                    Assert.That(w.Stand[i] >> StandCodes.SpeciesShift, Is.EqualTo(w.Overstory[i]), "the trunk at cell " + i + " carries its canopy's own number");
                 }
                 Assert.That(trunks, Is.GreaterThan(100), "trees stand at all: " + trunks);
             }
@@ -188,21 +189,107 @@ namespace EarthGame.Tests.Engine
             foreach (PlantSpecies tall in StandCodes.Tall)
                 for (double h = StandCodes.HeightStepM; h <= StandCodes.HeightMask * StandCodes.HeightStepM; h += StandCodes.HeightStepM)
                 {
-                    byte code = StandCodes.Pack(tall, h);
+                    ushort code = StandCodes.Pack(tall, h);
                     Assert.That(StandCodes.SpeciesOf(code), Is.SameAs(tall));
                     Assert.That(StandCodes.HeightOf(code), Is.EqualTo(h).Within(1e-9));
+                    Assert.That(code >> StandCodes.SpeciesShift, Is.EqualTo(PlantSpecies.NumberOf(tall)), "a code names its plant by the catalogue's number");
+                    Assert.That(StandCodes.Tall[StandCodes.TallIndexOf(code)], Is.SameAs(tall));
                 }
             Assert.That(StandCodes.Tall.Count, Is.EqualTo(5), "the five tall plants of Bherwerre");
             Assert.That(StandCodes.SpeciesOf(0), Is.Null);
+            Assert.That(StandCodes.TallIndexOf(0), Is.EqualTo(-1));
             Assert.That(StandCodes.HeightOf(0), Is.EqualTo(0.0));
-            Assert.That(StandCodes.HeightOf(StandCodes.Pack(PlantSpecies.Blackbutt, 100.0)), Is.EqualTo(StandCodes.HeightMask * StandCodes.HeightStepM), "a height past the code's reach is carried at its top");
+            Assert.That(StandCodes.HeightOf(StandCodes.Pack(PlantSpecies.Blackbutt, 400.0)), Is.EqualTo(StandCodes.HeightMask * StandCodes.HeightStepM), "a height past the code's reach is carried at its top");
+            Assert.That(StandCodes.SpeciesOf((ushort)(PlantSpecies.NumberOf(PlantSpecies.Lomandra) << StandCodes.SpeciesShift | 4)), Is.Null, "a code naming a plant that is not tall names no tree");
             Assert.Throws<ArgumentException>(() => StandCodes.Pack(PlantSpecies.Lomandra, 1.0), "a herb does not stand as a tree");
-            foreach (PlantSpecies tall in StandCodes.Tall) Assert.That(StandCodes.Legend(), Does.Contain(tall.Name));
+            // The verifiers read a name up to the comma or the bracket that closes the list (stand_check's legend_names): the
+            // first two-byte legend put a semicolon after the last name, and the check read "SwampPaperbark;" as no plant it knew.
+            foreach (PlantSpecies tall in StandCodes.Tall)
+                Assert.That(StandCodes.Legend(), Does.Contain(PlantSpecies.NumberOf(tall) + "=" + tall.Name + ",").Or.Contain(PlantSpecies.NumberOf(tall) + "=" + tall.Name + ")"),
+                    "the legend names each tall plant by its number, closed by a comma or the list's bracket");
             byte loose = LooseCodes.Pack(7, 3);
             Assert.That(LooseCodes.SticksOf(loose), Is.EqualTo(7));
             Assert.That(LooseCodes.CobblesOf(loose), Is.EqualTo(3));
             Assert.That(LooseCodes.SticksOf(LooseCodes.Pack(40, 0)), Is.EqualTo(LooseCodes.MaxEach), "more than a code counts is carried at its top");
             Assert.That(LooseCodes.CobblesOf(LooseCodes.Pack(0, -2)), Is.Zero);
+        }
+
+        /// <summary>
+        /// A tree as tall as its plant grows is stored as tall (WG.2c): the one-byte code's 31 steps ended at 38.75 m, and the
+        /// blackbutts drawn taller than that were stored, spaced and shed sticks at 38.75.
+        /// </summary>
+        [Test]
+        public void ATreeAsTallAsItsPlantGrowsIsStoredAsTall()
+        {
+            Assert.That(StandCodes.HeightOf(StandCodes.Pack(PlantSpecies.Blackbutt, PlantSpecies.Blackbutt.MaxHeightM)), Is.EqualTo(PlantSpecies.Blackbutt.MaxHeightM).Within(1e-9));
+            foreach (PlantSpecies tall in StandCodes.Tall)
+                Assert.That(StandCodes.HeightOf(StandCodes.Pack(tall, tall.MaxHeightM)), Is.EqualTo(tall.MaxHeightM).Within(0.5 * StandCodes.HeightStepM), tall.DisplayName);
+        }
+
+        /// <summary>
+        /// The plants' numbers never change (WG.2c): the overstory, the understory and the stand carry a plant by its place in the
+        /// catalogue, so a plant moved or taken out of it would be read as another in every world already made. The catalogue
+        /// only grows at its end; this list grows with it, and never otherwise.
+        /// </summary>
+        [Test]
+        public void ThePlantsKeepTheirNumbers()
+        {
+            string[] numbered =
+            {
+                "Blackbutt", "Bangalay", "OldManBanksia", "CoastBanksia", "SwampPaperbark",
+                "GrassTree", "HeathBanksia", "Bracken", "Lomandra", "SawSedge", "KangarooGrass", "Spinifex",
+            };
+            Assert.That(PlantSpecies.All.Count, Is.EqualTo(numbered.Length), "a new plant is numbered here as it is added at the catalogue's end");
+            for (int i = 0; i < numbered.Length; i++)
+            {
+                PlantSpecies plant = PlantSpecies.ByName(numbered[i]);
+                Assert.That(PlantSpecies.NumberOf(plant), Is.EqualTo(i + 1), numbered[i] + "'s number");
+                Assert.That(PlantSpecies.ByNumber(i + 1), Is.SameAs(plant));
+            }
+            Assert.That(PlantSpecies.NumberOf(null), Is.Zero);
+            Assert.That(PlantSpecies.ByNumber(0), Is.Null);
+            Assert.That(PlantSpecies.ByNumber(numbered.Length + 1), Is.Null);
+        }
+
+        /// <summary>
+        /// A world made before WG.2c keeps its trees: every one of the 256 one-byte codes converts to the two-byte code of the same
+        /// plant at the same height, zero to zero. The one-byte layout named its plants 1 to 5 in its own order, stated here as
+        /// its legend printed it, and they are the catalogue's first five.
+        /// </summary>
+        [Test]
+        public void EveryOneByteCodeConvertsToTheSameTree()
+        {
+            string[] oneByteLegend = { "Blackbutt", "Bangalay", "OldManBanksia", "CoastBanksia", "SwampPaperbark" };
+            for (int old = 0; old < 256; old++)
+            {
+                ushort code = StandCodes.FromOneByte((byte)old);
+                int plant = old >> 5, steps = old & 0x1F;
+                Assert.That(code & StandCodes.HeightMask, Is.EqualTo(steps), "code " + old + "'s height steps");
+                if (old == 0)
+                {
+                    Assert.That(code, Is.Zero, "no trunk stays no trunk");
+                    continue;
+                }
+                Assert.That(code, Is.Not.Zero, "a trunk stays a trunk: code " + old);
+                PlantSpecies expected = plant >= 1 && plant <= oneByteLegend.Length ? PlantSpecies.ByName(oneByteLegend[plant - 1]) : null;
+                Assert.That(StandCodes.SpeciesOf(code), Is.SameAs(expected), "code " + old + "'s plant");
+                Assert.That(StandCodes.HeightOf(code), Is.EqualTo(steps * StandCodes.HeightStepM).Within(1e-9), "code " + old + "'s height");
+            }
+        }
+
+        /// <summary>A world's stand is read in the two-byte layout whichever layout its file holds: a one-byte layer through the conversion.</summary>
+        [Test]
+        public void AStandLayerIsReadInTheTwoByteLayoutWhicheverItHolds()
+        {
+            ushort tree = StandCodes.Pack(PlantSpecies.Bangalay, 17.5);
+            byte oldTree = (byte)((2 << 5) | 14);
+            RegionRaster wide = TestRasters.FromCodes(5, 10.0, 40.0, "wide_stand", "stand", (row, col) => row == 2 && col == 3 ? tree : 0u, null, "u16");
+            RegionRaster old = TestRasters.FromCodes(5, 10.0, 40.0, "old_stand", "stand", (row, col) => row == 2 && col == 3 ? oldTree : 0u, null);
+            Assert.That(StandCodes.IsOneByte(wide), Is.False);
+            Assert.That(StandCodes.IsOneByte(old), Is.True);
+            Assert.That(StandCodes.CodeAt(wide, 2, 3), Is.EqualTo(tree));
+            Assert.That(StandCodes.CodeAt(old, 2, 3), Is.EqualTo(tree), "the old byte of a bangalay 17.5 m tall is the same tree");
+            Assert.That(StandCodes.CodeAt(old, 0, 0), Is.Zero);
         }
 
         /// <summary>A tile's posts land on their raster cells by the one rule the tile's writer uses.</summary>

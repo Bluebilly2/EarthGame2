@@ -20,16 +20,23 @@ namespace EarthGame.Tests.ClientCore
             public double HeightAt(double east, double north) => 12.0;
         }
 
-        private static ReceivedTile Tile(TileId id, TileLayer layer, Func<int, int, byte> codes)
+        /// <summary>A far tile as a client holds it: the far stand's codes two bytes a post, the far count's one.</summary>
+        private static ReceivedTile Tile(TileId id, TileLayer layer, Func<int, int, ushort> codes)
         {
             Grid.Origin(id, out double east, out double north);
+            bool wide = TileLayers.CodeBytes(layer) == 2;
             ReceivedTile tile = new ReceivedTile
             {
                 Id = id, Layer = layer, Posts = Posts, CellM = TileLayers.FarCellM, OriginEast = east, OriginNorth = north, Crc32 = 7u,
-                Codes = new byte[Posts, Posts],
+                Codes = wide ? null : new byte[Posts, Posts],
+                WideCodes = wide ? new ushort[Posts, Posts] : null,
             };
             for (int z = 0; z < Posts; z++)
-                for (int x = 0; x < Posts; x++) tile.Codes[z, x] = codes(z, x);
+                for (int x = 0; x < Posts; x++)
+                {
+                    if (wide) tile.WideCodes[z, x] = codes(z, x);
+                    else tile.Codes[z, x] = (byte)codes(z, x);
+                }
             return tile;
         }
 
@@ -37,9 +44,9 @@ namespace EarthGame.Tests.ClientCore
         public void ASquareStandsOneTreeInsideItAsWideAsItsTreesCrownsWouldCover()
         {
             TileId id = new TileId(3, 4);
-            byte blackbutt = StandCodes.Pack(PlantSpecies.Blackbutt, 30.0);
-            ReceivedTile stand = Tile(id, TileLayer.FarStand, (z, x) => z == 5 && x == 7 ? blackbutt : (byte)0);
-            ReceivedTile count = Tile(id, TileLayer.FarCount, (z, x) => z == 5 && x == 7 ? (byte)16 : (byte)0);
+            ushort blackbutt = StandCodes.Pack(PlantSpecies.Blackbutt, 30.0);
+            ReceivedTile stand = Tile(id, TileLayer.FarStand, (z, x) => z == 5 && x == 7 ? blackbutt : (ushort)0);
+            ReceivedTile count = Tile(id, TileLayer.FarCount, (z, x) => z == 5 && x == 7 ? (ushort)16 : (ushort)0);
             List<FarTree> trees = new List<FarTree>();
             FarForest.Place(stand, count, new Flat(), Grid, trees);
 
@@ -64,31 +71,31 @@ namespace EarthGame.Tests.ClientCore
         [Test]
         public void EachSquareIsPlacedByOneTileAndAnEmptySquareByNone()
         {
-            byte banksia = StandCodes.Pack(PlantSpecies.CoastBanksia, 8.75);
+            ushort banksia = StandCodes.Pack(PlantSpecies.CoastBanksia, 8.75);
             TileId inside = new TileId(2, 2), last = new TileId(Grid.TilesPerSide - 1, Grid.TilesPerSide - 1);
             List<FarTree> trees = new List<FarTree>();
-            FarForest.Place(Tile(inside, TileLayer.FarStand, (z, x) => banksia), Tile(inside, TileLayer.FarCount, (z, x) => (byte)3), new Flat(), Grid, trees);
+            FarForest.Place(Tile(inside, TileLayer.FarStand, (z, x) => banksia), Tile(inside, TileLayer.FarCount, (z, x) => (ushort)3), new Flat(), Grid, trees);
             Assert.That(trees.Count, Is.EqualTo((Posts - 1) * (Posts - 1)), "a tile's last row and column are the next tile's first");
             trees.Clear();
-            FarForest.Place(Tile(last, TileLayer.FarStand, (z, x) => banksia), Tile(last, TileLayer.FarCount, (z, x) => (byte)3), new Flat(), Grid, trees);
+            FarForest.Place(Tile(last, TileLayer.FarStand, (z, x) => banksia), Tile(last, TileLayer.FarCount, (z, x) => (ushort)3), new Flat(), Grid, trees);
             Assert.That(trees.Count, Is.EqualTo(Posts * Posts), "and at the region's edge no tile lies beyond");
             trees.Clear();
-            FarForest.Place(Tile(inside, TileLayer.FarStand, (z, x) => banksia), Tile(inside, TileLayer.FarCount, (z, x) => (byte)0), new Flat(), Grid, trees);
+            FarForest.Place(Tile(inside, TileLayer.FarStand, (z, x) => banksia), Tile(inside, TileLayer.FarCount, (z, x) => (ushort)0), new Flat(), Grid, trees);
             Assert.That(trees, Is.Empty, "a square with no tree counted stands none");
-            FarForest.Place(Tile(inside, TileLayer.FarStand, (z, x) => banksia), Tile(new TileId(2, 3), TileLayer.FarCount, (z, x) => (byte)3), new Flat(), Grid, trees);
+            FarForest.Place(Tile(inside, TileLayer.FarStand, (z, x) => banksia), Tile(new TileId(2, 3), TileLayer.FarCount, (z, x) => (ushort)3), new Flat(), Grid, trees);
             Assert.That(trees, Is.Empty, "and two tiles' layers are not one tile's");
         }
 
         /// <summary>Every square of every tile of a region full of banksias: the far forest a thinning is judged over.</summary>
         private static List<FarTree> Everywhere()
         {
-            byte banksia = StandCodes.Pack(PlantSpecies.CoastBanksia, 8.75);
+            ushort banksia = StandCodes.Pack(PlantSpecies.CoastBanksia, 8.75);
             List<FarTree> trees = new List<FarTree>();
             for (int iz = 0; iz < Grid.TilesPerSide; iz++)
                 for (int ix = 0; ix < Grid.TilesPerSide; ix++)
                 {
                     TileId id = new TileId(ix, iz);
-                    FarForest.Place(Tile(id, TileLayer.FarStand, (z, x) => banksia), Tile(id, TileLayer.FarCount, (z, x) => (byte)3), new Flat(), Grid, trees);
+                    FarForest.Place(Tile(id, TileLayer.FarStand, (z, x) => banksia), Tile(id, TileLayer.FarCount, (z, x) => (ushort)3), new Flat(), Grid, trees);
                 }
             return trees;
         }

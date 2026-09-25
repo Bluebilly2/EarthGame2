@@ -198,9 +198,10 @@ namespace EarthGame.Engine
 
         /// <summary>
         /// The rock that stands on a cell, and true; false where none does. <paramref name="undug"/> is the one ground without its
-        /// hollows, NaN where it is not known: a rock is seated on the ground as it was made, and a dig does not move it.
+        /// hollows, NaN where it is not known: a rock is seated on the ground as it was made, and a dig does not move it. The
+        /// stand code is read only as whether a trunk stands on the cell (not zero), which the two-byte code of WG.2c keeps.
         /// </summary>
-        public static bool TryDecide(int row, int col, byte coverCode, byte looseCode, byte stoneCode, byte standCode, double cellM, double extentM,
+        public static bool TryDecide(int row, int col, byte coverCode, byte looseCode, byte stoneCode, ushort standCode, double cellM, double extentM,
                                      IHeightSource undug, out StandingRock rock)
         {
             rock = default;
@@ -419,7 +420,7 @@ namespace EarthGame.Engine
             if (cover == null || stone == null || world.Terrain == null) return false;
             if (!Inside(cover, row, col) || !Inside(stone, row, col)) return false;
             byte loose = Inside(world.Loose, row, col) ? (byte)world.Loose.Code(row, col) : (byte)0;
-            byte stand = Inside(world.Stand, row, col) ? (byte)world.Stand.Code(row, col) : (byte)0;
+            ushort stand = Inside(world.Stand, row, col) ? StandCodes.CodeAt(world.Stand, row, col) : (ushort)0;
             return TryDecide(row, col, (byte)cover.Code(row, col), loose, (byte)stone.Code(row, col), stand, cover.CellM, cover.ExtentM,
                              new UndugGround(world), out rock);
         }

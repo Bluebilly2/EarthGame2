@@ -387,6 +387,21 @@ namespace EarthGame.Engine
 
         public static IReadOnlyList<PlantSpecies> All => AllSpecies;
 
+        /// <summary>
+        /// A plant's number: its place in <see cref="All"/> plus one, zero for none. The overstory and understory layers carry
+        /// a plant by it, and the stand's codes since WG.2c (2026-09-25), so the catalogue only ever grows at its end: a plant
+        /// moved or taken out would be read as another in every world already made.
+        /// </summary>
+        public static int NumberOf(PlantSpecies species)
+        {
+            for (int i = 0; i < AllSpecies.Length; i++)
+                if (ReferenceEquals(AllSpecies[i], species)) return i + 1;
+            return 0;
+        }
+
+        /// <summary>The plant a number names (<see cref="NumberOf"/>), or null for zero and for a number past the catalogue's end.</summary>
+        public static PlantSpecies ByNumber(int number) => number >= 1 && number <= AllSpecies.Length ? AllSpecies[number - 1] : null;
+
         public static PlantSpecies ByName(string name)
         {
             for (int i = 0; i < AllSpecies.Length; i++)

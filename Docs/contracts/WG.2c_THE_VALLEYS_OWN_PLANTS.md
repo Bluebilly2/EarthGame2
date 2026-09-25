@@ -369,8 +369,118 @@ All six were decided as recommended on 2026-09-25 (the status block above).
 
 ## For William
 
-- **One download, for his yes** (put to him by the main session with the geology download): bangalay's records from the Atlas
-  of Living Australia for the two valley boxes, with `Tools/data/fetch_ala.py` (bangalay added to the valley's list):
-  `Data/cache/ala/kangaroo-valley/Bangalay.json` and `Data/cache/ala/kangaroo-valley-whole/Bangalay.json`, each the same public
-  query as the other sixteen (the other files are 1 to 103 KB). It decides whether bangalay grows in the valley.
 - **His eyes** on the valley's frames when stage two stands.
+
+Bangalay's records (the two files above, the same public query as the other sixteen, 1 to 103 KB each) needed his yes when this
+was drafted; he gave it the same morning, and ruling 49 made downloads the agents' own. They are fetched after the main
+session's fourth sweep, since the sweep copy reads the same `Data/` and its `species_check` steps would judge a plant its code
+does not owe; they decide whether bangalay grows in the valley.
+
+## Stage one: what was built (2026-09-25, in the side copy on c301931)
+
+- **`StandCodes`**, the one owner of the layout: `Pack` gives a `ushort`; `SpeciesOf`, `HeightOf` and `TallIndexOf` take one;
+  `FromOneByte` converts the one-byte layout; `IsOneByte` and `CodeAt` read a world's stand layer in the two-byte layout,
+  converting a one-byte layer as it reads and refusing a code neither layout carries. The legend names each tall plant by its
+  catalogue number. `BuildTall`'s cap of seven is gone.
+- **`PlantSpecies.NumberOf` and `ByNumber`**: the catalogue's numbers, which the overstory and understory already carried
+  (`WorldLayers`' private `IndexOf` retired into them), the one owner for all three layers.
+- **The world's layer**: `WorldLayers.Stand` is `ushort[]` and `WorldCreation` writes it u16.
+- **The tiles**: `TileLayers.CodeBytes` (two for the stand and the far stand), `TileCodec.PackWideCodes` and `UnpackWideCodes` (two
+  planes through one deflate), `EncodeCodes` reading the stand through `CodeAt`, `FarSquare` counting by the tall plants' places
+  through `CodeAt`, `TileCodec.Version` 4.
+- **The client**: `ReceivedTile.WideCodes`, `HasCodes` and `CodeAt`; `TileReceiver` unpacks by `CodeBytes`; the stand's readers
+  (`StandPreparation`, `TrunksNear`, `Understorey`, `FarForest`, `FarCanopy`, `ClientRocks`, `LyingSiteReader`, and Unity's
+  `StandViews`) read the two-byte grid. The client keeps its forms and meshes by the place in `StandCodes.Tall`, which for the
+  coast's five is the place it was, so their meshes and seeds are unchanged.
+- **The server's readers** of a world's stand (`StandingThings`, `StandingRocks`, `LyingSites`) read through `CodeAt`;
+  `StandingRocks.TryDecide` takes the stand code as a `ushort`, read as before only as whether a trunk stands.
+- **The versions**: `WorldSave.Version` 2, reading 1; `ProtocolInfo.Version` 21, its history's missing line for 20 added.
+- **The verifiers**: `stand_check.stand_layout` (the layout by the layer's dtype), used by `crowns.py`; `tile_check`
+  (`unpack_wide_codes`, `two_byte_stand`, the far squares in the two-byte layout); `lay_loop.py` (the height's mask by dtype).
+- **The documents**: ARCHITECTURE §10's wire, tile, world file and layers rows, and its decision log; WORLD_GENERATION_DESIGN's
+  catalogue row notes the adoption.
+
+**Tests.** The suite is 880, green in the side copy. Eight are new:
+- `ThePlantsKeepTheirNumbers`;
+- `EveryOneByteCodeConvertsToTheSameTree`, over all 256 codes against the one-byte legend as it printed;
+- `AStandLayerIsReadInTheTwoByteLayoutWhicheverItHolds`;
+- `ATreeAsTallAsItsPlantGrowsIsStoredAsTall`;
+- `AFarSquareOfAOneByteStandIsTheSameAsOfItsTwoByteTwin`;
+- `AWorldMadeBeforeSendsItsTreesAsItsTwinMadeAfterDoes`, where every tile a client holds of a one-byte world carries the same
+  bytes as its two-byte twin's;
+- `AVersionOneWorldIsReadAndSavedAsTwo`;
+- `TheRuleReadsATwoByteStandCodeOnlyAsWhetherATrunkStands`, which pins the rock rule's reading, a code with a zero low byte
+  included.
+
+Beyond those, `TheCodesGoInAndComeOut` pins the legend's punctuation and the far square's tie. The protocol, tile and
+world-file pins moved. Every test world that built a stand now builds it two bytes a cell; two keep the one-byte stand on
+purpose.
+
+**Sabotages.** Seven, each turning its tests red, every file restored byte for byte (checked by SHA-256):
+
+| Sabotage | Tests that went red |
+|---|---|
+| The conversion a step off | 4, among them the 256 codes and the twin world's tiles |
+| The planes packed low byte first | 3: the stand post for post, the far layers streamed and encoded |
+| A far square's tie to the last plant | 1 |
+| A version-1 world refused | 1 |
+| The rock rule reading one byte of the code | 1 |
+| The height clipped at 31 steps | 2 |
+| A plant named by its tall place instead of its number | 7 |
+
+**Caught on the way.** The first two-byte legend put a semicolon after its last plant ("5=SwampPaperbark; the overstory's
+numbers"). `stand_check` reads a name up to the next space, so it took "SwampPaperbark;" for a plant it did not know: all
+216,350 swamp paperbarks of a two-byte copy of the gate world failed its first row. The legend now closes its list with its
+bracket, the reader strips a stray stop, and a test pins the punctuation. On that copy `stand_check` and `crowns.py` now print
+what they print on the one-byte world, line for line.
+
+## Stage one: the proofs
+
+**The worlds.** The side copy's own host made the three worlds again (2026-09-25, into `Artefacts/worlds/wg2c-s1-gate`,
+`-valley` and `-whole`), under a request for quiet from the sweep. They were held against the template worlds made at fa4f501:
+no commit between fa4f501 and c301931 touched world creation, only run-time files, so the templates are the worlds this code
+would have made before the change. `compare_stand.py` (the side worker's scratchpad) compares every layer's raw bytes, and the
+stand cell by cell with the one-byte layer converted by its own statement of the rule. In every world the other 22 layers are
+the same raw bytes, and the wakes are unchanged: the gate (-1392, 2804), the 8 km valley (436, -1040), the whole (10840, -9268).
+
+| World | Stand cells that differ | The clip itself: a blackbutt at step 31 now at 32 (40 m) | Trunks lost, gained | Farthest from a clipped blackbutt | Loose cells that differ (farthest) | Trunks before, after |
+|---|---|---|---|---|---|---|
+| the gate | 10 of 4,004,001 | 7 of the 271 at the top step | 3, 0 | 5.7 m | 14 (8.9 m) | 992,066, 992,063 |
+| the 8 km valley | 22 of 4,004,001 | 20 of 288 | 2, 0 | 5.7 m | 71 (8.9 m) | 1,169,718, 1,169,716 |
+| the whole valley | 237 of 64,016,001 | 149 of 3,574 | 58, 30 | 12.0 m | 702 (16.0 m) | 18,968,097, 18,968,069 |
+
+The rest of each difference is the spacing round a taller crown: `StandTrees` takes a candidate's chance and its crowding from the
+stored height, so a blackbutt 1.25 m taller turns a neighbour or two away, and one turned away can let a later one stand. The loose
+layer follows its trees' heights and crowns. Only a blackbutt drawn at 39.375 m or more was clipped, so most of the trees at the
+old top step keep their height. The whole valley took 87.2 s to make, as it did after WG.1b.
+
+**The checks.** The six the sweep runs on a made world (save, cover, stand, drainage, species and census) were run by the side
+copy on all three worlds, under the same request for quiet: all 18 exit 0. `species_check` owes the rows it owed before: 9 on the
+gate, 4 on the 8 km valley, 8 on the whole. `census_check` owes Carrington Falls on the whole valley, as before. `stand_check`
+reads the two-byte stand by its dtype: 992,063, 1,169,716 and 18,968,069 trees, each where its canopy stands.
+
+**Unity and the build.** The edit-mode suite in the side copy passed 12 of 12. The harness was built and installed in the side
+copy (`wg2c-s1`, c301931 with this slice's changes).
+
+**Over the wire** (`stream.py`: the dedicated host and the harness joining over a shaped socket, 100 ms round trip, 2 per cent
+loss, then `tile_check` on that join's own tile cache):
+- **The new gate world** (`Artefacts/streaming/20260925T010104762570Z`): interactive 1.17 s after connecting, 0 errors, 0
+  corrections. `tile_check` ok, 4,055,591 cached posts agreeing with the world: 0 posts disagree of the 9 two-byte stand tiles,
+  0 of the 64 far-stand and 64 far-count tiles, and the far counts add up to the stand's 992,063 trees.
+- **A world made before**, a copy of the gate template, its stand one byte a cell and its world file version 1
+  (`Artefacts/worlds/wg2c-s1-oldgate`, run `20260925T010140509062Z`): the new host continued it and sent its trees in the
+  two-byte layout. Interactive 1.21 s after connecting, 0 errors, 0 corrections. `tile_check`, reading the old layer through its
+  own statement of the conversion, ok on every row, the far counts adding up to its 992,066 trees. Its 9 stand tiles and 64
+  far-stand tiles are the same bytes as the new world's; 4 of the 64 far-count tiles differ, those holding the 3 trunks the clip
+  moved. A few seconds of the same host with a clean stop wrote its world file back as version 2 (protocol 21), its stand still
+  the one-byte layer it was made with, the same SHA-256 its manifest names.
+- **The cost on the wire**: the 9 stand tiles round the gate world's wake are 177,175 bytes as cached, where the sweep's join of
+  2026-09-24 cached 110,022 at one byte a post; the whole region's far stand 21,174 bytes where it was 14,223. The far count and
+  the loose layer are unchanged (25,301 and 119,421 bytes).
+
+**The drink scenario** on the new gate world (`Artefacts/frames/drink-20260925T010318Z-side`, SOLO, every message serialised):
+the founder at the wake, east -1392 north 2804, beside the same creek; drank at the fresh water and was refused the sea as salt;
+6 frames, 0 errors. `thirst_check` GREEN, every row.
+
+**Still owed on stage one:** the corpus's join and walk (`join_check --only N1` and `--only N2`), run on stage one rebased onto the
+main session's 091d029 once its runs were done; they are recorded in the commit that closes stage one.

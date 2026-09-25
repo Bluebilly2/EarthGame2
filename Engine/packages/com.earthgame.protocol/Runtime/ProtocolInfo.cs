@@ -38,9 +38,13 @@ namespace EarthGame.Protocol
         /// the hands), and a seventh, stop work; an intent's answer carries a started work's seconds; WorkState (25) tells a client
         /// its own work's progress and its end; outcomes 15 no tool and 16 won't work;
         /// 19 — BF.3 the world changes: Changes (26) carries every kind of change to a cell of the generated world (the loose
-        /// things taken, the tufts taken, the trunk's flags and cut, the ground's flags and depth) and LooseTaken (20) is retired.
+        /// things taken, the tufts taken, the trunk's flags and cut, the ground's flags and depth) and LooseTaken (20) is retired;
+        /// 20 — BF.3's second stage: a work's target may be a trunk, a tuft or a cell of the ground, with the works on them and the
+        /// outcome too heavy;
+        /// 21 — WG.2c the stand cell widened: a stand tile and a far-stand tile carry two bytes a post, the plant's number in the
+        /// catalogue and its height (tile format v4).
         /// </summary>
-        public const ushort Version = 20;
+        public const ushort Version = 21;
 
         /// <summary>Bytes of tile data per TileChunk; well under <see cref="MaxMessageBytes"/> with the header.</summary>
         public const int TileChunkBytes = 16 * 1024;

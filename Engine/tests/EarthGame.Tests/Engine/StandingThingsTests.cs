@@ -31,7 +31,7 @@ namespace EarthGame.Tests.Engine
                     : col <= 116 ? GroundCovers.Pack(GroundCover.Grass, 3)
                     : GroundCovers.Pack(GroundCover.Sand, 0), null);
             RegionRaster stand = TestRasters.FromCodes(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "made_stand", "stand",
-                (row, col) => row == TreeRow && col == TreeCol ? StandCodes.Pack(PlantSpecies.OldManBanksia, TreeHeightM) : 0u, null);
+                (row, col) => row == TreeRow && col == TreeCol ? StandCodes.Pack(PlantSpecies.OldManBanksia, TreeHeightM) : 0u, null, "u16");
             RegionRaster understory = TestRasters.FromCodes(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "made_understory", "understory",
                 (row, col) => col <= 110 ? PlantCode(PlantSpecies.Bracken)
                     : col <= 113 ? PlantCode(PlantSpecies.Lomandra)

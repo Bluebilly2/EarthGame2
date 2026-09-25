@@ -15,7 +15,11 @@ The formats, as section 10 states them:
     little-endian first post in centimetres and posts - 1 signed 16-bit steps between neighbours (version 2 was posts
     squared signed 16-bit centimetres,
     each row its first post absolute and every later post the difference from the one before.
-  - A layer of codes (water-class, ground-cover, stand, loose, far-stand, far-count, stone since BF.1) is posts squared raw bytes.
+  - A layer of codes (water-class, ground-cover, stand, loose, far-stand, far-count, stone since BF.1) is posts squared raw bytes,
+    but for the stand and the far stand since tile version 4 (WG.2c, 2026-09-25): two bytes a post, every post's high byte
+    (the tall plant's number in the plant catalogue) north-then-east and then every post's low byte (its height in steps
+    of 1.25 m). A world made before WG.2c holds its stand one byte a cell (the plant in the top three bits, the steps in
+    the low five); the server sends it in the two-byte layout, so this check reads that world's stand in it too.
   - The tile grid is the region's alone: a kilometre tile where the extent divides into kilometres, else the whole
     region as one tile; tile (0, 0) at the south-west corner; a tile's origin is (-extent/2 + ix * size,
     -extent/2 + iz * size) and it has size/cell + 1 posts a side, sharing an edge post with each neighbour.
@@ -27,7 +31,8 @@ The formats, as section 10 states them:
     post carries the square of stand cells from half a square before its cell to just short of half a square after,
     in rows and in columns. The far count is how many trees stand in the square, to a byte; the far stand is the
     stand code of the tall plant most of them are, the first in the legend's order on a tie, at those trees' mean
-    height carried to the nearest step (half to even) and kept between one step and thirty-one; zero where none.
+    height carried to the nearest step (half to even) and kept between one step and 255 (thirty-one before tile
+    version 4); zero where none.
 
 Rows, each with both numbers:
   1. every cached file's CRC matches its bytes, and inflates to exactly its tile's posts;
@@ -78,7 +83,7 @@ DEPTH_TOLERANCE_M = 0.02
 RESIDENCY = 25
 # Section 10: a far layer's posts stand this far apart.
 FAR_CELL_M = 40.0
-# Section 10: a stand code's low five bits are its height in steps of this.
+# Section 10: a stand code's low byte is its height in steps of this (its low five bits in a world made before WG.2c).
 HEIGHT_STEP_M = 1.25
 
 
@@ -117,6 +122,24 @@ def unpack_codes(body, posts):
     return values.reshape(posts, posts)
 
 
+def unpack_wide_codes(body, posts):
+    """A two-byte layer (the stand and the far stand since tile version 4): the high bytes' plane, then the low bytes'."""
+    values = np.frombuffer(zlib.decompress(body, -15), dtype="u1")
+    if values.size != 2 * posts * posts:
+        raise ValueError("%d bytes inflated where %d were expected for %d two-byte posts" % (values.size, 2 * posts * posts, posts * posts))
+    planes = values.astype(np.int64).reshape(2, posts, posts)
+    return (planes[0] << 8) | planes[1]
+
+
+def two_byte_stand(stand, sidecar):
+    """The stand in the two-byte layout: as it is for a world made since WG.2c, converted for one made before (the plant
+    number from the top three bits to the high byte, the five bits of steps to the low byte, zero to zero)."""
+    codes = stand.astype(np.int64)
+    if sidecar.get("dtype") == "u8":
+        return ((codes >> 5) << 8) | (codes & 0x1F)
+    return codes
+
+
 def world_block(grid, sidecar, ix, iz, posts):
     """The world's own cells under a tile's posts. Row 0 of a tile is its south edge; row 0 of a raster is north."""
     half, cell = sidecar["extent_m"] / 2.0, sidecar["cell_m"]
@@ -144,8 +167,8 @@ def far_squares(stand, sidecar):
     tall = max([int(n) for n in re.findall(r"(\d+)=", sidecar.get("source", ""))] or [0])
     if tall < 1:
         raise ValueError("the stand's legend names no tall plant: %r" % sidecar.get("source"))
-    codes = stand.astype(np.int64)
-    species = codes >> 5
+    codes = two_byte_stand(stand, sidecar)
+    species = codes >> 8
     trees = (codes != 0) & (species >= 1) & (species <= tall)
     before = span // 2
     square_rows = (np.arange(codes.shape[0]) + before) // span
@@ -159,13 +182,13 @@ def far_squares(stand, sidecar):
     for plant in range(1, tall + 1):
         mine = trees & (species == plant)
         of_each[plant - 1] = np.bincount(index[mine], minlength=squares)
-        metres[plant - 1] = np.bincount(index[mine], weights=(codes[mine] & 0x1F) * HEIGHT_STEP_M, minlength=squares)
+        metres[plant - 1] = np.bincount(index[mine], weights=(codes[mine] & 0xFF) * HEIGHT_STEP_M, minlength=squares)
     most = np.argmax(of_each, axis=0)                         # the first of the commonest, in the legend's order
     every = np.arange(squares)
     mean = metres[most, every] / np.maximum(of_each[most, every], 1)
-    step = np.clip(np.rint(mean / HEIGHT_STEP_M), 1, 0x1F).astype(np.int64)
+    step = np.clip(np.rint(mean / HEIGHT_STEP_M), 1, 0xFF).astype(np.int64)
     kept = np.minimum(count, 0xFF)
-    tables = {FAR_STAND: np.where(count > 0, ((most + 1) << 5) | step, 0).reshape(rows_n, cols_n),
+    tables = {FAR_STAND: np.where(count > 0, ((most + 1) << 8) | step, 0).reshape(rows_n, cols_n),
               FAR_COUNT: kept.reshape(rows_n, cols_n)}
     return span, tables, int(kept.sum())
 
@@ -220,7 +243,8 @@ def main(argv):
         return 2
 
     counts = {GROUND: 0, DEPTH: 0, CLASS: 0, COVER: 0, STAND: 0, LOOSE: 0, FAR_STAND: 0, FAR_COUNT: 0, STONE: 0}
-    codes = {CLASS: (water, water_sidecar), COVER: (cover, cover_sidecar), STAND: (stand, stand_sidecar), LOOSE: (loose, loose_sidecar), STONE: (stone, stone_sidecar)}
+    wide_stand = two_byte_stand(stand, stand_sidecar) if stand is not None else None
+    codes = {CLASS: (water, water_sidecar), COVER: (cover, cover_sidecar), STAND: (wide_stand, stand_sidecar), LOOSE: (loose, loose_sidecar), STONE: (stone, stone_sidecar)}
     wrong_codes = {CLASS: 0, COVER: 0, STAND: 0, LOOSE: 0, FAR_STAND: 0, FAR_COUNT: 0, STONE: 0}
     span, far_tables, stand_trees = far_squares(stand, stand_sidecar) if stand is not None else (0, None, 0)
     far_trees = 0
@@ -244,7 +268,7 @@ def main(argv):
         counts[folder] += 1
         try:
             if folder in (FAR_STAND, FAR_COUNT):
-                held = unpack_codes(body, far_posts)
+                held = unpack_wide_codes(body, far_posts) if folder == FAR_STAND else unpack_codes(body, far_posts)
                 if far_tables is None:
                     bad_shape.append("%s in %s: this world has no stand layer to work a far layer out of" % (name, folder))
                     continue
@@ -257,7 +281,7 @@ def main(argv):
                     last_z = far_posts if iz == tiles_per_side - 1 else far_posts - 1
                     far_trees += int(held[:last_z, :last_x].astype(np.int64).sum())
             elif folder in codes:
-                held = unpack_codes(body, posts)
+                held = unpack_wide_codes(body, posts) if folder == STAND else unpack_codes(body, posts)
                 grid, sidecar = codes[folder]
                 if grid is None:
                     bad_shape.append("%s in %s: this world has no %s layer to check it against" % (name, folder, folder))

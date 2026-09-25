@@ -147,7 +147,7 @@ namespace EarthGame.Engine
         public float[] FreshWaterDistanceM { get; }
         public float[] Slope { get; }
         public float[] Exposure { get; }
-        /// <summary>Species index into <see cref="PlantSpecies.All"/> plus one; zero for nothing.</summary>
+        /// <summary>The plant's number (<see cref="PlantSpecies.NumberOf"/>); zero for nothing.</summary>
         public byte[] Overstory { get; }
         public byte[] Understory { get; }
         /// <summary>The winning canopy's suitability, 0 to 1.</summary>
@@ -157,8 +157,8 @@ namespace EarthGame.Engine
         public byte[] Stone { get; }
         /// <summary>What covers each cell and how wet it is, packed as <see cref="GroundCovers"/> states.</summary>
         public byte[] Cover { get; }
-        /// <summary>What stands on each cell (M1.6a): a <see cref="StandCodes"/> code, zero where no trunk stands.</summary>
-        public byte[] Stand { get; }
+        /// <summary>What stands on each cell (M1.6a): a <see cref="StandCodes"/> code, two bytes since WG.2c; zero where no trunk stands.</summary>
+        public ushort[] Stand { get; }
         /// <summary>What lies loose on each cell (M1.6a): a <see cref="LooseCodes"/> code.</summary>
         public byte[] Loose { get; }
         /// <summary>Per species in <see cref="AnimalSpecies.All"/>, animals per km².</summary>
@@ -186,7 +186,7 @@ namespace EarthGame.Engine
             TopologyMask = new uint[count];
             Stone = new byte[count];
             Cover = new byte[count];
-            Stand = new byte[count];
+            Stand = new ushort[count];
             Loose = new byte[count];
             Capacity = new float[AnimalSpecies.All.Count][];
             for (int s = 0; s < Capacity.Length; s++) Capacity[s] = new float[count];
@@ -1030,34 +1030,19 @@ namespace EarthGame.Engine
                     // Drawn third, so the two draws every world has made since M1.2 keep their values.
                     double rollStand = rng.NextDouble();
                     PlantSpecies canopy = PlantCommunity.Canopy(site, rollStand, rollCanopy);
-                    Overstory[i] = (byte)(canopy == null ? 0 : IndexOf(canopy) + 1);
+                    Overstory[i] = (byte)PlantSpecies.NumberOf(canopy);
                     Suitability[i] = canopy == null ? 0f : (float)canopy.Suitability(site);
                     PlantSite under = site;
                     under.Shaded = canopy != null;
                     PlantSpecies floor = PlantCommunity.Understory(under, rollUnder);
-                    Understory[i] = (byte)(floor == null ? 0 : IndexOf(floor) + 1);
+                    Understory[i] = (byte)PlantSpecies.NumberOf(floor);
                 }
             });
         }
 
-        private static int IndexOf(PlantSpecies species)
-        {
-            IReadOnlyList<PlantSpecies> all = PlantSpecies.All;
-            for (int i = 0; i < all.Count; i++) if (ReferenceEquals(all[i], species)) return i;
-            return -1;
-        }
+        public PlantSpecies OverstoryAt(int row, int col) => PlantSpecies.ByNumber(Overstory[Index(row, col)]);
 
-        public PlantSpecies OverstoryAt(int row, int col)
-        {
-            byte id = Overstory[Index(row, col)];
-            return id == 0 ? null : PlantSpecies.All[id - 1];
-        }
-
-        public PlantSpecies UnderstoryAt(int row, int col)
-        {
-            byte id = Understory[Index(row, col)];
-            return id == 0 ? null : PlantSpecies.All[id - 1];
-        }
+        public PlantSpecies UnderstoryAt(int row, int col) => PlantSpecies.ByNumber(Understory[Index(row, col)]);
 
         // ---- topology ----
 
@@ -1233,7 +1218,7 @@ namespace EarthGame.Engine
                 int r = i / Width, c = i % Width;
                 PlantSpecies species = OverstoryAt(r, c);
                 if (!StandCodes.IsTall(species) || species.CrownShare <= 0.0) continue;
-                byte code = StandCodes.Pack(species, species.HeightAt(SiteAt(r, c), Unit(CellHash(stream, i, 2))));
+                ushort code = StandCodes.Pack(species, species.HeightAt(SiteAt(r, c), Unit(CellHash(stream, i, 2))));
                 double radius = 0.5 * species.CrownShare * StandCodes.HeightOf(code);
                 if (Unit(CellHash(stream, i, 1)) >= StandDensity * cellArea / (Math.PI * radius * radius)) continue;
                 if (Crowded(r, c, radius, largest, crown)) continue;
@@ -1276,7 +1261,7 @@ namespace EarthGame.Engine
             int[] sticks = new int[count];
             for (int i = 0; i < count; i++)
             {
-                byte code = Stand[i];
+                ushort code = Stand[i];
                 if (code == 0) continue;
                 PlantSpecies species = StandCodes.SpeciesOf(code);
                 double height = StandCodes.HeightOf(code);

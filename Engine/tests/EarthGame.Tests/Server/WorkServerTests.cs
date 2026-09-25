@@ -52,7 +52,7 @@ namespace EarthGame.Tests.Server
         {
             RegionRaster ground = TestRasters.FromLaw(5, 10.0, 40.0, "work_ground", (row, col) => 100f);
             RegionRaster loose = TestRasters.FromCodes(5, 10.0, 40.0, "work_loose", "loose", (row, col) => row == 2 && col == 2 ? LooseCodes.Pack(3, 0) : 0u, null);
-            RegionRaster stand = TestRasters.FromCodes(5, 10.0, 40.0, "work_stand", "stand", (row, col) => StandCodes.Pack(PlantSpecies.Bangalay, 20.0), null);
+            RegionRaster stand = TestRasters.FromCodes(5, 10.0, 40.0, "work_stand", "stand", (row, col) => StandCodes.Pack(PlantSpecies.Bangalay, 20.0), null, "u16");
             RegionRaster cover = TestRasters.FromCodes(5, 10.0, 40.0, "work_cover", "cover", (row, col) => GroundCovers.Pack(GroundCover.ForestFloor, 0), null);
             return new WorldState(1, FixtureRegion, FixtureRegion.WakeClock(), new Heightfield(ground), 0, null, null, cover, stand, loose, null);
         }

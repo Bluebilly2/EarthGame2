@@ -316,7 +316,7 @@ namespace EarthGame.Client
         public void Want(ReceivedTile stand, ReceivedTile loose, ReceivedTile ground, LooseTaken taken, int takenVersion, ReceivedTile depth, Dictionary<long, byte> trunkFlags, int changesVersion,
                          GroundSnapshot fine, ReceivedTile stone)
         {
-            if (stand == null || stand.Codes == null || ground == null || ground.Heights == null) return;
+            if (stand == null || stand.WideCodes == null || ground == null || ground.Heights == null) return;
             TileId id = stand.Id;
             _wanted[id] = (stand, loose, ground, taken, takenVersion, depth, trunkFlags, changesVersion, fine, stone);
             if (!_building.ContainsKey(id) && !IsBuiltFrom(id, stand, loose, ground, takenVersion, depth, changesVersion, fine, stone)) Start(id);
@@ -355,7 +355,7 @@ namespace EarthGame.Client
         /// </summary>
         public void WantRing(ReceivedTile farStand, ReceivedTile farCount, IHeightSource ground)
         {
-            if (farStand?.Codes == null || farCount?.Codes == null || ground == null) return;
+            if (farStand?.WideCodes == null || farCount?.Codes == null || ground == null) return;
             TileId id = farStand.Id;
             if (_ring.ContainsKey(id) || _ringBuilding.ContainsKey(id)) return;
             _ringBuilding[id] = Task.Run(() => BuildRing(farStand, farCount, ground));

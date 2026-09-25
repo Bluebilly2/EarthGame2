@@ -24,7 +24,7 @@ namespace EarthGame.ClientCore
         /// How much of a far square its trees' crowns cover, 0 to 1: as many crowns as its count, each as wide as its trees'
         /// mean height and their species' crown share make it, over the square's area.
         /// </summary>
-        public static double ShareOf(byte farStandCode, int count)
+        public static double ShareOf(ushort farStandCode, int count)
         {
             if (farStandCode == 0 || count <= 0) return 0.0;
             PlantSpecies species = StandCodes.SpeciesOf(farStandCode);
@@ -51,7 +51,7 @@ namespace EarthGame.ClientCore
         public const double SeenPower = 4.0;
 
         /// <summary>A far square's colour: the bare ground, and its trees' foliage over it by the share of it a view sees them hide.</summary>
-        public static GroundColour ColourOf(byte farStandCode, int count)
+        public static GroundColour ColourOf(ushort farStandCode, int count)
         {
             double share = SeenShare(ShareOf(farStandCode, count));
             if (!(share > 0.0)) return Bare;
@@ -82,14 +82,14 @@ namespace EarthGame.ClientCore
                     TileId id = new TileId(ix, iz);
                     ReceivedTile stand = tiles(TileLayer.FarStand, id), count = tiles(TileLayer.FarCount, id);
                     int at = (z * texels + x) * BytesPerTexel;
-                    if (stand?.Codes == null || count?.Codes == null || lz >= stand.Posts || lx >= stand.Posts || stand.Posts != count.Posts)
+                    if (stand?.WideCodes == null || count?.Codes == null || lz >= stand.Posts || lx >= stand.Posts || stand.Posts != count.Posts)
                     {
                         rgb[at] = br;
                         rgb[at + 1] = bg;
                         rgb[at + 2] = bb;
                         continue;
                     }
-                    GroundColour c = ColourOf(stand.Codes[lz, lx], count.Codes[lz, lx]);
+                    GroundColour c = ColourOf(stand.WideCodes[lz, lx], count.Codes[lz, lx]);
                     rgb[at] = Byte(c.R);
                     rgb[at + 1] = Byte(c.G);
                     rgb[at + 2] = Byte(c.B);

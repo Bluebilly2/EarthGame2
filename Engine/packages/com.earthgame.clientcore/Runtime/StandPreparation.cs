@@ -95,7 +95,7 @@ namespace EarthGame.ClientCore
             if (stand == null) throw new ArgumentNullException(nameof(stand));
             if (ground == null) throw new ArgumentNullException(nameof(ground));
             if (grid == null) throw new ArgumentNullException(nameof(grid));
-            if (stand.Codes == null) throw new ArgumentException("tile " + stand.Id + " carries no stand codes", nameof(stand));
+            if (stand.WideCodes == null) throw new ArgumentException("tile " + stand.Id + " carries no stand codes", nameof(stand));
             if (ground.Heights == null) throw new ArgumentException("tile " + ground.Id + " carries no heights", nameof(ground));
             if (!stand.Id.Equals(ground.Id) || stand.Posts != ground.Posts)
                 throw new ArgumentException("the stand of tile " + stand.Id + " and the ground of tile " + ground.Id + " are not one tile's", nameof(ground));
@@ -122,8 +122,9 @@ namespace EarthGame.ClientCore
                     double postEast = stand.OriginEast + x * cell;
                     double postNorth = stand.OriginNorth + z * cell;
                     TileCodec.CellOf(grid.ExtentM, cell, postEast, postNorth, out int row, out int col);
-                    byte code = stand.Codes[z, x];
-                    PlantSpecies species = code == 0 ? null : StandCodes.SpeciesOf(code);
+                    ushort code = stand.WideCodes[z, x];
+                    int tall = StandCodes.TallIndexOf(code);
+                    PlantSpecies species = tall < 0 ? null : StandCodes.Tall[tall];
                     byte flags = 0;
                     if (trunkFlags != null) trunkFlags.TryGetValue(LooseTaken.Key(row, col), out flags);
                     if (species != null && (flags & TrunkChange.Felled) == 0)
@@ -140,7 +141,7 @@ namespace EarthGame.ClientCore
                             YawDeg = yaw,
                             HeightM = (float)height,
                             CrownM = (float)(species.CrownShare * height),
-                            Tall = TallIndex(species),
+                            Tall = tall,
                             Variant = VariantOf(row, col, 0UL),
                             Stripped = (flags & TrunkChange.BarkTaken) != 0,
                             Row = row,
@@ -176,7 +177,7 @@ namespace EarthGame.ClientCore
             };
         }
 
-        /// <summary>Whether a code tile lies on a tile's own posts.</summary>
+        /// <summary>Whether a tile of one-byte codes lies on a tile's own posts.</summary>
         private static bool OnePosts(ReceivedTile tile, ReceivedTile codes) =>
             codes?.Codes != null && codes.Id.Equals(tile.Id) && codes.Posts == tile.Posts && Math.Abs(codes.CellM - tile.CellM) < 1e-9;
 
@@ -256,13 +257,5 @@ namespace EarthGame.ClientCore
 
         private static int VariantOf(int row, int col, ulong salt) =>
             (int)(StandLayout.Mix((((ulong)(uint)row << 32) | (uint)col) ^ (salt << 40)) % Variants);
-
-        private static int TallIndex(PlantSpecies species)
-        {
-            IReadOnlyList<PlantSpecies> all = StandCodes.Tall;
-            for (int i = 0; i < all.Count; i++)
-                if (ReferenceEquals(all[i], species)) return i;
-            return -1;
-        }
     }
 }

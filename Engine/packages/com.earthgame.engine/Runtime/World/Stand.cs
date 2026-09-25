@@ -1,63 +1,109 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Text;
 
 namespace EarthGame.Engine
 {
     /// <summary>
-    /// The byte a cell of the world's stand layer carries (M1.6a): zero where no trunk stands; else which tall plant
-    /// stands there, in the top three bits, and how tall it is, in the low five.
+    /// The code a cell of the world's stand layer carries (M1.6a): zero where no trunk stands; else which tall plant stands
+    /// there, by its number in the plant catalogue (<see cref="PlantSpecies.NumberOf"/>, the overstory's own number), in the
+    /// high byte, and how tall it is, in steps of <see cref="HeightStepM"/>, in the low.
     ///
     /// <para>A trunk is a fact of the world rather than an entity (ARCHITECTURE §5, 2026-09-10). The world places its
     /// trees when it is created and keeps them as a layer, which travels in code tiles as the ground's cover does, and
     /// a tree becomes an entity only when something changes it. At the stand's densities a tree an entity would be
-    /// tens of thousands of entities round every player, each sent at the join with no budget; a tree a byte is a
+    /// tens of thousands of entities round every player, each sent at the join with no budget; a tree two bytes is a
     /// few kilobytes a tile.</para>
+    ///
+    /// <para>Two bytes since WG.2c (2026-09-25). From M1.6a the code was one byte: the plant in its top three bits, by its
+    /// place among the tall plants, and the height in its low five. Seven plants were all it could name, where the Kangaroo
+    /// Valley's own trees make ten, and 31 steps ended at 38.75 m, short of the blackbutt's 40, so the tallest blackbutts were
+    /// stored and spaced at 38.75. The five plants it named are the catalogue's first five, so an old code's plant number is
+    /// already the catalogue's and its steps are these: <see cref="FromOneByte"/> is exact, and a world made before reads its
+    /// stand through <see cref="CodeAt"/> with its file left as it was made.</para>
     /// </summary>
     public static class StandCodes
     {
-        /// <summary>One step of the height a code carries, m; the five low bits reach past the tallest blackbutt.</summary>
+        /// <summary>One step of the height a code carries, m.</summary>
         public const double HeightStepM = 1.25;
 
-        public const int HeightMask = 0x1F;
-        public const int SpeciesShift = 5;
+        /// <summary>The low byte: the height, in steps; 255 of them reach 318.75 m, past any tree.</summary>
+        public const int HeightMask = 0xFF;
+
+        /// <summary>The high byte: the plant's number in the catalogue.</summary>
+        public const int SpeciesShift = 8;
 
         private static readonly PlantSpecies[] TallPlants = BuildTall();
 
-        /// <summary>The plants that stand as trees, in <see cref="PlantSpecies.All"/>'s order; a code names one by its place here plus one.</summary>
+        /// <summary>Each catalogue number's place in <see cref="Tall"/>, -1 for zero and for a plant that is not tall.</summary>
+        private static readonly int[] TallByNumber = BuildTallByNumber();
+
+        /// <summary>
+        /// The plants that stand as trees, in the catalogue's order. The client keeps its forms and meshes by the place here
+        /// (<see cref="TallIndexOf"/>); a code names a plant by its catalogue number, not by this place.
+        /// </summary>
         public static IReadOnlyList<PlantSpecies> Tall => TallPlants;
 
         /// <summary>Whether a plant stands as a tree: the tall forms, which the canopy is drawn from.</summary>
         public static bool IsTall(PlantSpecies species) => species != null && (species.Form == PlantForm.Tree || species.Form == PlantForm.SmallTree);
 
         /// <summary>The code for a tree of this species and height; the height is carried to the nearest step, at least one.</summary>
-        public static byte Pack(PlantSpecies species, double heightM)
+        public static ushort Pack(PlantSpecies species, double heightM)
         {
-            int index = Array.IndexOf(TallPlants, species);
-            if (index < 0) throw new ArgumentException((species == null ? "nothing" : species.Name) + " does not stand as a tree", nameof(species));
+            if (!IsTall(species) || PlantSpecies.NumberOf(species) == 0)
+                throw new ArgumentException((species == null ? "nothing" : species.Name) + " does not stand as a tree", nameof(species));
             int step = (int)Math.Round(heightM / HeightStepM);
             if (step < 1) step = 1;
             if (step > HeightMask) step = HeightMask;
-            return (byte)(((index + 1) << SpeciesShift) | step);
+            return (ushort)((PlantSpecies.NumberOf(species) << SpeciesShift) | step);
         }
 
-        /// <summary>The tall plant a code names, or null where none stands or the code names a plant this build does not know.</summary>
-        public static PlantSpecies SpeciesOf(byte code)
+        /// <summary>The tall plant a code names, or null where none stands or the code names no tall plant this build knows.</summary>
+        public static PlantSpecies SpeciesOf(ushort code)
         {
-            int index = (code >> SpeciesShift) - 1;
-            return index >= 0 && index < TallPlants.Length ? TallPlants[index] : null;
+            int index = TallIndexOf(code);
+            return index >= 0 ? TallPlants[index] : null;
         }
+
+        /// <summary>The place in <see cref="Tall"/> of the plant a code names, or -1 where none stands or it names no tall plant.</summary>
+        public static int TallIndexOf(ushort code) => TallByNumber[code >> SpeciesShift];
 
         /// <summary>The height a code carries, m; zero for a cell where nothing stands.</summary>
-        public static double HeightOf(byte code) => code == 0 ? 0.0 : (code & HeightMask) * HeightStepM;
+        public static double HeightOf(ushort code) => code == 0 ? 0.0 : (code & HeightMask) * HeightStepM;
+
+        /// <summary>
+        /// A code of the one-byte layout (M1.6a to WG.2c) in this one: the plant number in its top three bits is the catalogue's
+        /// already, and its five bits of height are the same steps, so every one of the 256 converts exactly and a code that
+        /// was zero stays zero.
+        /// </summary>
+        public static ushort FromOneByte(byte code) => (ushort)(((code >> 5) << SpeciesShift) | (code & 0x1F));
+
+        /// <summary>Whether a world's stand layer holds the one-byte layout: a world made before WG.2c (2026-09-25).</summary>
+        public static bool IsOneByte(RegionRaster stand) => stand != null && stand.Dtype == "u8";
+
+        /// <summary>
+        /// The code at a cell of a world's stand layer, in this layout whichever the world was made with: a layer of one byte a
+        /// cell is converted as it is read (<see cref="FromOneByte"/>), and its file stays as it was made.
+        /// </summary>
+        public static ushort CodeAt(RegionRaster stand, int row, int col)
+        {
+            uint raw = stand.Code(row, col);
+            if (IsOneByte(stand)) return FromOneByte((byte)raw);
+            if (raw > ushort.MaxValue)
+                throw new InvalidDataException("the stand layer holds the code " + raw + " at row " + row + " col " + col + ", which neither layout carries");
+            return (ushort)raw;
+        }
 
         /// <summary>The legend a stand layer's sidecar carries, so a reader needs nothing but the file.</summary>
         public static string Legend()
         {
-            StringBuilder sb = new StringBuilder("zero where no trunk stands; else the top three bits are the tall plant (");
-            for (int i = 0; i < TallPlants.Length; i++) sb.Append(i > 0 ? ", " : "").Append(i + 1).Append('=').Append(TallPlants[i].Name);
-            sb.Append(") and the low five its height in steps of ").Append(HeightStepM.ToString("0.00", CultureInfo.InvariantCulture)).Append(" m");
+            StringBuilder sb = new StringBuilder("zero where no trunk stands; else the high byte is the tall plant by its number in the plant catalogue, the overstory's own (");
+            for (int i = 0; i < TallPlants.Length; i++)
+                sb.Append(i > 0 ? ", " : "").Append(PlantSpecies.NumberOf(TallPlants[i])).Append('=').Append(TallPlants[i].Name);
+            sb.Append("), and the low byte its height in steps of ")
+              .Append(HeightStepM.ToString("0.00", CultureInfo.InvariantCulture)).Append(" m");
             return sb.ToString();
         }
 
@@ -66,8 +112,14 @@ namespace EarthGame.Engine
             List<PlantSpecies> tall = new List<PlantSpecies>();
             foreach (PlantSpecies species in PlantSpecies.All)
                 if (IsTall(species)) tall.Add(species);
-            if (tall.Count > 7) throw new InvalidOperationException("a stand code names at most seven tall plants, and there are " + tall.Count);
             return tall.ToArray();
+        }
+
+        private static int[] BuildTallByNumber()
+        {
+            int[] byNumber = new int[1 << (16 - SpeciesShift)];
+            for (int n = 0; n < byNumber.Length; n++) byNumber[n] = Array.IndexOf(TallPlants, PlantSpecies.ByNumber(n));
+            return byNumber;
         }
     }
 

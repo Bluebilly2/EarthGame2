@@ -78,7 +78,7 @@ namespace EarthGame.Server
                 "Topology bits: 1 sea, 2 beach, 4 dune, 8 wetland, 16 forest, 32 heath, 64 crest, 128 cliff, 256 shore platform, 512 lake, 1024 creek", by, nowUtcText));
             SaveLayer("cover", RegionRaster.WriteCodes(dir, "cover", heights, "cover", "u8", "id", Of(layers.Cover),
                 GroundCovers.Legend(), by, nowUtcText));
-            SaveLayer("stand", RegionRaster.WriteCodes(dir, "stand", heights, "stand", "u8", "id", Of(layers.Stand),
+            SaveLayer("stand", RegionRaster.WriteCodes(dir, "stand", heights, "stand", "u16", "id", Of(layers.Stand),
                 StandCodes.Legend(), by, nowUtcText));
             SaveLayer("loose", RegionRaster.WriteCodes(dir, "loose", heights, "loose", "u8", "counts", Of(layers.Loose),
                 LooseCodes.Legend(), by, nowUtcText));
@@ -132,6 +132,9 @@ namespace EarthGame.Server
 
         /// <summary>A byte layer's cells as codes, read where they lie rather than widened into a copy (WG.2b).</summary>
         private static Func<int, uint> Of(byte[] bytes) => i => bytes[i];
+
+        /// <summary>A two-byte layer's cells as codes, the same way (the stand since WG.2c).</summary>
+        private static Func<int, uint> Of(ushort[] codes) => i => codes[i];
 
         /// <summary>Distances in metres as u16 codes, capped at <see cref="DistanceCapM"/>, a cell at a time (WG.2b).</summary>
         private static Func<int, uint> MetresOf(float[] distances) => i =>

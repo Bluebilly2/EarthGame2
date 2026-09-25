@@ -16,16 +16,23 @@ namespace EarthGame.Tests.ClientCore
         private static readonly TileGrid Grid = new TileGrid(8000.0);
         private static readonly int Posts = (int)Math.Round(Grid.TileSizeM / TileLayers.FarCellM) + 1;
 
-        private static ReceivedTile Tile(TileId id, TileLayer layer, Func<int, int, byte> codes)
+        /// <summary>A far tile as a client holds it: the far stand's codes two bytes a post, the far count's one.</summary>
+        private static ReceivedTile Tile(TileId id, TileLayer layer, Func<int, int, ushort> codes)
         {
             Grid.Origin(id, out double east, out double north);
+            bool wide = TileLayers.CodeBytes(layer) == 2;
             ReceivedTile tile = new ReceivedTile
             {
                 Id = id, Layer = layer, Posts = Posts, CellM = TileLayers.FarCellM, OriginEast = east, OriginNorth = north, Crc32 = 7u,
-                Codes = new byte[Posts, Posts],
+                Codes = wide ? null : new byte[Posts, Posts],
+                WideCodes = wide ? new ushort[Posts, Posts] : null,
             };
             for (int z = 0; z < Posts; z++)
-                for (int x = 0; x < Posts; x++) tile.Codes[z, x] = codes(z, x);
+                for (int x = 0; x < Posts; x++)
+                {
+                    if (wide) tile.WideCodes[z, x] = codes(z, x);
+                    else tile.Codes[z, x] = (byte)codes(z, x);
+                }
             return tile;
         }
 
@@ -40,7 +47,7 @@ namespace EarthGame.Tests.ClientCore
         [Test]
         public void ASquareWearsItsTreesFoliageByTheShareTheirCrownsCover()
         {
-            byte blackbutt = StandCodes.Pack(PlantSpecies.Blackbutt, 30.0);
+            ushort blackbutt = StandCodes.Pack(PlantSpecies.Blackbutt, 30.0);
             Assert.That(FarCanopy.ShareOf(blackbutt, 0), Is.EqualTo(0.0), "no tree, no cover");
             double one = FarCanopy.ShareOf(blackbutt, 1), four = FarCanopy.ShareOf(blackbutt, 4);
             Assert.That(one, Is.GreaterThan(0.0).And.LessThan(1.0));
@@ -67,15 +74,15 @@ namespace EarthGame.Tests.ClientCore
         {
             // One square of trees in one tile: its texel wears them, its neighbours are bare.
             TileId id = new TileId(3, 4);
-            byte blackbutt = StandCodes.Pack(PlantSpecies.Blackbutt, 30.0);
+            ushort blackbutt = StandCodes.Pack(PlantSpecies.Blackbutt, 30.0);
             Dictionary<(TileLayer, TileId), ReceivedTile> held = new Dictionary<(TileLayer, TileId), ReceivedTile>();
             for (int iz = 0; iz < Grid.TilesPerSide; iz++)
                 for (int ix = 0; ix < Grid.TilesPerSide; ix++)
                 {
                     TileId t = new TileId(ix, iz);
                     bool it = t.Equals(id);
-                    held[(TileLayer.FarStand, t)] = Tile(t, TileLayer.FarStand, (z, x) => it && z == 5 && x == 7 ? blackbutt : (byte)0);
-                    held[(TileLayer.FarCount, t)] = Tile(t, TileLayer.FarCount, (z, x) => it && z == 5 && x == 7 ? (byte)200 : (byte)0);
+                    held[(TileLayer.FarStand, t)] = Tile(t, TileLayer.FarStand, (z, x) => it && z == 5 && x == 7 ? blackbutt : (ushort)0);
+                    held[(TileLayer.FarCount, t)] = Tile(t, TileLayer.FarCount, (z, x) => it && z == 5 && x == 7 ? (ushort)200 : (ushort)0);
                 }
             byte[] map = FarCanopy.Build(Grid, (layer, t) => held.TryGetValue((layer, t), out ReceivedTile r) ? r : null, out int texels);
             Assert.That(texels, Is.EqualTo(FarCanopy.TexelsFor(Grid)));

@@ -104,7 +104,7 @@ namespace EarthGame.Tests.Engine
         [Test]
         public void WaterTravelsAsDepthOverTheGroundAndCostsAFractionOfASurface()
         {
-            Assert.That(TileCodec.Version, Is.EqualTo(3), "version 3 carries any height on Earth (WG.2)");
+            Assert.That(TileCodec.Version, Is.EqualTo(4), "version 3 carries any height on Earth (WG.2), version 4 the stand's two-byte codes (WG.2c)");
             RegionRaster groundRaster = TestRasters.MadeCoast();
             RegionRaster surface = TestRasters.FromLaw(TestRasters.MadeSide, TestRasters.MadeCellM, TestRasters.MadeExtentM, "surface", PondSurface);
             Heightfield ground = new Heightfield(groundRaster);

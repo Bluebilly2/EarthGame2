@@ -56,19 +56,27 @@ namespace EarthGame.Tests
                 row >= 45 && row <= 55 && col >= 110 && col <= 130 ? 1u : row >= 120 && row <= 130 && col >= 20 && col <= 40 ? 2u : 0u, legend);
         }
 
-        /// <summary>A u8 id raster from a code law, with a sidecar the loader accepts and any extra keys given as JSON members.</summary>
-        public static RegionRaster FromCodes(int side, double cellM, double extentM, string name, string layer, Func<int, int, uint> law, string extraJson)
+        /// <summary>
+        /// An id raster from a code law, with a sidecar the loader accepts and any extra keys given as JSON members: u8 unless
+        /// u16 is named, as a world's stand is since WG.2c (a u8 stand is a world made before, read through its conversion).
+        /// </summary>
+        public static RegionRaster FromCodes(int side, double cellM, double extentM, string name, string layer, Func<int, int, uint> law, string extraJson, string dtype = "u8")
         {
-            byte[] raw = new byte[side * side];
+            if (dtype != "u8" && dtype != "u16") throw new ArgumentException("a u8 or u16 code layer", nameof(dtype));
+            int width = dtype == "u16" ? 2 : 1;
+            uint ceiling = width == 2 ? ushort.MaxValue : byte.MaxValue;
+            byte[] raw = new byte[side * side * width];
             uint min = uint.MaxValue, max = 0;
             for (int row = 0; row < side; row++)
                 for (int col = 0; col < side; col++)
                 {
                     uint code = law(row, col);
-                    if (code > 255) throw new ArgumentOutOfRangeException(nameof(law), "a u8 code");
+                    if (code > ceiling) throw new ArgumentOutOfRangeException(nameof(law), "a " + dtype + " code");
                     if (code < min) min = code;
                     if (code > max) max = code;
-                    raw[row * side + col] = (byte)code;
+                    int at = (row * side + col) * width;
+                    raw[at] = (byte)code;
+                    if (width == 2) raw[at + 1] = (byte)(code >> 8);
                 }
             string sha;
             using (SHA256 s = SHA256.Create())
@@ -77,7 +85,7 @@ namespace EarthGame.Tests
                 foreach (byte b in s.ComputeHash(raw)) sb.Append(b.ToString("x2"));
                 sha = sb.ToString();
             }
-            string sidecar = "{\"format\":\"eg2.raster\",\"version\":2,\"name\":\"" + name + "\",\"region\":\"fixture\",\"layer\":\"" + layer + "\",\"dtype\":\"u8\",\"byte_order\":\"little\",\"raw\":\"" + name + ".u8\",\"scale\":1.0,\"unit\":\"id\","
+            string sidecar = "{\"format\":\"eg2.raster\",\"version\":2,\"name\":\"" + name + "\",\"region\":\"fixture\",\"layer\":\"" + layer + "\",\"dtype\":\"" + dtype + "\",\"byte_order\":\"little\",\"raw\":\"" + name + "." + dtype + "\",\"scale\":1.0,\"unit\":\"id\","
                              + "\"width\":" + side + ",\"height\":" + side + ",\"cell_m\":" + cellM.ToString(CultureInfo.InvariantCulture) + ",\"extent_m\":" + extentM.ToString(CultureInfo.InvariantCulture)
                              + ",\"centre_lat\":-35.14,\"centre_lon\":150.675,\"min\":" + min + ",\"max\":" + max + ",\"sha256\":\"" + sha + "\"" + (string.IsNullOrEmpty(extraJson) ? "" : "," + extraJson) + "}";
             return RegionRaster.FromParts(sidecar, raw, name);
