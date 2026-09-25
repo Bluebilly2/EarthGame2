@@ -215,9 +215,16 @@ drying). No smoke as a thing, no fire spreading to the litter or a tree, no cook
    and the hands (§21); part three's work could spread the coal's time with a salted draw, as `Work.Apply` does.
 10. **The fire's state for the wire and the save** (part two): per piece its thickness, dry wood, water, char, progress to
     catching and phase, and its wood by species; which record carries a list of pieces.
-11. **The Fanger tables' notice.** The two tables of projected area factors were taken as published data from the
-    pythermalcomfort library's `solar_gain.py` (MIT), identical to ASHRAE 55-2020 Addendum d's; whether `THIRD_PARTY_NOTICES.md`
-    wants an entry (this proposal changes no existing file).
+11. **The Fanger tables' notice.** The two tables of projected area factors (thirteen bearings by seven altitudes, standing
+    and seated) were copied into `FireWarmth` as published data from the pythermalcomfort library's `solar_gain.py`,
+    identical to ASHRAE 55-2020 Addendum d's. The download, recorded as ruling 49 asks: `https://raw.githubusercontent.com/
+    CenterForTheBuiltEnvironment/pythermalcomfort/master/pythermalcomfort/models/solar_gain.py`, fetched 2026-09-25 from the
+    library's master branch, 14,300 bytes, SHA-256 `0a79e87c23bdd92e4f17a73699e250f07ee0ed08710b7d51f1c8331ed43346de`, MIT
+    licence (© 2019 Federico Tartarini, the repository's `LICENSE`); the same URL fetches it again, though the branch moves
+    and the hash is of this copy. What lands in the repository is the tables' numbers, not the file. Whether
+    `THIRD_PARTY_NOTICES.md` wants an entry for them (the house rule and ruling 49: a vendored file lands with its notice) is
+    main's, since this proposal changes no existing file. The papers read for the sources were downloaded to the session's
+    scratch space only.
 12. **The LFS fixture.** `Data/fixtures/raster/tiny.r32` is committed as a Git LFS pointer whose object the server does not
     have (it answers 404), so every clone without the owner's own LFS store fails 39 tests. This session rebuilt the 100 bytes
     from its sidecar's law (`Tools/data/write_fixtures.py`), matched the pointer's sha256, and put them in its working tree only.
@@ -334,8 +341,9 @@ nest), `FrictionFire` (the three methods' chain and its failures), `FireWarmth` 
 **As run.** .NET SDK 10.0.401 (installed by the official script, channel 10.0). `dotnet test Engine/tests/EarthGame.Tests >
 test-results.txt 2>&1; echo $?` printed 0: 911 passed, 0 failed, of 911 (869 before this branch, 42 new); the two tests marked
 for Windows only are not run on Linux. The 869 of main passed on this clone only once the LFS fixture was rebuilt (For main to
-decide 12): before it, 830 passed and 39 failed. The suite's source scans read the new files (no Unity, no `#if`, no clock or
-unseeded random, no to-do markers). Five sabotages, each restored byte for byte (sha256 checked) and each run over the three
+decide 12): before it, 830 passed and 39 failed. Main moved on while the branch was open (to 091d029: the geology, the day's
+fixes, ruling 49); the branch merged with it in a throwaway worktree, not pushed, ran 911 passed, 0 failed, as well. The suite's
+source scans read the new files (no Unity, no `#if`, no clock or unseeded random, no to-do markers). Five sabotages, each restored byte for byte (sha256 checked) and each run over the three
 fire test classes:
 
 | Sabotage | Red |
