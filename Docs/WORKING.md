@@ -250,3 +250,8 @@ written for one checkout and hold within each copy:
 - A shader drawn only from materials made at runtime loses its instanced variants in a build: give it a material
   asset with instancing on (`ProjectSetup`; ARCHITECTURE §12, 2026-09-08 and 2026-09-11). A `-nographics` player has
   no instancing at all, so code that draws instanced checks `SystemInfo.supportsInstancing` first.
+- An opaque thing tens of kilometres out may draw nothing at all: M1.6h's bowl below the horizon, drawn with the opaque
+  things under the renderer's forced depth priming, drew nothing at 90 km and whole at 5, and drawn after the sky, in the
+  transparent queue, tested against the depth and writing none, it draws at any distance (2026-09-25; whether the priming
+  is the cause was not isolated). And `Renderer.isVisible` says nothing in a recorded run, whose camera renders only when a
+  frame is asked for.
