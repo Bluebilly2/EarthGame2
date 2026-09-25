@@ -118,6 +118,15 @@ as the publisher asks:
 > Seamless Geology, accessed from The Sharing and Enabling Environmental Data Portal
 > [https://datasets.seed.nsw.gov.au/dataset/32ce9b05-0a22-4741-b292-64bcef50770f]
 
+## Fanger's projected area factors — MIT (the copy read), ASHRAE 55-2020 Addendum d (the source)
+
+`FireWarmth` (BF.5, engine) holds the two tables of the body's projected area factors, standing and seated, thirteen bearings
+by seven altitudes (Fanger 1970, *Thermal Comfort*, as ASHRAE Standard 55-2020 Addendum d carries them), typed from the
+pythermalcomfort library's copy: `pythermalcomfort/models/solar_gain.py` from
+https://github.com/CenterForTheBuiltEnvironment/pythermalcomfort, fetched from its master branch by the cloud session on
+2026-09-25, 14,300 bytes, SHA-256 `0a79e87c23bdd92e4f17a73699e250f07ee0ed08710b7d51f1c8331ed43346de`. MIT licence,
+Copyright (c) 2019 Federico Tartarini. Only the tables' numbers are in the repository, not the file.
+
 ## NVIS 7.0, pre-1750 Major Vegetation Groups — CC BY 4.0
 
 What grew over each region's surround before 1750, as the National Vegetation Information System reconstructs it

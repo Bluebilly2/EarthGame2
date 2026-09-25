@@ -322,7 +322,9 @@ does. The order is the dependency order; leverage decides ties.
    at one effort, Pandolf's coefficients read off the cover byte (dry sand three-quarters, rock a tenth quicker, grass and
    the forest floor as they were), on both sides, with the server's exertion the gait's; his hands on it are in the same
    table.
-5. **BF.5 Fire** (F5). Ignition, the fire in the world, its warmth on the body, the bridge down. G6, G7.
+5. **BF.5 Fire** (F5). Ignition, the fire in the world, its warmth on the body, the bridge down. G6, G7. Part one, the
+   fire's physics in the engine, drafted and built by a cloud session and taken into main on 2026-09-25
+   (`contracts/BF.5_FIRE.md`); part two, the fire in the world, waits on William's word on the clock it burns on.
 6. **BF.6 Parts and the camp** (F6). Structures of parts, placement, the shelter terms. G9, G10.
 7. **BF.7 The body's rest** (F7). Hunger and food, wetness and rain, sleep. G8, G11, G12's night.
 8. **BF.8 The tablet** (F8). The page, the objectives, the answers, the forecast, the journal, the summary, the end.

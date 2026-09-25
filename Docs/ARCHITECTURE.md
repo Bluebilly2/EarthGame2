@@ -430,6 +430,16 @@ still runs on the main thread; this slice does not claim a frame-time budget for
   `Tools/world/changes.py` runs the `changes` scenario on a copy of a world and then `save_check` on what the server saved
   and `tile_check` on what the client cached.
 
+- **Fire** (BF.5 part one, `contracts/BF.5_FIRE.md`, drafted and built by a cloud session and taken into main 2026-09-25).
+  The engine's `Fire` (Runtime/Fire) is pieces of fuel (`FuelPiece`: a stick by its wood, thickness, dry mass, water and
+  char, or a bundle of fibre) stepped through time in steps of at most a second; `Combustion` is the one owner of the
+  physics (the heat of wood less its water, char and gas, the crib's burning rate by thickness, catching, the critical mass
+  flux for a flame), and nothing is told to burn: whether a piece catches, flames, glows, smoulders or dies falls out of the
+  share of its view the rest of the fire fills, against its thickness, its water and the wind. `FrictionFire.Judge` (the hand
+  drill, the plough, the bow) and `Tinder.Catch` (a coal to a flame) say why a try fails in words; `FireWarmth.On` is the heat
+  a body takes from a fire at a distance (Modak's point source, Fanger's projected areas); `FireFuel` the night's arithmetic.
+  Nothing yet on the wire, in a save or on a screen: part two makes a fire a thing the server steps.
+
 ## 6. Save and world folder
 
 WG.0c (2026-09-14): numeric JSON seed, tick and next-entity-id fields are read as exact integers. The JSON reader
