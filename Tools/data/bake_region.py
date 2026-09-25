@@ -6,7 +6,9 @@
 Writes Data/regions/<region>/<name>.r32 (float32 little-endian metres, row 0 = the NORTH edge, column 0 = the
 WEST edge, row-major) and <name>.json, the self-describing sidecar in the RegionRaster header form the engine's
 loader reads (ARCHITECTURE.md §3). Sampling is bilinear from the Mercator mosaic at the lon/lat of every cell's
-centre, so a cell is the surface at that place, not a nearest-pixel copy.
+centre, so a cell is the surface at that place, not a nearest-pixel copy. Before it, a tile pixel far below all
+eight of its neighbours, or a void far below their median, takes that median (`depit`, --depit-m, 2 m unless set;
+2026-09-25).
 
 Refusals (exit 1, nothing written): any tile in the range missing from the cache; a mosaic with no elevation
 variation; a raster whose min is below -11,000 m or max above 9,000 m; a sea fraction of 100% (the box missed the
@@ -99,6 +101,46 @@ def despike(heights, threshold_m, band_rows=BAND_ROWS):
     return out, total
 
 
+#: At most this many passes of the pit filling: a pixel of a small cluster of bad pixels is caught only once enough of
+#: the cluster round it is filled, a pass at a time.
+DEPIT_PASSES = 32
+
+#: A pixel this far below the median of its eight neighbours is a void of the source, however many of them are bad with
+#: it: the tiles' pixels are 8 m apart, and no ground falls half a kilometre in eight metres.
+VOID_M = 500.0
+
+
+def depit(mosaic, margin_m):
+    """Source pixels lower than every one of their eight neighbours by more than margin_m, and pixels more than VOID_M below
+    the median of the eight, take that median, before anything is sampled; pass after pass while any is left. Returns
+    (mosaic, count of pixels filled over every pass, passes).
+
+    The tiles carry single bad pixels far below the ground round them, up to 5.5 km deep over the whole Kangaroo Valley
+    (2026-09-25), and the SRTM's voids in the escarpment's shadow as small clusters of them. The bilinear sampling spreads
+    each into a bowl some four cells across; the despike's 7x7 median at 25 m took the bowl's floor and left its rim, and
+    William woke beside one in the whole valley that morning, "this weird small hole". A pixel below all eight of its
+    neighbours is a sink nothing drains, which at the tiles' 8 m pitch is a fault of the data and not a landform, and the
+    median of the eight is the ground round it. A pixel of a cluster has a bad neighbour and is not below all eight, which
+    the void rule catches while most of its neighbours are good. Summits are left alone: every summit is above its
+    neighbours by nature. Held over the three regions that day: every pixel below -100 m and every pit over 2 m filled
+    within five passes."""
+    out = mosaic.copy()
+    h, w = out.shape
+    total = passes = 0
+    for passes in range(1, DEPIT_PASSES + 1):
+        padded = np.pad(out, 1, mode="edge")
+        neighbours = np.stack([padded[dy:dy + h, dx:dx + w] for dy in (0, 1, 2) for dx in (0, 1, 2) if (dy, dx) != (1, 1)])
+        median = np.median(neighbours, axis=0).astype(out.dtype)
+        take = (neighbours.min(axis=0) - out > margin_m) | (median - out > VOID_M)
+        del neighbours
+        if not take.any():
+            passes -= 1
+            break
+        out[take] = median[take]
+        total += int(take.sum())
+    return out, total, passes
+
+
 def sample_rows(mosaic, r0, r1, n, cell_m, extent_m, centre_lat, centre_lon, zoom, x0, y0):
     """The heights of raster rows r0 to r1 (row 0 the north edge), bilinear from the Mercator mosaic at the lon/lat of
     each cell's centre on the tangent plane."""
@@ -134,6 +176,10 @@ def main():
                    help="replace any cell more than this many metres from its 7x7 median, up or down, with that median, in two passes (0 = off). "
                         "The zoom-11 surround carries isolated bad cells over the open sea, hundreds of metres high, "
                         "which drew as spikes on the skyline (2026-09-08); the 4 m region raster has none.")
+    p.add_argument("--depit-m", type=float, default=2.0,
+                   help="before sampling, give any source pixel more than this many metres below all eight of its neighbours, "
+                        "or more than VOID_M below their median, the median of the eight, pass after pass while any is left "
+                        "(0 = off; see depit)")
     a = p.parse_args()
     if a.inland:
         a.coast = False
@@ -146,6 +192,9 @@ def main():
     if missing:
         print("refused: %d tile(s) missing from the cache, e.g. %s; run fetch_tiles.py --zoom %d first" % (len(missing), missing[0], a.zoom))
         return 1
+    depitted = depit_passes = 0
+    if a.depit_m > 0.0:
+        mosaic, depitted, depit_passes = depit(mosaic, a.depit_m)
 
     # Cell centres on the tangent plane, row 0 at the north edge, column 0 at the west edge, a band of rows at a time.
     n = raster_io.expected_side(a.extent_m, a.cell_m)
@@ -186,6 +235,10 @@ def main():
         "sampling": "bilinear at each cell centre",
         "despike_m": a.despike_m,
         "despiked_cells": despiked,
+        "depit_m": a.depit_m,
+        "depit_void_m": VOID_M,
+        "depitted_pixels": depitted,
+        "depit_passes": depit_passes,
     }
     raster_io.write_raster(out_dir, a.name, a.region, heights, a.cell_m, a.extent_m, a.centre_lat, a.centre_lon,
                            source, "Tools/data/bake_region.py", terrarium.ATTRIBUTION)

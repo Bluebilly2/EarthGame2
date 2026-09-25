@@ -16,7 +16,11 @@ Peninsula, not against the sidecar's own min_m, max_m and sea_fraction, which th
   - the box has sea on two sides (Jervis Bay to the north-east, Wreck Bay and the Tasman Sea to the south and
     east) and the peninsula between: between 10 % and 40 % of cells at or below sea level;
   - the ground behind Bherwerre Beach is low land: the cell at 35.159 S 150.6485 E (the site research's first
-    wake, withdrawn as a wake by CANON ruling 20 and kept as a probe) lies between 3 and 40 m.
+    wake, withdrawn as a wake by CANON ruling 20 and kept as a probe) lies between 3 and 40 m;
+  - no hole a cell wide: no cell lies more than 2 m below every one of its eight neighbours. Ground 4 m apart makes
+    no such sink; the source's faulty pixels did, spread by the sampling into bowls, and William woke beside one in
+    the whole Kangaroo Valley on 2026-09-25. Counted here on the raster itself, cell by cell, not on the tiles the
+    bake fills its pits in.
 
 With --world <folder> (M1.2) it checks a created world's heights layer instead, against the bake of the region the
 world's own world.json names: the sea has the floor the rule
@@ -25,8 +29,8 @@ cell lies between the datum and -30 m, the deepest cell is 30 m down (an inland 
 below the datum, has no sea to floor: those rows print a note and the land row alone judges, since WG.2, 2026-09-22),
 the depth at sampled sea cells matches
 one twentieth of this file's own Euclidean distance to the nearest land cell (within a tenth plus 0.3 m: the
-engine steps along the grid's eight directions, which overstates a straight line by up to 8 %), and the land is
-the bake's, cell for cell.
+engine steps along the grid's eight directions, which overstates a straight line by up to 8 %), the land is
+the bake's, cell for cell, and it has no hole a cell wide, as above.
 
 Exit 0 when every check passes, 1 when any fails, 2 when the raster is missing.
 Run from the repository root:  python Tools/verifiers/checks/region_stats.py [--world Artefacts/worlds/gate]
@@ -46,6 +50,22 @@ MAX_M_RANGE = (110.0, 250.0)             # Parks Australia: slopes at Steamers H
 MIN_M_FLOOR = -60.0                      # no bathymetry in the source; only despike residue may dip below zero
 SEA_FRACTION_RANGE = (0.10, 0.40)        # sea on two sides of a peninsula box
 PROBE_M_RANGE = (3.0, 40.0)              # low ground behind the beach
+HOLE_M = 2.0                             # a cell this far below all eight of its neighbours is a hole the data made
+
+
+def holes(heights):
+    """The cells more than HOLE_M below every one of their eight neighbours, and the deepest of them below the
+    lowest neighbour, m (0 when there are none). The raster's edge is its own neighbour."""
+    h, w = heights.shape
+    padded = np.pad(heights, 1, mode="edge")
+    lowest = np.full(heights.shape, np.inf, dtype=np.float64)
+    for dy in (0, 1, 2):
+        for dx in (0, 1, 2):
+            if (dy, dx) != (1, 1):
+                lowest = np.minimum(lowest, padded[dy:dy + h, dx:dx + w])
+    depth = lowest - heights
+    found = depth > HOLE_M
+    return int(found.sum()), float(depth[found].max()) if found.any() else 0.0
 
 
 def region_dir(world):
@@ -99,6 +119,9 @@ def check_world(world):
     land = ~sea
     expect("the land is the bake's", bool(np.array_equal(world_h[land], bake_h[land])),
            "greatest difference on land %.3f m" % float(np.abs(world_h[land] - bake_h[land]).max()))
+    count, deepest = holes(world_h)
+    expect("no hole a cell wide", count == 0,
+           "%d cells more than %.0f m below all eight neighbours, the deepest %.1f m below the lowest of them" % (count, HOLE_M, deepest))
     floor = world_h[sea]
     if floor.size == 0:
         print("%-30s note  an inland box: no cell of the bake lies at or below the datum, so there is no sea to floor" % "the sea floor")
@@ -181,6 +204,9 @@ def main():
     sea_cells = heights[heights <= 0.0]
     expect("sea is flat in this source", sea_cells.size > 0 and float(np.percentile(-sea_cells, 99.9)) <= 10.0,
            "99.9th percentile of depth %.1f m (a source without bathymetry reads 0)" % (float(np.percentile(-sea_cells, 99.9)) if sea_cells.size else float("nan")))
+    count, deepest = holes(heights)
+    expect("no hole a cell wide", count == 0,
+           "%d cells more than %.0f m below all eight neighbours, the deepest %.1f m below the lowest of them" % (count, HOLE_M, deepest))
     r, c = cell_of(PROBE_LAT, PROBE_LON, sidecar)
     probe = float(heights[r, c])
     expect("the ground behind Bherwerre Beach is low land", PROBE_M_RANGE[0] <= probe <= PROBE_M_RANGE[1], "row %d col %d -> %.1f m, expected %.0f..%.0f" % (r, c, probe, PROBE_M_RANGE[0], PROBE_M_RANGE[1]))
