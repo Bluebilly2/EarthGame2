@@ -1,11 +1,40 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Threading;
 using EarthGame.Engine;
 
 namespace EarthGame.Server
 {
+    /// <summary>
+    /// How a new world's clock is set when it is first made (CANON ruling 52, 2026-09-25): at the real date and time it is first
+    /// started, "it grabs the real time, and syncs", which is every world William starts; or at its region's wake (25 August,
+    /// 08:00 at Bherwerre), for the test worlds whose frames must stay daylit and comparable. A world already made keeps its own
+    /// clock either way. The host takes it as <c>+world.start now|wake</c> and the game as <c>-eg-start now|wake</c>.
+    /// </summary>
+    public enum WorldStart
+    {
+        /// <summary>The real instant the world is first started: the time its maker hands the preparation.</summary>
+        Now = 0,
+        /// <summary>The region's own wake (<see cref="Region.WakeClock"/>).</summary>
+        Wake = 1,
+    }
+
+    public static class WorldStarts
+    {
+        /// <summary>The start a word names: "now" or "wake", as the host's and the game's launch arguments give it.</summary>
+        public static bool TryParse(string word, out WorldStart start)
+        {
+            switch ((word ?? string.Empty).Trim().ToLowerInvariant())
+            {
+                case "now": start = WorldStart.Now; return true;
+                case "wake": start = WorldStart.Wake; return true;
+                default: start = WorldStart.Now; return false;
+            }
+        }
+    }
+
     /// <summary>
     /// A world folder held by the one program that opened it (M1.3d): a file in the folder, open and shared with no one,
     /// deleted when it is closed, and closed by the operating system when the program dies. The bug hunt of 2026-09-13
@@ -68,15 +97,16 @@ namespace EarthGame.Server
         /// <summary>
         /// Opens the world in <paramref name="worldDir"/>, or makes it there, holding the folder first (M1.3d): reading a
         /// folder recovers it, and recovering deletes what a save left aside, which a second program would delete from under
-        /// the first. A load that fails lets the folder go; one that succeeds holds it until its result is disposed.
+        /// the first. A load that fails lets the folder go; one that succeeds holds it until its result is disposed. A world made
+        /// here starts at <paramref name="nowUtc"/>, the real time, unless <paramref name="start"/> asks for its region's wake.
         /// </summary>
         public static Result Load(string worldDir, string dataDir, Region region, ulong seed, string nowUtc,
-            Action<string> progress, CancellationToken cancellation, IMakingWatcher watcher = null)
+            Action<string> progress, CancellationToken cancellation, IMakingWatcher watcher = null, WorldStart start = WorldStart.Now)
         {
             WorldLock hold = WorldLock.Take(worldDir);
             try
             {
-                Result result = LoadHeld(worldDir, dataDir, region, seed, nowUtc, progress, cancellation, watcher);
+                Result result = LoadHeld(worldDir, dataDir, region, seed, nowUtc, progress, cancellation, watcher, start);
                 result.Hold = hold;
                 return result;
             }
@@ -88,7 +118,7 @@ namespace EarthGame.Server
         }
 
         private static Result LoadHeld(string worldDir, string dataDir, Region region, ulong seed, string nowUtc,
-            Action<string> progress, CancellationToken cancellation, IMakingWatcher watcher)
+            Action<string> progress, CancellationToken cancellation, IMakingWatcher watcher, WorldStart start)
         {
             void Report(string stage)
             {
@@ -132,6 +162,8 @@ namespace EarthGame.Server
                 return new Result { World = world, Saved = saved, Checksums = saved.Layers };
             }
 
+            // The new world's clock first, so a start time that is not one is refused before anything is made.
+            WorldClock clock = start == WorldStart.Wake ? region.WakeClock() : ClockAt(nowUtc);
             Report("Reading landscape");
             Heightfield bake = ReadBake(dataDir);
             Report("Reading lakes and wetlands");
@@ -149,7 +181,7 @@ namespace EarthGame.Server
             Heightfield ground = new Heightfield(createdLayers.Read("heights"));
             Report("Reading what the ground feeds");
             CapacitySquares capacity = ReadCapacity(createdLayers, region.ExtentM);
-            WorldState made = new WorldState(seed, region, region.WakeClock(), ground, 0,
+            WorldState made = new WorldState(seed, region, clock, ground, 0,
                 new Double3(created.Wake.East, 0, created.Wake.North), ReadWater(createdLayers), createdLayers.Read("cover"),
                 createdLayers.Read("stand"), createdLayers.Read("loose"), createdLayers.Read("stone"), capacity, createdLayers.Read("shore_distance"),
                 createdLayers.Read("understory"), createdLayers.Read("soil_depth"));
@@ -157,6 +189,18 @@ namespace EarthGame.Server
             WorldSave.Write(worldDir, made, null, nowUtc, created.Checksums);
             Report("World ready");
             return new Result { World = made, Checksums = created.Checksums, Census = created.Census };
+        }
+
+        /// <summary>
+        /// The clock of a world first started at <paramref name="nowUtc"/>, the real time as its maker writes it (an ISO 8601
+        /// instant at Greenwich, <c>2026-09-25T06:40:00Z</c>): that instant (CANON ruling 52). A time that is not one is refused,
+        /// since a world started at a mistaken hour wakes at it for good.
+        /// </summary>
+        public static WorldClock ClockAt(string nowUtc)
+        {
+            if (!DateTime.TryParse(nowUtc, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out DateTime utc))
+                throw new ArgumentException("a new world starts at the real time, and '" + nowUtc + "' is not one", nameof(nowUtc));
+            return WorldClock.FromUtc(utc.DayOfYear, utc.TimeOfDay.TotalHours);
         }
 
         /// <summary>

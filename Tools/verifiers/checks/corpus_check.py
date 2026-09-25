@@ -13,8 +13,9 @@ body's rules as FP.1 and FP.2 state them, restated here, never imported:
      between drinks (a rise without a `drink` record's Done between the two samples, and without a death, is a body
      nobody accounted for); both numbers: the samples, and the rises unaccounted for;
   2. the loss is the body's: the water lost per real second between the first and the last sample of each life
-     (a life ends at a `died` record), against the resting loss (2.4 L a day of 42, at forty-eight world seconds a real
-     second) and the most a running body can lose (the resting loss, plus the breath's water above rest at 500 W in dry
+     (a life ends at a `died` record), against the resting loss (2.4 L a day of 42, at the world's seconds a real second
+     the server's run header states: 86,400 over its day times its clock's rate, forty-eight for the corpus's servers and
+     for a run from before the header said so) and the most a running body can lose (the resting loss, plus the breath's water above rest at 500 W in dry
      air by Fanger's latent term, about a litre and a half a day, plus the most sweat, 1.5 L an hour; the pricing of
      2026-09-16, restated); the rate must lie between the two, so a rate under rest is a body not being charged, and one
      over the most is one charged twice;
@@ -65,7 +66,6 @@ def breath_l_per_day(metabolic_w):
 LETHAL_LOSS = 0.15
 THIRSTY_AT = 0.015
 DRINK_L = 1.5
-WORLD_SECONDS_PER_REAL_SECOND = 48.0
 # The walker (ScenarioRunner, 2026-09-16), restated.
 SEARCH_M = 25.0
 # The water layer's fresh classes (creek, stream, lake) and the depth at which water stands (WorldState.StandingWaterM).
@@ -115,11 +115,26 @@ def layer(world, name):
     return sidecar, np.fromfile(raw, dtype=NP_DTYPES[sidecar["dtype"]]).reshape(sidecar["height"], sidecar["width"])
 
 
-def loss_per_real_second(activity_w, sweat_l_per_hour=0.0):
+def loss_per_real_second(world_per_real, activity_w, sweat_l_per_hour=0.0):
     """The fraction of body water lost a real second doing this much work above basal, plus a sweat rate: the resting
-    loss, the breath above its resting share, and the sweat."""
+    loss, the breath above its resting share, and the sweat, at the run's world seconds a real second."""
     per_day = RESTING_LOSS_L_PER_DAY + max(0.0, breath_l_per_day(BASAL_W + activity_w) - RESTING_BREATH_L_PER_DAY) + sweat_l_per_hour * 24.0
-    return per_day / TOTAL_BODY_WATER_L / 86400.0 * WORLD_SECONDS_PER_REAL_SECOND
+    return per_day / TOTAL_BODY_WATER_L / 86400.0 * world_per_real
+
+
+def world_seconds_per_real_second(log_path):
+    """The world's seconds a real second on the run's server, as its run header states them: 86,400 over its day
+    (real_seconds_per_day: a real day since CANON ruling 52) times the rate its clock was run at (clock_scale: 48 for the
+    corpus's servers, the pace every corpus kept before). A run from before the header said either ran the thirty-minute
+    day at the game's own rate: forty-eight."""
+    header = {}
+    with open(log_path, encoding="utf-8") as f:
+        first = f.readline().strip()
+        if first:
+            record = json.loads(first)
+            if record.get("format") == "eg2.run":
+                header = record
+    return 86400.0 / float(header.get("real_seconds_per_day", 1800.0)) * float(header.get("clock_scale", 1.0))
 
 
 def lives(samples, deaths):
@@ -147,7 +162,8 @@ def main(argv):
         print("corpus_check: no soak under %s (soak/server, soak/A and soak/B run.jsonl are needed)" % corpus)
         return 2
     world = os.path.join(corpus, "soak", "server", "world")
-    print("corpus_check: %s" % corpus)
+    world_per_real = world_seconds_per_real_second(os.path.join(corpus, "soak", "server", "run.jsonl"))
+    print("corpus_check: %s (the world's clock at %g world seconds a real second, by the server's run header)" % (corpus, world_per_real))
     rows = Rows()
 
     # The standing fresh water of the world, for row 3, from the layers the walker never reads.
@@ -193,14 +209,14 @@ def main(argv):
                 if len(stretch) < 2 or float(stretch[-1]["t"]) - float(stretch[0]["t"]) < 60.0:
                     continue
                 rates.append((float(stretch[0]["water"]) - float(stretch[-1]["water"])) / (float(stretch[-1]["t"]) - float(stretch[0]["t"])))
-        rest, most = loss_per_real_second(0.0), loss_per_real_second(RUNNING_W, MAX_SWEAT_L_PER_HOUR)
+        rest, most = loss_per_real_second(world_per_real, 0.0), loss_per_real_second(world_per_real, RUNNING_W, MAX_SWEAT_L_PER_HOUR)
         if not rates:
             rows.row(name, False, "no stretch of a minute or more between drinks to measure")
         else:
             lo, hi = min(rates), max(rates)
             rows.row(name, lo >= rest * 0.98 and hi <= most * 1.02,
                      "%.3e to %.3e of the body a real second over %d stretch(es); rest %.3e <= rate <= running with the most sweat %.3e (walking would be %.3e, running %.3e)"
-                     % (lo, hi, len(rates), rest, most, loss_per_real_second(WALKING_W), loss_per_real_second(RUNNING_W)))
+                     % (lo, hi, len(rates), rest, most, loss_per_real_second(world_per_real, WALKING_W), loss_per_real_second(world_per_real, RUNNING_W)))
 
         # 3. A thirsty walker who came within reach of standing fresh water drank.
         name = "soak/%s drank when thirsty by water" % who

@@ -248,12 +248,13 @@ namespace EarthGame.Tests.Server
             DeliveryRecorder link = null;
             Rig rig = Start(new ServerConfig(), Fed(rooPerKm2: 100f), inner => link = new DeliveryRecorder(inner));
             WorldState world = rig.Server.World;
-            // A tenth of an hour of the world's time before the kangaroos get up for the evening: seven and a half seconds
-            // of the host's, which the join and the first stand-ups take less of.
+            // Seven and a half seconds of the host's before the kangaroos get up for the evening, which the join and the first
+            // stand-ups take less of: at the game's rate, since ruling 52 a real day, as many seconds of the world's.
             SolarClock sun = SolarClock.ForRegion(world.Region, world.Clock);
             double up = 12.0;
-            while (up < 24.0 && AnimalPresence.Activity01(AnimalSpecies.EasternGreyKangaroo, up, sun.DaylightHours) < AnimalStandUp.GrazingActivity) up += 0.001;
-            world.Clock.Advance((up - 0.1 - sun.HourOfDay) / 24.0 * WorldClock.RealSecondsPerDay);
+            while (up < 24.0 && AnimalPresence.Activity01(AnimalSpecies.EasternGreyKangaroo, up, sun.DaylightHours) < AnimalStandUp.GrazingActivity) up += 0.0001;
+            double beforeHours = 7.5 * 24.0 / WorldClock.RealSecondsPerDay;
+            world.Clock.Advance((up - beforeHours - sun.HourOfDay) / 24.0 * WorldClock.RealSecondsPerDay);
             rig.Server.RememberPlayers(new[] { At("A", 300, -300) });
             link.LoseUnreliable = true;
             rig.A = rig.Join("A");

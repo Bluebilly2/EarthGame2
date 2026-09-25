@@ -95,7 +95,9 @@ namespace EarthGame.Protocol
             new DevSetting(FounderCoreC, "The founder's core, °C (28 is death)", 26.0, 37.0, Warmth.NormalCoreC),
             new DevSetting(ClockLocalHour, "Local hour", 0.0, 24.0, double.NaN),
             new DevSetting(ClockDayOfYear, "Day of the year", 1.0, 365.0, double.NaN),
-            new DevSetting(ClockScale, "Clock runs at, times the game's rate", 0.0, 60.0, 1.0),
+            // To 2,880 times since ruling 52 made the day a real one (2026-09-25): a day in thirty seconds, as sixty times the
+            // old thirty-minute day was, for the scenarios that must see a night pass and the panel alike.
+            new DevSetting(ClockScale, "Clock runs at, times the game's rate", 0.0, 2880.0, 1.0),
             new DevSetting(AnimalsStandUpM, "Animals stood up within, m", 100.0, 1500.0, AnimalStandUp.DefaultStandUpRadiusM),
             new DevSetting(AnimalsTakeAwayM, "Animals taken away beyond, m", 100.0, 1600.0, AnimalStandUp.DefaultTakeAwayRadiusM),
             new DevSetting(KangarooFleeWithinM, "Kangaroos run when a founder is within, m", 5.0, 400.0, AnimalFlightRules.KangarooFleeWithinM),

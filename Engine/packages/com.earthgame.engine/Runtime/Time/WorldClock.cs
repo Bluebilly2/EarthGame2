@@ -22,8 +22,13 @@ namespace EarthGame.Engine
     /// </summary>
     public sealed class WorldClock
     {
-        /// <summary>Real seconds per in-game day at a time scale of one. Thirty minutes.</summary>
-        public const double RealSecondsPerDay = 1800.0;
+        /// <summary>
+        /// Real seconds per in-game day at a time scale of one: a real day (CANON ruling 52, 2026-09-25: "the in game clock
+        /// should be the same as the real world time, since the in game time should be derived from the in game planets
+        /// movement through space"). The day is the Earth's turn and passes in the time the real one takes; the thirty-minute
+        /// day (1,800 s) it replaces came from v1. Faster time is the developer's <see cref="Scale"/>, and sleep's (ruling 52).
+        /// </summary>
+        public const double RealSecondsPerDay = 86400.0;
 
         /// <summary>Hours of longitude per degree: the Earth turns 15° an hour.</summary>
         public const double DegreesPerHour = 15.0;
@@ -45,13 +50,26 @@ namespace EarthGame.Engine
 
         /// <summary>
         /// A clock reading a given <b>local solar</b> time at a given longitude — which is how a
-        /// game actually starts, because "eight in the morning at the wake point" is a local
-        /// statement and the absolute instant has to be worked back out of it.
+        /// world starts at its region's wake (a test world, whose frames must stay daylit and comparable),
+        /// because "eight in the morning at the wake point" is a local statement and the absolute instant
+        /// has to be worked back out of it.
         /// </summary>
         public static WorldClock FromLocal(int dayOfYear, double localHour, double longitudeDeg)
         {
             double local = (dayOfYear - 1) * 24.0 + localHour;
             return new WorldClock(local - longitudeDeg / DegreesPerHour);
+        }
+
+        /// <summary>
+        /// A clock reading a given instant at Greenwich (CANON ruling 52): how a new world starts, at the real date and time it
+        /// is first started, so a world begun in the evening begins in the evening where its founder wakes. The caller reads
+        /// the instant; nothing in the engine reads the machine's clock. The clock's year has 365 days, so the 366th day of a
+        /// leap year is taken as its 365th.
+        /// </summary>
+        public static WorldClock FromUtc(int dayOfYear, double utcHour)
+        {
+            int day = Math.Min(Math.Max(dayOfYear, 1), 365);
+            return new WorldClock((day - 1) * 24.0 + utcHour);
         }
 
         /// <summary>

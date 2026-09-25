@@ -39,6 +39,9 @@ def main():
     parser.add_argument("--unity", type=Path, default=UNITY)
     parser.add_argument("--region", default=None, help="the region a new world is made in (-eg-region); the launch's own, Bherwerre, when not given")
     parser.add_argument("--timeout", type=int, default=240, help="seconds each launch is given; the whole valley's making takes minutes")
+    parser.add_argument("--start", default="wake", choices=("wake", "now"),
+                        help="the new world's clock (-eg-start): its region's wake, so the frames are daylit and comparable, or now, "
+                             "the real time it is first started, as a player's new world is (CANON ruling 52)")
     args = parser.parse_args()
     # It builds and launches the game three times: none of it in the quiet hours (CANON ruling 47). The folder ends with the
     # copy's tag, since the copies share one Artefacts and two runs may start in the same second (M1.Bd, 2026-09-24).
@@ -62,7 +65,7 @@ def main():
         command = [args.player.resolve(), "-batchmode", "-logFile", output / "player.log",
                    "-eg-mode", "solo", "-eg-seed", "1347", "-eg-world", "world-loading",
                    "-eg-saves", saves, "-eg-tiles", directory / "tiles",
-                   "-eg-record", output, "-eg-loading-record", output]
+                   "-eg-record", output, "-eg-loading-record", output, "-eg-start", args.start]
         if scenario == "missing":
             command += ["-eg-data", directory / "absent-data"]
         if args.region:

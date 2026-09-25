@@ -3,9 +3,11 @@
 
 Reference: v1's BodyState (Assets/EarthGame/Sim/Body/BodyState.cs), whose numbers are published human physiology: 42 litres
 of body water in a 70 kg adult, 2.4 litres a day lost at rest, the words at 1.5%, 4%, 7% and 11% lost, a litre and a half
-absorbed a visit; and the game's clock, 1,800 real seconds to a day (WorldClock.RealSecondsPerDay), sped sixty times by
-the scenario. Source: the run's run.jsonl (eg2.run, ARCHITECTURE section 10) alone, read with the standard library; every
-number below is written here again, not read from the engine, so a slip in the engine is a red row.
+absorbed a visit; and the game's clock, the run's own day as its header states it (real_seconds_per_day: a real day,
+86,400 s, since CANON ruling 52; 1,800 s for a run from before the header said so), sped by the rate its end record
+states. Source: the run's run.jsonl (eg2.run, ARCHITECTURE section 10) alone, read with the standard library; every
+number below but the day's length is written here again, not read from the engine, so a slip in the engine is a red row
+(the day's own length is ruling 52's, and WorldClockTests pin it).
 
 Usage: python Tools/verifiers/checks/thirst_check.py Artefacts/frames/drink-<stamp>
 Exit 0 when every row passes, 1 otherwise; prints each row's actual and required beside its verdict.
@@ -16,7 +18,8 @@ import sys
 
 BODY_WATER_L = 42.0
 LOSS_L_PER_DAY = 2.4
-REAL_SECONDS_PER_DAY = 1800.0
+# A run's day when its header does not say (the thirty-minute day of every run before CANON ruling 52).
+REAL_SECONDS_PER_DAY_BEFORE = 1800.0
 DRINK_L = 1.5
 THRESHOLDS = ((0.11, 4), (0.07, 3), (0.04, 2), (0.015, 1))   # loss at or past which the word is: collapsing, failing, very thirsty, thirsty
 RATE_TOLERANCE = 0.15
@@ -56,18 +59,20 @@ def main(argv):
         print("no run.jsonl at %s" % run)
         return 2
     records = [json.loads(line) for line in run.read_text(encoding="utf-8").splitlines() if line.strip()]
+    header = records[0] if records and records[0].get("format") == "eg2.run" else {}
+    real_seconds_per_day = float(header.get("real_seconds_per_day", REAL_SECONDS_PER_DAY_BEFORE))
     thirst = [r for r in records if r.get("kind") == "thirst"]
     drinks = [r for r in records if r.get("kind") == "drink"]
     end = next((r for r in reversed(records) if r.get("kind") == "end"), {})
     failures = 0
 
     # The rate: the loss's slope over the sped window, from the start until the first word past thirsty, less the first
-    # seconds; the resting rate at sixty times the game's rate is 2.4 / 42 per day, a day every thirty real seconds.
+    # seconds; the resting rate is 2.4 / 42 per day, and the scenario speeds the clock to a day every thirty real seconds.
     scale = float(end.get("clock_scale", 60.0))
     start_t = next((r["t"] for r in thirst if r.get("why") == "start"), None)
     very_t = next((r["t"] for r in thirst if r.get("level", 0) >= 2), None)
     window = [(r["t"], r["loss"]) for r in thirst if start_t is not None and very_t is not None and start_t + RATE_SETTLE_S <= r["t"] <= very_t]
-    required = LOSS_L_PER_DAY / BODY_WATER_L * scale / REAL_SECONDS_PER_DAY
+    required = LOSS_L_PER_DAY / BODY_WATER_L * scale / real_seconds_per_day
     actual = slope(window)
     failures += check("thirst.rate_per_real_second", round(actual, 7) if actual == actual else actual, "%.7f within %d%% (%d records)" % (required, RATE_TOLERANCE * 100, len(window)),
                       actual == actual and abs(actual - required) <= RATE_TOLERANCE * required)

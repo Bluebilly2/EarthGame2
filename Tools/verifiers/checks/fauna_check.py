@@ -41,8 +41,9 @@ the tideline's 300 m (`AnimalCapacity.TidelineReachM`), past which their capacit
 and 40 m wander and the stand-up's 500 m, from the contract and ARCHITECTURE section 5; a member's spread, five metres
 times the root of its group's size, as the stand-up states it (a looseness, not a citation); an animal's id's layout,
 from ARCHITECTURE section 10; the runs (M1.7c's contract: a mob 150 m at 7 m/s, a pair 200 m at 15 m/s) and the wander's
-period of three world hours at the game's forty-eight world seconds a real second (ARCHITECTURE section 4), from which
-row 10 works out how far a group can move between two fauna records without having fled.
+period of three world hours at the world's seconds a real second the server's run header states (ARCHITECTURE section
+4; forty-eight on the corpus's servers), from which row 10 works out how far a group can move between two fauna records
+without having fled.
 
 Independent of the game: the squares' means are summed over the whole raster at once with numpy's bincount, every cell
 into the one square its centre lies in, where the game adds a layer cell by cell; the dry share of a square is counted
@@ -60,6 +61,9 @@ import os
 import sys
 
 import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from corpus_check import world_seconds_per_real_second  # noqa: E402  (the pace a server's run header states, read in one place)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 DEFAULT_CORPUS = os.path.join("Artefacts", "corpus", "latest")
@@ -81,10 +85,12 @@ FLEEING_POSE = 3
 RUN_M = {KANGAROO: 150.0, OYSTERCATCHER: 200.0}
 RUN_MS = {KANGAROO: 7.0, OYSTERCATCHER: 15.0}
 FAUNA_EVERY_S = 10.0
-# Presence's wander: a circle of 40 m round the group's own place, once round in three world hours, at forty-eight world
-# seconds a real second: the farthest it can carry a group between two records is the chord of that arc, plus the
-# members' own spread twice over (a member's place is drawn afresh round the group each second).
-WANDER_PERIOD_S = 3.0 * 3600.0 / 48.0
+# Presence's wander: a circle of 40 m round the group's own place, once round in three world hours (AnimalPresence's
+# DriftPeriodHours, restated), at the world's seconds a real second the server's run header states (forty-eight for the
+# corpus's servers and for a run from before the header said so): the farthest it can carry a group between two records
+# is the chord of that arc, plus the members' own spread twice over (a member's place is drawn afresh round the group each
+# second).
+WANDER_PERIOD_WORLD_S = 3.0 * 3600.0
 # Presence and the stand-up.
 SQUARE_M = 100.0
 SQUARE_KM2 = 0.01
@@ -216,7 +222,10 @@ def main(argv):
     half = grid_side["extent_m"] / 2.0
     half_cell_diagonal = grid_side["cell_m"] * math.sqrt(2.0) / 2.0
 
-    print("fauna_check: %s against %s" % (log_path, world))
+    world_per_real = world_seconds_per_real_second(log_path)
+    wander_period_s = WANDER_PERIOD_WORLD_S / world_per_real
+    print("fauna_check: %s against %s (the world's clock at %g world seconds a real second, the wander once round in %.0f real s)"
+          % (log_path, world, world_per_real, wander_period_s))
     records = fauna_records(log_path)
     rows = Rows()
 
@@ -362,7 +371,7 @@ def main(argv):
                 t = float(record.get("t", 0.0))
                 if centre is not None and previous is not None and t0 <= t <= until:
                     gap = t - previous[0]
-                    wander = 2.0 * WANDER_M * math.sin(min(math.pi, math.pi * gap / WANDER_PERIOD_S)) + 2.0 * MEMBER_SPACING_M * math.sqrt(GROUP_SIZE[kind])
+                    wander = 2.0 * WANDER_M * math.sin(min(math.pi, math.pi * gap / wander_period_s)) + 2.0 * MEMBER_SPACING_M * math.sqrt(GROUP_SIZE[kind])
                     moved = math.hypot(centre[0] - previous[1][0], centre[1] - previous[1][1])
                     if fled or moved > wander:
                         seen = True

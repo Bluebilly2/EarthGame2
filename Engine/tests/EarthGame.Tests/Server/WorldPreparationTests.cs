@@ -56,6 +56,49 @@ namespace EarthGame.Tests.Server
             Assert.That(back.Checksums, Is.EquivalentTo(made.Checksums));
         }
 
+        /// <summary>
+        /// A new world starts at the real instant its maker hands it (CANON ruling 52): 2026-09-10 19:30 at Greenwich is the 253rd
+        /// day (243 to the end of August, then 10) at half past seven. A world already made keeps its own clock, whatever the time
+        /// and the start it is opened with.
+        /// </summary>
+        [Test]
+        public void ANewWorldStartsAtTheRealTimeItIsFirstStarted()
+        {
+            Bake();
+            using (WorldPreparation.Result made = WorldPreparation.Load(_world, _data, Region, 1347, "2026-09-10T19:30:00Z", null, CancellationToken.None))
+            {
+                Assert.That(made.World.Clock.UtcDayOfYear, Is.EqualTo(253));
+                Assert.That(made.World.Clock.UtcHourOfDay, Is.EqualTo(19.5).Within(1e-9));
+                Assert.That(made.World.Clock.DaysElapsed, Is.EqualTo(0));
+            }
+            using (WorldPreparation.Result again = WorldPreparation.Load(_world, _data, Region, 1347, "2026-12-01T00:00:00Z", null, CancellationToken.None, null, WorldStart.Wake))
+            {
+                Assert.That(again.World.Clock.UtcDayOfYear, Is.EqualTo(253), "a world already made keeps its own clock");
+                Assert.That(again.World.Clock.UtcHourOfDay, Is.EqualTo(19.5).Within(1e-6));
+            }
+        }
+
+        /// <summary>A test world asks for its region's wake instead (the fixture's: the 237th day, 08:00 local), whatever the time.</summary>
+        [Test]
+        public void ANewWorldStartsAtItsRegionsWakeWhenAsked()
+        {
+            Bake();
+            using (WorldPreparation.Result made = WorldPreparation.Load(_world, _data, Region, 1347, "2026-09-10T19:30:00Z", null, CancellationToken.None, null, WorldStart.Wake))
+            {
+                Assert.That(made.World.Clock.LocalDayOfYear(Region.CentreLongitudeDeg), Is.EqualTo(237));
+                Assert.That(made.World.Clock.LocalHourOfDay(Region.CentreLongitudeDeg), Is.EqualTo(8.0).Within(1e-9));
+            }
+        }
+
+        /// <summary>A start time that is not one is refused before anything is made, and leaves no world behind.</summary>
+        [Test]
+        public void ANewWorldRefusesATimeThatIsNotOne()
+        {
+            Bake();
+            Assert.Throws<ArgumentException>(() => WorldPreparation.Load(_world, _data, Region, 1347, "at teatime", null, CancellationToken.None));
+            Assert.That(WorldSave.Exists(_world), Is.False);
+        }
+
         [Test]
         public void TheSquaresFeedTheMeanOfTheWorldsOwnCapacityLayersMadeOrRestored()
         {

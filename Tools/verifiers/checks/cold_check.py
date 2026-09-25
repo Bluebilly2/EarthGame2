@@ -10,8 +10,9 @@ at 36.7, 36, 35 and 32 °C; death at 28. Source: the run's run.jsonl (eg2.run, A
 the `warmth` records carry the core the server told, the sky the client worked out (air, the wind in the open, cloud,
 humidity, the sun's elevation) and the server's tick the word was told on, and this check lives the same night again in
 Python from those and compares the core it reaches with the core recorded, every word along the way. The time base is
-the ticks: the server steps the body once a tick, a tick is a twentieth of a real second, and a real second is the game's
-forty-eight world seconds times the clock's rate the run states, so the world's seconds between two words are exact and
+the ticks: the server steps the body once a tick, a tick is a twentieth of a real second, and a real second is the run's
+own world seconds (86,400 over its header's real_seconds_per_day: one since CANON ruling 52, forty-eight in a run from
+before the header said so) times the clock's rate the run states, so the world's seconds between two words are exact and
 owe nothing to a clock on the client (which follows the server's by pongs and lags a change of rate by a second or so).
 The window opens at the first word after the clock was sped, the word before it straddling the change of rate. Every
 number below is written here, not read from the engine, so a slip in the engine is a red row.
@@ -51,9 +52,10 @@ SKY_DEPRESSION_K = 16.0
 ABSORPTANCE = 0.55
 NORMAL_C, HYPOTHERMIA_C, SEVERE_C, LETHAL_C = 37.0, 35.0, 32.0, 28.0
 CHILLY_C, COLD_C = 36.7, 36.0
-REAL_SECONDS_PER_DAY = 1800.0
+# A run's day when its header does not say (the thirty-minute day of every run before CANON ruling 52).
+REAL_SECONDS_PER_DAY_BEFORE = 1800.0
 RESTING_BELOW_MS, RUNNING_FROM_MS = 0.2, 2.8
-# Room outside the two winds' curves, °C: the server steps its body once a tick (144 world seconds at sixty times), this
+# Room outside the two winds' curves, °C: the server steps its body once a tick (144 world seconds at the night's rate), this
 # check in steps no longer than 150 s from the sky of the last word, and the two are not the same partition of the night.
 BOUND_TOLERANCE_C = 0.3
 FRAMES = 6
@@ -183,6 +185,8 @@ def main(argv):
         print("no run.jsonl at %s" % run)
         return 2
     records = [json.loads(line) for line in run.read_text(encoding="utf-8").splitlines() if line.strip()]
+    header = records[0] if records and records[0].get("format") == "eg2.run" else {}
+    real_seconds_per_day = float(header.get("real_seconds_per_day", REAL_SECONDS_PER_DAY_BEFORE))
     warmth = [r for r in records if r.get("kind") == "warmth" and "air_c" in r and "core_c" in r]
     night = next((r for r in records if r.get("kind") == "night"), None)
     reached = next((r for r in records if r.get("kind") == "cold_reached"), None)
@@ -197,7 +201,7 @@ def main(argv):
     scale = float(end.get("clock_scale", 60.0))
     welcome = next((r for r in records if r.get("kind") == "welcome"), {})
     tick_rate = float(welcome.get("tick_rate", 20))
-    world_per_tick = scale * 86400.0 / REAL_SECONDS_PER_DAY / tick_rate
+    world_per_tick = scale * 86400.0 / real_seconds_per_day / tick_rate
     window = [r for r in warmth if night is not None and r["t"] > night["t"] and "tick" in r]
     before = next((r for r in reversed(warmth) if night is not None and r["t"] <= night["t"]), None)
     closing = dawn if dawn is not None else reached

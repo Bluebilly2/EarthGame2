@@ -105,10 +105,11 @@ namespace EarthGame.Tests.Server
             world.Clock.Scale = 0.0;
             rig.Pump(TickRate * 2);
             Assert.That(rig.Session.Hydration.Water01, Is.EqualTo(1.0), "a held clock holds the body");
-            world.Clock.Scale = 60.0;
+            world.Clock.Scale = 2880.0;
             rig.Pump(TickRate * 3);
-            // Three seconds at sixty times the game's rate is a tenth of a day: 0.24 litres of 42.
-            double expected = 1.0 - Hydration.BaseWaterLossLPerDay * (3.0 * 60.0 / WorldClock.RealSecondsPerDay) / Hydration.TotalBodyWaterL;
+            // Three seconds at 2,880 times the game's rate, a day in half a minute since ruling 52 made the day a real one, is a
+            // tenth of a day: 0.24 litres of 42.
+            double expected = 1.0 - Hydration.BaseWaterLossLPerDay * (3.0 * 2880.0 / WorldClock.RealSecondsPerDay) / Hydration.TotalBodyWaterL;
             Assert.That(rig.Session.Hydration.Water01, Is.EqualTo(expected).Within(1e-9));
             Assert.That(rig.Told.Count - told, Is.InRange(4, 6), "told once a second over five seconds");
             Assert.That(rig.Client.LastWater01, Is.EqualTo(rig.Told[rig.Told.Count - 1].Water01));

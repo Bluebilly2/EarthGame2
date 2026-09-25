@@ -4,7 +4,7 @@
 Finds on the world's own layers a dry cell (no water standing, ground no steeper than 6 degrees) beside fresh water at
 least 5 cm deep (a creek, a stream or a lake, classes 3 to 5 of the water layer) and within 150 m of the sea (class 7),
 the nearest such to the world's wake; stands the founder there by the host (its console's `stand` and `save`); and runs
-the player's `drink` scenario as a development game: the clock sped sixty times until the founder is very thirsty, the
+the player's `drink` scenario as a development game: the clock sped to a day in half a minute until the founder is very thirsty, the
 walk to the fresh water and the drink, the walk to the sea and its refusal, three frames and the run's records
 (`thirst`, `drink`, `end`). Then prints what the end record says. Leaves the frames, run.jsonl, the tile cache and the
 logs under Artefacts/frames/drink-<stamp>/; `Tools/verifiers/checks/thirst_check.py <that folder>` holds the records to

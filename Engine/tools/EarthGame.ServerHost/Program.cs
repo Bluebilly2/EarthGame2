@@ -22,6 +22,12 @@ namespace EarthGame.ServerHost
     ///   +server.seconds 1800  (stop by itself after this long)
     ///   +server.world Saves/world-1347  (the world folder: created with its layers, wake and census when absent, continued
     ///   when present, saved at stop)
+    ///   +world.start now  (a new world's clock, CANON ruling 52: now, the real time it is first started, the default; or wake,
+    ///   its region's wake, for the test worlds whose frames must stay daylit and comparable; a world already made keeps its own)
+    ///   +world.scale 1  (the world's clock runs at this many times the game's own rate, a real day since ruling 52: 1 for a world
+    ///   hosted for play, always. A test or a run may speed it, as the corpus's soak does at 48, the pace every soak kept before
+    ///   the day became a real one, so its walkers still grow thirsty, drink and die within the half hour. A faster clock is the
+    ///   whole world simulated faster, sleep's machinery (ruling 52), not a fake; it lasts the run and is never saved)
     ///   +server.dev 1  (a development server: a founder may fly, M1.5e, and a developer's settings are taken, M1.D)
     ///   +server.local 0  (a socket on every address, for players off this machine, which the firewall asks about once;
     ///   the default is 1, this machine alone, the harness's: nothing off the machine can join and the firewall has
@@ -49,6 +55,18 @@ namespace EarthGame.ServerHost
             };
             if (config.Movement.AllowFlight) Log("a development server: a founder may fly, and a developer's settings are taken");
             ulong seed = ULong(a, "server.seed", 1347UL);
+            if (!WorldStarts.TryParse(Str(a, "world.start", "now"), out WorldStart start))
+            {
+                Log("unknown +world.start '" + Str(a, "world.start", "") + "'; known: now, wake");
+                return 2;
+            }
+            string scaleText = Str(a, "world.scale", "1");
+            if (!double.TryParse(scaleText, NumberStyles.Float, CultureInfo.InvariantCulture, out double worldScale) || double.IsNaN(worldScale)
+                || double.IsInfinity(worldScale) || worldScale < 0.0)
+            {
+                Log("+world.scale '" + scaleText + "' is not a clock's rate; a number from 0 up, 1 for play");
+                return 2;
+            }
             // The region: +server.region when given; else a saved world's own (WorldSave.RegionOf, WG.2 2026-09-22), so a
             // world set in the Kangaroo Valley continues in the valley without the region named again; else Bherwerre.
             string worldDir = Str(a, "server.world", null);
@@ -91,8 +109,8 @@ namespace EarthGame.ServerHost
             };
             int stopAfter = Int(a, "server.seconds", 0);
 
-            // The world: a folder created with its layers (M1.2), continued when it exists, or nothing but the
-            // region's canonical wake when no folder is named (Region owns the day, hour and longitude).
+            // The world: a folder created with its layers (M1.2), continued when it exists, or the region's ground alone when
+            // no folder is named; a new world's clock is as +world.start asks (ruling 52: the real time, or the region's wake).
             //
             // One function prepares a world, here and in the game (WorldPreparation, M1.4 loading 2026-09-10):
             // a saved world's own terrain must load and match its manifest, and the region's bake is never put
@@ -113,7 +131,7 @@ namespace EarthGame.ServerHost
                 try
                 {
                     // The console has no loading screen; the stages the screen shows go to the log instead.
-                    prepared = WorldPreparation.Load(worldDir, dataDir, region, seed, now, stage => Log("  " + stage), CancellationToken.None);
+                    prepared = WorldPreparation.Load(worldDir, dataDir, region, seed, now, stage => Log("  " + stage), CancellationToken.None, null, start);
                 }
                 catch (Exception ex) when (ex is IOException || ex is InvalidDataException || ex is JsonException || ex is KeyNotFoundException)
                 {
@@ -137,8 +155,11 @@ namespace EarthGame.ServerHost
             }
             else
             {
-                world = new WorldState(seed, region, region.WakeClock(), terrain);
+                string now = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
+                world = new WorldState(seed, region, start == WorldStart.Wake ? region.WakeClock() : WorldPreparation.ClockAt(now), terrain);
             }
+            world.Clock.Scale = worldScale;
+            if (worldScale != 1.0) Log("the world's clock runs at " + worldScale.ToString("0.###", CultureInfo.InvariantCulture) + " times the game's own rate (+world.scale), for this run alone");
             UdpServerTransport transport = new UdpServerTransport(options);
             GameServer server = new GameServer(config, transport, world);
             if (saved != null) server.RememberPlayers(saved.Players.Values);
@@ -151,6 +172,7 @@ namespace EarthGame.ServerHost
                     .With("role", "server").With("region", region.Id).With("seed", seed).With("tick_rate", config.TickRate).With("port", port)
                     .With("latency_ms", latency).With("jitter_ms", jitter).With("loss_percent", loss).With("send_cap_bytes_per_second", sendCap)
                     .With("interest_radius_m", config.InterestRadiusM).With("terrain", world.Terrain != null)
+                    .With("real_seconds_per_day", WorldClock.RealSecondsPerDay).With("clock_scale", world.Clock.Scale)
                     .With("started_utc", DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture));
                 log = RunLog.Open(logPath, header);
                 Log("logging to " + logPath);

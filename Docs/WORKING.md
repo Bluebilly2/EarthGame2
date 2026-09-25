@@ -237,7 +237,9 @@ written for one checkout and hold within each copy:
 - A world's clock moves with every host and player run, so a reused world drifts from morning into night. Frames or
   timings that are to be compared are each taken on a freshly created world, which wakes at about 08:00 (2026-09-11:
   a timing round that ran into the world's nightfall read the near trees at under half their cost, the sun being
-  down).
+  down). Since the day became a real one (CANON ruling 52, 2026-09-25) the drift is a minute of the world's for a minute
+  of running, forty-eight times slower than before, but a world a player starts takes the real time it is first started:
+  a test world is made by `create.py` (or `loading.py`), which start it at the region's wake, never by the game's shell.
 - A frame's cost: the recorder with `-eg-hold 20` (a full turn, the GPU waited for every frame; a `timing` record)
   and `-eg-hide trees|near|far|shadows|loose` to part the costs. Timing wobbles with whatever else the machine is
   doing, so a round is run twice, each pass on its own fresh world, and each configuration keeps the faster of its two

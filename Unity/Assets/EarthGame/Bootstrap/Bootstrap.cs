@@ -193,7 +193,14 @@ namespace EarthGame.Bootstrap
             CancellationToken token = cancellation.Token;
             // The loading screen's map watches the making (2026-09-25): handed the layers as they are made, and the wake.
             MakingMap map = _loading != null ? _loading.Map : null;
-            _preparation = Task.Run(() => WorldPreparation.Load(worldDir, dataDir, region, seed, now, stages.Enqueue, token, map));
+            // A new world starts at the real time (CANON ruling 52); -eg-start wake starts it at its region's wake, for a
+            // scenario that makes its own world and wants its frames daylit and comparable. A word it does not know fails the
+            // loading with its name, rather than starting a world at an hour no one asked for.
+            string startWord = LaunchArgs.Get("start", "now");
+            bool startKnown = WorldStarts.TryParse(startWord, out WorldStart start);
+            _preparation = Task.Run(() => startKnown
+                ? WorldPreparation.Load(worldDir, dataDir, region, seed, now, stages.Enqueue, token, map, start)
+                : throw new ArgumentException("-eg-start '" + startWord + "' is not a start this game knows: now or wake"));
             // Observe errors even if the Unity object disappears before the task finishes.
             _preparation.ContinueWith(task => { _ = task.Exception; }, CancellationToken.None,
                 TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
@@ -382,6 +389,7 @@ namespace EarthGame.Bootstrap
                     .With("role", "client").With("mode", _mode.ToString().ToLowerInvariant()).With("name", _playerName).With("address", address).With("port", port)
                     .With("region", region.Id).With("unity", Application.unityVersion).With("product_version", Application.version)
                     .With("latency_ms", LaunchArgs.GetInt("latency", 0)).With("jitter_ms", LaunchArgs.GetInt("jitter", 0)).With("loss_percent", LaunchArgs.GetInt("loss", 0))
+                    .With("real_seconds_per_day", WorldClock.RealSecondsPerDay)
                     .With("started_utc", DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture));
                 ScenarioRunner runner = gameObject.AddComponent<ScenarioRunner>();
                 runner.Begin(_scenario, _recordDir, _clientRuntime, header);

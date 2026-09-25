@@ -13,8 +13,11 @@ namespace EarthGame.Client
         /// <summary>The night's cold and death (FP.2): see <see cref="RunNight"/>.</summary>
         public const string NightScenario = "night";
 
-        /// <summary>The clock's rate through the night: sixty times the game's, a world hour every second and a quarter.</summary>
-        private const double NightClockScale = 60.0;
+        /// <summary>
+        /// The clock's rate through the night: a world hour every second and a quarter, 2,880 times the game's since ruling 52
+        /// made the game's day a real one (2026-09-25); it was sixty times the thirty-minute day, the same pace in real seconds.
+        /// </summary>
+        private const double NightClockScale = 2880.0;
         /// <summary>How long the cold is waited for at that rate, s: twelve hours of the world's night.</summary>
         private const double NightColdTimeoutSeconds = 15.0;
         /// <summary>How long the dawn is waited for at that rate from the night's start, s: twenty hours of the world's.</summary>
@@ -30,8 +33,8 @@ namespace EarthGame.Client
 
         /// <summary>
         /// The night's cold and death (FP.2). In a development game the founder is stood at the wake with a full body, a stick
-        /// spawned, faced and picked up, and walked a dozen metres off; the clock is put to ten in the evening and sped sixty
-        /// times, and every word the server has of the body is a <c>warmth</c> record with the sky the client works out and
+        /// spawned, faced and picked up, and walked a dozen metres off; the clock is put to ten in the evening and sped to a day
+        /// in half a minute, and every word the server has of the body is a <c>warmth</c> record with the sky the client works out and
         /// the world's hours beside it. The founder stands there through the night: the first "cold" is a <c>cold_reached</c>
         /// record and a frame (the word under the clock), the sun's rise a <c>dawn</c> record and a frame (the lowest core the
         /// night reached, the coldest word, whether the night itself killed). Then, unless it did, the panel's row moves the

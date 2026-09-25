@@ -19,8 +19,9 @@ namespace EarthGame.Tests.Engine
         /// <summary>
         /// A mob near the plain's middle, with the founder stood a distance north of its wandered place, and the world stepped
         /// once so it stands: a flight can begin in that very step, so the listener is joined first. The clock is held still
-        /// (a developer's rate of nought), so presence's places stand while a mob runs; running, the world's day goes
-        /// forty-eight times as fast as the test's seconds and the wander alone moved a mob's home six metres in a run.
+        /// (a developer's rate of nought), so presence's places stand while a mob runs; running, on the thirty-minute day
+        /// before ruling 52 (2026-09-25), the world went forty-eight times as fast as the test's seconds and the wander alone
+        /// moved a mob's home six metres in a run.
         /// </summary>
         private static (WorldState World, AnimalStandUp StandUp, AnimalSighting Group) AMobWithAFounder(double northOfItM, List<AnimalFlight> flights = null)
         {

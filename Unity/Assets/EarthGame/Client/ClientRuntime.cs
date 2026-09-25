@@ -32,8 +32,9 @@ namespace EarthGame.Client
         private const double StreamingBudgetMs = 1.5;
         /// <summary>
         /// How far the client's clock may slip from the server's, as each pong carries it, before it is set to it (M1.D):
-        /// seven seconds of the world's time, more than the round trip's worth at the game's own rate and at sixty times it
-        /// (a 20 ms round trip is 0.6 world-seconds at sixty times), and less than a developer's move of the clock. Until
+        /// seven seconds of the world's time, more than a round trip's worth at the game's own rate (a 20 ms round trip is
+        /// 0.02 world-seconds since ruling 52 made the day a real one), and less than a developer's move of the clock; at the
+        /// scenarios' 2,880 times a round trip is nearly a world minute, and the clock is set to each pong's as it comes. Until
         /// 2026-09-16 it was three minutes, which let the HUD's clock read three minutes behind the server's for a while after
         /// the panel sped the clock (the third night run: 05:45 on the HUD, 05:47 in the death's sentence).
         /// </summary>
@@ -1377,6 +1378,7 @@ namespace EarthGame.Client
                     .With("world_total_hours", welcome.TotalHours)
                     .With("unity", Application.unityVersion).With("product_version", Application.version)
                     .With("build_label", BuildInfo.Label).With("build_commit", BuildInfo.Commit).With("build_dirty", BuildInfo.Dirty).With("build_utc", BuildInfo.BuiltUtc)
+                    .With("real_seconds_per_day", WorldClock.RealSecondsPerDay)
                     .With("started_utc", DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture))
                     .With("terrain", _bakedRegion != null);
                 Recorder recorder = gameObject.AddComponent<Recorder>();

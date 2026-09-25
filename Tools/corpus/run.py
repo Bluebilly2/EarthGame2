@@ -25,6 +25,11 @@ server ran on the bare bake and woke founders at the region's stated point; CANO
 real worlds had woken elsewhere since M1.2, so the corpus now runs what a player runs. A server is waited for until
 its console says it is listening, since loading a world takes longer than the two seconds a bare bake did.
 
+The corpus's servers run the world's clock at 48 times the game's own rate (+world.scale 48): the pace every corpus kept
+before CANON ruling 52 made the day a real one (2026-09-25), so the soak's walkers still grow thirsty, drink and die within
+its half hour for corpus_check, and the animals, the weather and the bodies run as they did in every sweep before, so N4
+compares like with like. The rate is in the server's run header (clock_scale) for the checks to read.
+
 Every process's run.jsonl (eg2.run v1) lands under the output folder; this harness's own summary.json is
 written beside them for a reader's convenience and is what join_check.py ignores by design. The exit code is
 0 only when every player and the server exited 0 and every run.jsonl carries an end record newer than the
@@ -68,6 +73,10 @@ def server_dll():
     return None
 
 
+# The world's clock on the corpus's servers, times the game's own rate (see the top): the old thirty-minute day's pace.
+CLOCK_SCALE = 48
+
+
 class Server:
     """The dedicated server as a child process with a console we can write to."""
 
@@ -81,7 +90,7 @@ class Server:
                 "+server.port", str(port), "+server.local", "1", "+server.log", os.path.join(out_dir, "run.jsonl"),
                 "+server.simulate.latency", str(cond["rtt_ms"] // 2), "+server.simulate.jitter", str(cond["jitter_ms"] // 2),
                 "+server.simulate.loss", str(cond["loss_percent"]), "+server.sendcap", str(cond["cap_bytes_per_second"]),
-                "+server.seconds", str(seconds)]
+                "+server.seconds", str(seconds), "+world.scale", str(CLOCK_SCALE)]
         self.process = subprocess.Popen(args, cwd=ROOT, stdin=subprocess.PIPE, stdout=self.console, stderr=subprocess.STDOUT, text=True)
         self.started = time.time()
         self.wait_listening()

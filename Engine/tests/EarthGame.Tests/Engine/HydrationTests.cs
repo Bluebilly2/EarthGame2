@@ -126,8 +126,8 @@ namespace EarthGame.Tests.Engine
         {
             WorldClock clock = new WorldClock(0.0);
             Assert.That(clock.DaysFor(WorldClock.RealSecondsPerDay), Is.EqualTo(1.0).Within(1e-12), "a day of real seconds at the game's rate");
-            clock.Scale = 60.0;
-            Assert.That(clock.DaysFor(30.0), Is.EqualTo(1.0).Within(1e-12), "sped sixty times, thirty seconds is a day");
+            clock.Scale = 2880.0;
+            Assert.That(clock.DaysFor(30.0), Is.EqualTo(1.0).Within(1e-12), "sped 2,880 times, the scenarios' pace, thirty seconds is a day");
             clock.Scale = 0.0;
             Assert.That(clock.DaysFor(30.0), Is.EqualTo(0.0), "a held clock holds the body");
             clock.Scale = 1.0;

@@ -28,8 +28,8 @@ namespace EarthGame.Tests.Server
             GameServer server = NewServer();
             double before = server.World.Clock.TotalHours;
             for (int i = 0; i < 20; i++) server.Update(0.05);
-            // one real second is 24 h / 1800 s of world time
-            Assert.That(server.World.Clock.TotalHours - before, Is.EqualTo(24.0 / 1800.0).Within(1e-9));
+            // one real second is a second of the world's day, a real day long (CANON ruling 52): 24 h / 86,400 s
+            Assert.That(server.World.Clock.TotalHours - before, Is.EqualTo(24.0 / 86400.0).Within(1e-9));
         }
 
         [Test]

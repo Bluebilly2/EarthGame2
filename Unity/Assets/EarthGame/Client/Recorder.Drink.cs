@@ -13,8 +13,11 @@ namespace EarthGame.Client
         /// <summary>The thirst and the drink (FP.1): see <see cref="RunDrink"/>.</summary>
         public const string DrinkScenario = "drink";
 
-        /// <summary>The clock's rate while the founder dries: sixty times the game's, a day in half a minute.</summary>
-        private const double DrinkClockScale = 60.0;
+        /// <summary>
+        /// The clock's rate while the founder dries: a day in half a minute, 2,880 times the game's since ruling 52 made the
+        /// game's day a real one (2026-09-25); it was sixty times the thirty-minute day, the same pace in real seconds.
+        /// </summary>
+        private const double DrinkClockScale = 2880.0;
         /// <summary>
         /// The local hour the frames are taken at: mid-morning by default, the same hour the looks scenario pins, so the
         /// water reads by daylight; `-eg-hour` takes another, which is how M1.4g shows the same water after dark.
@@ -33,8 +36,8 @@ namespace EarthGame.Client
 
         /// <summary>
         /// The thirst and the drink (FP.1). The founder, stood by fresh water and near the sea by <c>Tools/world/drink.py</c> in a
-        /// development game, has the clock sped sixty times and waits, every word of the server's about their body written as a
-        /// <c>thirst</c> record, until very thirsty ("thirsty" frame: the word under the clock); the clock is put back; they walk to
+        /// development game, has the clock sped to a day in half a minute and waits, every word of the server's about their body
+        /// written as a <c>thirst</c> record, until very thirsty ("thirsty" frame: the word under the clock); the clock is put back; they walk to
         /// the nearest fresh water within reach, look at it and press use, and the answer and the water before and after are a
         /// <c>drink</c> record ("drank" frame); then to the sea, the same ("sea" frame), where the answer should be salt. The end
         /// record says how long the thirst took, whether they drank and whether the sea refused; the exit is 0 when both, every

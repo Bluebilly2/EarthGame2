@@ -3,7 +3,7 @@
 
 Runs the player's `night` scenario as a development game on the world named, with the beta arc's bridge down
 (-eg-no-bridge) so the cold can kill: the founder is stood at the wake by the panel's deed with a full, warm body, a stick
-spawned, faced and picked up, and walked a dozen metres off; the clock is put to ten in the evening and sped sixty times,
+spawned, faced and picked up, and walked a dozen metres off; the clock is put to ten in the evening and sped to a day in half a minute,
 every word the server has of the body written as a `warmth` record with the sky the client works out and the world's hours
 beside it. The founder stands through the night: the first "cold" is a `cold_reached` record and a frame, the sun's rise a
 `dawn` record and a frame (the lowest core, the coldest word, whether the night itself killed); then, unless it did, the

@@ -8,8 +8,10 @@ time. Claude's tool: it creates and lists, it verifies nothing; the verifiers (d
 census_check.py) read the folder it leaves behind.
 
 Usage, from the repository root:
-    python Tools/world/create.py [folder] [--region kangaroo-valley]        default Artefacts/worlds/gate, bherwerre
-The region names the bake under Data/regions/<region> (the host's own rule) and the region's own wake and station.
+    python Tools/world/create.py [folder] [--region kangaroo-valley] [--start now]   default Artefacts/worlds/gate, bherwerre
+The region names the bake under Data/regions/<region> (the host's own rule) and the region's own wake and station. The world's
+clock starts at the region's wake (+world.start wake): these are test worlds, whose frames must stay daylit and comparable,
+where a world a player starts takes the real time it is first started (CANON ruling 52); --start now makes one that way.
 Exit 0 when the host exits 0 and the folder holds a census; 1 otherwise.
 """
 import json
@@ -37,11 +39,16 @@ def run(cmd, log_path):
 def main(argv):
     machine.refuse_in_quiet_hours("create")
     region = "bherwerre"
+    start = "wake"
     rest = []
     i = 1
     while i < len(argv):
         if argv[i] == "--region" and i + 1 < len(argv):
             region = argv[i + 1]
+            i += 2
+            continue
+        if argv[i] == "--start" and i + 1 < len(argv):
+            start = argv[i + 1]
             i += 2
             continue
         rest.append(argv[i])
@@ -58,7 +65,7 @@ def main(argv):
     started = time.time()
     host_log = full + ".log"
     code = run(["dotnet", HOST_DLL, "+server.port", str(PORT), "+server.local", "1", "+server.world", folder, "+server.seconds", "1",
-                "+server.region", region], host_log)
+                "+server.region", region, "+world.start", start], host_log)
     elapsed = time.time() - started
     census_path = os.path.join(full, "census.txt")
     if code != 0 or not os.path.isfile(census_path):

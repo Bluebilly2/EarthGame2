@@ -26,13 +26,37 @@ namespace EarthGame.Tests.Engine
         }
 
         [Test]
-        public void OneRealHalfHourIsOneWorldDay()
+        public void OneRealDayIsOneWorldDay()
         {
+            Assert.That(WorldClock.RealSecondsPerDay, Is.EqualTo(86400.0), "a day passes in a real day (CANON ruling 52)");
             WorldClock c = WorldClock.FromLocal(Aug25, 8.0, BherwerreLon);
-            c.Advance(WorldClock.RealSecondsPerDay);
+            c.Advance(86400.0);
             Assert.That(c.LocalHourOfDay(BherwerreLon), Is.EqualTo(8.0).Within(1e-9));
             Assert.That(c.LocalDayOfYear(BherwerreLon), Is.EqualTo(Aug25 + 1));
             Assert.That(c.DaysElapsed, Is.EqualTo(1));
+        }
+
+        /// <summary>
+        /// A new world's clock is the real instant it is first started (CANON ruling 52). 2026-09-25 06:40 UTC is the 268th day
+        /// (243 days to the end of August, then 25), and 06:40 at Greenwich with Bherwerre's 10.045 hours on is 16:43 there: a
+        /// world begun in the afternoon wakes in the afternoon.
+        /// </summary>
+        [Test]
+        public void FromUtcIsTheInstantAtGreenwich()
+        {
+            WorldClock c = WorldClock.FromUtc(268, 6.0 + 40.0 / 60.0);
+            Assert.That(c.UtcDayOfYear, Is.EqualTo(268));
+            Assert.That(c.UtcHourOfDay, Is.EqualTo(6.0 + 40.0 / 60.0).Within(1e-9));
+            Assert.That(c.LocalHourOfDay(BherwerreLon), Is.EqualTo(6.0 + 40.0 / 60.0 + BherwerreLon / 15.0).Within(1e-9));
+            Assert.That(c.LocalDayOfYear(BherwerreLon), Is.EqualTo(268));
+            Assert.That(c.DaysElapsed, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void FromUtcTakesALeapYearsLastDayAsTheYearsLast()
+        {
+            Assert.That(WorldClock.FromUtc(366, 12.0).UtcDayOfYear, Is.EqualTo(365));
+            Assert.That(WorldClock.FromUtc(1, 0.0).TotalHours, Is.EqualTo(0.0));
         }
 
         [Test]

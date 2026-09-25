@@ -85,8 +85,8 @@ namespace EarthGame.Tests.Server
             rig.Pump(2);
             Assert.That(rig.Session.Warmth.CoreC, Is.EqualTo(Warmth.NormalCoreC), "normal at the start of the night, the clock held");
             rig.Client.SendDevSetting(DevSettings.ClockLocalHour, 23.0);
-            rig.Client.SendDevSetting(DevSettings.ClockScale, 60.0);
-            // At sixty times the game's own forty-eight, a real second is forty-eight minutes of the world: two seconds are an hour and a half of the night.
+            rig.Client.SendDevSetting(DevSettings.ClockScale, 2880.0);
+            // At 2,880 times the game's own rate, a real day since ruling 52, a real second is forty-eight minutes of the world: two seconds are an hour and a half of the night.
             rig.Pump(TickRate * 2);
             Warmth body = rig.Session.Warmth;
             Assert.That(body.CoreC, Is.LessThan(Warmth.NormalCoreC - 0.3), "the core has fallen in the night; net " + body.NetHeatW.ToString("0") + " W in air " + rig.Session.Surroundings.AirC.ToString("0.0") + " °C, wind " + rig.Session.Surroundings.WindAtBodyMs.ToString("0.0") + " m/s");
