@@ -54,7 +54,8 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
    minecraft servers are hosted." Minecraft-scale servers planned, smaller for the first milestone.
 4. **Assets:** standard Unity workflow (scenes, prefabs, materials, ScriptableObjects, imported meshes where they
    help); generated geometry where physics dictates the shape.
-5. **World shape:** a bounded flat region anchored to real Earth, 8 × 8 km first.
+5. **World shape:** a bounded flat region anchored to real Earth, 8 × 8 km first. *Replaced by ruling 50 (2026-09-25): the
+   world becomes a planet, made as it is visited, in levels of detail.*
 6. **Steam:** undecided. Direct IP or VPN now; a Steam transport must slot in later without a rewrite.
 7. **Setup:** install the .NET 10 SDK; create the private GitHub repository `EarthGame2`. Done.
 8. **The region:** delegated ("up to you to decide, maybe its something new altogether. something suitable").
@@ -358,3 +359,52 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     datasets were (its source, its licence, its size and its SHA-256, a tool that can fetch it again) and named in the
     check-in that follows it; nothing that runs is taken from a source that cannot be trusted; and a vendored file lands with
     its notice in `THIRD_PARTY_NOTICES.md` in the same commit.
+
+
+50. **The world becomes a planet, made as it is visited, in levels of detail.** 2026-09-25, having flown 4 km up over the
+    whole Kangaroo Valley and seen it end: "i mean, if the player will eventually get to the point that they can fly with
+    aeroplanes they have designed and built, or rockets to fly into space, wont this current method look awful?" Told that it
+    would, that a world worked out in full before it is played is capped by what one square costs, and that the answer is the
+    Earth made in levels of detail from worldwide data, coarsely everywhere and finer only where someone is, built in three
+    stages each leaving a game to play (no edge on the ground; levels of detail to the horizon; the globe and a frame that
+    carries into space): "this way sounds much much better". It replaces ruling 5's bounded flat region. The regions made so
+    far stand, and are played, until the first stage replaces them; the survival work goes on beside the rebuild. A place
+    seen from the air and the same place underfoot are one place: a river seen from a plane is the river the founder drinks
+    from.
+
+51. **The cloud runs whenever, and carries the work while his computer is out of action.** 2026-09-25: "my free$250 of cloud
+    credits are exhausted. now a cloud session is to be used when my computer is out of action", and, read at first as a
+    limit, at once: "the cloud can run whenever, it isnt exclusive to when im offline". A cloud session may be given work at
+    any time, as rulings 47's and 49's cloud amendments have it, and it is what keeps the work going when his machine is off.
+
+52. **Time comes from the planet's motion, at the real world's pace; one world, derived from what underlies it.** 2026-09-25,
+    asked whether a fire burns on the game's fast clock (BF.5, For main to decide 1): "the in game clock should be the same
+    as the real world time, since the in game time should be derived from the in game planets movement through space", with a
+    statement of the principle pasted beside it, of which: "Whenever one simulated fact logically implies the existence of
+    another system, prefer to actually model that underlying system rather than independently faking its consequences"; "Time
+    should emerge from celestial motion. Daylight should emerge from the relative positions of the Sun and Earth. Seasons
+    should emerge from axial tilt and orbit. Tides should emerge from gravitational relationships"; "This does not mean every
+    underlying process must always be simulated at maximum resolution ... But the conceptual source of truth should remain
+    continuous"; "The world should be one coherent thing viewed at different scales"; and "If the player eventually leaves
+    Earth and travels into space, they should not be entering a newly invented 'space level.'" It ends the thirty-minute day
+    (`WorldClock.RealSecondsPerDay`, 1,800 s since v1): a day passes in a real day, the Earth's turn; the year is its orbit;
+    the Sun seen from the ground is the Sun in space, the solar equations standing for it until the planet's third stage
+    (ruling 50) holds the Earth and the Sun as bodies. A fire burns on that clock. It stands beside the constitution's
+    section 8 (things behave by their properties) as a foundation of the game's design: a system that fakes what another
+    implies is a debt to the one that would derive it.
+
+    *The same afternoon, asked how a night of thirteen real hours passes and whether the clock follows the calendar outside.*
+    The night: sleep speeds the world. When the founder sleeps (in company, when all sleep) the whole world is simulated
+    faster, the Earth turning, fires burning down, the body growing cold and thirsty, as a space game's time warp does;
+    nothing is skipped. The calendar: "the savegames own clock, it just grabs the time when the savegame is first started. for
+    example, if i start playing a new savegame, it grabs the real time, and syncs." A new world's clock is set from the real
+    date and time the moment it is first started, and from then runs at the real pace as the world's own, stopping when the
+    game is paused (ruling 38); so a world started in the evening begins in the evening where its founder wakes.
+
+53. **Time dilation in single player; fudged in multiplayer.** 2026-09-25, told that relativity gives every body its own
+    clock beside the universe's and that one session cannot hold two players whose time runs at different speeds: "i think
+    the solution will be to only allow time dilation in single player, and in multiplayer it is fudged." Alone, a traveller's
+    own clock runs as speed and gravity set it and the universe may race past them as it would look to them, by the same
+    machinery as sleep's (ruling 52); in company, every player lives on the universe's clock and no one's time slows. The
+    frame keeps the universe's clock and each body's own from the start (ruling 50's third stage), so the single-player
+    effect has somewhere to live.
