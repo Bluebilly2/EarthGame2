@@ -33,6 +33,10 @@ Groups, DCCEEW, CC BY 4.0, `Data/cache/nvis/`, `Tools/data/fetch_nvis.py`):
    Group, and the valley's crown cover against the groups' typical cover. The plants stay placed by their tolerances. The
    canopy is to rise: the map's groups at their typical cover give about 0.52 of the whole valley's land under crowns,
    where the world as made covers about 0.33 (its 45 % canopy times the 0.74 of a canopied cell that crowns cover).
+   *Corrected in stage two:* the 0.52 was foliage cover. The groups' NVIS fact sheets state crown cover, which is what the
+   world's crowns are (open forest 50 to 80 %, woodland 20 to 50 %; rainforest's foliage cover over 70 % and tall open forest's
+   30 to 70 % read to a crown cover by the sheets' own pairing), and against crown cover the whole valley's groups give 0.50
+   to 0.78 together and the 8 km valley's 0.48 to 0.76. `stand_check` holds that range.
 9. Its colours go in `StandForms` in sRGB, as the table's are, and its mesh by the existing path. `StandMeshes.ToColor` is the
    main session's (M1.6h makes every stand colour linear in one place). Each session tells the other before it touches
    `StandForms`, `TreeGeometry` or `StandMeshes`.
@@ -539,3 +543,176 @@ the founder at the wake, east -1392 north 2804, beside the same creek; drank at 
 
 Stage one is closed on the side worker's part, reviewed by the main session before the push. The main session's sweep and its
 re-bake of the heights follow.
+
+## Stage two: what was built (2026-09-25, in the side copy, rebased onto 36c7acb as a39ca79)
+
+- **A region's plants** (`Region.Plants`), in the catalogue's order whatever order a list is written in, each plant once:
+  Bherwerre the coast's twelve (`Region.CoastPlants`, also the plants of a region that names none and of a world whose heights
+  name no region this build knows, which is every test fixture's); both Kangaroo Valley regions fifteen. **Bangalay is in the
+  valley's list**, decided by its records as this contract said they would decide it: fetched on 2026-09-25 (below), 36 of its 45
+  records over the whole valley's box are usable, 17 of them within 2 km of the sea on the Shoalhaven's floodplain and 19 from 7
+  to 22 km inland in the valley's tall open forest and rainforest margins, on slopes to 42 degrees, the country of BioNet's "Sydney
+  Blue Gum x Bangalay" moist forest. Its row is the coast's. The 8 km box holds 3 of its records, too few to judge.
+- **The draws take the list**: `PlantCommunity.Canopy`, `CanopyCover`, `Understory` and `TotalSuitability` take the region's
+  plants and have no form without them; `AnimalCapacity.PerKm2` and `ForageScore` take them too, so an animal is fed only by
+  what its region grows. `WorldLayers` reads the list once (`Region.PlantsOf`) and passes it to the community, to the animals'
+  capacity, and to `StandTrees`' widest crown (now the widest a stored code of the region's tall plants can hold).
+- **Six plants** at the catalogue's end, 13 to 18, with the values and sources above; `PlantSpecies.FullVigourSlope`, the knee,
+  zero for the coast's twelve (its factor `(steepest - slope) / (steepest - knee)`, the old one to the bit when the knee is zero).
+- **Wood**: rows for Sydney blue gum and silvertop ash (WoodSolutions' seasoned figures) and for river oak, scribbly gum and lilly
+  pilly (estimates that say so; the Global Wood Density Database named for them was not read, its workbook having no reader in
+  the tools' environment, a clause of the wood table's DEBTS row). The palm has none. `DefinitionCatalogue` makes no stick or log
+  for a tall plant without wood (`StickOf` then gives the plain stick), and `Work.Judge` refuses to fell a palm whatever is in
+  hand ("the cabbage tree palm makes no wood to fell"); its bark does not strip.
+- **The drawing**: `TreeGeometry` gains a crown kind (clumps, or a palm's fronds) and six rows; `StandForms` six rows, their
+  colours in sRGB as the table's are; `StandMeshes` grows a palm as its stem and a whorl of fan fronds set a golden angle apart,
+  near and far, drawn on both sides; every other tree keeps its seed and its mesh. `FarCanopy` fails by name for a tree with no
+  form, where it painted it blackbutt's green.
+- **The checks**: `stand_check` knows the six trees' crowns and heights from ECOSYSTEM.md's tables, and holds three new rows (the
+  valley's walls; the crowns against the pre-1750 map in all; the same group by group, owed in every region under a new DEBTS row);
+  `cover_check` knows their forms; `species_check` asks that a world grow its region's plants and no others, restating both lists.
+- **The documents**: ECOSYSTEM.md's section on the valley's plants; ARCHITECTURE's plant community and a decision row; DEBTS rows
+  for the map's groups and the palm's fronds, and the valley's wood in the wood table's row.
+
+**What the prediction said before any world was made** (`canopy_sim2.py`, the side worker's restatement of the rule, which
+reproduces the world within 0.05, on the whole valley's template as remade at 36c7acb): the canopy on 72.4 % of the land, 69.0 and
+52.8 % on 15 to 25 and 25 to 31 degrees against 78.4 % under 15; round their records Sydney blue gum 1.11, silvertop ash 1.31, river
+oak 1.45, scribbly gum 1.79, old-man banksia 1.05, and three at the line: the palm 1.01, lilly pilly 0.99 and bangalay 0.99. Lilly
+pilly takes an even share of every group of the pre-1750 map, the rainforest's included, because nothing in the model's site
+tells the map's rainforest from its eucalypt forest but the slope, and the rainforest's steep ground has the thinnest soil.
+
+**Tests.** 940 green after the rebase (the suite and main's since). Nine are new: a region's draw never names a plant outside its
+list; the coast keeps its twelve in order and the valley has its fifteen; a list is taken in the catalogue's order, each plant
+once; a world grows its region's plants and no others (the made coast grown with the valley's list stands none of the coast's own
+trees, and two or more of the valley's); a knee of zero is the fall from level ground to the bit, restated; a knee holds full
+vigour and falls straight past it; the blue gum holds the valley's moderate walls; a palm gives no stick or log and is not felled;
+an animal is fed only by its region's plants. `P8_EverySpeciesWinsSomewhereOnRealGround` now asks it of every plant in each
+region's list, and that every plant is some region's. The edit-mode suite in the side copy passed 12 of 12, its stand meshes
+test growing every tree, the palm's included, near and far.
+
+## Stage two: the proofs
+
+**The worlds.** The side copy's own host made the three worlds again on a39ca79 (2026-09-25, `Artefacts/worlds/wg2c-s2-gate`,
+`-valley` and `-whole`), under a request for quiet from the sweep, and they were held against the templates the main session made
+at 36c7acb from the same bakes (`compare_same.py`, the side worker's scratchpad: every layer's raw bytes by SHA-256, and the
+census line by line).
+
+- **The coast is the same world.** All 24 of the gate's layers are the same raw bytes as the template's, the animals' habitat
+  layers among them, and its census is the same line for line; only the plant layers' legends now name plants 13 to 18. Its wake,
+  drink place and trees (991,965) are the template's.
+- **The valleys.** 12 of each valley's 24 layers are the same raw bytes: the ground, the water, the soil, the stone and the
+  distances made from them. The 12 that differ are the plants' and what is made from them: the overstory, the understory, the
+  suitability, the stand, the loose layer, the cover, the topology's forest and heath, two animals' habitat, the fibre's and the
+  firewood's distances and the wake's score. Both wakes are where they were: the 8 km valley's at (436, -1040), where a palm now
+  stands over the Lomandra, and the whole valley's at (10840, -9268), under a lilly pilly where a bangalay stood. Trunks: 854,822
+  in the 8 km valley (1,169,716 before) and 14,043,225 in the whole (18,968,069): bigger trees, fewer of them.
+- **The cost.** The whole valley took 93.8 s to make on a quiet machine, against stage one's 87.2 s, and the host's working set
+  peaked at 8.16 GB. A second making gave the same 24 layers and census byte for byte. The first run, 155.9 s, was taken while the
+  main session built its harness: the stages this slice does not touch ran slow with the rest (the soil 26 s where the template's
+  took 15, the wake's choice 34 s where it took 18), so it was made again rather than averaged.
+- **The frame.** A held turn of 20 s at two of the 8 km valley's vantages (`vantages.py --hold 20`, the side copy's harness), on
+  the new world and on the template made before it: at the wake a median frame of 5.4 ms (the 95th percentile 6.7, the worst
+  16.8) against 5.1 (6.2, 14.5), with 118,305 trees in the held tiles against 154,866; at the escarpment 5.4 ms (6.8, 14.3)
+  against 5.4 (6.5, 13.1), with 127,806 trees against 186,270 (`Artefacts/frames/wg2c-s2-hold-after-20260925T040814Z` and
+  `-before-`). Fewer trees, the valley's being bigger, and about the same cost: a palm's fronds are more faces than a clump.
+
+**The checks.** The six the sweep runs on a made world, on all three: save, cover, drainage and census exit 0 on every world, and
+`stand_check` and `species_check` exit 0 once the rows the valleys fail were owed, each under the DEBTS row that records its cause.
+
+| Row | The gate | The 8 km valley | The whole valley |
+|---|---|---|---|
+| The valley's walls: canopy under 15, on 15 to 25, on 25 to 31 degrees | a note (the row is the valley's) | 81.4, 68.6, 53.0 % (58.7, 21.3, 4.5 before) | 78.7, 69.0, 52.8 % |
+| Crowns over the land the pre-1750 map classes, against its groups' own crown cover | 0.43 in 0.24 to 0.51 | 0.47 against 0.48 to 0.76 (0.36 before): owed | 0.48 against 0.50 to 0.78: owed |
+| The same, group by group | owed | owed | owed |
+| Stems a hectare of each plant's own canopy | every plant in the band | Sydney blue gum 40, under 50: owed | Sydney blue gum 40: owed |
+| Grows its region's plants and no others | 12 of the coast's 12 | 15 of its 15 (before: 4 it does not carry) | 15 of its 15 |
+
+The crowns fall short of the map for a reason older than this slice. The stand's rule stands trunks at random and keeps them a crown
+apart, and big crowns fill their canopy thinly: in the 8 km valley the crowns cover 0.39 of Sydney blue gum's own canopy and 0.95 of
+old-man banksia's, and the gate world's blackbutt has always been at 0.33. The coast's small trees kept its whole at 0.74 of the
+canopied ground; the valley's big eucalypts bring it to 0.58. The canopy itself stands on 72 % of the valley's land, where the map's
+groups would have it; the crowns drawn on it are what is thin ("Big crowns cover less of their own canopy", a slice of its own,
+since it moves the coast's stand).
+
+Round their records (`species_check`; the whole valley's box, then the 8 km box where it holds five records or more):
+
+| Plant | Whole valley | 8 km valley |
+|---|---|---|
+| Sydney blue gum | 1.11 (134 records) | 1.09 (12) |
+| silvertop ash | 1.34 (269) | 1.07 (23) |
+| river oak | 1.39 (105) | 2 records |
+| scribbly gum | 1.79 (117) | 1.78 (10) |
+| the cabbage tree palm | 1.02 (292) | 0.96 (15): owed |
+| lilly pilly | 0.99 (508): owed | 1.04 (34) |
+| bangalay | 0.94 (36), and grown a median 15.6 km from the sea against its records' 2.4: owed | 3 records |
+| old-man banksia | 1.07: its owed row paid | 0.89: owed |
+| heath banksia, the grass tree, kangaroo grass | 1.20, 1.04, 1.17 | 1.37, 4 records, none |
+| blackbutt | 0.79, and 16.0 km from the sea against 1.5: owed | 1 record |
+| bracken, Lomandra, saw-sedge | 0.85, 0.84, 0.79: owed | 0.88, 0.79, 0.42: owed |
+| coast banksia, swamp paperbark | grown nowhere, their 17 and 9 records on the floodplain: owed | none |
+
+The rows owed are 9 on the gate (M1.2b's, unchanged), 5 in the 8 km valley and 12 in the whole, under four DEBTS rows: "The valley
+grows some plants by the coast's rows", "The coast's plants of the whole valley's estuary corner", "The palm stands in the plateau's
+swamps" and, for lilly pilly, "The canopy does not follow the pre-1750 map's groups". "The valley grows the coast's plant table"
+moved to Paid.
+
+**Two things the frames will show** (the numbers read off the worlds): the palm is the commonest trunk at almost every vantage, 1,080
+of them within 150 m of the whole valley's lake head, because its crown is a quarter of its height and the stand's rule stands
+about ten times the stems on a palm's canopy that it does on a blue gum's; and 62 % of the 8 km valley's palms stand on the plateau's
+upland swamps at 600 to 700 m, where a third of its records lie. A palm counts as firewood to the wake's scorer, as any canopy does;
+the scorer's rules were left alone, and a palm never stands far from wood.
+
+**Over the wire** (`stream.py`, the side copy's harness joining the side copy's host over a shaped socket, then `tile_check` on
+that join's own tile cache): the new 8 km valley interactive 2.34 s after connecting (589,038 bytes by then), 0 errors, 0
+corrections, and `tile_check` ok on 4,055,591 cached posts, its far counts adding up to the stand's 854,822 trees
+(`Artefacts/streaming/20260925T035749912030Z`); the new gate 1.17 s, ok on the same posts (`20260925T035825801957Z`).
+
+**Sabotages.** Seven, each turning its tests red, every file restored byte for byte (checked by SHA-256):
+
+| Sabotage | Tests that went red |
+|---|---|
+| The draw taking every plant, not the region's | 4, among them the region's draw and the world grown with the valley's list |
+| The cover taking every plant | 2 |
+| The knee ignored | 1 |
+| A region's list taken in the order written | 1 |
+| The palm felled | 1 |
+| A log for the palm | 3 |
+| The animals fed by every plant | 2, once the animals' test held the insectivore's feed (a browser's on the dune is its shrubs' either way, and the first version compared only that) |
+
+**Unity and the build.** The edit-mode suite 12 of 12 in the side copy; the harness built and installed there (`wg2c-s2`, a39ca79 with
+the checks' uncommitted rows, which are not in the player).
+
+**The downloads** (CANON ruling 49), each with its source, its licence and a tool that fetches it again:
+- **The Atlas of Living Australia's records** (biocache, each record under its resource's licence; `Tools/data/fetch_ala.py`, whose
+  valley list now names both plants), installed under `Data/cache/ala/` with this slice:
+
+  | File | Records | Bytes | SHA-256 |
+  |---|---|---|---|
+  | `kangaroo-valley/Bangalay.json` | 3 | 1,252 | ca02f961b8312e2980195327b1dc4c59a57d2970ce59f2cd9c9b779eb0fc7197 |
+  | `kangaroo-valley/LillyPilly.json` | 40 | 8,944 | dbbdf2a3390dc7da90a2367c202317144ae724760042955b3d9eef170001ac34 |
+  | `kangaroo-valley-whole/Bangalay.json` | 45 | 9,929 | 87087e52bf155ae0c8c23f0b3b20b4be323d902b013b2af9beca31cece9a25c9 |
+  | `kangaroo-valley-whole/LillyPilly.json` | 572 | 119,033 | 77765f2780e0865e9638e04b3237d45be7e6b4a5154d00a0b9300956b965b880 |
+
+- **The twelve rainforest candidates' records** over the whole valley's box, fetched by the same query into the side worker's
+  scratchpad to choose the rainforest tree by, and kept there: brown beech 192 records (40,766 bytes, 12af22cf...), brush bloodwood
+  64 (14,044, d3a2f7ff...), coachwood 366 (76,791, 4a788719...), giant stinging tree 213 (44,969, d49205b5...), Illawarra flame tree
+  93 (19,900, 199668aa...), lilly pilly 572 (119,021, 7807b855...), native tamarind 85 (18,474, 3debf720...), Port Jackson fig 51
+  (11,562, 7fc07936...), red cedar 214 (45,190, 42004dc2...), sandpaper fig 269 (56,919, ffe98b77...), sassafras 543 (113,336,
+  90931f7c...), small-leaved fig 52 (11,579, 7ba47a6a...).
+- **NVIS's fact sheets for the Major Vegetation Groups** (DCCEEW, from https://www.dcceew.gov.au/sites/default/files/documents/,
+  each "licensed by Commonwealth of Australia under a Creative Commons Attribution 4.0 International licence"; fetched again by
+  those addresses), read for the crown cover each group's sheet states and kept in the scratchpad: the series'
+  introduction (1,147,955 bytes, 0e7c3ec0...) and MVG 1 (2,355,249, b3954d7b...), 2 (2,760,387, d5a6828d...), 3 (1,669,619,
+  af716a4d...), 5 (1,034,368, 827e6ba4...), 8 (1,137,156, e94eda69...), 9 (2,435,680, afe3df9a...), 10 (1,398,817, 40598e3e...),
+  16 (1,842,213, 786fdc11...), 18 (3,830,416, b5d5c859...) and 23 (2,087,597, 195b381a...).
+
+The Global Wood Density Database was not fetched: its workbook needs a reader the tools' environment does not have, and three of
+the valley's wood rows stay estimates that say so (the wood table's DEBTS row).
+
+**The frames, for William's eyes** (the side copy's harness, windowless and muted, at 1440p and 1080p): the 8 km valley's five
+vantages (`Artefacts/frames/wg2c-s2-valley-20260925T040031Z`: the wake, the river, the escarpment, the falls and the reservoir),
+and six of the whole valley's, each with four frames from 150 m up (`Artefacts/frames/wg2c-s2-whole-20260925T040031Z`: the
+escarpment, Fitzroy and Belmore Falls, the village, Cambewarra and the lake's head). What to look at: the palms, a grove of
+them in the gully below the escarpment and a crowd of them at the lake's head; the walls below the cliffs, which carry trees now;
+the far palms, small pale starbursts among the eucalypts' clumps; and every colour paler than its table, as the stand's colours
+all are until M1.6h makes them linear.

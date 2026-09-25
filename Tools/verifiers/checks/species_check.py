@@ -29,8 +29,9 @@ Then rows, for every plant with at least MIN_RECORDS usable records, each printe
 Plants with fewer records are printed as notes, with no verdict.
 
 Rows the world is known to fail are owed, each under the Docs/DEBTS.md row OWED names, a table per region (the world's
-world.json names its region; Bherwerre's rows are M1.2b's, the valley's are the coast's plant table grown in the
-valley, WG.2). An owed row prints its
+world.json names its region; Bherwerre's rows are M1.2b's; the valley's, since it grows its own plants (WG.2c), are the
+plants it grows by the coast's rows, the coast's plants of the whole valley's estuary corner it does not carry, the palm on
+the plateau's swamps and the rainforest the model cannot see). An owed row prints its
 numbers and "owed" where the verdict would be and does not fail the check; an owed row that passes does fail it,
 until it is taken out of OWED and its debt moved to Paid. So the table can only shrink as the world gets better,
 and a row not in it that fails still fails.
@@ -69,10 +70,13 @@ VALLEY_PLANTS = ("Blackbutt", "Bangalay", "OldManBanksia", "GrassTree", "HeathBa
 REGION_PLANTS = {"bherwerre": COAST_PLANTS, "kangaroo-valley": VALLEY_PLANTS, "kangaroo-valley-whole": VALLEY_PLANTS}
 OWN_PLANTS = "grows its region's plants and no others"
 
-# The rows M1.2b's four fixes left off (2026-09-10), each owed under the DEBTS.md row named; and the valley's rows, where
-# the coast's plant table is grown by the coast's rules until the valley has a table of its own (WG.2, 2026-09-22).
+# The rows M1.2b's four fixes left off (2026-09-10), each owed under the DEBTS.md row named; and the valley's rows since it
+# grows its own plants (WG.2c, 2026-09-25), each under the narrower row its cause is recorded in.
 STILL_OFF = "The plants the records still find nearer the sea"
-COAST_TABLE = "The valley grows the coast's plant table"
+COAST_ROWS = "The valley grows some plants by the coast's rows"
+ESTUARY = "The coast's plants of the whole valley's estuary corner"
+PALM_SWAMPS = "The palm stands in the plateau's swamps"
+MAP_GROUPS = "The canopy does not follow the pre-1750 map's groups"
 OWED_BY_REGION = {
     "bherwerre": {
         ("Blackbutt", "round its records"): STILL_OFF,
@@ -86,22 +90,27 @@ OWED_BY_REGION = {
         ("Bracken", "round its records"): STILL_OFF,
     },
     "kangaroo-valley": {
-        ("Bracken", "round its records"): COAST_TABLE,
-        ("Lomandra", "round its records"): COAST_TABLE,
-        ("SawSedge", "round its records"): COAST_TABLE,
-        ("OldManBanksia", "round its records"): COAST_TABLE,
+        ("Bracken", "round its records"): COAST_ROWS,
+        ("Lomandra", "round its records"): COAST_ROWS,
+        ("SawSedge", "round its records"): COAST_ROWS,
+        ("OldManBanksia", "round its records"): COAST_ROWS,
+        ("CabbageTreePalm", "round its records"): PALM_SWAMPS,
     },
-    # The whole valley (WG.2b, 2026-09-23) grows the same coast's table over 32 km, and has a sea to measure from (the
-    # Shoalhaven's floodplain in its south-east corner), where the coast's plants are recorded: they grow everywhere in the world.
+    # The whole valley has a sea to measure from, the Shoalhaven's floodplain in its south-east corner, where the coast's plants
+    # are recorded.
     "kangaroo-valley-whole": {
-        ("Blackbutt", "round its records"): COAST_TABLE,
-        ("Blackbutt", "how far from the sea"): COAST_TABLE,
-        ("Bracken", "round its records"): COAST_TABLE,
-        ("CoastBanksia", "how far from the sea"): COAST_TABLE,
-        ("Lomandra", "round its records"): COAST_TABLE,
-        ("OldManBanksia", "round its records"): COAST_TABLE,
-        ("SawSedge", "round its records"): COAST_TABLE,
-        ("SwampPaperbark", "how far from the sea"): COAST_TABLE,
+        ("Blackbutt", "round its records"): COAST_ROWS,
+        ("Blackbutt", "how far from the sea"): COAST_ROWS,
+        ("Bangalay", "round its records"): COAST_ROWS,
+        ("Bangalay", "how far from the sea"): COAST_ROWS,
+        ("Bracken", "round its records"): COAST_ROWS,
+        ("Lomandra", "round its records"): COAST_ROWS,
+        ("SawSedge", "round its records"): COAST_ROWS,
+        ("CoastBanksia", "near its records"): ESTUARY,
+        ("CoastBanksia", "how far from the sea"): ESTUARY,
+        ("SwampPaperbark", "near its records"): ESTUARY,
+        ("SwampPaperbark", "how far from the sea"): ESTUARY,
+        ("LillyPilly", "round its records"): MAP_GROUPS,
     },
 }
 

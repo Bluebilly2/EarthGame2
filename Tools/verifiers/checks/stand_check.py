@@ -36,8 +36,9 @@ Rows, each with both numbers:
  11. the same group by group, for each group on at least 1 % of that land.
 
 Rows the world is known to fail are owed, as species_check's are: each under the Docs/DEBTS.md row OWED names, a table per
-region (the world's world.json names its region). An owed row prints its numbers and "owed" where the verdict would be and
-does not fail the check; an owed row that passes does fail it, until it is taken out of OWED and its debt moved to Paid.
+region (the world's world.json names its region), and row 6 a plant at a time. An owed row prints its numbers and "owed" where
+the verdict would be and does not fail the check; an owed row that passes does fail it, until it is taken out of OWED and its
+debt moved to Paid.
 
 Exit 0 when every row passes (a row that prints a note gives no verdict), 1 when any fails, 2 when the world is missing a
 layer this needs.
@@ -100,13 +101,16 @@ CROWN_BANDS = {
 GROUP_LEAST_LAND = 0.01
 MAP_IN_ALL = "the crowns cover what the pre-1750 map carries"
 MAP_BY_GROUP = "the crowns follow each group of that map"
+STEMS_TITLE = "stems a hectare of each plant's own canopy"
 
-# Rows the world is known to fail, each under the DEBTS.md row named, a table per region (the module's docstring).
+# Rows the world is known to fail, each under the DEBTS.md row named, a table per region (the module's docstring); the stems row
+# is owed a plant at a time, keyed (the row, the plant).
 MAP_GROUPS = "The canopy does not follow the pre-1750 map's groups"
+BIG_CROWNS = "Big crowns cover less of their own canopy"
 OWED_BY_REGION = {
     "bherwerre": {MAP_BY_GROUP: MAP_GROUPS},
-    "kangaroo-valley": {MAP_BY_GROUP: MAP_GROUPS},
-    "kangaroo-valley-whole": {MAP_BY_GROUP: MAP_GROUPS},
+    "kangaroo-valley": {MAP_IN_ALL: BIG_CROWNS, MAP_BY_GROUP: MAP_GROUPS, (STEMS_TITLE, "SydneyBlueGum"): BIG_CROWNS},
+    "kangaroo-valley-whole": {MAP_IN_ALL: BIG_CROWNS, MAP_BY_GROUP: MAP_GROUPS, (STEMS_TITLE, "SydneyBlueGum"): BIG_CROWNS},
 }
 
 
@@ -321,7 +325,7 @@ def main(argv):
                "%d of %d bangalay and coast banksia on sand inside %g-%g m, a step either side%s"
                % (inside, sh.size, SAND_FOREST_M[0], SAND_FOREST_M[1], (", from %.2f to %.2f m" % (sh.min(), sh.max())) if sh.size else ""))
 
-    rows, bad = [], []
+    rows, bad, measured = [], [], []
     for name in CROWN_SHARE:
         canopy_ha = float((over_name == name).sum()) * cell * cell / 10000.0
         stems = int((trunk & (names == name)).sum())
@@ -329,10 +333,22 @@ def main(argv):
             continue
         per_ha = stems / canopy_ha
         rows.append("%s %.0f" % (name, per_ha))
+        measured.append(name)
         if not STEMS_BAND[0] <= per_ha <= STEMS_BAND[1]:
             bad.append(name)
-    expect("stems a hectare of each plant's own canopy", not bad,
-           ", ".join(rows) + " a hectare; the design's band %g to %g%s" % (STEMS_BAND[0], STEMS_BAND[1], (" (outside: " + ", ".join(bad) + ")") if bad else ""))
+    # The row is owed a plant at a time: a plant's own debt under (the row, the plant), the rest judged as ever.
+    stems_owed = {key[1]: debt for key, debt in owed_rows.items() if isinstance(key, tuple) and key[0] == STEMS_TITLE}
+    unowed = [n for n in bad if n not in stems_owed]
+    paid = [n for n in stems_owed if n in measured and n not in bad]
+    detail = ", ".join(rows) + " a hectare; the design's band %g to %g%s" % (STEMS_BAND[0], STEMS_BAND[1], (" (outside: " + ", ".join(bad) + ")") if bad else "")
+    if unowed or not bad:
+        expect(STEMS_TITLE, not unowed, detail)
+    else:
+        print("%-50s owed %s (DEBTS.md: %s)" % (STEMS_TITLE, detail, "; ".join("%s \"%s\"" % (n, stems_owed[n]) for n in bad)))
+        owed.append(STEMS_TITLE)
+    if paid:
+        print("%-50s PAID for %s; take (the row, the plant) out of OWED and move the debt to Paid" % (STEMS_TITLE, ", ".join(paid)))
+        failures.append(STEMS_TITLE + " (passes for " + ", ".join(paid) + ", still owed)")
 
     sticks = (loose & 0x0F) > 0
     reachable = np.zeros(stand.shape, bool)

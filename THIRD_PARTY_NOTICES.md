@@ -90,7 +90,9 @@ service (biocache, https://biocache-ws.ala.org.au/ws/) by `Tools/data/fetch_ala.
 plants on 2026-09-10, flat under that folder, and the Kangaroo Valley's sixteen (the coast's twelve, to confirm which
 are absent, and Sydney blue gum, river oak, cabbage tree palm, silvertop ash and scribbly gum) on 2026-09-22 under
 `Data/cache/ala/kangaroo-valley/`, and the same sixteen over the whole valley's 32 km box on 2026-09-23 under
-`Data/cache/ala/kangaroo-valley-whole/` (3,029 records, 0.64 MB). It is read only by
+`Data/cache/ala/kangaroo-valley-whole/` (3,029 records, 0.64 MB); bangalay's and lilly pilly's over both valley boxes on
+2026-09-25 (WG.2c stage two: bangalay 3 and 45 records, lilly pilly 40 and 572, 139 KB in all, each file's size and
+SHA-256 in the contract `Docs/contracts/WG.2c_THE_VALLEYS_OWN_PLANTS.md`). It is read only by
 `Tools/verifiers/checks/species_check.py`, to check the world against it; nothing in a world or a build is derived
 from it. Every record keeps the licence and the name of the data resource it came from beside it in the cache: at
 the fetch of 2026-09-10 most were CC-BY 4.0, others CC-BY-NC 4.0, CC-BY 3.0 AU, CC0 or CC-BY-SA, and some

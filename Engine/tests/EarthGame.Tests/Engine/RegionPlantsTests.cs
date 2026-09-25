@@ -213,8 +213,10 @@ namespace EarthGame.Tests.Engine
             double valleyLow = PlantCommunity.TotalSuitability(dune, PlantForm.SmallTree, Region.KangarooValley.Plants);
             Assert.That(coastLow, Is.EqualTo(PlantSpecies.CoastBanksia.Suitability(dune)), "the premise: on the coast the banksia is the best low tree there");
             Assert.That(valleyLow, Is.LessThan(coastLow), "and the valley has none of it");
-            Assert.That(AnimalCapacity.ForageScore(ForageStyle.Browser, dune, Region.KangarooValley.Plants),
-                Is.LessThanOrEqualTo(AnimalCapacity.ForageScore(ForageStyle.Browser, dune, Region.Bherwerre.Plants)));
+            // The insectivore is fed by every layer, the low trees among them (a browser here eats the grass tree either way).
+            Assert.That(AnimalCapacity.ForageScore(ForageStyle.Insectivore, dune, Region.KangarooValley.Plants),
+                Is.LessThan(AnimalCapacity.ForageScore(ForageStyle.Insectivore, dune, Region.Bherwerre.Plants)),
+                "so a bird that eats insects finds less on the dune among the valley's plants");
         }
     }
 }

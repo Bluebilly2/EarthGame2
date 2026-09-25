@@ -313,3 +313,13 @@ open forest 28.5 %, rainforest 21 %, woodland 15 % and heath 3 %. The plants are
 is held against what they grow (`stand_check.py`): the crowns' cover against each group's own crown cover as its NVIS fact
 sheet states it (open forest 50–80 %, woodland 20–50 %; rainforest's foliage cover over 70 % and tall open forest's 30–70 %,
 read to a crown cover by the sheets' own pairing of the two; heath's trees up to 20 %), in all and group by group.
+
+**Held against where people found them** (`species_check.py` and `stand_check.py` on the valleys made on 2026-09-25). Round
+their records over the whole valley, Sydney blue gum is 1.11, silvertop ash 1.34, river oak 1.39, scribbly gum 1.79 and the palm
+1.02; lilly pilly is 0.99 and bangalay 0.94, and both are owed. The canopy stands on 72 % of the valley's land and on its walls,
+69 and 53 % of the land on 15 to 25 and 25 to 31 degrees. What the rules cannot yet do is owed in DEBTS.md, each with its cause:
+- the plants grown by the coast's rows (blackbutt, bangalay, old-man banksia, and the understorey's three);
+- the coast's plants of the estuary corner;
+- the palm, which takes the plateau's upland swamps because a plant here has tolerances and no ground it seeks;
+- the map's rainforest and heath, which follow fertility and fire;
+- crowns that fill a big tree's canopy thinly.

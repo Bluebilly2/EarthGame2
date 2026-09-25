@@ -75,7 +75,11 @@ SPECIES_BY_REGION = {
         "Spinifex": "Spinifex sericeus",
     },
 }
-# The whole valley (CANON ruling 45, WG.2b, 2026-09-23) asks the records of the same sixteen as the 8 km valley, over its own box.
+# WG.2c stage two (2026-09-25): bangalay, which WG.2 named neither way and whose records decided it is the valley's, and lilly
+# pilly, the valley's rainforest tree.
+SPECIES_BY_REGION["kangaroo-valley"]["Bangalay"] = "Eucalyptus botryoides"
+SPECIES_BY_REGION["kangaroo-valley"]["LillyPilly"] = "Syzygium smithii"
+# The whole valley (CANON ruling 45, WG.2b, 2026-09-23) asks the records of the same plants as the 8 km valley, over its own box.
 SPECIES_BY_REGION["kangaroo-valley-whole"] = SPECIES_BY_REGION["kangaroo-valley"]
 FIELDS = "decimalLatitude,decimalLongitude,year,basisOfRecord,coordinateUncertaintyInMeters,dataResourceName,license"
 # The service answers 503 to a page of 500 and serves a page of 100 (measured 2026-09-10).
