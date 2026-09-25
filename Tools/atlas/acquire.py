@@ -33,7 +33,7 @@ MANIFEST_RECORD = DATA / "manifest.json"
 CHELSA_CEILING_BYTES = 8 * 1024 ** 3
 TIMEOUT_S = 60
 CHUNK = 1 << 20
-USER_AGENT = "EarthGame2 atlas acquisition (william@nash-smith.com)"
+USER_AGENT = "EarthGame2 atlas acquisition"
 
 # The manifest: one entry a dataset, its files as (url, path under Data/global/<folder>/). Where the manifest states a size
 # it is repeated here as `stated_bytes` so --measure can say whether the server agrees. The licence page is the one the

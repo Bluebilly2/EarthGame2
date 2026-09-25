@@ -97,6 +97,27 @@ the fetch of 2026-09-10 most were CC-BY 4.0, others CC-BY-NC 4.0, CC-BY 3.0 AU, 
 resources state none. Attribution: the Atlas of Living Australia (https://www.ala.org.au/) and the data providers
 named in each record's `resource` field.
 
+## NSW Seamless Geology, rock unit polygons — CC BY 4.0
+
+The rock units under each region are fetched from the Geological Survey of NSW's public map service (WFS 2.0, layer
+`geology:rock_units_nsw`, https://gs-seamless.geoscience.nsw.gov.au/geoserver/ows) by `Tools/data/fetch_geology.py`
+and cached under `Data/cache/nsw-seamless-geology/` (a dataset under `Data/`, fetched and never committed, and never
+shipped), on 2026-09-25 on William's yes to the two files, whose sizes and SHA-256s `manifest.json` keeps beside them:
+
+- `bherwerre-rock-units.geojson`: 142 units touching Bherwerre's box, 929,233 bytes, SHA-256
+  `adbc6aa108f42b8c49b381450b3688102f63a382bee775104382ba7d350de300`
+- `kangaroo-valley-whole-rock-units.geojson`: 803 units touching the whole Kangaroo Valley's box, 10,309,468 bytes,
+  SHA-256 `4573845380231a86fea818123ae270b90d42f6d724491a1a926c6a6dde16029d`
+
+`Tools/data/bake_geology.py` fills them onto a region's grid as `Data/regions/<region>/geology.u8` with a legend (never
+committed either). Nothing in a world or a build is derived from them yet; once BF.4's promise 6 is built, a world's
+stone code is. Licence: Creative Commons Attribution 4.0 (https://creativecommons.org/licenses/by/4.0/). Attribution,
+as the publisher asks:
+
+> (c) State Government of NSW and Department of Primary Industries and Regional Development (DPIRD) 2025, NSW
+> Seamless Geology, accessed from The Sharing and Enabling Environmental Data Portal
+> [https://datasets.seed.nsw.gov.au/dataset/32ce9b05-0a22-4741-b292-64bcef50770f]
+
 ## The coordinate atlas's datasets (WG.0), fetched by `Tools/atlas/acquire.py` — each under its own licence
 
 Six global datasets, approved whole by William on 2026-09-21 ("all six") from the acquisition manifest in

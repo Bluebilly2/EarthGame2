@@ -106,6 +106,32 @@ the client's Terrain posts sample the function, so what is drawn is what is walk
    New South Wales, the Geological Survey's seamless geology, fetched only on William's yes to the exact files, its
    units mapped to `StoneType` with a source for each mapping. Pays DEBTS "The valley's stone is the coast's rule", and
    Bherwerre's lattice with it.
+
+   *Amended 2026-09-25, before it was built (promise 6).* William said yes to the two files that morning, and they are in
+   `Data/cache/nsw-seamless-geology/` (`fetch_geology.py`; Bherwerre's 142 units, 0.9 MB, and the whole valley's 803, 10.3 MB,
+   each with its SHA-256). `Tools/data/bake_geology.py` fills each unit's polygons on a region's grid as the water's outlines
+   are filled, and writes `geology.u8` with a legend: each unit's name, lithology and age, and the stone the game knows it as
+   by its lithology (sandstone and conglomerate as sandstone; siltstone, shale, mudstone and claystone as shale; basalt, the
+   Gerringong Volcanics' latite, a basanite, a dolerite and the valley's dark dyke rock as basalt; rhyolite; a syenite and a
+   diorite as granite; saprolite and the ferruginous residual deposits as the sandstone they weathered from), or none for
+   loose sediment; and each region's rolled stone, what its beaches and creek beds carry from elsewhere, with its source.
+   Humanity's units (a reservoir's water, a breakwater) take the nearest natural unit. Bherwerre's, baked the same day: 21 units, Snapper Point Formation sandstone under 13.1 km², the Wandrawandian
+   siltstone 1.9, ferruginous residual deposits 2.3, the rest dune and beach sand and the estuary's sediments. The valleys' the
+   same day, from the whole valley's file: the 8 km valley under the Hawkesbury Sandstone 12.3 km², the Berry Siltstone 10.9,
+   residual deposits 8.6, alluvium 7.7 and the Robertson Basalt 3.2 of its 64; the whole valley under the Berry Siltstone
+   165 km², the Broughton Formation 165, the Hawkesbury Sandstone 145, the Illawarra Coal Measures 59, the Robertson Basalt 51
+   and the Cambewarra Latite 38 of its 1,024.
+
+   Two facts where the lattice gave one: **the rock beneath**, which a boulder and a ledge are made of, and **the stone lying
+   about**, which a cobble is. On a platform they differ: sandstone underfoot, rolled rhyolite and quartz on it. The stone
+   code's byte carries both, the loose stone in its low four bits and the rock beneath in its high four (none there: the old
+   rule, `BedrockOf`), so no layer is added; its meaning widens, which is a protocol version (the one after WG.2c's). World
+   creation reads the geology layer where the region has one: the rock beneath is the unit's stone, none on loose sediment;
+   the stone lying about is the rock beneath where there is one and the cell is not a beach, a platform or a creek's bed, and
+   the region's rolled stone there, drawn by a hash; a region without the layer keeps the lattice. Built after WG.2c's first
+   stage, which widens the stand cell in the same files. Proved by: the bake's legend against the Survey's own descriptions,
+   unit by unit; `stone_check` (a verifier reading the geology layer and the stone layer, not the rule); the census of stone by
+   place in both regions; the rocks' count by stone again; the knap scenario on the new stone.
 7. **The country's things.** A second loose layer (tile layer 9, protocol 21): driftwood on beaches and lake shores,
    bark and tinder under the trees that shed them, dead wood (fallen limbs, rotting logs) in forest by the stand's
    height, gravel in creek beds; each kind with its properties from its place as BF.1 gave the sticks, taken as a bit
