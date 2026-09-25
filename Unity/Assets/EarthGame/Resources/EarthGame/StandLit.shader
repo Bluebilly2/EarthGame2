@@ -1,5 +1,5 @@
 // What stands and lies on the ground (M1.6a): faceted meshes coloured in their vertices, lit by the sun and the sky,
-// shadowed, fogged, and drawn instanced. One material draws the near band and another the far, and this shader
+// shadowed, hazed (Haze.hlsl), and drawn instanced. One material draws the near band and another the far, and this shader
 // decides which band an instance belongs to by the distance of its origin from _Eye, the eye the client sets each
 // frame, against _SplitM, so every tree is drawn once, near or far, without the client moving it from one list to the
 // other as the founder walks, and every pass, the shadow caster's too, agrees which band that is. An instance outside
@@ -65,8 +65,8 @@ Shader "EarthGame/StandLit"
             #pragma instancing_options assumeuniformscaling nolightprobe nolightmap nolodfade
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
-            #pragma multi_compile_fog
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "Haze.hlsl"
 
             struct Attributes
             {
@@ -83,7 +83,6 @@ Shader "EarthGame/StandLit"
                 // A face takes its normal and its colour from its leading corner alone: the meshes share corners
                 // between faces, and each face leads with a corner that carries its own (StandMeshes).
                 nointerpolation float3 normalWS : TEXCOORD1;
-                float fog : TEXCOORD2;
                 nointerpolation float4 color : TEXCOORD3;
             };
 
@@ -96,7 +95,6 @@ Shader "EarthGame/StandLit"
                 output.positionCS = TransformWorldToHClip(positionWS);
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 output.color = float4(input.color.rgb * OwnShade(), input.color.a);
-                output.fog = ComputeFogFactor(output.positionCS.z);
                 return output;
             }
 
@@ -107,7 +105,7 @@ Shader "EarthGame/StandLit"
                 half3 sky = SampleSH(normalWS);
                 half lit = saturate(dot(normalWS, sun.direction)) * sun.shadowAttenuation;
                 half3 colour = input.color.rgb * (sky + sun.color * lit);
-                return half4(MixFog(colour, input.fog), 1.0);
+                return half4(EgHaze(colour, input.positionWS), 1.0);
             }
             ENDHLSL
         }

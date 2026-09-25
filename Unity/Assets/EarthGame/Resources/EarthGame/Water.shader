@@ -58,9 +58,9 @@ Shader "EarthGame/Water"
             #pragma fragment Frag
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
-            #pragma multi_compile_fog
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+            #include "Haze.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _ShallowColour;
@@ -93,7 +93,6 @@ Shader "EarthGame/Water"
                 float4 positionCS : SV_POSITION;
                 float3 positionWS : TEXCOORD0;
                 float4 screenPos : TEXCOORD1;
-                float fog : TEXCOORD2;
             };
 
             Varyings Vert(Attributes input)
@@ -103,7 +102,6 @@ Shader "EarthGame/Water"
                 output.positionWS = positionWS;
                 output.positionCS = TransformWorldToHClip(positionWS);
                 output.screenPos = ComputeScreenPos(output.positionCS);
-                output.fog = ComputeFogFactor(output.positionCS.z);
                 return output;
             }
 
@@ -176,7 +174,7 @@ Shader "EarthGame/Water"
                 // What the water hides of its bed, what its surface gives back of the sky, and the glint: a still
                 // surface over a bed you can see through is still a surface.
                 half alpha = saturate(max(hidden * _MostOpaque, mirrored) + glint);
-                return half4(MixFog(colour, input.fog), alpha);
+                return half4(EgHaze(colour, input.positionWS), alpha);
             }
             ENDHLSL
         }

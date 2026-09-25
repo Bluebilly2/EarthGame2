@@ -85,6 +85,12 @@ namespace EarthGame.Client
         private bool _hideCanopy;
         /// <summary>The 64 km surround beyond the region, held so that leaving the world frees it (M1.4f).</summary>
         private Terrain _skirt;
+        /// <summary>
+        /// How far the land this client draws reaches from the world's origin each way, m: the surround's half-width, or the
+        /// region's with no surround baked; the air fades the land wholly into its haze by there (M1.6h).
+        /// </summary>
+        private double _landEdgeM;
+        private SunAndSky _sunAndSky;
         private Material _terrainMaterial;
         private TerrainLayer _groundLayer;
         private Material _mirrorMaterial;
@@ -93,12 +99,13 @@ namespace EarthGame.Client
         /// <summary>
         /// The water's ripples (M1.4h): the wind that drives them, read from the weather once a second, and their own time,
         /// which runs only while the game is awake, so a paused game's water stands with its world. The climate and the
-        /// synoptic state are this client's reading of the seed and the region (M1.8a), the recorder's too.
+        /// synoptic state are this client's reading of the seed and the region (M1.8a), the recorder's too. The same reading
+        /// gives the haze its humidity (M1.6h).
         /// </summary>
         private static readonly int WindId = Shader.PropertyToID("_Wind"), RippleSecondsId = Shader.PropertyToID("_RippleSeconds");
         private Climate _climate;
         private Synoptic _synoptic;
-        private float _rippleSeconds, _nextWindAt;
+        private float _rippleSeconds, _nextWeatherAt;
         private bool _hideWater;
         /// <summary>-eg-hide relief (BF.4): the one ground drawn and stood on without its relief, for a frame beside one with it; the server keeps its own.</summary>
         private bool _hideRelief;
@@ -463,19 +470,24 @@ namespace EarthGame.Client
                 else _verbs?.Tick(presses, Time.realtimeSinceStartup);
                 // The hand moves with the head and the stride every frame (M1.5c); off the ground it only follows.
                 _hand?.Place(Time.deltaTime, _player.Frozen || !_player.State.Grounded ? 0.0 : _player.State.HorizontalSpeed, _player.PitchDeg);
-                // The water's ripples (M1.4h): their time runs while the game is awake; the wind that drives them is read once a
-                // second, downwind being the way the weather's wind blows to.
+                // The water's ripples (M1.4h): their time runs while the game is awake.
                 if (_waterMaterial != null)
                 {
                     if (!Asleep) _rippleSeconds += Time.deltaTime;
                     _waterMaterial.SetFloat(RippleSecondsId, _rippleSeconds);
-                    if (_climate != null && _synoptic != null && _solar != null && Time.realtimeSinceStartup >= _nextWindAt)
+                }
+                // The weather, read once a second: the wind that drives the ripples, downwind being the way the weather's wind
+                // blows to, and the humidity at the sea, which sets how deep the haze is (M1.6h).
+                if (_climate != null && _synoptic != null && _solar != null && Time.realtimeSinceStartup >= _nextWeatherAt)
+                {
+                    _nextWeatherAt = Time.realtimeSinceStartup + 1f;
+                    if (_waterMaterial != null)
                     {
-                        _nextWindAt = Time.realtimeSinceStartup + 1f;
                         Weather weather = Weather.At(_climate, _synoptic, _solar, Math.Max(0.0, _player.State.Up), 1.0);
                         double from = weather.WindFromDeg * Math.PI / 180.0;
                         _waterMaterial.SetVector(WindId, new Vector4((float)-Math.Sin(from), (float)-Math.Cos(from), (float)weather.WindMs, 0f));
                     }
+                    if (_sunAndSky != null) _sunAndSky.HumidityAtSea = Weather.At(_climate, _synoptic, _solar, 0.0, 1.0).RelativeHumidity01;
                 }
                 UpdateHud(dt);
             }
@@ -1142,6 +1154,7 @@ namespace EarthGame.Client
                 // far skirt.
                 _coarse = TerrainTileBuilder.Build(_bakedRegion, -_region.HalfExtentM, -_region.HalfExtentM, (float)_region.ExtentM,
                     TerrainTileBuilder.CoarsePosts, _terrainMaterial, _groundLayer, "Terrain (region coarse)", true, 1.5f);
+                _landEdgeM = _region.HalfExtentM;
                 Heightfield surround = RegionDataLocator.TryLoadRaster(_region, "surround", out string surroundMessage);
                 Debug.Log("[client] " + surroundMessage);
                 if (surround != null)
@@ -1149,6 +1162,7 @@ namespace EarthGame.Client
                     _skirt = TerrainTileBuilder.Build(surround, -surround.HalfExtentM, -surround.HalfExtentM, (float)surround.Raster.ExtentM,
                         TerrainTileBuilder.CoarsePosts, _terrainMaterial, _groundLayer, "Terrain (surround skirt)", false, 15f);
                     TerrainTileBuilder.CutHole(_skirt, -surround.HalfExtentM, -surround.HalfExtentM, -_region.HalfExtentM, -_region.HalfExtentM, _region.ExtentM);
+                    _landEdgeM = surround.HalfExtentM;
                 }
             }
             GameObject sea = GameObject.CreatePrimitive(PrimitiveType.Plane);
@@ -1281,7 +1295,7 @@ namespace EarthGame.Client
             }
             _camera.fieldOfView = 65f;
             _camera.nearClipPlane = 0.05f;
-            _camera.farClipPlane = 40000f;
+            // The far plane is the air's (SunAndSky, M1.6h): past all the land and the haze's bowl below the horizon.
             // Every automated run is muted: a windowless one, and any a script drives (the client has had sounds since M1.5c).
             if (Application.isBatchMode || _recordDir != null || _scenario != null) AudioListener.volume = 0f;
             // A played game syncs its frames to the display; a recorded or scripted one stays as the checklist set it.
@@ -1294,8 +1308,8 @@ namespace EarthGame.Client
                 l.enabled = false;
             GameObject sunObject = new GameObject("Sun");
             Light sun = _sun = sunObject.AddComponent<Light>();
-            SunAndSky sky = gameObject.AddComponent<SunAndSky>();
-            sky.Attach(_solar, sun, skyMaterial);
+            SunAndSky sky = _sunAndSky = gameObject.AddComponent<SunAndSky>();
+            sky.Attach(_solar, sun, skyMaterial, _camera, _landEdgeM);
 
             _hud = gameObject.AddComponent<HudController>();
             _hud.Build();

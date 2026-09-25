@@ -4,7 +4,10 @@ using EarthGame.Engine;
 
 namespace EarthGame.ClientCore
 {
-    /// <summary>A colour as the client's tables hold it, 0 to 1 a channel; the Unity layer makes its own of it.</summary>
+    /// <summary>
+    /// A colour as the client's tables hold it, 0 to 1 a channel, written in sRGB as a colour picker or a photograph gives it and
+    /// as the ground palette is; the Unity layer makes its own of it.
+    /// </summary>
     public readonly struct Rgb
     {
         public readonly float R, G, B;
@@ -15,6 +18,17 @@ namespace EarthGame.ClientCore
             G = g;
             B = b;
         }
+
+        /// <summary>
+        /// The colour as linear light, which is what the GPU lights and blends (M1.6h, 2026-09-25), by the sRGB standard's own
+        /// decoding (IEC 61966-2-1: a straight line below 0.04045, a 2.4 power above). The ground's colours reach the GPU in sRGB
+        /// textures, which it decodes itself; a mesh's vertex colours it takes as they stand, so every table colour a mesh
+        /// carries is decoded here, the one place. Before, only the rocks' were, by a copy of their own (BF.4 stage three): every crown,
+        /// trunk, tuft, stick, cobble and far tree drew too pale, the pale crowns' faces white flecks against the sky.
+        /// </summary>
+        public Rgb ToLinear() => new Rgb(Decode(R), Decode(G), Decode(B));
+
+        private static float Decode(float c) => c <= 0.04045f ? c / 12.92f : (float)Math.Pow((c + 0.055) / 1.055, 2.4);
     }
 
     /// <summary>
@@ -116,11 +130,14 @@ namespace EarthGame.ClientCore
         /// <summary>A cobble's grey; which stone it is waits for the stone to travel with it.</summary>
         public static readonly Rgb Cobble = new Rgb(0.56f, 0.53f, 0.48f);
 
+        /// <summary>The colour of a trunk whose bark is taken (BF.3): the pale sapwood, wet.</summary>
+        public static readonly Rgb Sapwood = new Rgb(0.86f, 0.80f, 0.66f);
+
         /// <summary>
         /// A rock that stands, by its stone (BF.4 stage three), a first model for William's eyes: the sandstone weathered grey-buff,
         /// between the ground palette's dry and wet rock, with a rust stain; quartzite and quartz pale, silcrete and chert grey-brown,
-        /// rhyolite pinkish, basalt near black, granite a speckled grey, shale dark. Written as the ground palette is, in sRGB; the
-        /// meshes make them linear for the stand shader (StandMeshes). The first frames (2026-09-25) drew the sandstone a fresh buff,
+        /// rhyolite pinkish, basalt near black, granite a speckled grey, shale dark. Written as the ground palette is, in sRGB, and made
+        /// linear for the GPU as every table colour is (<see cref="Rgb.ToLinear"/>). The first frames (2026-09-25) drew the sandstone a fresh buff,
         /// and on the valley's shaded walls every boulder stood out as a pale spot on the grey rock it lay on.
         /// </summary>
         public static Rgb RockOf(StoneType stone)

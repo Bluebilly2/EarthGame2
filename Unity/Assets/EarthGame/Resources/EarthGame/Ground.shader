@@ -4,8 +4,9 @@
 // sun shows it. The stock terrain layer could carry the map or a tiled detail but not both without averaging them, which
 // washed the colour out (DEBTS 2026-09-10); made in the shader there is nothing to average. The grain fades out by
 // _GrainSeenM so the far ground stays the map's colour and never shimmers. Lit as the stand is (StandLit): the sun, the
-// sky and the sun's shadows, no specular, fogged. The terrain draws non-instanced with one layer given all the weight,
-// so of the terrain system's properties only _Splat0 and its _ST are read.
+// sky and the sun's shadows, no specular, hazed, and faded into the haze by the land's own edge (Haze.hlsl, M1.6h). The
+// terrain draws non-instanced with one layer given all the weight, so of the terrain system's properties only _Splat0 and
+// its _ST are read.
 Shader "EarthGame/Ground"
 {
     Properties
@@ -94,8 +95,8 @@ Shader "EarthGame/Ground"
             #pragma fragment Frag
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
-            #pragma multi_compile_fog
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "Haze.hlsl"
 
             struct Attributes
             {
@@ -110,7 +111,6 @@ Shader "EarthGame/Ground"
                 float3 positionWS : TEXCOORD0;
                 float3 normalWS : TEXCOORD1;
                 float2 uv : TEXCOORD2;
-                float fog : TEXCOORD3;
             };
 
             Varyings Vert(Attributes input)
@@ -120,7 +120,6 @@ Shader "EarthGame/Ground"
                 output.positionCS = TransformWorldToHClip(output.positionWS);
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 output.uv = input.texcoord * _Splat0_ST.xy + _Splat0_ST.zw;
-                output.fog = ComputeFogFactor(output.positionCS.z);
                 return output;
             }
 
@@ -151,7 +150,7 @@ Shader "EarthGame/Ground"
                 half3 sky = SampleSH(normalWS);
                 half lit = saturate(dot(normalWS, sun.direction)) * sun.shadowAttenuation;
                 half3 lit3 = colour * (sky + sun.color * lit);
-                return half4(MixFog(lit3, input.fog), 1.0);
+                return half4(EgHazeLand(lit3, input.positionWS), 1.0);
             }
             ENDHLSL
         }

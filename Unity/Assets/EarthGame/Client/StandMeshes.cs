@@ -60,9 +60,6 @@ namespace EarthGame.Client
         private static readonly Dictionary<int, Mesh> Rocks = new Dictionary<int, Mesh>();
         private static readonly Dictionary<int, Mesh> RockBodies = new Dictionary<int, Mesh>();
 
-        /// <summary>The colour of a trunk whose bark is taken (BF.3): the pale sapwood, wet.</summary>
-        private static readonly Color Sapwood = new Color(0.86f, 0.80f, 0.66f);
-
         /// <summary>
         /// A near tree of a tall plant (<c>StandCodes.Tall</c> index) in one of its variants, built on first use and kept,
         /// with how wide its crown came out as a share of its height.
@@ -292,7 +289,7 @@ namespace EarthGame.Client
             if (Rocks.TryGetValue(key, out Mesh mesh)) return mesh;
             Vector3[,] points = RockPoints(stone, form, variant, RockRings, RockAround, true);
             StoneType s = StoneType.All[stone];
-            Color colour = LinearColor(StandForms.RockOf(s)), stain = LinearColor(StandForms.RockStain), lichen = LinearColor(StandForms.Lichen);
+            Color colour = ToColor(StandForms.RockOf(s)), stain = ToColor(StandForms.RockStain), lichen = ToColor(StandForms.Lichen);
             bool stains = ReferenceEquals(s, StoneType.Sandstone);
             bool lichens = !(ReferenceEquals(s, StoneType.Basalt) || ReferenceEquals(s, StoneType.Obsidian) || ReferenceEquals(s, StoneType.Shale));
             int seed = key * 131 + 7;
@@ -580,7 +577,7 @@ namespace EarthGame.Client
             float stocking = form.StockingShare <= 0f
                 ? -1f
                 : Mathf.Clamp(trunkLength * form.StockingShare + Range(rand, -StockingJitter, StockingJitter) * 0.5f, 0.05f, trunkLength * 1.2f);
-            if (stripped) FacetTube(data, TrunkSides, centres, ringDirs, radii, Range(rand, 0f, Mathf.PI * 2f), seed, Sapwood, Sapwood, -1f);
+            if (stripped) FacetTube(data, TrunkSides, centres, ringDirs, radii, Range(rand, 0f, Mathf.PI * 2f), seed, ToColor(StandForms.Sapwood), ToColor(StandForms.Sapwood), -1f);
             else FacetTube(data, TrunkSides, centres, ringDirs, radii, Range(rand, 0f, Mathf.PI * 2f), seed, ToColor(form.BarkLow), ToColor(form.BarkHigh), stocking);
 
             if (form.Crown == CrownKind.Fronds)
@@ -633,8 +630,7 @@ namespace EarthGame.Client
                 inner.Add(limbCentres[1]);
             }
 
-            Color canopy = ToColor(form.Foliage);
-            canopy.g = Mathf.Clamp01(canopy.g + Range(rand, -GreenNudge, GreenNudge));
+            Color canopy = Nudged(form.Foliage, rand);
             // Two clumps at least on every tip, each somewhere along the outer part of its limb rather than on its very
             // end: the first frames of the stand (2026-09-11) showed lone clumps held up against the sky on hair-thin limbs.
             int drawn = (int)(form.ClumpMin + Range(rand, 0f, form.ClumpMax - form.ClumpMin + 0.999f));
@@ -677,8 +673,7 @@ namespace EarthGame.Client
         /// </summary>
         private static void PalmCrown(FacetMeshData data, System.Random rand, Vector3 top, TreeForm form, int seed)
         {
-            Color leaf = ToColor(form.Foliage);
-            leaf.g = Mathf.Clamp01(leaf.g + Range(rand, -GreenNudge, GreenNudge));
+            Color leaf = Nudged(form.Foliage, rand);
             int count = form.ClumpMin + (int)Range(rand, 0f, form.ClumpMax - form.ClumpMin + 0.999f);
             float turn = Range(rand, 0f, 360f);
             for (int i = 0; i < count; i++)
@@ -900,14 +895,27 @@ namespace EarthGame.Client
 
         private static float Range(System.Random rand, float min, float max) => min + (float)rand.NextDouble() * (max - min);
 
-        private static Color ToColor(Rgb rgb) => new Color(rgb.R, rgb.G, rgb.B, 1f);
+        /// <summary>
+        /// A colour of the client's tables as a vertex carries it: linear light, by the one decoding (<see cref="Rgb.ToLinear"/>),
+        /// since the stand shader takes a vertex colour as linear light where the ground's texture is read as sRGB. Every table
+        /// colour a mesh here is drawn in comes through this (M1.6h, 2026-09-25); the rocks alone did before, by a copy of their
+        /// own, after William's boulders beside his wake drew nearly white from a sandstone the table calls a grey-buff. A
+        /// face's jitter scales the colour once it is linear, as it always scaled what the shader took, so the faces stray from
+        /// one another as much as they were seen to.
+        /// </summary>
+        private static Color ToColor(Rgb rgb)
+        {
+            Rgb linear = rgb.ToLinear();
+            return new Color(linear.R, linear.G, linear.B, 1f);
+        }
 
         /// <summary>
-        /// A colour of the rocks' table, which is written as the ground palette's is, made linear for the stand shader, which takes
-        /// a vertex colour as linear light where the ground's texture is read as sRGB (2026-09-25: William's boulders beside his
-        /// wake drew nearly white from a sandstone the table calls a grey-buff, the ground beside them its own colour).
+        /// A crown's foliage with its green nudged by up to <see cref="GreenNudge"/> a tree, so no two crowns are one green. The
+        /// nudge is of the table's own value, before the colour is made linear, which keeps it about as strong as it was seen:
+        /// the same step of linear light in a crown's green, now darker, would show about twice as strong.
         /// </summary>
-        private static Color LinearColor(Rgb rgb) => new Color(Mathf.GammaToLinearSpace(rgb.R), Mathf.GammaToLinearSpace(rgb.G), Mathf.GammaToLinearSpace(rgb.B), 1f);
+        private static Color Nudged(Rgb foliage, System.Random rand) =>
+            ToColor(new Rgb(foliage.R, Mathf.Clamp01(foliage.G + Range(rand, -GreenNudge, GreenNudge)), foliage.B));
 
         private static readonly Vector3[] IcoVerts = BuildIcoVerts();
 

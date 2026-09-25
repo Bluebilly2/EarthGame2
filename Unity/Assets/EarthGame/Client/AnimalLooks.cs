@@ -76,7 +76,8 @@ namespace EarthGame.Client
                 int point = body.VertexPoint[v];
                 vertices[v] = ToVector(body.Points[point]);
                 normals[v] = ToVector(body.VertexNormal[v]);
-                Rgb c = body.VertexColour[v];
+                // Linear light, as the stand shader takes a vertex colour (M1.6h): the skin's colours are the tables', in sRGB.
+                Rgb c = body.VertexColour[v].ToLinear();
                 colours[v] = new Color(c.R, c.G, c.B, 1f);
                 BoneWeight w = new BoneWeight { boneIndex0 = body.PointBone[point], weight0 = 1f };
                 if (body.PointBlend[point] >= 0 && body.PointShare[point] < 1.0)

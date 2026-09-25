@@ -206,8 +206,19 @@ namespace EarthGame.Client
         /// <summary>How far below the horizon a lookout looks, degrees, so the region's edge stands in the frame's upper half.</summary>
         private const float LookoutPitchDeg = 8f;
 
-        /// <summary>The longest a lookout waits for the founder to take off and climb, s.</summary>
+        /// <summary>
+        /// The longest a lookout waits for the founder to take off and climb, s, beside the time a run's climb takes to the
+        /// height asked for.
+        /// </summary>
         private const double LookoutTimeoutSeconds = 30.0;
+
+        /// <summary>
+        /// How far below the height asked for a lookout's climb runs, m (M1.6h, 2026-09-25): the haze is judged from 1.5 and
+        /// 4 km up, which the flight's own pace would take minutes to reach, so the climb runs, six times as fast, until this
+        /// close, and rises the rest at the plain pace, so the ease-out's overshoot is the plain rise's few metres. A lookout
+        /// of 150 m never runs, and climbs as M1.6d's did.
+        /// </summary>
+        private const double LookoutRunAboveM = 300.0;
 
         /// <summary>
         /// The lookout (M1.6d): run as a development game (<c>-eg-dev</c>) with <c>-eg-lookout &lt;metres&gt;</c>, the founder
@@ -225,13 +236,18 @@ namespace EarthGame.Client
                 _log.Record(T, Tick, "error", new JsonObject().With("message", "a lookout needs a development game (-eg-dev) and the ground under the founder"));
                 yield break;
             }
-            double until = T + LookoutTimeoutSeconds;
+            double until = T + LookoutTimeoutSeconds + metres / (Flight.SpeedMs * Flight.RunFactor);
             _script.Move = Vector2.zero;
             _script.Fly();
             while (!_player.Flying && T < until) yield return null;
             _script.Rise = true;
-            while (_player.Flying && _player.State.Up < ground + metres && T < until) yield return null;
+            while (_player.Flying && _player.State.Up < ground + metres && T < until)
+            {
+                _script.Sprint = ground + metres - _player.State.Up > LookoutRunAboveM;
+                yield return null;
+            }
             _script.Rise = false;
+            _script.Sprint = false;
             // A flight's velocity eases out rather than stopping, so the climb settles before the first frame.
             yield return Wait(2.0);
             if (!_player.Flying || _player.State.Up < ground + metres)
