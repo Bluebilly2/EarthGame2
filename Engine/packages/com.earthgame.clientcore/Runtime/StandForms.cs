@@ -91,8 +91,9 @@ namespace EarthGame.ClientCore
         /// <summary>
         /// A rock that stands, by its stone (BF.4 stage three), a first model for William's eyes: the sandstone weathered grey-buff,
         /// between the ground palette's dry and wet rock, with a rust stain; quartzite and quartz pale, silcrete and chert grey-brown,
-        /// rhyolite pinkish, basalt near black, granite a speckled grey, shale dark. The first frames (2026-09-25) drew the sandstone
-        /// a fresh buff, and on the valley's shaded walls every boulder stood out as a pale spot on the grey rock it lay on.
+        /// rhyolite pinkish, basalt near black, granite a speckled grey, shale dark. Written as the ground palette is, in sRGB; the
+        /// meshes make them linear for the stand shader (StandMeshes). The first frames (2026-09-25) drew the sandstone a fresh buff,
+        /// and on the valley's shaded walls every boulder stood out as a pale spot on the grey rock it lay on.
         /// </summary>
         public static Rgb RockOf(StoneType stone)
         {

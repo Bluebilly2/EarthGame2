@@ -168,6 +168,11 @@ namespace EarthGame.Client
         public int FarDrawn => _stand != null ? _stand.RingDrawn : 0;
         /// <summary>True from the moment N1's three conditions held for the current connection.</summary>
         public bool Interactive { get; private set; }
+        /// <summary>
+        /// What the idle watch had counted, s, at the moment the current connection's world came into hand: nothing, since the
+        /// watch waits for that moment (2026-09-25); NaN before it. The idle scenario reads it.
+        /// </summary>
+        public double IdleCountedAtInHand { get; private set; } = double.NaN;
         /// <summary>How many times this runtime has connected; two or more means a rejoin happened.</summary>
         public int Joins { get; private set; }
         /// <summary>Unity real time at the current connection's Connect.</summary>
@@ -243,6 +248,7 @@ namespace EarthGame.Client
             _client.DeveloperModeChanged += OnDeveloperModeChanged;
             _idle = new IdleWatch(PauseAllowed);
             Interactive = false;
+            IdleCountedAtInHand = double.NaN;
             if (_player != null) _player.Frozen = true;
             Joins++;
             _client.Connect(_address, _port, _playerName, _password);
@@ -403,8 +409,11 @@ namespace EarthGame.Client
             long nowMs = (long)(now * 1000.0);
             _client.Update(nowMs);
             // The idle pause (M1.E, CANON ruling 38): a game left alone stops, its clock with it, until a key, a button, the
-            // mouse or the window's focus comes back. A window has no focus to lose in a run with no window at all.
-            if (_idle != null)
+            // mouse or the window's focus comes back. A window has no focus to lose in a run with no window at all. Only once
+            // the world is in hand: while the ground is still being prepared the loading screen is up, and a game asleep there
+            // prepares next to nothing (2026-09-25: William's whole valley sat on "Preparing the ground around you" for ten
+            // minutes, asleep since he had looked away while it was made).
+            if (_idle != null && Interactive)
             {
                 IdleChange change = _idle.Notice(dt, AnyInputThisFrame(), Application.isFocused || Application.isBatchMode);
                 if (change == IdleChange.FellAsleep) Sleep();
@@ -1044,6 +1053,7 @@ namespace EarthGame.Client
             TileId under = _ground.Grid.ForPosition(_player.State.East, _player.State.North);
             if (!_tileTerrains.ContainsKey(under)) return;
             Interactive = true;
+            IdleCountedAtInHand = _idle != null ? _idle.UntouchedFor : 0.0;
             _player.Frozen = false;
             double since = Time.realtimeSinceStartupAsDouble - _connectedAt;
             Debug.Log("[client] interactive " + since.ToString("0.00", CultureInfo.InvariantCulture) + " s after connect: " + _client.Tiles.Held.Count
@@ -1362,6 +1372,7 @@ namespace EarthGame.Client
                 // The idle scenario reads the watch in its first segment, and a coroutine's first segment runs inside Begin,
                 // as it starts: wired before, or the scenario found nothing to read (2026-09-21).
                 recorder.Asleep = () => Asleep;
+                recorder.CountedAtInHand = () => IdleCountedAtInHand;
                 recorder.Begin(_recordDir, _camera, _player, script, _hud, () => _client.LastServerTick, header, StandSettled,
                                () => _stand != null ? _stand.TreeCount : -1, () => _stand != null ? _stand.LastDrawMs : 0.0,
                                _scenario ?? Recorder.Scenario, _client, _verbs, _devPanel,

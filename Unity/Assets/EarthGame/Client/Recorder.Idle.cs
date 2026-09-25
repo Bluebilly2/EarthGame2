@@ -18,6 +18,12 @@ namespace EarthGame.Client
         /// <summary>Whether the game is asleep: set by the client runtime, which owns the idle watch (M1.E).</summary>
         public Func<bool> Asleep;
 
+        /// <summary>
+        /// What the idle watch had counted when the world came into hand, s, NaN before it (ClientRuntime.IdleCountedAtInHand):
+        /// set by the client runtime.
+        /// </summary>
+        public Func<double> CountedAtInHand;
+
         /// <summary>How long the game is left alone before it must have slept, s: the watch's minute and a margin.</summary>
         private static readonly double IdleFallSeconds = IdleWatch.AfterSeconds + 5.0;
 
@@ -40,14 +46,15 @@ namespace EarthGame.Client
         /// the game sleeps ("paused" frame: the line on the screen); held asleep for <see cref="IdleHeldSeconds"/>; woken by
         /// a key on a keyboard of the scenario's own; and the server's clock read again. A world that slept moved by the
         /// seconds either side of the sleep alone; one still stepping would have moved by all of them. The frames drawn while
-        /// it was held asleep, over those seconds, are the sleeping game's frame rate. The exit is 0 when the game slept
-        /// within its minute, woke to the key, the clock moved by less than <see cref="IdleMostShareMoved"/> of what it
-        /// would have awake, the sleeping frame rate was within half again of the runtime's cap, and the founder did not rise
-        /// in the half second after waking (the waking key does nothing else).
+        /// it was held asleep, over those seconds, are the sleeping game's frame rate. The exit is 0 when the watch counted
+        /// nothing while the world was being prepared, the game slept within its minute, woke to the key, the clock moved by
+        /// less than <see cref="IdleMostShareMoved"/> of what it would have awake, the sleeping frame rate was within half
+        /// again of the runtime's cap, and the founder did not rise in the half second after waking (the waking key does
+        /// nothing else).
         /// </summary>
         private IEnumerator RunIdle()
         {
-            if (_client == null || Asleep == null)
+            if (_client == null || Asleep == null || CountedAtInHand == null)
             {
                 _errors++;
                 _log.Record(T, Tick, "error", new JsonObject().With("message", "the idle scenario has no client or no idle watch to read"));
@@ -55,13 +62,28 @@ namespace EarthGame.Client
                 Finish(1);
                 yield break;
             }
+            // The world being prepared: the watch counts nothing until the world is in hand (2026-09-25: it counted the loading,
+            // and William's whole valley, a new world that takes minutes to prepare, fell asleep on the loading screen and
+            // prepared next to nothing until he clicked the game). The runtime notes the watch's count at the moment the world
+            // comes into hand, which is nothing at all where the watch waits, and a frame's seconds or more where it counts
+            // from the connection.
             double from = T;
+            while (double.IsNaN(CountedAtInHand()) && T < from + ReadyTimeoutSeconds) yield return null;
+            double countedAtInHand = CountedAtInHand();
+            bool watchWaited = countedAtInHand == 0.0;
+            if (!watchWaited)
+            {
+                _errors++;
+                _log.Record(T, Tick, "error", new JsonObject().With("message", double.IsNaN(countedAtInHand)
+                    ? "the world did not come into hand"
+                    : "the idle watch had counted " + countedAtInHand.ToString("0.0000", CultureInfo.InvariantCulture) + " s when the world came into hand"));
+            }
             while (_ready != null && !_ready() && T < from + ReadyTimeoutSeconds) yield return null;
             yield return Wait(3.0);
 
             // Played: the server's clock at the start of the stretch the game is left alone.
             double h0 = _client.LastServerTotalHours, t0 = T;
-            _log.Record(T, Tick, "idle_start", new JsonObject().With("server_hours", h0));
+            _log.Record(T, Tick, "idle_start", new JsonObject().With("server_hours", h0).With("counted_at_in_hand_s", countedAtInHand));
 
             // Left alone: no key, no button, no mouse. The last pong before the sleep is the clock's last word awake.
             double hLast = h0, tLast = t0;
@@ -146,9 +168,10 @@ namespace EarthGame.Client
                 .With("clock_moved_hours", moved).With("clock_would_have_moved_hours", double.IsNaN(wouldHave) ? 0.0 : wouldHave)
                 .With("clock_stood", stood).With("real_seconds_across", tAfter - tLast)
                 .With("frames_asleep_per_s", framesAsleepPerSecond).With("frames_held", framesHeld)
-                .With("after_wake_rise_m", afterWakeRise).With("stayed_put", stayedPut));
+                .With("after_wake_rise_m", afterWakeRise).With("stayed_put", stayedPut)
+                .With("counted_at_in_hand_s", countedAtInHand).With("watch_waited", watchWaited));
             _running = false;
-            Finish(_errors == 0 && slept && woke && stood && framesHeld && stayedPut && _frames == Sizes.Length ? 0 : 1);
+            Finish(_errors == 0 && watchWaited && slept && woke && stood && framesHeld && stayedPut && _frames == Sizes.Length ? 0 : 1);
         }
     }
 }

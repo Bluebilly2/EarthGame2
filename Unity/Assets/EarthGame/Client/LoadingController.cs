@@ -13,7 +13,7 @@ namespace EarthGame.Client
     {
         private UIDocument _document;
         private PanelSettings _panel;
-        private Label _stage, _elapsed, _title;
+        private Label _stage, _elapsed, _title, _place;
         private VisualElement _activity;
         private Button _back;
         private double _started;
@@ -23,6 +23,12 @@ namespace EarthGame.Client
         public string Stage => _stage != null ? _stage.text : "";
         public int Updates { get; private set; }
         public bool Failed => _failed;
+
+        /// <summary>Names the place being prepared, as its region calls itself.</summary>
+        public void SetPlace(string displayName)
+        {
+            if (_place != null && !string.IsNullOrEmpty(displayName)) _place.text = "EARTHGAME2  /  " + displayName.ToUpperInvariant();
+        }
 
         public void Build()
         {
@@ -36,11 +42,13 @@ namespace EarthGame.Client
             root.style.alignItems = Align.Center;
             root.style.justifyContent = Justify.Center;
             root.style.backgroundColor = new Color(0.05f, 0.06f, 0.08f);
-            Label place = new Label("EARTHGAME2  /  BHERWERRE PENINSULA");
-            place.style.fontSize = 14;
-            place.style.color = new Color(0.65f, 0.7f, 0.68f);
-            place.style.marginBottom = 22;
-            root.Add(place);
+            // The place is named once the world's own region is known (SetPlace); until then the game's name alone. It said
+            // Bherwerre for every world until 2026-09-25, when William watched it prepare the whole Kangaroo Valley under that name.
+            _place = new Label("EARTHGAME2");
+            _place.style.fontSize = 14;
+            _place.style.color = new Color(0.65f, 0.7f, 0.68f);
+            _place.style.marginBottom = 22;
+            root.Add(_place);
             _title = new Label("Preparing your world");
             _title.style.fontSize = 38;
             _title.style.color = new Color(0.93f, 0.9f, 0.82f);

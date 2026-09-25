@@ -166,6 +166,7 @@ namespace EarthGame.Bootstrap
             if (_quitting) yield break;
             if (_mode == LaunchMode.Join)
             {
+                _loading?.SetPlace(_loadingRegion.DisplayName);
                 StartConnections(_loadingRegion, null, null);
                 yield break;
             }
@@ -179,6 +180,7 @@ namespace EarthGame.Bootstrap
             // the Earth it is, WG.2 2026-09-22); else the launch's.
             region = _newWorldRegion ?? RegionOfSavedWorld(_worldDir) ?? region;
             _loadingRegion = region;
+            _loading?.SetPlace(region.DisplayName);
 
             string worldDir = _worldDir;
             string dataDir = RegionDataLocator.DataDir(region);

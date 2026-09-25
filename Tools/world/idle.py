@@ -14,9 +14,9 @@ Claude's tool: it runs the player and reports; the frame is the owner's to judge
 Usage, from the repository root:
     python Tools/world/idle.py [--player Build/Harness/EarthGame2.exe] [--world Artefacts/worlds/gate]
 
-Exit 0 when the player exits 0 (asleep within its minute, woken by the key, the world's clock moved while asleep by less
-than a quarter of what it would have awake, the sleeping game drew frames at no more than half again its cap, and the
-founder did not rise after the waking key); 1 otherwise.
+Exit 0 when the player exits 0 (the watch counted nothing while the world was being prepared, asleep within its minute,
+woken by the key, the world's clock moved while asleep by less than a quarter of what it would have awake, the sleeping
+game drew frames at no more than half again its cap, and the founder did not rise after the waking key); 1 otherwise.
 """
 import argparse
 import json
@@ -56,6 +56,8 @@ def main():
     end = next((r for r in reversed(records) if r.get("kind") == "end"), {})
     frames = sorted(p.name for p in (directory / "frames").glob("*.png")) if (directory / "frames").is_dir() else []
     print("player exit %d: %d frame(s): %s" % (code, len(frames), ", ".join(frames)))
+    print("when the world came into hand the idle watch had counted %.4f s; it waited %s"
+          % (number(end.get("counted_at_in_hand_s")), end.get("watch_waited")))
     print("asleep %s after %.1f s left alone; woken by the key %s" % (end.get("slept"), number(end.get("slept_after_s")), end.get("woke")))
     print("the world's clock across the sleep moved %.4f h where awake it would have moved %.4f h (%.1f real seconds); stood %s"
           % (number(end.get("clock_moved_hours")), number(end.get("clock_would_have_moved_hours")),

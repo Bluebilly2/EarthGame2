@@ -286,7 +286,7 @@ namespace EarthGame.Client
             if (Rocks.TryGetValue(key, out Mesh mesh)) return mesh;
             Vector3[,] points = RockPoints(stone, form, variant, RockRings, RockAround, true);
             StoneType s = StoneType.All[stone];
-            Color colour = ToColor(StandForms.RockOf(s)), stain = ToColor(StandForms.RockStain), lichen = ToColor(StandForms.Lichen);
+            Color colour = LinearColor(StandForms.RockOf(s)), stain = LinearColor(StandForms.RockStain), lichen = LinearColor(StandForms.Lichen);
             bool stains = ReferenceEquals(s, StoneType.Sandstone);
             bool lichens = !(ReferenceEquals(s, StoneType.Basalt) || ReferenceEquals(s, StoneType.Obsidian) || ReferenceEquals(s, StoneType.Shale));
             int seed = key * 131 + 7;
@@ -792,6 +792,13 @@ namespace EarthGame.Client
         private static float Range(System.Random rand, float min, float max) => min + (float)rand.NextDouble() * (max - min);
 
         private static Color ToColor(Rgb rgb) => new Color(rgb.R, rgb.G, rgb.B, 1f);
+
+        /// <summary>
+        /// A colour of the rocks' table, which is written as the ground palette's is, made linear for the stand shader, which takes
+        /// a vertex colour as linear light where the ground's texture is read as sRGB (2026-09-25: William's boulders beside his
+        /// wake drew nearly white from a sandstone the table calls a grey-buff, the ground beside them its own colour).
+        /// </summary>
+        private static Color LinearColor(Rgb rgb) => new Color(Mathf.GammaToLinearSpace(rgb.R), Mathf.GammaToLinearSpace(rgb.G), Mathf.GammaToLinearSpace(rgb.B), 1f);
 
         private static readonly Vector3[] IcoVerts = BuildIcoVerts();
 
