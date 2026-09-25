@@ -3,6 +3,16 @@ using System.Collections.Generic;
 
 namespace EarthGame.Engine
 {
+    /// <summary>What a tree's crown is made of (WG.2c, 2026-09-25).</summary>
+    public enum CrownKind : byte
+    {
+        /// <summary>Clumps of leaves off the limbs' outer parts: every eucalypt, banksia, paperbark, casuarina and lilly pilly.</summary>
+        Clumps = 0,
+
+        /// <summary>A palm's whorl of fronds at the top of one stem, with no limbs.</summary>
+        Fronds = 1,
+    }
+
     /// <summary>
     /// The numbers a tall plant's shape is grown from (M1.6a, ported from v1's <c>TreeForm</c>; here in the engine since
     /// BF.3, 2026-09-23): every one a share of the tree's height. The client draws a tree by them and, since BF.3, the server
@@ -36,7 +46,11 @@ namespace EarthGame.Engine
         /// <summary>How many limbs, at most: one leans the tree, three fan it.</summary>
         public int MaxLimbs { get; }
 
-        /// <summary>How many clumps of leaves the crown is made of, and how big and how far off their tips they hang.</summary>
+        /// <summary>
+        /// How many clumps of leaves the crown is made of, and how big and how far off their tips they hang. For a crown of
+        /// fronds (<see cref="Crown"/>): how many fronds, and each frond's length as a share of the height, from the stem's top
+        /// to its tip; the offset is unused, as the fork and the limbs are.
+        /// </summary>
         public int ClumpMin { get; }
         public int ClumpMax { get; }
         public float ClumpRadius { get; }
@@ -51,11 +65,16 @@ namespace EarthGame.Engine
         /// <summary>How far up the rough bark runs, as a share of the trunk: 0 none, 1 all of it.</summary>
         public float StockingShare { get; }
 
+        /// <summary>What the crown is made of: clumps off limbs, or a palm's fronds (WG.2c).</summary>
+        public CrownKind Crown { get; }
+
         public TreeGeometry(string name, float trunkLength, float trunkRadius, float forkShare,
                             float limbSplayDeg, float limbLength, int maxLimbs,
                             int clumpMin, int clumpMax, float clumpRadius, float clumpOffset,
-                            float crownSquash, float leanDeg, float stockingShare)
+                            float crownSquash, float leanDeg, float stockingShare,
+                            CrownKind crown = CrownKind.Clumps)
         {
+            Crown = crown;
             Name = name;
             TrunkLength = trunkLength;
             TrunkRadius = trunkRadius;
@@ -111,6 +130,55 @@ namespace EarthGame.Engine
             clumpMin: 7, clumpMax: 10, clumpRadius: 0.085f, clumpOffset: 0.08f,
             crownSquash: 1.10f, leanDeg: 5f, stockingShare: 0.90f);
 
+        // ---- the Kangaroo Valley's trees (WG.2c, 2026-09-25): first shapes from PlantNET's descriptions, for William's eyes ----
+
+        /// <summary>Sydney blue gum: a tall straight trunk, rough grey bark for its first few metres and smooth pale blue-grey above, the crown held high.</summary>
+        public static readonly TreeGeometry SydneyBlueGum = new TreeGeometry(
+            "SydneyBlueGum", trunkLength: 0.72f, trunkRadius: 0.028f, forkShare: 0.68f,
+            limbSplayDeg: 30f, limbLength: 0.28f, maxLimbs: 2,
+            clumpMin: 5, clumpMax: 7, clumpRadius: 0.085f, clumpOffset: 0.14f,
+            crownSquash: 0.72f, leanDeg: 2f, stockingShare: 0.10f);
+
+        /// <summary>
+        /// Cabbage tree palm: one straight grey stem, up to half a metre through, and a round crown of fan fronds 3 to 4.5 m long,
+        /// the lower ones drooping (PlantNET). Its stem takes the trees' one taper, so the stem a founder is stopped by is the stem
+        /// that is drawn.
+        /// </summary>
+        public static readonly TreeGeometry CabbageTreePalm = new TreeGeometry(
+            "CabbageTreePalm", trunkLength: 0.90f, trunkRadius: 0.011f, forkShare: 0.90f,
+            limbSplayDeg: 0f, limbLength: 0f, maxLimbs: 0,
+            clumpMin: 16, clumpMax: 22, clumpRadius: 0.15f, clumpOffset: 0f,
+            crownSquash: 0.80f, leanDeg: 4f, stockingShare: 0f,
+            crown: CrownKind.Fronds);
+
+        /// <summary>Silvertop ash: rough, compact dark bark on the trunk and the larger limbs, the upper limbs smooth and white, an open crown.</summary>
+        public static readonly TreeGeometry SilvertopAsh = new TreeGeometry(
+            "SilvertopAsh", trunkLength: 0.62f, trunkRadius: 0.032f, forkShare: 0.55f,
+            limbSplayDeg: 40f, limbLength: 0.32f, maxLimbs: 3,
+            clumpMin: 5, clumpMax: 8, clumpRadius: 0.095f, clumpOffset: 0.14f,
+            crownSquash: 0.65f, leanDeg: 5f, stockingShare: 0.90f);
+
+        /// <summary>River oak: finely fissured bark all the way up, and a tall narrow crown of fine drooping grey-green branchlets.</summary>
+        public static readonly TreeGeometry RiverOak = new TreeGeometry(
+            "RiverOak", trunkLength: 0.45f, trunkRadius: 0.030f, forkShare: 0.40f,
+            limbSplayDeg: 35f, limbLength: 0.30f, maxLimbs: 3,
+            clumpMin: 7, clumpMax: 10, clumpRadius: 0.085f, clumpOffset: 0.10f,
+            crownSquash: 1.25f, leanDeg: 4f, stockingShare: 0.95f);
+
+        /// <summary>Scribbly gum: a short, often crooked trunk, smooth white bark all over, and a spreading woodland crown.</summary>
+        public static readonly TreeGeometry ScribblyGum = new TreeGeometry(
+            "ScribblyGum", trunkLength: 0.45f, trunkRadius: 0.045f, forkShare: 0.38f,
+            limbSplayDeg: 50f, limbLength: 0.36f, maxLimbs: 3,
+            clumpMin: 6, clumpMax: 9, clumpRadius: 0.115f, clumpOffset: 0.15f,
+            crownSquash: 0.62f, leanDeg: 9f, stockingShare: 0f);
+
+        /// <summary>Lilly pilly: a rainforest tree, its smooth brown trunk short under a deep, dense, dark glossy crown.</summary>
+        public static readonly TreeGeometry LillyPilly = new TreeGeometry(
+            "LillyPilly", trunkLength: 0.40f, trunkRadius: 0.035f, forkShare: 0.35f,
+            limbSplayDeg: 38f, limbLength: 0.30f, maxLimbs: 3,
+            clumpMin: 8, clumpMax: 11, clumpRadius: 0.12f, clumpOffset: 0.12f,
+            crownSquash: 0.85f, leanDeg: 4f, stockingShare: 0f);
+
         /// <summary>
         /// How much of its butt radius a trunk keeps where its crown begins: the taper a tree is drawn with. The mesh owned
         /// this number alone until M1.6b, when the bodies that stop a founder began taking their radius from the same line;
@@ -137,7 +205,11 @@ namespace EarthGame.Engine
         /// <summary>How far up the trunk runs before the crown begins, m.</summary>
         public static double TrunkLengthM(TreeGeometry geometry, double heightM) => geometry == null ? 0.0 : geometry.TrunkLength * heightM;
 
-        private static readonly TreeGeometry[] Geometries = { Blackbutt, Bangalay, OldManBanksia, CoastBanksia, SwampPaperbark };
+        private static readonly TreeGeometry[] Geometries =
+        {
+            Blackbutt, Bangalay, OldManBanksia, CoastBanksia, SwampPaperbark,
+            SydneyBlueGum, CabbageTreePalm, SilvertopAsh, RiverOak, ScribblyGum, LillyPilly,
+        };
 
         /// <summary>Every geometry, in the stand's order of tall plants.</summary>
         public static IReadOnlyList<TreeGeometry> All => Geometries;

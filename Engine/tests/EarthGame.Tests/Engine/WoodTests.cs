@@ -15,6 +15,12 @@ namespace EarthGame.Tests.Engine
             foreach (PlantSpecies species in StandCodes.Tall)
             {
                 Wood wood = Wood.Of(species);
+                if (ReferenceEquals(species, PlantSpecies.CabbageTreePalm))
+                {
+                    // A palm, like every monocot, makes no wood: it has no secondary growth (WG.2c, 2026-09-25).
+                    Assert.That(wood, Is.Null, "a palm stands as a tree and makes no wood");
+                    continue;
+                }
                 Assert.That(wood, Is.Not.Null, species.Name + " stands as a tree and has no wood");
                 Assert.That(wood.DensityDryKgM3, Is.InRange(200.0, 1200.0), species.Name);
                 Assert.That(wood.GreenMoisture, Is.InRange(0.3, 2.0), species.Name + ": green wood's water as a share of its dry mass");

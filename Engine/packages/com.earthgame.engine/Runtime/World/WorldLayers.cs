@@ -190,6 +190,7 @@ namespace EarthGame.Engine
             Loose = new byte[count];
             Capacity = new float[AnimalSpecies.All.Count][];
             for (int s = 0; s < Capacity.Length; s++) Capacity[s] = new float[count];
+            _plants = Region.PlantsOf(region);
             progress?.Invoke("Finding lakes and wetlands");
             _lake = Lakes(heights, waterBodies);
             progress?.Invoke("Finding where the lakes spill");
@@ -205,6 +206,8 @@ namespace EarthGame.Engine
         private readonly bool[] _lake;
         private readonly bool[] _wetland;
         private readonly float[] _level;
+        /// <summary>The plants the region carries (WG.2c, <see cref="Region.Plants"/>): the only ones its sites are contested by, and its animals fed on.</summary>
+        private readonly IReadOnlyList<PlantSpecies> _plants;
         /// <summary>The water bake's codes of the lakes its region names as holding their water, and what the drainage was
         /// told of dams and ways out, for the census (WG.1b).</summary>
         private readonly HashSet<int> _heldCodes = new HashSet<int>();
@@ -1029,12 +1032,12 @@ namespace EarthGame.Engine
                     double rollUnder = rng.NextDouble();
                     // Drawn third, so the two draws every world has made since M1.2 keep their values.
                     double rollStand = rng.NextDouble();
-                    PlantSpecies canopy = PlantCommunity.Canopy(site, rollStand, rollCanopy);
+                    PlantSpecies canopy = PlantCommunity.Canopy(site, rollStand, rollCanopy, _plants);
                     Overstory[i] = (byte)PlantSpecies.NumberOf(canopy);
                     Suitability[i] = canopy == null ? 0f : (float)canopy.Suitability(site);
                     PlantSite under = site;
                     under.Shaded = canopy != null;
-                    PlantSpecies floor = PlantCommunity.Understory(under, rollUnder);
+                    PlantSpecies floor = PlantCommunity.Understory(under, rollUnder, _plants);
                     Understory[i] = (byte)PlantSpecies.NumberOf(floor);
                 }
             });
@@ -1208,8 +1211,11 @@ namespace EarthGame.Engine
                 if (Overstory[i] != 0) order[n++] = (CellHash(stream, i, 0) & 0xFFFFFFFF00000000UL) | (uint)i;
             Array.Sort(order);
 
+            // The widest crown any of the region's tall plants can have (WG.2c): how far a crowded cell's search reaches. Only a
+            // bound, so no cell's outcome depends on it past being one; the coast's is blackbutt's, as it was over every tall plant.
             double largest = 0.0;
-            foreach (PlantSpecies tall in StandCodes.Tall) largest = Math.Max(largest, 0.5 * tall.CrownShare * tall.MaxHeightM);
+            foreach (PlantSpecies tall in _plants)
+                if (StandCodes.IsTall(tall)) largest = Math.Max(largest, 0.5 * tall.CrownShare * StandCodes.HeightOf(StandCodes.Pack(tall, tall.MaxHeightM)));
             float[] crown = new float[count];
             double cellArea = CellM * CellM;
             foreach (ulong key in order)
@@ -1326,7 +1332,7 @@ namespace EarthGame.Engine
                     if (Drainage.IsSea(c, r)) continue;
                     PlantSite site = SiteAt(r, c);
                     for (int s = 0; s < species.Count; s++)
-                        Capacity[s][i] = (float)AnimalCapacity.PerKm2(species[s], site, FreshWaterDistanceM[i], ShoreDistanceM[i]);
+                        Capacity[s][i] = (float)AnimalCapacity.PerKm2(species[s], site, _plants, FreshWaterDistanceM[i], ShoreDistanceM[i]);
                 }
             });
         }

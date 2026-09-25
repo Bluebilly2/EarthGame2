@@ -81,11 +81,14 @@ W_CREEK, W_STREAM, W_LAKE, W_SEA = 3, 4, 5, 7
 BARE_SOIL_M = 0.05
 QUARTERS = 4
 
-# What shape each plant is. Not in any layer: from ECOSYSTEM.md and the guides it cites.
+# What shape each plant is. Not in any layer: from ECOSYSTEM.md and the guides it cites; the Kangaroo Valley's six from its
+# own table (WG.2c, 2026-09-25).
 FORMS = {
     "Blackbutt": "tree", "Bangalay": "tree", "OldManBanksia": "smalltree", "CoastBanksia": "smalltree",
     "SwampPaperbark": "smalltree", "GrassTree": "shrub", "HeathBanksia": "shrub", "Bracken": "bracken",
     "Lomandra": "herb", "SawSedge": "herb", "KangarooGrass": "grass", "Spinifex": "pioneer",
+    "SydneyBlueGum": "tree", "CabbageTreePalm": "tree", "SilvertopAsh": "tree", "RiverOak": "tree",
+    "ScribblyGum": "smalltree", "LillyPilly": "tree",
 }
 # No cover for the pioneer: it is passed over, and the ground under it decides.
 FORM_COVER = {"shrub": HEATH, "bracken": BRACKEN, "herb": SEDGE, "grass": GRASS}

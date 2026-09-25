@@ -185,14 +185,15 @@ namespace EarthGame.Engine
                 _flakes[stone] = Add(new Definition("item/flake-" + Slug(stone.Name), DefinitionKind.Item, (StartsWithVowel(name) ? "an " : "a ") + name + " flake",
                     true, FlakeMassKg, FlakeRadiusM, stone, Substance.Stone));
             }
-            // A stick taken from under a tree is of that tree (BF.1): the same shape, weighing by its wood against the plain stick's middle density.
+            // A stick taken from under a tree is of that tree (BF.1): the same shape, weighing by its wood against the plain stick's middle
+            // density. A tall plant that makes no wood, a palm, has no stick of its own and no log (WG.2c, 2026-09-25).
             foreach (PlantSpecies species in PlantSpecies.All)
             {
-                if (!StandCodes.IsTall(species)) continue;
                 Wood wood = Wood.Of(species);
+                if (!StandCodes.IsTall(species) || wood == null) continue;
                 string name = species.DisplayName;
                 _sticks[species] = Add(new Definition("item/stick-" + Slug(species.Name), DefinitionKind.Item, (StartsWithVowel(name) ? "an " : "a ") + name + " stick",
-                    true, wood != null ? Stick.MassKg * wood.DensityDryKgM3 / LyingProperties.PlainStickDensityKgM3 : Stick.MassKg, Stick.RadiusM, species, Substance.Wood));
+                    true, Stick.MassKg * wood.DensityDryKgM3 / LyingProperties.PlainStickDensityKgM3, Stick.RadiusM, species, Substance.Wood));
             }
             // A strip of bark comes off a stick of a tree whose bark strips (BF.2): tinder, and the fibre cord is laid from.
             foreach (PlantSpecies species in PlantSpecies.All)
@@ -217,7 +218,7 @@ namespace EarthGame.Engine
                 if (species.TuberKg > 0.0)
                     _tubers[species] = Add(new Definition("item/tuber-" + Slug(species.Name), DefinitionKind.Item, (StartsWithVowel(name) ? "an " : "a ") + name + " tuber",
                         true, species.TuberKg, 0.03, species, Substance.Food));
-                if (StandCodes.IsTall(species))
+                if (StandCodes.IsTall(species) && Wood.Of(species) != null)
                     _logs[species] = Add(new Definition("item/log-" + Slug(species.Name), DefinitionKind.Item, (StartsWithVowel(name) ? "an " : "a ") + name + " log",
                         true, LogMassKg, LogRadiusM, species, Substance.Wood));
             }

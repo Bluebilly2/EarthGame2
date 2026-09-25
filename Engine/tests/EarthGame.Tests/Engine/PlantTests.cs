@@ -35,7 +35,7 @@ namespace EarthGame.Tests.Engine
             PlantSite between = Site(wetness: 0.62, soil: 0.70, exposure: 0.5);
             var seen = new HashSet<PlantSpecies>();
             for (int i = 0; i < 200; i++)
-                seen.Add(PlantCommunity.Canopy(between, i / 200.0));
+                seen.Add(PlantCommunity.Canopy(between, i / 200.0, Coast));
             Assert.That(seen.Count, Is.GreaterThan(1), "the ground between two communities should carry both, not switch at a line");
         }
 
@@ -65,9 +65,9 @@ namespace EarthGame.Tests.Engine
         {
             PlantSite rock = Site(wetness: 0.5, soil: 0.0, exposure: 0.5);
             PlantSite cliff = Site(wetness: 0.5, soil: 0.8, exposure: 0.5, slope: 0.9);
-            Assert.That(PlantCommunity.Canopy(rock, 0.5), Is.Null, "bare rock carries no canopy");
-            Assert.That(PlantCommunity.Understory(rock, 0.5), Is.Null, "nor any understory");
-            Assert.That(PlantCommunity.Canopy(cliff, 0.5), Is.Null, "and nothing holds on to a cliff");
+            Assert.That(PlantCommunity.Canopy(rock, 0.5, Coast), Is.Null, "bare rock carries no canopy");
+            Assert.That(PlantCommunity.Understory(rock, 0.5, Coast), Is.Null, "nor any understory");
+            Assert.That(PlantCommunity.Canopy(cliff, 0.5, Coast), Is.Null, "and nothing holds on to a cliff");
         }
 
         [Test]
@@ -96,8 +96,8 @@ namespace EarthGame.Tests.Engine
                 double roll = i / 200.0;
                 PlantSite shaded = site;
                 shaded.Shaded = true;
-                if (PlantCommunity.Understory(shaded, roll) == PlantSpecies.Bracken) brackenUnder++;
-                if (PlantCommunity.Understory(site, roll) == PlantSpecies.Bracken) brackenOpen++;
+                if (PlantCommunity.Understory(shaded, roll, Coast) == PlantSpecies.Bracken) brackenUnder++;
+                if (PlantCommunity.Understory(site, roll, Coast) == PlantSpecies.Bracken) brackenOpen++;
             }
             Assert.That(brackenUnder, Is.GreaterThan(brackenOpen * 1.35), "bracken should be clearly commoner under a canopy: " + brackenUnder + " against " + brackenOpen + " of 200");
         }
@@ -107,7 +107,7 @@ namespace EarthGame.Tests.Engine
         {
             PlantSite site = Site(wetness: 0.55, soil: 0.4, exposure: 0.5);
             for (double roll = 0.0; roll < 1.0; roll += 0.05)
-                Assert.That(PlantCommunity.Canopy(site, roll), Is.EqualTo(PlantCommunity.Canopy(site, roll)));
+                Assert.That(PlantCommunity.Canopy(site, roll, Coast), Is.EqualTo(PlantCommunity.Canopy(site, roll, Coast)));
         }
 
         [Test]
@@ -118,7 +118,7 @@ namespace EarthGame.Tests.Engine
             const int n = 400;
             for (int i = 0; i < n; i++)
             {
-                PlantSpecies s = PlantCommunity.Canopy(site, i / (double)n);
+                PlantSpecies s = PlantCommunity.Canopy(site, i / (double)n, Coast);
                 if (s == null) continue;
                 counts.TryGetValue(s, out int c);
                 counts[s] = c + 1;
@@ -131,26 +131,37 @@ namespace EarthGame.Tests.Engine
             Assert.That(counts.Count, Is.GreaterThanOrEqualTo(2), "and something else should be growing among it");
         }
 
+        /// <summary>
+        /// Every plant wins somewhere among its region's plants (WG.2c, 2026-09-25: a site is contested only by its region's),
+        /// and every plant in the catalogue is some region's: a plant no region carries is a line in a table too.
+        /// </summary>
         [Test]
         public void P8_EverySpeciesWinsSomewhereOnRealGround()
         {
-            var won = new HashSet<PlantSpecies>();
-            for (double wet = 0.0; wet <= 1.0; wet += 0.05)
-                for (double soil = 0.0; soil <= 1.2; soil += 0.1)
-                    for (double exposure = 0.0; exposure <= 1.0; exposure += 0.25)
-                        for (int shade = 0; shade < 2; shade++)
-                        {
-                            PlantSite site = Site(wet, soil, exposure, shaded: shade == 1);
-                            for (double roll = 0.05; roll < 1.0; roll += 0.2)
+            var carried = new HashSet<PlantSpecies>();
+            foreach (Region region in new[] { Region.Bherwerre, Region.KangarooValley, Region.KangarooValleyWhole })
+            {
+                var won = new HashSet<PlantSpecies>();
+                for (double wet = 0.0; wet <= 1.0; wet += 0.05)
+                    for (double soil = 0.0; soil <= 1.2; soil += 0.1)
+                        for (double exposure = 0.0; exposure <= 1.0; exposure += 0.25)
+                            for (int shade = 0; shade < 2; shade++)
                             {
-                                PlantSpecies canopy = PlantCommunity.Canopy(site, roll);
-                                PlantSpecies under = PlantCommunity.Understory(site, roll);
-                                if (canopy != null) won.Add(canopy);
-                                if (under != null) won.Add(under);
+                                PlantSite site = Site(wet, soil, exposure, shaded: shade == 1);
+                                for (double roll = 0.05; roll < 1.0; roll += 0.2)
+                                {
+                                    PlantSpecies canopy = PlantCommunity.Canopy(site, roll, region.Plants);
+                                    PlantSpecies under = PlantCommunity.Understory(site, roll, region.Plants);
+                                    if (canopy != null) won.Add(canopy);
+                                    if (under != null) won.Add(under);
+                                }
                             }
-                        }
+                foreach (PlantSpecies species in region.Plants)
+                    Assert.That(won.Contains(species), Is.True, species.DisplayName + " never wins anywhere in " + region.DisplayName + ", so it is not a plant there, it is a line in a table");
+                carried.UnionWith(region.Plants);
+            }
             foreach (PlantSpecies species in PlantSpecies.All)
-                Assert.That(won.Contains(species), Is.True, species.DisplayName + " never wins anywhere, so it is not a plant, it is a line in a table");
+                Assert.That(carried.Contains(species), Is.True, species.DisplayName + " is carried by no region");
         }
 
         [Test]
@@ -257,15 +268,15 @@ namespace EarthGame.Tests.Engine
             {
                 int stands = 0;
                 for (int i = 0; i < n; i++)
-                    if (PlantCommunity.Canopy(site, (i + 0.5) / n, 0.5) != null) stands++;
-                Assert.That(stands / (double)n, Is.EqualTo(PlantCommunity.CanopyCover(site)).Within(0.002),
+                    if (PlantCommunity.Canopy(site, (i + 0.5) / n, 0.5, Coast) != null) stands++;
+                Assert.That(stands / (double)n, Is.EqualTo(PlantCommunity.CanopyCover(site, Coast)).Within(0.002),
                     "a canopy on as many cells as the ground suits the best of the trees");
             }
-            Assert.That(PlantCommunity.CanopyCover(forest), Is.GreaterThan(0.5), "the deep moist sand is mostly under trees");
-            Assert.That(PlantCommunity.CanopyCover(saltDune), Is.LessThan(0.2), "the salt-blown dune is mostly open");
-            Assert.That(PlantCommunity.CanopyCover(rock), Is.EqualTo(0.0), "and bare rock carries none");
-            Assert.That(PlantCommunity.Canopy(saltDune, 0.99, 0.5), Is.Null, "a roll past the cover leaves the cell open");
-            Assert.That(PlantCommunity.Canopy(saltDune, 0.01, 0.5), Is.SameAs(PlantSpecies.CoastBanksia), "and a roll inside it draws the tree as before");
+            Assert.That(PlantCommunity.CanopyCover(forest, Coast), Is.GreaterThan(0.5), "the deep moist sand is mostly under trees");
+            Assert.That(PlantCommunity.CanopyCover(saltDune, Coast), Is.LessThan(0.2), "the salt-blown dune is mostly open");
+            Assert.That(PlantCommunity.CanopyCover(rock, Coast), Is.EqualTo(0.0), "and bare rock carries none");
+            Assert.That(PlantCommunity.Canopy(saltDune, 0.99, 0.5, Coast), Is.Null, "a roll past the cover leaves the cell open");
+            Assert.That(PlantCommunity.Canopy(saltDune, 0.01, 0.5, Coast), Is.SameAs(PlantSpecies.CoastBanksia), "and a roll inside it draws the tree as before");
         }
 
         [Test]
@@ -278,17 +289,21 @@ namespace EarthGame.Tests.Engine
 
         // ---- helpers ----
 
-        private static PlantSite Site(double wetness, double soil, double exposure, double slope = 0.15, bool shaded = false)
+        /// <summary>The coast's twelve, which the sites here are contested by (WG.2c: a site is contested by its region's plants).</summary>
+        private static readonly IReadOnlyList<PlantSpecies> Coast = Region.Bherwerre.Plants;
+
+        internal static PlantSite Site(double wetness, double soil, double exposure, double slope = 0.15, bool shaded = false)
             => new PlantSite { Wetness = wetness, SoilDepthM = soil, Slope = slope, Exposure = exposure, Shaded = shaded };
 
-        /// <summary>The species that wins this site most often.</summary>
-        private static PlantSpecies Dominant(PlantSite site)
+        /// <summary>The species that wins this site most often, of the coast's plants unless others are named.</summary>
+        internal static PlantSpecies Dominant(PlantSite site, IReadOnlyList<PlantSpecies> plants = null)
         {
+            plants = plants ?? Coast;
             var counts = new Dictionary<PlantSpecies, int>();
             const int n = 400;
             for (int i = 0; i < n; i++)
             {
-                PlantSpecies s = PlantCommunity.Canopy(site, i / (double)n);
+                PlantSpecies s = PlantCommunity.Canopy(site, i / (double)n, plants);
                 if (s == null) continue;
                 counts.TryGetValue(s, out int c);
                 counts[s] = c + 1;

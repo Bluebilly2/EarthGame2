@@ -129,6 +129,12 @@ namespace EarthGame.Client
         {
             if (FarTrees.TryGetValue(tall, out Mesh mesh)) return mesh;
             TreeForm form = StandForms.ForTall(tall);
+            if (form.Crown == CrownKind.Fronds)
+            {
+                mesh = FarPalm(tall, form);
+                FarTrees[tall] = mesh;
+                return mesh;
+            }
             FacetMeshData data = new FacetMeshData();
             Vector3[] centres = { Vector3.zero, new Vector3(0f, 0.62f, 0f) };
             Vector3[] dirs = { Vector3.up, Vector3.up };
@@ -577,6 +583,16 @@ namespace EarthGame.Client
             if (stripped) FacetTube(data, TrunkSides, centres, ringDirs, radii, Range(rand, 0f, Mathf.PI * 2f), seed, Sapwood, Sapwood, -1f);
             else FacetTube(data, TrunkSides, centres, ringDirs, radii, Range(rand, 0f, Mathf.PI * 2f), seed, ToColor(form.BarkLow), ToColor(form.BarkHigh), stocking);
 
+            if (form.Crown == CrownKind.Fronds)
+            {
+                // A palm (WG.2c): no limbs, the stem's top a whorl of fronds. Every other tree goes on as it always did, from the
+                // same seed and the same draws, so its mesh does not change.
+                PalmCrown(data, rand, centres[TrunkSegments], form, seed);
+                data.ScaleToUnitHeight();
+                crownWidth = data.Width();
+                return data.ToMesh(form.Name + " " + seed);
+            }
+
             List<Vector3> tips = new List<Vector3> { centres[TrunkSegments] };
             List<Vector3> inner = new List<Vector3> { centres[TrunkSegments - 1] };
             int limbCount = 1 + (int)Range(rand, 0f, form.MaxLimbs - 0.001f);
@@ -639,6 +655,99 @@ namespace EarthGame.Client
             data.ScaleToUnitHeight();
             crownWidth = data.Width();
             return data.ToMesh(form.Name + " " + seed);
+        }
+
+        // ------------------------------------------------------------------ palm
+
+        /// <summary>How far round the stem each frond stands from the last, degrees: the golden angle, as a palm's leaves come.</summary>
+        private const float GoldenAngleDeg = 137.508f;
+        /// <summary>The youngest frond's rise above level and the oldest's hang below it, degrees.</summary>
+        private const float PalmFrondRiseDeg = 55f;
+        private const float PalmFrondHangDeg = 50f;
+        /// <summary>A frond's fan: its segments, and how far round either side of the stalk's line it spreads, degrees.</summary>
+        private const int PalmFanSegments = 6;
+        private const float PalmFanHalfDeg = 100f;
+        private const int FarPalmFronds = 8;
+
+        /// <summary>
+        /// A palm's crown (WG.2c, 2026-09-25): a whorl of fronds off the stem's top, set round it a golden angle apart, the young
+        /// ones standing up, the middle reaching out and the old ones hanging; each a stalk and, at its end, a fan of leaf whose
+        /// segments' tips droop, drawn on both sides since a leaf has no thickness. A cabbage tree palm's fronds are 3 to 4.5 m
+        /// long on a stem of 15 to 30 m (PlantNET): the form's clump radius is a frond's length as a share of the height.
+        /// </summary>
+        private static void PalmCrown(FacetMeshData data, System.Random rand, Vector3 top, TreeForm form, int seed)
+        {
+            Color leaf = ToColor(form.Foliage);
+            leaf.g = Mathf.Clamp01(leaf.g + Range(rand, -GreenNudge, GreenNudge));
+            int count = form.ClumpMin + (int)Range(rand, 0f, form.ClumpMax - form.ClumpMin + 0.999f);
+            float turn = Range(rand, 0f, 360f);
+            for (int i = 0; i < count; i++)
+            {
+                float azimuth = turn + i * GoldenAngleDeg + Range(rand, -10f, 10f);
+                float elevation = Mathf.Lerp(PalmFrondRiseDeg, -PalmFrondHangDeg, i / Mathf.Max(1f, count - 1f)) + Range(rand, -8f, 8f);
+                float length = form.ClumpRadius * Range(rand, 0.85f, 1.15f);
+                Vector3 outward = HorizontalAxis(azimuth);
+                Vector3 side = Vector3.Cross(Vector3.up, outward).normalized;
+                Vector3 along = (outward * Mathf.Cos(elevation * Mathf.Deg2Rad) + Vector3.up * Mathf.Sin(elevation * Mathf.Deg2Rad)).normalized;
+                Color shade = Scale(leaf, Jitter(seed, 7000 + i, ClumpJitter));
+                // The stalk: half the frond, a thin strip sagging a little at its end.
+                Vector3 foot = top - Vector3.up * (0.01f * form.ClumpRadius);
+                Vector3 end = foot + along * (0.5f * length) - Vector3.up * (0.06f * length);
+                float stalk = 0.012f * length;
+                FacetLeaf(data, foot - side * stalk, foot + side * stalk, end + side * (0.6f * stalk), shade);
+                FacetLeaf(data, foot - side * stalk, end + side * (0.6f * stalk), end - side * (0.6f * stalk), shade);
+                // The fan, spread either side of the stalk's line, its segments' tips hanging lower the further round they lie.
+                float fan = 0.5f * length;
+                Vector3 previous = Vector3.zero;
+                for (int k = 0; k <= PalmFanSegments; k++)
+                {
+                    float angle = Mathf.Lerp(-PalmFanHalfDeg, PalmFanHalfDeg, k / (float)PalmFanSegments) * Mathf.Deg2Rad;
+                    Vector3 tip = end + (along * Mathf.Cos(angle) + side * Mathf.Sin(angle)) * fan
+                                  - Vector3.up * (fan * (0.25f + 0.35f * Mathf.Abs(Mathf.Sin(angle))));
+                    if (k > 0) FacetLeaf(data, end, previous, tip, Scale(shade, Jitter(seed, 8000 + i * 16 + k, FaceJitter)));
+                    previous = tip;
+                }
+            }
+        }
+
+        /// <summary>
+        /// A far palm (WG.2c): a three-sided stem under a starburst of fronds, unit height and about a crown of unit width, as every
+        /// far tree is. From a ridge away a palm is a round head of fronds on a bare pole, not a lumpy clump.
+        /// </summary>
+        private static Mesh FarPalm(int tall, TreeForm form)
+        {
+            FacetMeshData data = new FacetMeshData();
+            Vector3 top = new Vector3(0f, 0.92f, 0f);
+            Vector3[] centres = { Vector3.zero, top };
+            Vector3[] dirs = { Vector3.up, Vector3.up };
+            float[] radii = { 0.035f, 0.025f };
+            FacetTube(data, FarTrunkSides, centres, dirs, radii, 0f, tall, ToColor(form.BarkLow), ToColor(form.BarkHigh), -1f);
+            Color leaf = ToColor(form.Foliage);
+            for (int i = 0; i < FarPalmFronds; i++)
+            {
+                Vector3 outward = HorizontalAxis(i * (360f / FarPalmFronds));
+                Vector3 side = Vector3.Cross(Vector3.up, outward).normalized;
+                // Across, the mesh is scaled by the crown and up by the height, so a frond's rise here is small.
+                float lift = i % 2 == 0 ? 0.08f : -0.10f;
+                Vector3 tip = top + outward * 0.5f + Vector3.up * lift;
+                Vector3 middle = top + outward * 0.28f + Vector3.up * (0.6f * lift);
+                Color shade = Scale(leaf, Jitter(tall * 31 + 5, i, FaceJitter));
+                FacetLeaf(data, top, middle - side * 0.12f, tip, shade);
+                FacetLeaf(data, top, tip, middle + side * 0.12f, shade);
+            }
+            return data.ToMesh("Far " + form.Name);
+        }
+
+        /// <summary>A triangle of leaf drawn on both sides, since a leaf has no thickness: two faces over one three points, wound from either side.</summary>
+        private static void FacetLeaf(FacetMeshData data, Vector3 a, Vector3 b, Vector3 c, Color colour)
+        {
+            Vector3 normal = Vector3.Cross(b - a, c - a);
+            if (normal.sqrMagnitude < 1e-14f) return;
+            normal = normal.normalized * 0.01f;
+            Vector3 middle = (a + b + c) / 3f;
+            int pa = data.Point(a), pb = data.Point(b), pc = data.Point(c);
+            data.Face(pa, pb, pc, middle - normal, colour);
+            data.Face(pa, pb, pc, middle + normal, colour);
         }
 
         /// <summary>Walks up the trunk to a height and says where it is, which way it heads and how thick it is there.</summary>

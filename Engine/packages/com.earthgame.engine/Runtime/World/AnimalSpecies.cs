@@ -231,7 +231,9 @@ namespace EarthGame.Engine
     /// stand here — so an animal cannot come to disagree with the vegetation it is eating. Change
     /// a plant's moisture tolerance and the herds move, with nobody editing this file. And it asks
     /// it the way the community answers: where tall timber stands, the layers beneath are scored in
-    /// its shade, as the understory draw scores them.</para>
+    /// its shade, as the understory draw scores them. And it asks it of the plants the region carries
+    /// (WG.2c, 2026-09-25; <see cref="Region.Plants"/>), as the draw does: an animal in the valley is
+    /// not fed by a coast plant the valley does not grow.</para>
     /// </summary>
     public static class AnimalCapacity
     {
@@ -280,18 +282,19 @@ namespace EarthGame.Engine
         public const double MaxWorkableSlope = 0.6;
 
         /// <summary>Animals per square kilometre this ground supports, at equilibrium.</summary>
+        /// <param name="plants">The plants the region carries (<see cref="Region.Plants"/>).</param>
         /// <param name="waterDistanceM">
         /// Metres to the nearest fresh water. The drainage layer knows it; this only asks. Infinity
         /// is a legitimate answer and means "none found", which empties the ground of everything
         /// that has to drink.
         /// </param>
         /// <param name="shoreDistanceM">Metres to the tideline, for the kinds that live off it; infinity inland.</param>
-        public static double PerKm2(AnimalSpecies species, in PlantSite site, double waterDistanceM,
+        public static double PerKm2(AnimalSpecies species, in PlantSite site, IReadOnlyList<PlantSpecies> plants, double waterDistanceM,
                                     double shoreDistanceM = double.PositiveInfinity)
         {
             if (species == null) return 0.0;
 
-            double forage = ForageScore(species.Forage, site, shoreDistanceM);
+            double forage = ForageScore(species.Forage, site, plants, shoreDistanceM);
             if (forage <= 0.0) return 0.0;
 
             // Water is a veto with a soft edge rather than a fence: the ground thins out as the
@@ -320,7 +323,8 @@ namespace EarthGame.Engine
         /// own suitability rather than worked out again here, with the layers under a standing
         /// canopy scored in its shade; or, for the tideline, how near the shore is.
         /// </summary>
-        public static double ForageScore(ForageStyle style, in PlantSite site, double shoreDistanceM = double.PositiveInfinity)
+        public static double ForageScore(ForageStyle style, in PlantSite site, IReadOnlyList<PlantSpecies> plants,
+                                         double shoreDistanceM = double.PositiveInfinity)
         {
             if (style == ForageStyle.Tideline)
             {
@@ -328,19 +332,19 @@ namespace EarthGame.Engine
                 return SimMath.Clamp01(1.0 - shoreDistanceM / TidelineReachM);
             }
 
-            double tall = PlantCommunity.TotalSuitability(site, PlantForm.Tree);
+            double tall = PlantCommunity.TotalSuitability(site, PlantForm.Tree, plants);
             PlantSite below = site;
             if (tall >= CanopyStands) below.Shaded = true;
 
-            double grass = PlantCommunity.TotalSuitability(below, PlantForm.Grass);
-            double herb = PlantCommunity.TotalSuitability(below, PlantForm.Herb);
+            double grass = PlantCommunity.TotalSuitability(below, PlantForm.Grass, plants);
+            double herb = PlantCommunity.TotalSuitability(below, PlantForm.Herb, plants);
 
             // Browse is what a standing animal can reach: the shrub layer and the low trees. A
             // mature blackbutt's canopy is thirty metres up and might as well be weather — which is
             // why the tall-tree score is deliberately absent from this sum, and why a closed forest
             // of big timber feeds a browser far less than its greenness suggests.
-            double shrub = PlantCommunity.TotalSuitability(below, PlantForm.Shrub);
-            double lowTree = PlantCommunity.TotalSuitability(below, PlantForm.SmallTree);
+            double shrub = PlantCommunity.TotalSuitability(below, PlantForm.Shrub, plants);
+            double lowTree = PlantCommunity.TotalSuitability(below, PlantForm.SmallTree, plants);
 
             double graze = grass * GrassShare + herb * (1.0 - GrassShare);
             double browse = Math.Max(shrub, lowTree);

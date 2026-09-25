@@ -24,7 +24,20 @@ Rows, each with both numbers:
   7. sticks lie only within a crown's reach, and a cell, of a trunk;
   8. cobbles lie only where stone lies loose: never on a dune, the sea, a lake or a swamp, and on deep soil only on a
      shore platform, a cliff, a beach or a creek's or a stream's bed. The soil layer keeps a depth to its own step, so
-     a cell within half a step of the thin-soil line is counted thin, and the row says how many cobbled cells were.
+     a cell within half a step of the thin-soil line is counted thin, and the row says how many cobbled cells were;
+  9. the valley's walls carry its canopy (WG.2c, 2026-09-25): in a Kangaroo Valley world, the canopy stands on the land of
+     15 to 25 and of 25 to 31 degrees at least half as often as on the land under 15, where the valley's records find its
+     tall plants more often on those slopes than the recorders walk (the contract's table, printed beside). The coast's
+     records lean no such way, and a world of another region prints a note;
+ 10. the crowns cover what the pre-1750 map's groups carry, in all (WG.2c): NVIS 7.0's Major Vegetation Groups for the
+     world's region (`Tools/data/fetch_nvis.py`), each group's crown cover as its NVIS fact sheet states it, and the land
+     under a crown on the land the map puts in those groups inside the range their own covers give it together. The map
+     is the check and never the model's input. A region with no map here prints a note;
+ 11. the same group by group, for each group on at least 1 % of that land.
+
+Rows the world is known to fail are owed, as species_check's are: each under the Docs/DEBTS.md row OWED names, a table per
+region (the world's world.json names its region). An owed row prints its numbers and "owed" where the verdict would be and
+does not fail the check; an owed row that passes does fail it, until it is taken out of OWED and its debt moved to Paid.
 
 Exit 0 when every row passes (a row that prints a note gives no verdict), 1 when any fails, 2 when the world is missing a
 layer this needs.
@@ -33,6 +46,7 @@ Run from the repository root:
 (default Artefacts/worlds/gate.)
 """
 import json
+import math
 import os
 import sys
 
@@ -41,11 +55,16 @@ import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 DEFAULT_WORLD = os.path.join("Artefacts", "worlds", "gate")
 NP_DTYPES = {"u8": "u1", "u16": "<u2", "i16": "<i2", "u32": "<u4", "f32": "<f4"}
+EARTH_RADIUS_M = 6371000.0   # the sidecar's frame: a tangent plane, small-angle, as the engine's LocalFrame
 
-# The tall plants, from ECOSYSTEM.md: the heights each grows to (its table of plants) and the crown's diameter as a
-# share of height (its table of what stands).
-CROWN_SHARE = {"Blackbutt": 0.35, "Bangalay": 0.45, "OldManBanksia": 0.60, "CoastBanksia": 0.55, "SwampPaperbark": 0.50}
-HEIGHTS_M = {"Blackbutt": (20.0, 40.0), "Bangalay": (12.0, 20.0), "OldManBanksia": (4.0, 12.0), "CoastBanksia": (5.0, 15.0), "SwampPaperbark": (3.0, 9.0)}
+# The tall plants, from ECOSYSTEM.md: the heights each grows to (its tables of plants) and the crown's diameter as a
+# share of height (its tables of what stands); the Kangaroo Valley's six from its own tables (WG.2c, 2026-09-25).
+CROWN_SHARE = {"Blackbutt": 0.35, "Bangalay": 0.45, "OldManBanksia": 0.60, "CoastBanksia": 0.55, "SwampPaperbark": 0.50,
+               "SydneyBlueGum": 0.35, "CabbageTreePalm": 0.25, "SilvertopAsh": 0.35, "RiverOak": 0.35, "ScribblyGum": 0.55,
+               "LillyPilly": 0.50}
+HEIGHTS_M = {"Blackbutt": (20.0, 40.0), "Bangalay": (12.0, 20.0), "OldManBanksia": (4.0, 12.0), "CoastBanksia": (5.0, 15.0), "SwampPaperbark": (3.0, 9.0),
+             "SydneyBlueGum": (25.0, 50.0), "CabbageTreePalm": (15.0, 30.0), "SilvertopAsh": (15.0, 45.0), "RiverOak": (15.0, 35.0),
+             "ScribblyGum": (7.5, 15.0), "LillyPilly": (10.0, 20.0)}
 SAND_FOREST = ("Bangalay", "CoastBanksia")
 SAND_FOREST_M = (5.0, 20.0)
 # The contract's design.
@@ -57,6 +76,39 @@ THIN_SOIL_M = 0.25
 T_BEACH, T_DUNE, T_CLIFF, T_PLATFORM = 2, 4, 128, 256
 W_CREEK, W_STREAM, W_LAKE, W_SWAMP, W_SEA = 3, 4, 5, 6, 7
 
+# Row 9, the valley's walls (WG.2c): the regions whose records put their tall plants on the slopes, and the records' ratios the
+# contract WG.2c measured (a plant's share of its records in a slope class against all the plants' records' share there).
+WALLED = ("kangaroo-valley", "kangaroo-valley-whole")
+WALL_CLASSES_DEG = ((0.0, 15.0), (15.0, 25.0), (25.0, 31.0))
+WALL_SHARE = 0.5
+WALL_RECORDS = "Sydney blue gum 1.47 and 1.70, the cabbage tree palm 2.25 and 3.40 times as often as the recorders walk"
+
+# Rows 10 and 11, the pre-1750 map (WG.2c): NVIS 7.0's Major Vegetation Groups for the world's region as fetch_nvis.py lays them,
+# and each group's crown cover as its NVIS fact sheet states it (DCCEEW's NVIS fact sheet series, MVG 1 to 23, read
+# 2026-09-25). The sheets state a crown cover where they give one and a foliage projective cover where they do not, and pair
+# the two: open forest's crown cover of 50 to 80 per cent with a foliage cover of 30 to 70 (MVG 3), woodland's 20 to 50 with
+# 10 to 30 (MVG 5); a foliage cover is read to a crown cover by that pairing. Crowns are what the world draws.
+NVIS = os.path.join(ROOT, "Data", "cache", "nvis")
+CROWN_BANDS = {
+    "Rainforests and Vine Thickets": (0.80, 1.00),     # MVG 1: "typically with greater than 70 per cent foliage cover"
+    "Eucalypt Tall Open Forests": (0.50, 0.80),        # MVG 2: "projective foliage cover of between 30 and 70 per cent"
+    "Eucalypt Open Forests": (0.50, 0.80),             # MVG 3: "crown cover 50 - 80 per cent (foliage projective cover of 30 - 70 per cent)"
+    "Eucalypt Woodlands": (0.20, 0.50),                # MVG 5: "a crown cover of 20 - 50 per cent (projective foliage cover 10 - 30 per cent)"
+    "Heathlands": (0.00, 0.20),                        # MVG 18: trees as sparse emergents, or mallee "up to 20 per cent canopy cover"
+    "Casuarina Forests and Woodlands": (0.20, 1.00),   # MVG 8: "crown cover >20 per cent"
+}
+GROUP_LEAST_LAND = 0.01
+MAP_IN_ALL = "the crowns cover what the pre-1750 map carries"
+MAP_BY_GROUP = "the crowns follow each group of that map"
+
+# Rows the world is known to fail, each under the DEBTS.md row named, a table per region (the module's docstring).
+MAP_GROUPS = "The canopy does not follow the pre-1750 map's groups"
+OWED_BY_REGION = {
+    "bherwerre": {MAP_BY_GROUP: MAP_GROUPS},
+    "kangaroo-valley": {MAP_BY_GROUP: MAP_GROUPS},
+    "kangaroo-valley-whole": {MAP_BY_GROUP: MAP_GROUPS},
+}
+
 
 def layer(world, name):
     path = os.path.join(ROOT, world, "layers", name + ".json")
@@ -67,15 +119,18 @@ def layer(world, name):
     return sidecar, np.fromfile(raw, dtype=NP_DTYPES[sidecar["dtype"]]).reshape(sidecar["height"], sidecar["width"])
 
 
-def lowest_baked(world):
-    """The lowest cell of the bake the world was made from, Data/regions/<region> with the region read off the world's own
-    world.json (Bherwerre when the file does not say, as the worlds before WG.2 were), and the bake's sidecar; the height is
-    None when the bake is not on this machine."""
-    region = "bherwerre"
+def region_of(world):
+    """The region the world is set in, off its own world.json; Bherwerre when the file does not say, as the worlds before WG.2 were."""
     world_json = os.path.join(ROOT, world, "world.json")
     if os.path.isfile(world_json):
-        region = json.load(open(world_json, encoding="utf-8")).get("region", region)
-    sidecar_path = os.path.join(ROOT, "Data", "regions", region, "heights.json")
+        return json.load(open(world_json, encoding="utf-8")).get("region", "bherwerre")
+    return "bherwerre"
+
+
+def lowest_baked(world):
+    """The lowest cell of the bake the world was made from, Data/regions/<region> with the region read off the world's own
+    world.json, and the bake's sidecar; the height is None when the bake is not on this machine."""
+    sidecar_path = os.path.join(ROOT, "Data", "regions", region_of(world), "heights.json")
     if not os.path.isfile(sidecar_path):
         return None, sidecar_path
     sidecar = json.load(open(sidecar_path, encoding="utf-8"))
@@ -115,6 +170,40 @@ def height_step(sidecar):
     if at < 0:
         raise ValueError("the stand layer's legend states no height step")
     return float(text[at + len(marker):].split(" ")[0])
+
+
+def map_groups(world, sidecar):
+    """Each cell's pre-1750 Major Vegetation Group (NVIS 7.0) for the world's region, as an index into the names returned with
+    it, -1 off the map or where it holds no data (a transparent pixel), and the map's path; None for the groups when the
+    region has no map here. A cell's latitude and longitude are restated from the sidecar's small-angle frame, the cell's
+    centre (half - row x cell) north and (col x cell - half) east of the region's centre, and the map's pixel is the one
+    whose box holds it (the manifest's box and pixel size, north-west first)."""
+    name = region_of(world) + "-pre1750-mvg.png"
+    manifest_path = os.path.join(NVIS, "manifest.json")
+    path = os.path.join(NVIS, name)
+    if not os.path.isfile(manifest_path) or not os.path.isfile(path):
+        return None, [], path
+    entry = json.load(open(manifest_path, encoding="utf-8"))["files"].get(name)
+    if entry is None:
+        return None, [], path
+    from PIL import Image   # only a world whose region has a map needs it
+    image = np.array(Image.open(path).convert("RGBA"))
+    names = sorted({c["name"] for c in entry["legend"]})
+    code = np.full(image.shape[:2], -1, dtype=np.int16)
+    for c in entry["legend"]:
+        code[(image[..., 3] == 255) & np.all(image[..., :3] == np.array(c["rgb"], dtype=np.uint8), axis=2)] = names.index(c["name"])
+    west, _, _, north = entry["box_west_south_east_north"]
+    dlon, dlat = entry["pixel_deg"]
+    cell, half = sidecar["cell_m"], sidecar["extent_m"] / 2.0
+    lat = sidecar["centre_lat"] + np.degrees((half - np.arange(sidecar["height"]) * cell) / EARTH_RADIUS_M)
+    lon = sidecar["centre_lon"] + np.degrees((np.arange(sidecar["width"]) * cell - half) / (EARTH_RADIUS_M * math.cos(math.radians(sidecar["centre_lat"]))))
+    pixel_row = np.floor((north - lat) / dlat).astype(np.int64)
+    pixel_col = np.floor((lon - west) / dlon).astype(np.int64)
+    rows_in = (pixel_row >= 0) & (pixel_row < code.shape[0])
+    cols_in = (pixel_col >= 0) & (pixel_col < code.shape[1])
+    groups = np.full((sidecar["height"], sidecar["width"]), -1, dtype=np.int16)
+    groups[np.ix_(rows_in, cols_in)] = code[np.ix_(pixel_row[rows_in], pixel_col[cols_in])]
+    return groups, names, path
 
 
 def shifted(grid, dr, dc, fill=0):
@@ -160,12 +249,22 @@ def main(argv):
     over_name = np.array([""] + [over_names.get(i, "?") for i in range(1, int(over.max()) + 1)])[over]
     canopied = over > 0
 
-    failures = []
+    region = region_of(world)
+    owed_rows = OWED_BY_REGION.get(region, {})
+    failures, owed = [], []
 
     def expect(title, ok, detail):
-        print("%-50s %s  %s" % (title, "ok " if ok else "FAIL", detail))
-        if not ok:
-            failures.append(title)
+        debt = owed_rows.get(title)
+        if debt is None:
+            print("%-50s %s  %s" % (title, "ok " if ok else "FAIL", detail))
+            if not ok:
+                failures.append(title)
+        elif ok:
+            print("%-50s PAID %s; take the row out of OWED and move \"%s\" to Paid" % (title, detail, debt))
+            failures.append(title + " (passes, still owed)")
+        else:
+            print("%-50s owed %s (DEBTS.md: \"%s\")" % (title, detail, debt))
+            owed.append(title)
 
     trunks = int(trunk.sum())
     wrong_place = int((trunk & ~canopied).sum())
@@ -260,9 +359,70 @@ def main(argv):
            " %d on the %.2f m thin-soil line as the soil layer's %g m step writes it, counted thin"
            % ("{:,}".format(int(cobbles.sum())), "{:,}".format(int((loose >> 4).sum())), misplaced, at_line, THIN_SOIL_M, soil_step))
 
+    # The ground the plants grow on: the community skips the sea and the lakes.
+    grows_here = ~np.isin(water, [W_SEA, W_LAKE])
+
+    walls_title = "the valley's walls carry its canopy"
+    if region not in WALLED:
+        print("%-50s note  a world of %s; the row is the Kangaroo Valley's, whose records find its tall plants on its slopes" % (walls_title, region))
+    else:
+        heights_side, ground = layer(world, "heights")
+        if ground is None:
+            print("this world has no heights layer; the valley's walls row needs one under %s" % os.path.join(ROOT, world, "layers"))
+            return 2
+        dz_row, dz_col = np.gradient(ground.astype(np.float32), np.float32(heights_side["cell_m"]))
+        slope = np.hypot(dz_row, dz_col)
+        del dz_row, dz_col
+        shares = []
+        for low, high in WALL_CLASSES_DEG:
+            in_class = grows_here & (slope >= math.tan(math.radians(low))) & (slope < math.tan(math.radians(high)))
+            shares.append(float((canopied & in_class).sum()) / max(1, int(in_class.sum())))
+        del slope
+        flat = shares[0]
+        expect(walls_title, flat > 0 and all(s >= WALL_SHARE * flat for s in shares[1:]),
+               "canopy on %.1f %% of the land under %g degrees, %.1f %% of %g to %g and %.1f %% of %g to %g: at least %.1f of the flat's"
+               " asked; the records on those slopes: %s (WG.2c's table)"
+               % (100 * shares[0], WALL_CLASSES_DEG[0][1], 100 * shares[1], WALL_CLASSES_DEG[1][0], WALL_CLASSES_DEG[1][1],
+                  100 * shares[2], WALL_CLASSES_DEG[2][0], WALL_CLASSES_DEG[2][1], WALL_SHARE, WALL_RECORDS))
+
+    groups, group_names, map_path = map_groups(world, stand_side)
+    if groups is None:
+        print("%-50s note  no pre-1750 map for %s at %s; run Tools/data/fetch_nvis.py" % (MAP_IN_ALL, region, os.path.relpath(map_path, ROOT)))
+    else:
+        mapped = grows_here & (groups >= 0)
+        judged, ha = [], cell * cell / 10000.0
+        for name, (low, high) in CROWN_BANDS.items():
+            if name not in group_names:
+                continue
+            in_group = grows_here & (groups == group_names.index(name))
+            land_cells = int(in_group.sum())
+            if land_cells:
+                judged.append((name, low, high, land_cells, float(covered[in_group].mean())))
+        cells = sum(j[3] for j in judged)
+        if cells == 0:
+            print("%-50s note  the map puts none of this world's land in a group whose fact sheet states its cover" % MAP_IN_ALL)
+        else:
+            overall = sum(j[3] * j[4] for j in judged) / cells
+            band_low = sum(j[3] * j[1] for j in judged) / cells
+            band_high = sum(j[3] * j[2] for j in judged) / cells
+            expect(MAP_IN_ALL, band_low <= overall <= band_high,
+                   "crowns over %.2f of the %s ha the map puts in a group whose NVIS fact sheet states its cover (%.0f %% of the mapped"
+                   " land); those groups' covers give %.2f to %.2f together (%s)"
+                   % (overall, "{:,.0f}".format(cells * ha), 100.0 * cells / max(1, int(mapped.sum())), band_low, band_high,
+                      os.path.relpath(map_path, ROOT)))
+            shown = [j for j in judged if j[3] >= GROUP_LEAST_LAND * cells]
+            outside = [j[0] for j in shown if not j[1] <= j[4] <= j[2]]
+            expect(MAP_BY_GROUP, not outside,
+                   "; ".join("%s %.2f in %.2f to %.2f on %.0f %%" % (j[0], j[4], j[1], j[2], 100.0 * j[3] / cells) for j in shown)
+                   + ((" (outside: %s)" % ", ".join(outside)) if outside else ""))
+
     if failures:
         print("stand_check: FAIL (%s)" % ", ".join(failures))
         return 1
+    if owed:
+        print("stand_check: ok, %s trees stand where the canopy does and every judged row passes; %d row(s) owed in DEBTS.md"
+              % ("{:,}".format(trunks), len(owed)))
+        return 0
     print("stand_check: ok, %s trees stand where the canopy does and what lies under them lies where it would" % "{:,}".format(trunks))
     return 0
 

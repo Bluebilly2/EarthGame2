@@ -14,7 +14,8 @@ namespace EarthGame.Engine
     /// Wood Handbook's 18–21; green wood's water as the Wood Handbook's 50–100 % of dry mass by the wood's kind. Each row
     /// names its source. They were written from memory of those tables and are owed a re-reading against the tables
     /// themselves before a fire's physics leans on them (DEBTS 2026-09-22); the grass tree's stalk carries an estimate and
-    /// says so.</para>
+    /// says so. The Kangaroo Valley's trees (WG.2c, 2026-09-25): Sydney blue gum and silvertop ash from WoodSolutions' pages,
+    /// river oak, scribbly gum and lilly pilly estimates that say so.</para>
     /// </summary>
     public sealed class Wood
     {
@@ -111,9 +112,38 @@ namespace EarthGame.Engine
         /// <summary>The grass tree's flower stalk, not its trunk: the fire drill of the New South Wales coast in the ethnographic record.</summary>
         public static readonly Wood GrassTree = new Wood(PlantSpecies.GrassTree, 300.0, 0.50, 1.0, 15.0,
             "The flower stalk of the grass tree: light, straight and pithy, the drill the coast's people spun.",
-            "the scape of Xanthorrhoea as the fire drill of the NSW coast (the Australian Museum's account of Aboriginal fire-making); its density, hardness and strength are ESTIMATES of a light pithy stalk, not measured figures: the one estimated row in this table");
+            "the scape of Xanthorrhoea as the fire drill of the NSW coast (the Australian Museum's account of Aboriginal fire-making); its density, hardness and strength are ESTIMATES of a light pithy stalk, not measured figures");
 
-        public static readonly IReadOnlyList<Wood> All = new[] { Blackbutt, Bangalay, OldManBanksia, CoastBanksia, SwampPaperbark, GrassTree };
+        // ---- the Kangaroo Valley's trees (WG.2c, 2026-09-25). The cabbage tree palm has no row: a palm, like every monocot,
+        // makes no wood, having no secondary growth. ----
+
+        private const string OwedTheDatabase = "owed a reading of the Global Wood Density Database (Zanne and others 2009) for a published density";
+
+        public static readonly Wood SydneyBlueGum = new Wood(PlantSpecies.SydneyBlueGum, 840.0, 0.60, 8.1, 122.0,
+            "A dense, strong, red-brown hardwood; too hard for a drill, a long-burning fuel.",
+            "WoodSolutions (Forest and Wood Products Australia), Sydney blue gum, Eucalyptus saligna, seasoned: density 840 kg/m3, Janka 8.1 kN, modulus of rupture 122 MPa (unseasoned 1,110 kg/m3, 5.8 kN, 76 MPa); " + GreenWater);
+
+        public static readonly Wood SilvertopAsh = new Wood(PlantSpecies.SilvertopAsh, 850.0, 0.60, 9.7, 137.0,
+            "A dense, hard, pale brown hardwood; strong, and a long-burning fuel.",
+            "WoodSolutions, silvertop ash, Eucalyptus sieberi, seasoned: density 850 kg/m3, Janka 9.7 kN, modulus of rupture 137 MPa (unseasoned 1,100 kg/m3, 6.7 kN, 78 MPa); " + GreenWater);
+
+        public static readonly Wood RiverOak = new Wood(PlantSpecies.RiverOak, 850.0, 0.60, 8.0, 90.0,
+            "A dense, tough, reddish wood that splits readily; the creek banks' best firewood.",
+            "World Agroforestry's species sheet for Casuarina cunninghamiana: 800-900 kg/m3 (stated as green density, owed a re-reading against Bootle), \"moderately strong but tough and fissile\", \"excellent firewood\"; its hardness and strength ESTIMATES from the table's hardwoods of that density; " + GreenWater + "; " + OwedTheDatabase);
+
+        public static readonly Wood ScribblyGum = new Wood(PlantSpecies.ScribblyGum, 850.0, 0.60, 8.0, 100.0,
+            "A dense hardwood of the dry woodland, pale and interlocked.",
+            "no figure found for Eucalyptus racemosa: the sister scribbly gum E. haemastoma is reported at 0.71 t/m3 in the USDA's i-Tree wood density table (its PDF unread here, so the figure is owed a reading), taken as a basic density and read to an air-dry figure; every number an ESTIMATE; " + GreenWater + "; " + OwedTheDatabase);
+
+        public static readonly Wood LillyPilly = new Wood(PlantSpecies.LillyPilly, 720.0, 0.70, 6.0, 90.0,
+            "A medium-density, fine-grained, pinkish rainforest wood.",
+            "Syzygium smithii (Acmena smithii): no figure read; density, hardness and strength ESTIMATES of a medium-density rainforest hardwood, set between the table's banksias and its eucalypts; " + GreenWater + "; " + OwedTheDatabase);
+
+        public static readonly IReadOnlyList<Wood> All = new[]
+        {
+            Blackbutt, Bangalay, OldManBanksia, CoastBanksia, SwampPaperbark, GrassTree,
+            SydneyBlueGum, SilvertopAsh, RiverOak, ScribblyGum, LillyPilly,
+        };
 
         private static readonly Dictionary<PlantSpecies, Wood> BySpecies = Build();
 

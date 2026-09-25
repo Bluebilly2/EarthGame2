@@ -327,6 +327,9 @@ namespace EarthGame.Engine
                 }
                 case WorkKind.CutTrunk:
                 {
+                    // A palm makes no wood, so it falls into no logs (WG.2c, 2026-09-25): it is not felled, whatever is in hand.
+                    if (IsTrunk(target, out PlantSpecies woodless) && Wood.Of(woodless) == null)
+                        return Refuse(kind, VerbOutcome.WontWork, "the " + woodless.DisplayName + " makes no wood to fell");
                     if (tool == null) return Refuse(kind, VerbOutcome.NoTool, "nothing in hand to cut with: a heavy edge is wanted");
                     if (!IsEdge(tool, toolState) || toolState.Edge01 < CutLeastEdge) return Refuse(kind, VerbOutcome.NoTool, ThingWords.Describe(tool, toolState) + " is no edge to cut a tree with");
                     if (ThingWords.MassOf(tool, toolState) < CutLeastMassKg) return Refuse(kind, VerbOutcome.NoTool, ThingWords.Describe(tool, toolState) + " is too light to cut a tree with");

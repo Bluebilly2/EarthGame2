@@ -195,7 +195,7 @@ namespace EarthGame.Tests.Engine
                     Assert.That(code >> StandCodes.SpeciesShift, Is.EqualTo(PlantSpecies.NumberOf(tall)), "a code names its plant by the catalogue's number");
                     Assert.That(StandCodes.Tall[StandCodes.TallIndexOf(code)], Is.SameAs(tall));
                 }
-            Assert.That(StandCodes.Tall.Count, Is.EqualTo(5), "the five tall plants of Bherwerre");
+            Assert.That(StandCodes.Tall.Count, Is.EqualTo(11), "the five tall plants of Bherwerre and the Kangaroo Valley's six (WG.2c)");
             Assert.That(StandCodes.SpeciesOf(0), Is.Null);
             Assert.That(StandCodes.TallIndexOf(0), Is.EqualTo(-1));
             Assert.That(StandCodes.HeightOf(0), Is.EqualTo(0.0));
@@ -238,6 +238,8 @@ namespace EarthGame.Tests.Engine
             {
                 "Blackbutt", "Bangalay", "OldManBanksia", "CoastBanksia", "SwampPaperbark",
                 "GrassTree", "HeathBanksia", "Bracken", "Lomandra", "SawSedge", "KangarooGrass", "Spinifex",
+                // WG.2c stage two (2026-09-25): the Kangaroo Valley's own
+                "SydneyBlueGum", "CabbageTreePalm", "SilvertopAsh", "RiverOak", "ScribblyGum", "LillyPilly",
             };
             Assert.That(PlantSpecies.All.Count, Is.EqualTo(numbered.Length), "a new plant is numbered here as it is added at the catalogue's end");
             for (int i = 0; i < numbered.Length; i++)

@@ -94,6 +94,18 @@ namespace EarthGame.Engine
         /// <summary>The steepest face it will hold on to, rise over run.</summary>
         public double MaxSlope { get; }
 
+        /// <summary>
+        /// The slope up to which the plant keeps its full vigour, rise over run (WG.2c, 2026-09-25): past it the vigour falls in a
+        /// straight line to nothing at <see cref="MaxSlope"/>. Zero for the coast's twelve, whose vigour falls from level ground as
+        /// it did before this was a number.
+        ///
+        /// <para>Read from the Kangaroo Valley's records against the recorders' own walking (the target-group background, Phillips
+        /// and others 2009): Sydney blue gum is recorded 1.5 to 2.2 times as often as the recorders walk on 15 to 45 degrees, and
+        /// the cabbage tree palm 1.7 to 3.4 times on 15 to 35. A fall from level ground halved their vigour on a moderate slope,
+        /// and the world's canopy on the valley's walls fell to nothing where the real walls carry forest.</para>
+        /// </summary>
+        public double FullVigourSlope { get; }
+
         /// <summary>0 needs full sun, 1 thrives under a canopy.</summary>
         public double ShadeTolerance { get; }
 
@@ -170,8 +182,10 @@ namespace EarthGame.Engine
                              double crownShare = 0.0,
                              double sticksPerMetre = 0.0,
                              bool fibre = false,
-                             double tuberKg = 0.0)
+                             double tuberKg = 0.0,
+                             double fullVigourSlope = 0.0)
         {
+            FullVigourSlope = fullVigourSlope;
             Fibre = fibre;
             TuberKg = tuberKg;
             Name = name;
@@ -225,7 +239,9 @@ namespace EarthGame.Engine
                                                       / Math.Max(0.05, 0.35 * MaxSoilDepthM)));
             }
 
-            double slope = SimMath.Clamp01((MaxSlope - site.Slope) / MaxSlope);
+            // Full vigour to the plant's knee, then a straight fall to nothing at its steepest face (WG.2c). A knee of zero is
+            // the fall from level ground every coast plant has, to the bit: the divisor less zero is the divisor.
+            double slope = SimMath.Clamp01((MaxSlope - site.Slope) / (MaxSlope - FullVigourSlope));
 
             // Light. Under a canopy only the shade-tolerant do well; in the open, only the
             // wind-hard stand on an exposed crest.
@@ -379,10 +395,102 @@ namespace EarthGame.Engine
             maxSoilDepthM: 0.20,
             fibre: true);                     // the runners: workable, weaker than a lomandra leaf
 
+        // ---- the Kangaroo Valley's own (WG.2c, 2026-09-25; ECOSYSTEM.md, "The plants of the Kangaroo Valley") ----
+        //
+        // First values, each read from PlantNET's account of the plant's habitat and from where the Atlas of Living Australia's
+        // records lie on the whole valley's layers against where all the plants' records lie (the recorders' own walking as the
+        // background); the contract WG.2c states every number's source. species_check decides them, as it did the coast's.
+
+        /// <summary>
+        /// Sydney blue gum, <i>Eucalyptus saligna</i>: the tall wet forest of the valley's slopes and gullies. PlantNET's "wet
+        /// forest ... often on slopes", BioNet's "gullies and sheltered slopes", and recorded 1.5 to 2.2 times as often as the
+        /// recorders walk on 15 to 45 degrees; to 50 m. Smooth and powdery barked, so nothing to strip.
+        /// </summary>
+        public static readonly PlantSpecies SydneyBlueGum = new PlantSpecies(
+            "SydneyBlueGum", "Sydney blue gum", PlantForm.Tree,
+            moistureOptimum: 0.30, moistureBreadth: 0.25,
+            minSoilDepthM: 0.20, maxSlope: 0.90,
+            shadeTolerance: 0.30, exposureTolerance: 0.30,
+            minHeightM: 25.0, maxHeightM: 50.0,
+            crownShare: 0.35, sticksPerMetre: 0.5,
+            fullVigourSlope: 0.60);           // full vigour to 31 degrees, nothing past 42 (the records' 99th percentile)
+
+        /// <summary>
+        /// Cabbage tree palm, <i>Livistona australis</i>: a single stem to 30 m in the moist forest's gullies and at the rainforest's
+        /// margins (PlantNET), recorded 1.7 times as often as the recorders walk on the wettest ground and 1.7 to 3.4 times on 15 to
+        /// 35 degrees. A palm makes no wood (no <see cref="Wood"/> row), so it gives no stick and no log; it drops fronds, and a frond
+        /// as a thing is owed.
+        /// </summary>
+        public static readonly PlantSpecies CabbageTreePalm = new PlantSpecies(
+            "CabbageTreePalm", "cabbage tree palm", PlantForm.Tree,
+            moistureOptimum: 0.80, moistureBreadth: 0.25,
+            minSoilDepthM: 0.10, maxSlope: 0.80,
+            shadeTolerance: 0.70, exposureTolerance: 0.15,
+            minHeightM: 15.0, maxHeightM: 30.0,
+            crownShare: 0.25,                 // fronds 3 to 4.5 m long in one crown at the stem's top
+            fullVigourSlope: 0.70);           // full vigour to 35 degrees, nothing past 39
+
+        /// <summary>
+        /// Silvertop ash, <i>Eucalyptus sieberi</i>: the dry forest of the shallow soils on rises and the escarpment's rims
+        /// (PlantNET), recorded most on the driest ground and the steepest; to 45 m. Its bark is persistent on the trunk, shortly
+        /// fibrous and compact, and comes away in slabs.
+        /// </summary>
+        public static readonly PlantSpecies SilvertopAsh = new PlantSpecies(
+            "SilvertopAsh", "silvertop ash", PlantForm.Tree,
+            moistureOptimum: 0.10, moistureBreadth: 0.20,
+            minSoilDepthM: 0.20, maxSlope: 0.95,
+            shadeTolerance: 0.25, exposureTolerance: 0.70,
+            minHeightM: 15.0, maxHeightM: 45.0,
+            strippableBarkM: 0.008,
+            crownShare: 0.35, sticksPerMetre: 0.5);
+
+        /// <summary>
+        /// River oak, <i>Casuarina cunninghamiana</i>: "along permanent freshwater streams" (PlantNET), 38 per cent of its records
+        /// within 50 m of a creek or a stream against 18 per cent of all the records; 15 to 35 m. It sheds its branchlets as a
+        /// mat, and fewer twigs than a eucalypt; its bark is finely fissured and does not strip.
+        /// </summary>
+        public static readonly PlantSpecies RiverOak = new PlantSpecies(
+            "RiverOak", "river oak", PlantForm.Tree,
+            moistureOptimum: 0.80, moistureBreadth: 0.20,
+            minSoilDepthM: 0.45, maxSlope: 0.55,
+            shadeTolerance: 0.20, exposureTolerance: 0.30,
+            minHeightM: 15.0, maxHeightM: 35.0,
+            crownShare: 0.35, sticksPerMetre: 0.4);
+
+        /// <summary>
+        /// Scribbly gum, <i>Eucalyptus racemosa</i> (the Atlas files its records under its former name, <i>E. sclerophylla</i>):
+        /// the dry woodland on the plateau's sandy soil (PlantNET), its records on level ground and a fifth as often as the
+        /// recorders walk on 15 to 25 degrees; to 15 m. Smooth, with scribbles, shedding in short ribbons.
+        /// </summary>
+        public static readonly PlantSpecies ScribblyGum = new PlantSpecies(
+            "ScribblyGum", "scribbly gum", PlantForm.SmallTree,
+            moistureOptimum: 0.30, moistureBreadth: 0.25,
+            minSoilDepthM: 0.20, maxSlope: 0.35,
+            shadeTolerance: 0.15, exposureTolerance: 0.60,
+            minHeightM: 7.5, maxHeightM: 15.0,
+            crownShare: 0.55, sticksPerMetre: 0.5);
+
+        /// <summary>
+        /// Lilly pilly, <i>Syzygium smithii</i> (PlantNET files it as <i>Acmena smithii</i>): the valley's rainforest canopy tree,
+        /// "widespread in rainforest ... often along watercourses" (PlantNET), its records in the pre-1750 vegetation map's
+        /// rainforest 1.38 times as often as the recorders' and on 15 to 35 degrees 1.3 to 1.8 times; a tree to 20 m, its
+        /// berries food. Raised in shade; smooth to slightly flaky bark that does not strip.
+        /// </summary>
+        public static readonly PlantSpecies LillyPilly = new PlantSpecies(
+            "LillyPilly", "lilly pilly", PlantForm.Tree,
+            moistureOptimum: 0.60, moistureBreadth: 0.35,
+            minSoilDepthM: 0.10, maxSlope: 0.80,
+            shadeTolerance: 0.85, exposureTolerance: 0.20,
+            minHeightM: 10.0, maxHeightM: 20.0,
+            crownShare: 0.50, sticksPerMetre: 0.3,
+            fullVigourSlope: 0.70);           // full vigour to 35 degrees, nothing past 39 (the records' 99th percentile, 0.79)
+
         private static readonly PlantSpecies[] AllSpecies =
         {
             Blackbutt, Bangalay, OldManBanksia, CoastBanksia, SwampPaperbark,
             GrassTree, HeathBanksia, Bracken, Lomandra, SawSedge, KangarooGrass, Spinifex,
+            // WG.2c: the catalogue only ever grows at its end (NumberOf).
+            SydneyBlueGum, CabbageTreePalm, SilvertopAsh, RiverOak, ScribblyGum, LillyPilly,
         };
 
         public static IReadOnlyList<PlantSpecies> All => AllSpecies;
@@ -432,6 +540,10 @@ namespace EarthGame.Engine
     /// have the sun. Drawn the old way, any tree that could stand on a cell took it, and the peninsula came out
     /// under a canopy on all but a tenth of a percent of its land, the beaches included, where the park that holds
     /// it describes heaths; nothing that needs full sun could win anywhere a tree could survive.</para>
+    ///
+    /// <para>And a site is contested only by the plants its region carries (WG.2c, 2026-09-25; <see cref="Region.Plants"/>),
+    /// which every call names: the regional species pool, the history of which plants reached a country, where the tolerances
+    /// then place them within it. The coast's twelve are its own; the plants added for the Kangaroo Valley never reach it.</para>
     /// </summary>
     public static class PlantCommunity
     {
@@ -447,42 +559,47 @@ namespace EarthGame.Engine
         /// <summary>Below this nothing of that form can hold the site at all.</summary>
         public const double MinimumViable = 0.02;
 
-        /// <summary>The overstory here, or null where nothing tall can stand.</summary>
-        public static PlantSpecies Canopy(in PlantSite site, double roll)
-            => Draw(site, roll, PlantForm.Tree, PlantForm.SmallTree);
+        /// <summary>The overstory here from the region's plants, or null where none of them tall can stand.</summary>
+        public static PlantSpecies Canopy(in PlantSite site, double roll, IReadOnlyList<PlantSpecies> plants)
+            => Draw(site, roll, plants, PlantForm.Tree, PlantForm.SmallTree);
 
-        /// <summary>How much of this ground the tall plants cover, 0 to 1: as much as the best suited of them is suited to it.</summary>
-        public static double CanopyCover(in PlantSite site)
-            => Math.Max(TotalSuitability(site, PlantForm.Tree), TotalSuitability(site, PlantForm.SmallTree));
+        /// <summary>How much of this ground the region's tall plants cover, 0 to 1: as much as the best suited of them is suited to it.</summary>
+        public static double CanopyCover(in PlantSite site, IReadOnlyList<PlantSpecies> plants)
+            => Math.Max(TotalSuitability(site, PlantForm.Tree, plants), TotalSuitability(site, PlantForm.SmallTree, plants));
 
         /// <summary>
         /// The overstory on one cell, or null where the cell is open: something tall stands there when the first
         /// roll falls inside <see cref="CanopyCover"/>, and which one it is is the second roll's draw.
         /// </summary>
-        public static PlantSpecies Canopy(in PlantSite site, double standRoll, double speciesRoll)
-            => standRoll < CanopyCover(site) ? Canopy(site, speciesRoll) : null;
+        public static PlantSpecies Canopy(in PlantSite site, double standRoll, double speciesRoll, IReadOnlyList<PlantSpecies> plants)
+            => standRoll < CanopyCover(site, plants) ? Canopy(site, speciesRoll, plants) : null;
 
-        /// <summary>The understory here, scored against whatever the canopy is doing to the light.</summary>
-        public static PlantSpecies Understory(in PlantSite site, double roll)
-            => Draw(site, roll, PlantForm.Shrub, PlantForm.Herb, PlantForm.Grass);
+        /// <summary>The understory here from the region's plants, scored against whatever the canopy is doing to the light.</summary>
+        public static PlantSpecies Understory(in PlantSite site, double roll, IReadOnlyList<PlantSpecies> plants)
+            => Draw(site, roll, plants, PlantForm.Shrub, PlantForm.Herb, PlantForm.Grass);
 
-        /// <summary>How well this ground supports a given form at all, 0 to 1.</summary>
-        public static double TotalSuitability(in PlantSite site, PlantForm form)
+        /// <summary>How well this ground supports a given form of the region's plants at all, 0 to 1.</summary>
+        public static double TotalSuitability(in PlantSite site, PlantForm form, IReadOnlyList<PlantSpecies> plants)
         {
+            if (plants == null) throw new ArgumentNullException(nameof(plants), "a site is contested by a region's plants: name them");
             double best = 0.0;
-            IReadOnlyList<PlantSpecies> all = PlantSpecies.All;
-            for (int i = 0; i < all.Count; i++)
+            for (int i = 0; i < plants.Count; i++)
             {
-                if (all[i].Form != form) continue;
-                double s = all[i].Suitability(site);
+                if (plants[i].Form != form) continue;
+                double s = plants[i].Suitability(site);
                 if (s > best) best = s;
             }
             return best;
         }
 
-        private static PlantSpecies Draw(in PlantSite site, double roll, params PlantForm[] forms)
+        /// <summary>
+        /// The weighted draw. The plants are taken in the order the list gives them, and a region's list is in the catalogue's
+        /// order (<see cref="Region.Plants"/>), so the coast's twelve are summed as the whole catalogue was before regions named
+        /// their plants, and every draw on the coast comes out as it did.
+        /// </summary>
+        private static PlantSpecies Draw(in PlantSite site, double roll, IReadOnlyList<PlantSpecies> all, params PlantForm[] forms)
         {
-            IReadOnlyList<PlantSpecies> all = PlantSpecies.All;
+            if (all == null) throw new ArgumentNullException(nameof(all), "a site is contested by a region's plants: name them");
 
             double total = 0.0;
             for (int i = 0; i < all.Count; i++)

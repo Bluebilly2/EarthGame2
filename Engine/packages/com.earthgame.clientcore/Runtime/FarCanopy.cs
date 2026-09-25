@@ -50,12 +50,17 @@ namespace EarthGame.ClientCore
         /// <summary>How many crowns deep a grazing view of a far square looks through, for <see cref="SeenShare"/>.</summary>
         public const double SeenPower = 4.0;
 
-        /// <summary>A far square's colour: the bare ground, and its trees' foliage over it by the share of it a view sees them hide.</summary>
+        /// <summary>
+        /// A far square's colour: the bare ground, and its trees' foliage over it by the share of it a view sees them hide. A tall
+        /// plant with no form fails here by name (WG.2c, 2026-09-25): it was painted blackbutt's green, which would have hidden a
+        /// new tree's missing row on every far hill.
+        /// </summary>
         public static GroundColour ColourOf(ushort farStandCode, int count)
         {
             double share = SeenShare(ShareOf(farStandCode, count));
             if (!(share > 0.0)) return Bare;
-            TreeForm form = StandForms.For(StandCodes.SpeciesOf(farStandCode)) ?? StandForms.Blackbutt;
+            PlantSpecies species = StandCodes.SpeciesOf(farStandCode);
+            TreeForm form = StandForms.For(species) ?? throw new InvalidOperationException(species.Name + " stands in a far square and has no form to be coloured by");
             Rgb foliage = form.Foliage;
             return GroundColour.Between(Bare, new GroundColour(foliage.R, foliage.G, foliage.B), (float)share);
         }

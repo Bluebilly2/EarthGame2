@@ -42,6 +42,7 @@ namespace EarthGame.ClientCore
         public float CrownSquash => Geometry.CrownSquash;
         public float LeanDeg => Geometry.LeanDeg;
         public float StockingShare => Geometry.StockingShare;
+        public CrownKind Crown => Geometry.Crown;
 
         public Rgb BarkLow { get; }
         public Rgb BarkHigh { get; }
@@ -81,6 +82,33 @@ namespace EarthGame.ClientCore
         /// <summary>Swamp paperbark: pale papery bark and fine dark leaves.</summary>
         public static readonly TreeForm SwampPaperbark = new TreeForm(TreeGeometries.SwampPaperbark,
             barkLow: new Rgb(0.78f, 0.74f, 0.64f), barkHigh: new Rgb(0.82f, 0.78f, 0.68f), foliage: new Rgb(0.24f, 0.31f, 0.19f));
+
+        // ---- the Kangaroo Valley's trees (WG.2c, 2026-09-25): first colours from PlantNET's descriptions, in sRGB as the rows
+        // above are (the meshes make them linear), for William's eyes ----
+
+        /// <summary>Sydney blue gum: rough grey-brown bark at the foot, smooth pale blue-grey above, a glossy dark crown.</summary>
+        public static readonly TreeForm SydneyBlueGum = new TreeForm(TreeGeometries.SydneyBlueGum,
+            barkLow: new Rgb(0.40f, 0.35f, 0.29f), barkHigh: new Rgb(0.78f, 0.80f, 0.79f), foliage: new Rgb(0.22f, 0.32f, 0.20f));
+
+        /// <summary>Cabbage tree palm: a grey-brown ringed stem and glossy green fronds.</summary>
+        public static readonly TreeForm CabbageTreePalm = new TreeForm(TreeGeometries.CabbageTreePalm,
+            barkLow: new Rgb(0.44f, 0.40f, 0.35f), barkHigh: new Rgb(0.50f, 0.46f, 0.40f), foliage: new Rgb(0.28f, 0.40f, 0.22f));
+
+        /// <summary>Silvertop ash: rough, dark compact bark on the trunk, smooth white upper limbs, a glossy crown.</summary>
+        public static readonly TreeForm SilvertopAsh = new TreeForm(TreeGeometries.SilvertopAsh,
+            barkLow: new Rgb(0.30f, 0.27f, 0.24f), barkHigh: new Rgb(0.80f, 0.78f, 0.73f), foliage: new Rgb(0.26f, 0.34f, 0.21f));
+
+        /// <summary>River oak: grey-brown fissured bark, and a dark grey-green crown of fine branchlets.</summary>
+        public static readonly TreeForm RiverOak = new TreeForm(TreeGeometries.RiverOak,
+            barkLow: new Rgb(0.37f, 0.32f, 0.27f), barkHigh: new Rgb(0.40f, 0.35f, 0.30f), foliage: new Rgb(0.22f, 0.28f, 0.21f));
+
+        /// <summary>Scribbly gum: smooth white bark all over, a grey-green crown.</summary>
+        public static readonly TreeForm ScribblyGum = new TreeForm(TreeGeometries.ScribblyGum,
+            barkLow: new Rgb(0.80f, 0.79f, 0.74f), barkHigh: new Rgb(0.84f, 0.83f, 0.78f), foliage: new Rgb(0.34f, 0.40f, 0.28f));
+
+        /// <summary>Lilly pilly: a smooth light brown trunk and a deep, dark, glossy crown.</summary>
+        public static readonly TreeForm LillyPilly = new TreeForm(TreeGeometries.LillyPilly,
+            barkLow: new Rgb(0.48f, 0.42f, 0.36f), barkHigh: new Rgb(0.52f, 0.46f, 0.40f), foliage: new Rgb(0.16f, 0.29f, 0.15f));
 
         /// <summary>A fallen stick's weathered grey-brown.</summary>
         public static readonly Rgb Stick = new Rgb(0.45f, 0.38f, 0.30f);
@@ -153,7 +181,11 @@ namespace EarthGame.ClientCore
         /// <summary>A trunk's radius at a height above its foot, m (M1.6b): the engine's line, so what stops a founder, what is stripped and what is cut is the wood that is drawn.</summary>
         public static double TrunkRadiusAt(TreeForm form, double heightM, double upM) => TreeGeometries.TrunkRadiusAt(form?.Geometry, heightM, upM);
 
-        private static readonly TreeForm[] Forms = { Blackbutt, Bangalay, OldManBanksia, CoastBanksia, SwampPaperbark };
+        private static readonly TreeForm[] Forms =
+        {
+            Blackbutt, Bangalay, OldManBanksia, CoastBanksia, SwampPaperbark,
+            SydneyBlueGum, CabbageTreePalm, SilvertopAsh, RiverOak, ScribblyGum, LillyPilly,
+        };
 
         /// <summary>The form of a tall plant, or null for a plant that does not stand as a tree.</summary>
         public static TreeForm For(PlantSpecies species)

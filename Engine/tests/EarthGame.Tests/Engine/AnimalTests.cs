@@ -22,16 +22,19 @@ namespace EarthGame.Tests.Engine
         /// <summary>The hind dune: deep moist sand under blackbutt.</summary>
         private static PlantSite HindDuneForest() => new PlantSite { Wetness = 0.55, SoilDepthM = 1.20, Slope = 0.05, Exposure = 0.10, Shaded = false };
 
+        /// <summary>The coast's twelve, whose suitability the sites here are fed by (WG.2c: a region's plants).</summary>
+        private static readonly IReadOnlyList<PlantSpecies> Coast = Region.Bherwerre.Plants;
+
         private const double AtWater = 300.0;
         private const double AugustDaylightHours = 10.6;
 
         [Test]
         public void KangarooDensityLandsInTheBandOnGoodGround()
         {
-            double flat = AnimalCapacity.PerKm2(AnimalSpecies.EasternGreyKangaroo, GrassyFlat(), AtWater);
+            double flat = AnimalCapacity.PerKm2(AnimalSpecies.EasternGreyKangaroo, GrassyFlat(), Coast, AtWater);
             Assert.That(flat, Is.InRange(10.0, 30.0), "a grassy flat within reach of water gave " + flat.ToString("F1") + " kangaroos per km², against the band of 10–30");
 
-            double crest = AnimalCapacity.PerKm2(AnimalSpecies.EasternGreyKangaroo, BareCrest(), AtWater);
+            double crest = AnimalCapacity.PerKm2(AnimalSpecies.EasternGreyKangaroo, BareCrest(), Coast, AtWater);
             Assert.That(crest, Is.LessThan(2.0), "and a bare crest must fall toward nothing, not merely thin: got " + crest.ToString("F2") + " per km²");
             Assert.That(flat, Is.GreaterThan(crest * 5.0), "the flat must beat the crest by a wide margin or the capacity field is flat country wearing an ecology");
         }
@@ -40,19 +43,19 @@ namespace EarthGame.Tests.Engine
         public void CapacityFollowsTheForageAndNotThePlace()
         {
             PlantSite flat = GrassyFlat(), crest = BareCrest();
-            double grassOnFlat = PlantCommunity.TotalSuitability(flat, PlantForm.Grass);
-            double grassOnCrest = PlantCommunity.TotalSuitability(crest, PlantForm.Grass);
+            double grassOnFlat = PlantCommunity.TotalSuitability(flat, PlantForm.Grass, Coast);
+            double grassOnCrest = PlantCommunity.TotalSuitability(crest, PlantForm.Grass, Coast);
             Assert.That(grassOnFlat, Is.GreaterThan(grassOnCrest), "the premise: the flat must actually grow more grass than the crest");
 
-            double grazerFlat = AnimalCapacity.ForageScore(ForageStyle.Grazer, flat);
-            double grazerCrest = AnimalCapacity.ForageScore(ForageStyle.Grazer, crest);
+            double grazerFlat = AnimalCapacity.ForageScore(ForageStyle.Grazer, flat, Coast);
+            double grazerCrest = AnimalCapacity.ForageScore(ForageStyle.Grazer, crest, Coast);
             Assert.That(grazerFlat, Is.GreaterThan(grazerCrest), "so the grazer's feed must follow it");
 
             bool everDisagree = false;
             foreach (PlantSite site in new[] { flat, crest, HindDuneForest() })
             {
-                double g = AnimalCapacity.ForageScore(ForageStyle.Grazer, site);
-                double b = AnimalCapacity.ForageScore(ForageStyle.Browser, site);
+                double g = AnimalCapacity.ForageScore(ForageStyle.Grazer, site, Coast);
+                double b = AnimalCapacity.ForageScore(ForageStyle.Browser, site, Coast);
                 if (Math.Abs(g - b) > 0.05) { everDisagree = true; break; }
             }
             Assert.That(everDisagree, Is.True, "grazing and browsing must be able to rank the same ground differently, or the forage styles are a label rather than a model");
@@ -64,16 +67,16 @@ namespace EarthGame.Tests.Engine
             // Under the blackbutts the shrub layer is scored shaded, as the community's own understory draw
             // scores it; a browser finds little, an insectivore finds the whole standing crop, canopy included.
             PlantSite forest = HindDuneForest();
-            double timber = PlantCommunity.TotalSuitability(forest, PlantForm.Tree);
+            double timber = PlantCommunity.TotalSuitability(forest, PlantForm.Tree, Coast);
             Assert.That(timber, Is.GreaterThan(AnimalCapacity.CanopyStands), "the premise: a canopy stands here (" + timber.ToString("F2") + ")");
 
             PlantSite openScore = forest;
             openScore.Shaded = false;
-            double shrubsInTheOpen = PlantCommunity.TotalSuitability(openScore, PlantForm.Shrub);
-            double browse = AnimalCapacity.ForageScore(ForageStyle.Browser, forest);
+            double shrubsInTheOpen = PlantCommunity.TotalSuitability(openScore, PlantForm.Shrub, Coast);
+            double browse = AnimalCapacity.ForageScore(ForageStyle.Browser, forest, Coast);
             Assert.That(browse, Is.LessThan(shrubsInTheOpen * 0.5), "the shrubs a browser is fed by are the shaded ones: " + browse.ToString("F2") + " against " + shrubsInTheOpen.ToString("F2") + " unshaded");
 
-            double insects = AnimalCapacity.ForageScore(ForageStyle.Insectivore, forest);
+            double insects = AnimalCapacity.ForageScore(ForageStyle.Insectivore, forest, Coast);
             Assert.That(insects, Is.GreaterThan(browse * 2.0), "and the canopy feeds the wren where it cannot feed a browser");
         }
 
@@ -83,15 +86,15 @@ namespace EarthGame.Tests.Engine
             AnimalSpecies bird = AnimalSpecies.PiedOystercatcher;
             PlantSite beach = new PlantSite { Wetness = 0.2, SoilDepthM = 0.02, Slope = 0.05, Exposure = 1.0, Shaded = false };
 
-            double onTheShore = AnimalCapacity.PerKm2(bird, beach, AtWater, shoreDistanceM: 20.0);
-            double inland = AnimalCapacity.PerKm2(bird, GrassyFlat(), AtWater, shoreDistanceM: 2000.0);
-            double unstated = AnimalCapacity.PerKm2(bird, GrassyFlat(), AtWater);
+            double onTheShore = AnimalCapacity.PerKm2(bird, beach, Coast, AtWater, shoreDistanceM: 20.0);
+            double inland = AnimalCapacity.PerKm2(bird, GrassyFlat(), Coast, AtWater, shoreDistanceM: 2000.0);
+            double unstated = AnimalCapacity.PerKm2(bird, GrassyFlat(), Coast, AtWater);
 
             Assert.That(onTheShore, Is.GreaterThan(bird.PeakDensityPerKm2 * 0.8), "the beach at its best holds the pair: " + onTheShore.ToString("F1"));
             Assert.That(inland, Is.EqualTo(0.0), "two kilometres from the water's edge there is nothing for it");
             Assert.That(unstated, Is.EqualTo(0.0), "and no shore stated is no shore");
-            Assert.That(AnimalCapacity.PerKm2(bird, beach, double.PositiveInfinity, shoreDistanceM: 20.0), Is.GreaterThan(0.0), "fresh water does not enter: it drinks from what it eats");
-            Assert.That(AnimalCapacity.PerKm2(AnimalSpecies.EasternGreyKangaroo, beach, AtWater, shoreDistanceM: 20.0), Is.LessThan(1.0), "while the bare beach feeds no kangaroo");
+            Assert.That(AnimalCapacity.PerKm2(bird, beach, Coast, double.PositiveInfinity, shoreDistanceM: 20.0), Is.GreaterThan(0.0), "fresh water does not enter: it drinks from what it eats");
+            Assert.That(AnimalCapacity.PerKm2(AnimalSpecies.EasternGreyKangaroo, beach, Coast, AtWater, shoreDistanceM: 20.0), Is.LessThan(1.0), "while the bare beach feeds no kangaroo");
         }
 
         [Test]
@@ -100,14 +103,14 @@ namespace EarthGame.Tests.Engine
             AnimalSpecies roo = AnimalSpecies.EasternGreyKangaroo;
             PlantSite flat = GrassyFlat();
 
-            double near = AnimalCapacity.PerKm2(roo, flat, 200.0);
-            double mid = AnimalCapacity.PerKm2(roo, flat, roo.WaterRangeM * 0.7);
-            double far = AnimalCapacity.PerKm2(roo, flat, roo.WaterRangeM * 1.2);
+            double near = AnimalCapacity.PerKm2(roo, flat, Coast, 200.0);
+            double mid = AnimalCapacity.PerKm2(roo, flat, Coast, roo.WaterRangeM * 0.7);
+            double far = AnimalCapacity.PerKm2(roo, flat, Coast, roo.WaterRangeM * 1.2);
 
             Assert.That(near, Is.GreaterThan(mid), "the walk must cost something before it costs everything");
             Assert.That(mid, Is.GreaterThan(0.0), "and must not be a cliff at the comfortable distance");
             Assert.That(far, Is.EqualTo(0.0), "past its range the best grass in the world holds nothing");
-            Assert.That(AnimalCapacity.PerKm2(roo, flat, double.PositiveInfinity), Is.EqualTo(0.0), "and 'no water found' is a legitimate answer that empties the ground");
+            Assert.That(AnimalCapacity.PerKm2(roo, flat, Coast, double.PositiveInfinity), Is.EqualTo(0.0), "and 'no water found' is a legitimate answer that empties the ground");
         }
 
         [Test]

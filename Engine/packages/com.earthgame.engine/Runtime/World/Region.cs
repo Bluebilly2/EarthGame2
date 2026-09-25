@@ -61,9 +61,18 @@ namespace EarthGame.Engine
         /// <summary>The dams whose walls the water is let across, at their published points (WG.1b).</summary>
         public IReadOnlyList<Dam> Dams { get; }
 
+        /// <summary>
+        /// Which of the plant catalogue's plants the region's country carries, in the catalogue's order (WG.2c, 2026-09-25): the
+        /// regional species pool. Which plants reached a country is its history, and the tolerances then place them within it
+        /// (<see cref="PlantCommunity"/>), so the list says nothing about where in the region a plant stands. A region that names
+        /// none carries the coast's (<see cref="CoastPlants"/>), as every world did before regions named their plants.
+        /// </summary>
+        public IReadOnlyList<PlantSpecies> Plants { get; }
+
         public Region(string id, string displayName, double centreLatitudeDeg, double centreLongitudeDeg,
                       double extentM, int wakeDayOfYear, double wakeLocalHour,
-                      IReadOnlyList<string> heldLakes = null, IReadOnlyList<Dam> dams = null)
+                      IReadOnlyList<string> heldLakes = null, IReadOnlyList<Dam> dams = null,
+                      IReadOnlyList<PlantSpecies> plants = null)
         {
             Id = id;
             DisplayName = displayName;
@@ -74,7 +83,58 @@ namespace EarthGame.Engine
             WakeLocalHour = wakeLocalHour;
             HeldLakes = heldLakes ?? Array.Empty<string>();
             Dams = dams ?? Array.Empty<Dam>();
+            Plants = plants == null ? CoastPlants : InCatalogueOrder(plants);
         }
+
+        /// <summary>
+        /// A list of plants in the catalogue's order, each once. The draw sums the plants in the order it is given them, so the
+        /// order is the catalogue's whatever order a list is written in: the coast's twelve are then summed exactly as the whole
+        /// catalogue was before regions named their plants.
+        /// </summary>
+        private static PlantSpecies[] InCatalogueOrder(IReadOnlyList<PlantSpecies> plants)
+        {
+            var ordered = new List<PlantSpecies>(plants.Count);
+            foreach (PlantSpecies plant in plants)
+            {
+                if (plant == null || PlantSpecies.NumberOf(plant) == 0) throw new ArgumentException("a region's plants are the catalogue's", nameof(plants));
+                if (ordered.Contains(plant)) throw new ArgumentException(plant.Name + " is named twice in a region's plants", nameof(plants));
+                ordered.Add(plant);
+            }
+            ordered.Sort((a, b) => PlantSpecies.NumberOf(a).CompareTo(PlantSpecies.NumberOf(b)));
+            return ordered.ToArray();
+        }
+
+        /// <summary>
+        /// The coast's twelve (M1.2; <c>ECOSYSTEM.md</c>, "The plants of Bherwerre"): Bherwerre's own, and the plants of a region
+        /// that names none and of a world whose heights name no region this build knows (the tests' fixtures). Declared before
+        /// the regions, whose construction reads it.
+        /// </summary>
+        public static readonly IReadOnlyList<PlantSpecies> CoastPlants = InCatalogueOrder(new[]
+        {
+            PlantSpecies.Blackbutt, PlantSpecies.Bangalay, PlantSpecies.OldManBanksia, PlantSpecies.CoastBanksia, PlantSpecies.SwampPaperbark,
+            PlantSpecies.GrassTree, PlantSpecies.HeathBanksia, PlantSpecies.Bracken, PlantSpecies.Lomandra, PlantSpecies.SawSedge,
+            PlantSpecies.KangarooGrass, PlantSpecies.Spinifex,
+        });
+
+        /// <summary>
+        /// The Kangaroo Valley's fifteen (WG.2c, 2026-09-25), one list for both its regions, since they are one country. Of the
+        /// coast's, the eight WG.2 keeps (blackbutt, old-man banksia, heath banksia, the grass tree, bracken, Lomandra, saw-sedge
+        /// and kangaroo grass) and bangalay, whose records over the whole valley's box lie half on the Shoalhaven's floodplain and
+        /// half 7 to 22 km inland in the valley's own forests (19 of its 36 usable records), where BioNet names a "Sydney Blue Gum x
+        /// Bangalay" moist forest. The valley's own six: Sydney blue gum, the cabbage tree palm, silvertop ash, river oak, scribbly
+        /// gum and lilly pilly. Coast banksia's and swamp paperbark's valley records lie on the floodplain within about 2 km of the
+        /// sea, and spinifex has one.
+        /// </summary>
+        private static readonly IReadOnlyList<PlantSpecies> KangarooValleyPlants = InCatalogueOrder(new[]
+        {
+            PlantSpecies.Blackbutt, PlantSpecies.Bangalay, PlantSpecies.OldManBanksia, PlantSpecies.GrassTree, PlantSpecies.HeathBanksia, PlantSpecies.Bracken,
+            PlantSpecies.Lomandra, PlantSpecies.SawSedge, PlantSpecies.KangarooGrass,
+            PlantSpecies.SydneyBlueGum, PlantSpecies.CabbageTreePalm, PlantSpecies.SilvertopAsh, PlantSpecies.RiverOak,
+            PlantSpecies.ScribblyGum, PlantSpecies.LillyPilly,
+        });
+
+        /// <summary>The plants of a world's region, or the coast's for a world of no region this build knows (<see cref="Plants"/>).</summary>
+        public static IReadOnlyList<PlantSpecies> PlantsOf(Region region) => region != null ? region.Plants : CoastPlants;
 
         /// <summary>
         /// The first world: the southern shore of Jervis Bay, NSW (plan §4.2; CANON ruling 8). 8 × 8 km centred at
@@ -88,7 +148,7 @@ namespace EarthGame.Engine
         /// </summary>
         public static readonly Region Bherwerre = new Region(
             "bherwerre", "Bherwerre Peninsula, Jervis Bay", -35.140, 150.675, 8000.0, 237, 8.0,
-            heldLakes: new[] { "Lake Windermere", "Lake Mckenzie", "Blacks Waterhole" });
+            heldLakes: new[] { "Lake Windermere", "Lake Mckenzie", "Blacks Waterhole" }, plants: CoastPlants);
 
         /// <summary>
         /// Fitzroy Falls Dam on Yarrunga Creek (Wikipedia, "Fitzroy Falls Dam": 34°38′46″S 150°29′15″E, 14 m high, 1,530 m long,
@@ -105,7 +165,7 @@ namespace EarthGame.Engine
         /// </summary>
         public static readonly Region KangarooValley = new Region(
             "kangaroo-valley", "Kangaroo Valley, Fitzroy Falls", -34.660, 150.500, 8000.0, 237, 8.0,
-            dams: new[] { FitzroyFallsDam });
+            dams: new[] { FitzroyFallsDam }, plants: KangarooValleyPlants);
 
         /// <summary>
         /// The whole Kangaroo Valley (CANON ruling 45, 2026-09-23; WG.2b): rim to rim with Fitzroy, Belmore and Carrington Falls,
@@ -115,7 +175,7 @@ namespace EarthGame.Engine
         /// </summary>
         public static readonly Region KangarooValleyWhole = new Region(
             "kangaroo-valley-whole", "Kangaroo Valley, rim to rim", -34.705, 150.589, 32000.0, 237, 8.0,
-            dams: new[] { FitzroyFallsDam });
+            dams: new[] { FitzroyFallsDam }, plants: KangarooValleyPlants);
 
         /// <summary>The clock at the moment the founder wakes here.</summary>
         public WorldClock WakeClock() => WorldClock.FromLocal(WakeDayOfYear, WakeLocalHour, CentreLongitudeDeg);

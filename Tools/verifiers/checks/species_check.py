@@ -14,7 +14,11 @@ decimal places of both coordinates where none is stated). The records are presen
 and biased towards plants people notice, so they can say where a plant is and never how much of it there is.
 That is why no row asks for an area.
 
-Rows, for every plant with at least MIN_RECORDS usable records, each printed with both numbers:
+First, a row for the world (WG.2c, 2026-09-25): it grows its region's plants and no others, the lists restated below from
+Docs/ECOSYSTEM.md ("The plants and stones of Bherwerre", "The plants of the Kangaroo Valley"); a region it has no list for
+prints a note.
+
+Then rows, for every plant with at least MIN_RECORDS usable records, each printed with both numbers:
   1. round its records: the plant's share of the land within 100 m of its records, against its share of all the
      land in the box. At least one means the world grows it at least as often where it was found as anywhere;
      below one, the world has it elsewhere. For a plant the world grows on under a hectare the share means
@@ -55,6 +59,15 @@ MIN_SHARE_RATIO = 1.0
 SEA_RATIO = 2.0
 TINY_HA = 1.0
 SEA = 7
+LAKE = 5
+
+# Which of the catalogue's plants each region's country carries (WG.2c, 2026-09-25), restated from ECOSYSTEM.md's lists.
+COAST_PLANTS = ("Blackbutt", "Bangalay", "OldManBanksia", "CoastBanksia", "SwampPaperbark", "GrassTree", "HeathBanksia",
+                "Bracken", "Lomandra", "SawSedge", "KangarooGrass", "Spinifex")
+VALLEY_PLANTS = ("Blackbutt", "Bangalay", "OldManBanksia", "GrassTree", "HeathBanksia", "Bracken", "Lomandra", "SawSedge", "KangarooGrass",
+                 "SydneyBlueGum", "CabbageTreePalm", "SilvertopAsh", "RiverOak", "ScribblyGum", "LillyPilly")
+REGION_PLANTS = {"bherwerre": COAST_PLANTS, "kangaroo-valley": VALLEY_PLANTS, "kangaroo-valley-whole": VALLEY_PLANTS}
+OWN_PLANTS = "grows its region's plants and no others"
 
 # The rows M1.2b's four fixes left off (2026-09-10), each owed under the DEBTS.md row named; and the valley's rows, where
 # the coast's plant table is grown by the coast's rules until the valley has a table of its own (WG.2, 2026-09-22).
@@ -184,6 +197,22 @@ def main(argv):
         else:
             print("%-44s owed %s (DEBTS.md: \"%s\")" % (name, detail, debt))
             owed.append(name)
+
+    region = region_of(world)
+    listed = REGION_PLANTS.get(region)
+    if listed is None:
+        print("%-44s note  this check holds no list of plants for the region %s" % ("the world: " + OWN_PLANTS, region))
+    else:
+        named = {code: name for name, code in codes.items()}
+        grown = np.zeros(256, dtype=np.int64)
+        for grid in (over, under):
+            grown += np.bincount(grid[land & (water != LAKE)].astype(np.int64).ravel(), minlength=256)[:256]
+        grown_names = {named.get(code, "number %d" % code): int(grown[code]) for code in range(1, 256) if grown[code]}
+        strays = sorted(n for n in grown_names if n not in listed)
+        expect("world", "the world", OWN_PLANTS, not strays,
+               "%d plants grown, of the %d ECOSYSTEM.md lists for %s%s" % (
+                   len(grown_names), len(listed), region,
+                   ("; grown and not carried: " + ", ".join("%s on %s cells" % (n, "{:,}".format(grown_names[n])) for n in strays)) if strays else ""))
 
     for path in files:
         doc = json.load(open(path, encoding="utf-8"))

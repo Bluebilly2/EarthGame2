@@ -263,3 +263,53 @@ ceiling that `AnimalCapacity` scales down by forage, water and slope. The source
 What the list leaves out, and why: the swamp wallaby, the echidna, the bandicoot and the possums of the
 peninsula's record wait for the biosphere after the beta arc (`BIOSPHERE.md`, CANON ruling 27); the megafauna are absent because the peninsula has no
 fossil record of them the canon has them (2026-08-25), and this list names only what the peninsula's own record supports.
+
+## The plants of the Kangaroo Valley (WG.2c, 2026-09-25)
+
+A region names the plants its country carries (`Region.Plants`), and a site is contested only by them
+(`PlantCommunity`): which plants reached a country is its history, and the tolerances then place them within it, so the
+principle above holds inside a region as it did before. Bherwerre carries its twelve, so nothing added for the valley
+reaches the coast. Both Kangaroo Valley regions carry fifteen: of the coast's, blackbutt, bangalay, old-man banksia, heath
+banksia, the grass tree, bracken, Lomandra, saw-sedge and kangaroo grass; and the six below. Bangalay's records over the whole
+valley's box lie half on the Shoalhaven's floodplain and half 7 to 22 km inland in the valley's own forests (19 of its 36
+usable records), where BioNet names a "Sydney Blue Gum x Bangalay" moist forest; its row is the coast's, a sand forest's
+height of 12 to 20 m where the valley's moist forest carries it taller. Coast banksia's and swamp paperbark's valley records
+lie on the floodplain within about 2 km of the sea, and spinifex has one.
+
+The six take the numbers 13 to 18 at the plant catalogue's end, and every number is a first value from the sources the
+contract (`contracts/WG.2c_THE_VALLEYS_OWN_PLANTS.md`) states line by line: PlantNET's account of each plant's habitat, and
+where the Atlas of Living Australia's records lie on the whole valley's own layers against where all the plants' records lie
+(the recorders' own walking as the background: Phillips and others 2009, *Ecological Applications* 19).
+
+| Plant | Form | Where it stands in the valley | The tolerances follow from |
+|---|---|---|---|
+| Sydney blue gum, *Eucalyptus saligna* | tree, 25–50 m | the tall wet forest of the slopes and the gullies | "wet forest ... often on slopes" (PlantNET) and "in gullies and on sheltered slopes" (BioNet); recorded 1.5 to 2.2 times as often as the recorders walk on 15 to 45 degrees, so full vigour to 31 degrees; smooth bark, nothing to strip |
+| Cabbage tree palm, *Livistona australis* | tree (a palm), 15–30 m | the moist forest's gullies and the rainforest's margins | "moist sclerophyll forest, often in swampy sites, and on margins of rainforest" (PlantNET); recorded 1.7 times as often on the wettest ground and 1.7 to 3.4 times on 15 to 35 degrees, so full vigour to 35 degrees; a palm makes no wood |
+| Silvertop ash, *E. sieberi* | tree, 15–45 m | the dry forest of the shallow soils on rises and the escarpment's rims | "shallow soils of low to medium fertility on rises" (PlantNET); recorded most on the driest ground and on the steepest; rough compact bark on the trunk |
+| River oak, *Casuarina cunninghamiana* | tree, 15–35 m | the banks of the permanent streams | "along permanent freshwater streams" (PlantNET); 38 % of its records within 50 m of a creek or a stream against 18 % of all the records; the banks' alluvium (its records' 5th percentile of soil, 0.46 m) |
+| Scribbly gum, *E. racemosa* | small tree, 7.5–15 m | the dry woodland on the plateau's sandy soil | "dry sclerophyll woodland on shallow infertile sandy soil on sandstone" (PlantNET); its records on level ground, a fifth as often as the recorders walk on 15 to 25 degrees |
+| Lilly pilly, *Syzygium smithii* | tree, 10–20 m | the rainforest of the gullies and the sheltered slopes | "widespread in rainforest ... often along watercourses" (PlantNET); chosen from twelve rainforest trees by its records, the most of any (503), in the pre-1750 map's rainforest 1.38 times as often as the recorders' own; raised in shade; its berries are food |
+
+**The slope a plant keeps its vigour to.** Every coast plant's vigour falls in a straight line from level ground to nothing at
+the steepest face it will hold. Sydney blue gum keeps its full vigour to 31 degrees (0.60 rise over run), the palm and lilly
+pilly to 35 (0.70), and fall from there: a fall from level ground halved a tree's vigour on a moderate slope, and the valley's
+walls stood bare where the real walls carry forest. The coast's twelve keep a knee of zero, which is their old fall to the bit.
+Past 35 degrees the soil model holds no soil, so the steepest walls stay bare (DEBTS.md).
+
+Their crowns and sticks, as the table above has the coast's:
+
+| Plant | Crown across, as a share of its height | Sticks shed, per metre of its height |
+|---|---|---|
+| Sydney blue gum | 0.35 | 0.5 |
+| Cabbage tree palm | 0.25 | 0 (it drops fronds, and a frond as a thing is owed) |
+| Silvertop ash | 0.35 | 0.5 |
+| River oak | 0.35 | 0.4 |
+| Scribbly gum | 0.55 | 0.5 |
+| Lilly pilly | 0.50 | 0.3 |
+
+**The pre-1750 map as the check, never the input.** NVIS 7.0's pre-1750 Major Vegetation Groups (DCCEEW, CC BY 4.0;
+`Tools/data/fetch_nvis.py`) say what grew before clearing: over the whole valley's square, eucalypt open forest 29 %, tall
+open forest 28.5 %, rainforest 21 %, woodland 15 % and heath 3 %. The plants are placed by their tolerances alone, and the map
+is held against what they grow (`stand_check.py`): the crowns' cover against each group's own crown cover as its NVIS fact
+sheet states it (open forest 50–80 %, woodland 20–50 %; rainforest's foliage cover over 70 % and tall open forest's 30–70 %,
+read to a crown cover by the sheets' own pairing of the two; heath's trees up to 20 %), in all and group by group.
