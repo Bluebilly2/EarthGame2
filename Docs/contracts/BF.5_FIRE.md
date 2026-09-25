@@ -343,8 +343,8 @@ test-results.txt 2>&1; echo $?` printed 0: 911 passed, 0 failed, of 911 (869 bef
 for Windows only are not run on Linux. The 869 of main passed on this clone only once the LFS fixture was rebuilt (For main to
 decide 12): before it, 830 passed and 39 failed. Main moved on while the branch was open (to 091d029: the geology, the day's
 fixes, ruling 49); the branch merged with it in a throwaway worktree, not pushed, ran 911 passed, 0 failed, as well. The suite's
-source scans read the new files (no Unity, no `#if`, no clock or unseeded random, no to-do markers). Five sabotages, each restored byte for byte (sha256 checked) and each run over the three
-fire test classes:
+source scans read the new files (no Unity, no `#if`, no clock or unseeded random, no to-do markers). Five sabotages, each
+restored byte for byte (sha256 checked) and each run over the three fire test classes:
 
 | Sabotage | Red |
 |---|---|
