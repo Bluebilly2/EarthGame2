@@ -118,6 +118,31 @@ as the publisher asks:
 > Seamless Geology, accessed from The Sharing and Enabling Environmental Data Portal
 > [https://datasets.seed.nsw.gov.au/dataset/32ce9b05-0a22-4741-b292-64bcef50770f]
 
+## NVIS 7.0, pre-1750 Major Vegetation Groups — CC BY 4.0
+
+What grew over each region's surround before 1750, as the National Vegetation Information System reconstructs it
+("Australia - Pre-1750 Major Vegetation Groups - NVIS Version 7.0 (Albers 100m analysis product)"), is fetched from the
+Department's map service (https://gis.environment.gov.au/gispubmap/rest/services/ogc_services/NVIS_pre_mvg/MapServer) as an
+image of its classes by `Tools/data/fetch_nvis.py` and cached under `Data/cache/nvis/` (a dataset under `Data/`, fetched and
+never committed, and never shipped), with `manifest.json` keeping each file's request, size, SHA-256 and the legend's
+colours. Fetched 2026-09-25 (ruling 49):
+
+- `bherwerre-pre1750-mvg.png`: 127,018 bytes, SHA-256 `f0e58dc808b11faf13fefb36b59d274d2e78a9eb6fa68abf39aededfaff97caa`
+- `kangaroo-valley-pre1750-mvg.png`: 224,144 bytes, SHA-256 `af3ef6a4b715b26dc00d003152bc82592be847c412938dcb2796bd7d0aee6cd3`
+- `kangaroo-valley-whole-pre1750-mvg.png`: 590,289 bytes, SHA-256 `7aa72e9c5730c81f0b465a3bf0acb0d69895eca8acb82f6439b9dda51027ddfb`
+
+Nothing in a world or a build is derived from them yet; the far view (M1.6h) will colour the land past each region by them,
+and WG.2c's second stage holds the valley's plants against them. Licence: Creative Commons Attribution 4.0 International
+(https://creativecommons.org/licenses/by/4.0/). Attribution, as the publisher asks, the Australian Government as the source:
+
+> NVIS v7.0, (c) Australian Government Department of Climate Change, Energy, the Environment and Water (Environment
+> Information Australia), compiled from data supplied by the States and Territories: the ACT's Environment, Planning and
+> Sustainable Development Directorate; NSW's Office of Environment and Heritage; the NT's Department of Environment and
+> Natural Resources; the Queensland Herbarium; South Australia's Department for Environment and Water; Tasmania's
+> Department of Natural Resources and Environment; Victoria's Department of Energy, Environment and Climate Action; and
+> Western Australia's Department of Primary Industries and Regional Development and Department of Biodiversity,
+> Conservation and Attractions.
+
 ## The coordinate atlas's datasets (WG.0), fetched by `Tools/atlas/acquire.py` — each under its own licence
 
 Six global datasets, approved whole by William on 2026-09-21 ("all six") from the acquisition manifest in
