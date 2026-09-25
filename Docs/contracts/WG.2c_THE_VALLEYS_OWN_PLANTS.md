@@ -400,7 +400,7 @@ does not owe; they decide whether bangalay grows in the valley.
 - **The documents**: ARCHITECTURE §10's wire, tile, world file and layers rows, and its decision log; WORLD_GENERATION_DESIGN's
   catalogue row notes the adoption.
 
-**Tests.** The suite is 880, green in the side copy. Eight are new:
+**Tests.** The suite is 879, green in the side copy, again after the rebase onto 091d029. Eight are new:
 - `ThePlantsKeepTheirNumbers`;
 - `EveryOneByteCodeConvertsToTheSameTree`, over all 256 codes against the one-byte legend as it printed;
 - `AStandLayerIsReadInTheTwoByteLayoutWhicheverItHolds`;
@@ -482,5 +482,13 @@ loss, then `tile_check` on that join's own tile cache):
 the founder at the wake, east -1392 north 2804, beside the same creek; drank at the fresh water and was refused the sea as salt;
 6 frames, 0 errors. `thirst_check` GREEN, every row.
 
-**Still owed on stage one:** the corpus's join and walk (`join_check --only N1` and `--only N2`), run on stage one rebased onto the
-main session's 091d029 once its runs were done; they are recorded in the commit that closes stage one.
+**The corpus** (`Artefacts/corpus/wg2c-s1-20260925T014907Z-side`), on stage one rebased onto the main session's 091d029
+(a6a743d). The harness was built there, the edit-mode suite 12 of 12 again. The run made a fresh gate world, its wake at
+(-1392, 2804), under a request for quiet from the sweep once the main session's runs were done:
+- `join_check --only N1`: join-a interactive in 1.10 s (9 tiles, 291,550 bytes; at most 10 s), join-b in 3.31 s (329,852 bytes;
+  at most 20 s).
+- `join_check --only N2`: 12 rows, 0 failed. 0 corrections for every walker over ten minutes each, two over the wire and one in
+  SOLO; every named segment reached (bank, shore, cliff, platform, wade); the largest displacement 0.00 m.
+
+Stage one is closed on the side worker's part, reviewed by the main session before the push. The main session's sweep and its
+re-bake of the heights follow.
