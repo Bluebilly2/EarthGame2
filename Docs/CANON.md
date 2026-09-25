@@ -348,3 +348,11 @@ are not inherited as canon. The good ones return in `STANDARDS.md` as v2's own d
     to play, in a way i dont like." The early versions show the body's measures as bars beside the words, one for each
     measure the game models (`contracts/M1.F_THE_BODYS_BARS.md`); the words stay. GAME_DESIGN §40 already puts physical
     condition, temperature and hunger and thirst in the early interface.
+
+49. **Downloads are the agents' to make.** 2026-09-25, having said yes to the two geology files and the bangalay records the
+    same morning: "also, you (and the sideworker) have free reign to download anything you like." A dataset, a record or an
+    asset the work needs is fetched without asking him first; this lifts ruling 26's amendment and ruling 42's yes to the
+    exact files, and ruling 46's note that his word on them stands. What stays: every download is recorded as the six
+    datasets were (its source, its licence, its size and its SHA-256, a tool that can fetch it again) and named in the
+    check-in that follows it; nothing that runs is taken from a source that cannot be trusted; and a vendored file lands with
+    its notice in `THIRD_PARTY_NOTICES.md` in the same commit.
